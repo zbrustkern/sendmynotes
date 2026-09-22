@@ -1,0 +1,268 @@
+"use client";
+
+import React, { useState } from "react";
+import {
+  Elements,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
+import { loadStripe, Stripe } from "@stripe/stripe-js";
+import { Lock, ShieldCheck, Mail, Coins, ArrowRight, Loader2 } from "lucide-react";
+
+interface CheckoutStepProps {
+  orderId: string;
+  clientSecret: string | null;
+  customerEmail: string;
+  onChangeCustomerEmail: (email: string) => void;
+  onSuccess: (orderId: string) => void;
+  isMock: boolean;
+}
+
+let stripePromise: Promise<Stripe | null> | null = null;
+const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
+if (publishableKey && !publishableKey.includes("placeholder")) {
+  stripePromise = loadStripe(publishableKey);
+}
+
+function InnerPaymentForm({
+  orderId,
+  customerEmail,
+  onChangeCustomerEmail,
+  onSuccess,
+  isMock,
+}: {
+  orderId: string;
+  customerEmail: string;
+  onChangeCustomerEmail: (email: string) => void;
+  onSuccess: (orderId: string) => void;
+  isMock: boolean;
+}) {
+  const stripe = useStripe();
+  const elements = useElements();
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customerEmail.trim() || !customerEmail.includes("@")) {
+      setErrorMessage("Please enter a valid email address for your order receipt.");
+      return;
+    }
+
+    setErrorMessage(null);
+    setIsProcessing(true);
+
+    // Mock Mode Checkout (Development/Sandbox)
+    if (isMock || !stripe || !elements) {
+      setTimeout(async () => {
+        try {
+          // Trigger the mock webhook execution on server for end-to-end flow
+          const webhookRes = await fetch("/api/webhooks/stripe", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-mock-payment-intent": `pi_mock_${orderId}`,
+            },
+            body: JSON.stringify({
+              type: "payment_intent.succeeded",
+              data: {
+                object: {
+                  id: `pi_mock_${orderId}`,
+                  metadata: { orderId },
+                  receipt_email: customerEmail,
+                  amount: 650,
+                  status: "succeeded",
+                },
+              },
+            }),
+          });
+          const webhookData = await webhookRes.json();
+          console.log("[Mock Checkout] Webhook simulation returned:", webhookData);
+        } catch (err) {
+          console.warn("[Mock Checkout] Webhook simulation notice:", err);
+        }
+        setIsProcessing(false);
+        onSuccess(orderId);
+      }, 1200);
+      return;
+    }
+
+    try {
+      const { error, paymentIntent } = await stripe.confirmPayment({
+        elements,
+        confirmParams: {
+          return_url: `${window.location.origin}/order/${orderId}`,
+          receipt_email: customerEmail,
+        },
+        redirect: "if_required",
+      });
+
+      if (error) {
+        setErrorMessage(error.message || "Payment failed. Please check your card info.");
+        setIsProcessing(false);
+      } else if (paymentIntent && paymentIntent.status === "succeeded") {
+        onSuccess(orderId);
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Payment error occurred";
+      setErrorMessage(msg);
+      setIsProcessing(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Zero Login Receipt Email Field */}
+      <div>
+        <label className="block text-xs font-semibold uppercase tracking-wider text-stone-700 mb-1.5 flex items-center gap-1.5">
+          <Mail className="w-3.5 h-3.5 text-stone-500" />
+          Receipt & Tracking Delivery Email
+        </label>
+        <input
+          type="email"
+          required
+          value={customerEmail}
+          onChange={(e) => {
+            onChangeCustomerEmail(e.target.value);
+            if (errorMessage) setErrorMessage(null);
+          }}
+          placeholder="your.email@example.com"
+          className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+        />
+        <p className="text-[11px] text-stone-400 mt-1">
+          Zero accounts or passwords required. We only send your receipt and USPS tracking updates.
+        </p>
+      </div>
+
+      {/* Stripe Payment Elements or Mock Card UI */}
+      <div className="bg-stone-50/70 p-4 rounded-xl border border-stone-200">
+        <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-2.5 flex items-center justify-between">
+          <span className="flex items-center gap-1.5">
+            <Lock className="w-3 h-3 text-emerald-600" />
+            Secure Card Payment
+          </span>
+          <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
+        </label>
+
+        {isMock || !publishableKey || publishableKey.includes("placeholder") ? (
+          <div className="p-3 bg-white border border-stone-200 rounded-lg text-xs space-y-1.5 text-stone-600">
+            <div className="flex items-center justify-between text-amber-700 font-medium">
+              <span className="flex items-center gap-1">
+                <Coins className="w-3.5 h-3.5" /> Instant Vending Simulator Mode
+              </span>
+              <span className="bg-amber-100 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">
+                Dev Mode
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-500 leading-normal">
+              Stripe test simulation active. Clicking &quot;Drop Coin & Mail Card&quot; will process your \$6.50 order and dispatch the robotic pen fulfillment pipeline immediately.
+            </p>
+          </div>
+        ) : (
+          <PaymentElement />
+        )}
+      </div>
+
+      {errorMessage && (
+        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-medium">
+          {errorMessage}
+        </div>
+      )}
+
+      {/* Flat Rate Total Box */}
+      <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-2">
+        <div className="flex justify-between text-xs text-stone-600">
+          <span>5×7 Custom Folded Linen Card</span>
+          <span>$4.50</span>
+        </div>
+        <div className="flex justify-between text-xs text-stone-600">
+          <span>Robotic Pen Inking (Real Ballpoint)</span>
+          <span className="text-emerald-700 font-medium">Included</span>
+        </div>
+        <div className="flex justify-between text-xs text-stone-600">
+          <span>USPS First Class Stamp & Mailing</span>
+          <span className="text-emerald-700 font-medium">Included</span>
+        </div>
+        <div className="pt-2 border-t border-amber-200/60 flex justify-between items-baseline font-bold text-stone-900">
+          <span className="text-sm">Total Due</span>
+          <span className="text-xl text-amber-950 font-serif">$6.50</span>
+        </div>
+      </div>
+
+      {/* Vending Machine Coin-Drop Push Button */}
+      <button
+        type="submit"
+        disabled={isProcessing}
+        className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-500 text-white font-bold text-base shadow-xl hover:shadow-2xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+      >
+        {isProcessing ? (
+          <>
+            <Loader2 className="w-5 h-5 animate-spin" />
+            <span>Dispensing & Writing Card...</span>
+          </>
+        ) : (
+          <>
+            <Coins className="w-5 h-5 text-amber-200" />
+            <span>Drop Coin & Mail Card ($6.50)</span>
+            <ArrowRight className="w-4 h-4 ml-1" />
+          </>
+        )}
+      </button>
+
+      <div className="flex items-center justify-center gap-3 text-[11px] text-stone-400">
+        <span className="flex items-center gap-1">
+          <ShieldCheck className="w-3.5 h-3.5 text-stone-400" />
+          No Subscription
+        </span>
+        <span>•</span>
+        <span>Coins In, Card Out</span>
+        <span>•</span>
+        <span>USPS First Class Delivery</span>
+      </div>
+    </form>
+  );
+}
+
+export function CheckoutStep(props: CheckoutStepProps) {
+  return (
+    <div className="space-y-6">
+      <div>
+        <div className="flex items-center gap-2 mb-1.5">
+          <span className="w-6 h-6 rounded-full bg-amber-500 text-white font-bold text-xs flex items-center justify-center">
+            4
+          </span>
+          <h2 className="text-xl font-bold tracking-tight text-stone-900">
+            1-Click Vending Checkout
+          </h2>
+        </div>
+        <p className="text-sm text-stone-500">
+          No signups, no onboarding, no recurring memberships. Just \$6.50 flat all-inclusive.
+        </p>
+      </div>
+
+      <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-sm">
+        {props.clientSecret && stripePromise ? (
+          <Elements
+            stripe={stripePromise}
+            options={{
+              clientSecret: props.clientSecret,
+              appearance: {
+                theme: "stripe",
+                variables: {
+                  colorPrimary: "#D97706",
+                  colorBackground: "#FAF8F5",
+                  borderRadius: "12px",
+                },
+              },
+            }}
+          >
+            <InnerPaymentForm {...props} />
+          </Elements>
+        ) : (
+          <InnerPaymentForm {...props} isMock={true} />
+        )}
+      </div>
+    </div>
+  );
+}
