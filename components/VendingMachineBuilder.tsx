@@ -64,6 +64,7 @@ export function VendingMachineBuilder() {
   const [customerEmail, setCustomerEmail] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
   const [clientSecret, setClientSecret] = useState<string | null>(null);
+  const [publishableKey, setPublishableKey] = useState<string | null>(null);
   const [isInitializingCheckout, setIsInitializingCheckout] = useState<boolean>(false);
   const [isMockIntent, setIsMockIntent] = useState<boolean>(true);
 
@@ -127,6 +128,9 @@ export function VendingMachineBuilder() {
 
       setOrderId(data.orderId);
       setClientSecret(data.clientSecret);
+      if (data.publishableKey) {
+        setPublishableKey(data.publishableKey);
+      }
       setIsMockIntent(data.isMock);
       trackEvent("checkout_initiated", 4, { orderId: data.orderId, amount: 900 });
       setCurrentStep(4);
@@ -298,6 +302,7 @@ export function VendingMachineBuilder() {
               <CheckoutStep
                 orderId={orderId}
                 clientSecret={clientSecret}
+                publishableKey={publishableKey}
                 customerEmail={customerEmail}
                 onChangeCustomerEmail={setCustomerEmail}
                 onSuccess={handlePaymentSuccess}

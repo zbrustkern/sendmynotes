@@ -13,16 +13,11 @@ import { Lock, ShieldCheck, Mail, ArrowRight, Loader2 } from "lucide-react";
 interface CheckoutStepProps {
   orderId: string;
   clientSecret: string | null;
+  publishableKey?: string | null;
   customerEmail: string;
   onChangeCustomerEmail: (email: string) => void;
   onSuccess: (orderId: string) => void;
   isMock: boolean;
-}
-
-let stripePromise: Promise<Stripe | null> | null = null;
-const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
-if (publishableKey && !publishableKey.includes("placeholder")) {
-  stripePromise = loadStripe(publishableKey);
 }
 
 function InnerPaymentForm({
@@ -152,7 +147,7 @@ function InnerPaymentForm({
           <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
         </label>
 
-        {isMock || !publishableKey || publishableKey.includes("placeholder") ? (
+        {isMock || !elements ? (
           <div className="p-3 bg-white border border-stone-200 rounded-lg text-xs space-y-1.5 text-stone-600">
             <div className="flex items-center justify-between text-amber-700 font-medium">
               <span className="flex items-center gap-1">
@@ -257,6 +252,16 @@ function InnerPaymentForm({
 }
 
 export function CheckoutStep(props: CheckoutStepProps) {
+  const activePublishableKey =
+    props.publishableKey || process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || null;
+
+  const stripePromise = React.useMemo(() => {
+    if (!activePublishableKey || activePublishableKey.includes("placeholder")) {
+      return null;
+    }
+    return loadStripe(activePublishableKey);
+  }, [activePublishableKey]);
+
   return (
     <div className="space-y-6">
       <div>

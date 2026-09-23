@@ -57,10 +57,16 @@ export async function POST(req: NextRequest) {
 
     await saveOrder(orderRecord);
 
+    const publishableKey =
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+      null;
+
     return NextResponse.json({
       orderId,
       clientSecret: paymentIntentResult.clientSecret,
       paymentIntentId: paymentIntentResult.paymentIntentId,
+      publishableKey,
       isMock: paymentIntentResult.isMock,
       amountInCents: CARD_FLAT_RATE_CENTS,
     });
