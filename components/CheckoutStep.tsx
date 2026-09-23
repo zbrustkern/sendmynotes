@@ -41,6 +41,7 @@ function InnerPaymentForm({
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isPaymentElementReady, setIsPaymentElementReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -71,7 +72,7 @@ function InnerPaymentForm({
                   id: `pi_mock_${orderId}`,
                   metadata: { orderId },
                   receipt_email: customerEmail,
-                  amount: 650,
+                  amount: 900,
                   status: "succeeded",
                 },
               },
@@ -85,6 +86,12 @@ function InnerPaymentForm({
         setIsProcessing(false);
         onSuccess(orderId);
       }, 1200);
+      return;
+    }
+
+    if (!isPaymentElementReady) {
+      setErrorMessage("Payment form is still loading. Please try again in a moment.");
+      setIsProcessing(false);
       return;
     }
 
@@ -156,11 +163,32 @@ function InnerPaymentForm({
               </span>
             </div>
             <p className="text-[11px] text-stone-500 leading-normal">
-              Stripe test mode active. Clicking &quot;Send Handwritten Card&quot; will process your \$6.50 order and dispatch the robotic pen fulfillment pipeline immediately.
+              Stripe test mode active. Clicking &quot;Send Handwritten Card&quot; will process your \$9.00 order and dispatch the robotic pen fulfillment pipeline immediately.
             </p>
           </div>
         ) : (
-          <PaymentElement />
+          <div className="min-h-[140px] flex flex-col justify-center">
+            {!isPaymentElementReady && (
+              <div className="flex flex-col items-center justify-center py-8 gap-2.5 text-stone-500 text-xs">
+                <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
+                <span>Loading secure Stripe payment fields...</span>
+              </div>
+            )}
+            <PaymentElement
+              id="payment-element"
+              options={{
+                layout: "tabs",
+              }}
+              onReady={() => setIsPaymentElementReady(true)}
+              onLoadError={(err) => {
+                console.error("[Stripe Load Error]", err);
+                setErrorMessage(
+                  err.error?.message ||
+                    "Could not load payment fields. If using an ad-blocker, please disable it for Stripe checkout."
+                );
+              }}
+            />
+          </div>
         )}
       </div>
 
@@ -193,13 +221,18 @@ function InnerPaymentForm({
       {/* Order Confirmation Primary Action Button */}
       <button
         type="submit"
-        disabled={isProcessing}
+        disabled={isProcessing || (!isMock && !isPaymentElementReady)}
         className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-500 text-white font-bold text-base shadow-xl hover:shadow-2xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
       >
         {isProcessing ? (
           <>
             <Loader2 className="w-5 h-5 animate-spin" />
             <span>Processing & Inking Card...</span>
+          </>
+        ) : !isMock && !isPaymentElementReady ? (
+          <>
+            <Loader2 className="w-4 h-4 animate-spin text-white/80" />
+            <span>Loading Payment Form...</span>
           </>
         ) : (
           <>
