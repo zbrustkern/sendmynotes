@@ -37,11 +37,6 @@ env:
     availability:
       - RUNTIME
 
-  - variable: STRIPE_PUBLISHABLE_KEY
-    secret: stripe-publishable-key
-    availability:
-      - RUNTIME
-
   # Public client configuration
   - variable: NEXT_PUBLIC_APP_URL
     value: https://sendmynotes.com
