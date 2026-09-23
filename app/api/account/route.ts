@@ -24,12 +24,21 @@ export async function GET(req: NextRequest) {
     }
 
     // Lookup user's past orders
-    const ordersSnapshot = await getOrdersCollection()
-      .where("customerEmail", "==", email || user?.email || "")
-      .get();
-
+    const emailToQuery = (email || user?.email || "").toLowerCase();
+    const ordersSnapshot = await getOrdersCollection().get();
     const orders: Order[] = [];
-    ordersSnapshot.forEach((doc) => orders.push(doc.data() as Order));
+
+    ordersSnapshot.forEach((doc) => {
+      const order = doc.data() as Order;
+      if (
+        (uid && order.userId === uid) ||
+        (emailToQuery && order.customerEmail?.toLowerCase() === emailToQuery)
+      ) {
+        orders.push(order);
+      }
+    });
+
+    orders.sort((a, b) => b.createdAt - a.createdAt);
 
     return NextResponse.json({
       user,
@@ -50,19 +59,26 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "UID and email are required" }, { status: 400 });
     }
 
+    const userRef = firestoreDb.collection(USERS_COLLECTION).doc(uid);
+    const existingDoc = await userRef.get();
+    const existingData = existingDoc.exists ? (existingDoc.data() as UserAccount) : null;
+
     const userRecord: UserAccount = {
       uid,
       email,
-      displayName: displayName || "",
-      savedAddresses: savedAddresses || [],
-      defaultReturnAddress: defaultReturnAddress || undefined,
-      savedCovers: [],
-      creditsBalance: 0,
-      createdAt: Date.now(),
+      displayName: displayName ?? existingData?.displayName ?? "",
+      savedAddresses: savedAddresses ?? existingData?.savedAddresses ?? [],
+      defaultReturnAddress:
+        defaultReturnAddress !== undefined
+          ? defaultReturnAddress
+          : existingData?.defaultReturnAddress,
+      savedCovers: existingData?.savedCovers || [],
+      creditsBalance: existingData?.creditsBalance || 0,
+      createdAt: existingData?.createdAt || Date.now(),
       updatedAt: Date.now(),
     };
 
-    await firestoreDb.collection(USERS_COLLECTION).doc(uid).set(userRecord, { merge: true });
+    await userRef.set(userRecord, { merge: true });
 
     return NextResponse.json({ success: true, user: userRecord });
   } catch (err: unknown) {

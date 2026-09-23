@@ -22,12 +22,20 @@ import { CheckoutStep } from "./CheckoutStep";
 import { CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { MailingAddress } from "@/lib/types";
 import { trackEvent } from "@/lib/telemetry";
+import { useAuth } from "@/context/AuthContext";
+import { AuthModal } from "./AuthModal";
+import Link from "next/link";
+import { User, LogIn } from "lucide-react";
 
 export function VendingMachineBuilder() {
   const router = useRouter();
+  const { user, account, saveAddress } = useAuth();
 
   // Builder Steps: 1 = Cover, 2 = Inside Note, 3 = Address, 4 = Checkout
   const [currentStep, setCurrentStep] = useState<number>(1);
+
+  // Auth Modal State
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Card Content State
   const [occasion, setOccasion] = useState<string>("Birthday");
@@ -37,7 +45,10 @@ export function VendingMachineBuilder() {
   const [handwrittenNote, setHandwrittenNote] = useState<string>(CARD_PRESETS[0].defaultHandwrittenNote);
   const [fontStyleId, setFontStyleId] = useState<string>("1");
 
-  // Address State
+  // Address State & Scheduling
+  const [scheduledSendDate, setScheduledSendDate] = useState<string>("");
+  const [saveRecipientToAddressBook, setSaveRecipientToAddressBook] = useState<boolean>(true);
+
   const [recipient, setRecipient] = useState<MailingAddress>({
     firstName: "Alex",
     lastName: "Rivera",
@@ -60,6 +71,13 @@ export function VendingMachineBuilder() {
     country: "USA",
   });
 
+  // Pre-fill user's default return address if available
+  useEffect(() => {
+    if (account?.defaultReturnAddress) {
+      setReturnAddress(account.defaultReturnAddress);
+    }
+  }, [account]);
+
   // Checkout State
   const [customerEmail, setCustomerEmail] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
@@ -67,6 +85,13 @@ export function VendingMachineBuilder() {
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
   const [isInitializingCheckout, setIsInitializingCheckout] = useState<boolean>(false);
   const [isMockIntent, setIsMockIntent] = useState<boolean>(true);
+
+  // Pre-fill customer email if logged in
+  useEffect(() => {
+    if (user?.email && !customerEmail) {
+      setCustomerEmail(user.email);
+    }
+  }, [user, customerEmail]);
 
   // Telemetry: Track session start on mount
   useEffect(() => {
@@ -118,12 +143,29 @@ export function VendingMachineBuilder() {
           recipientAddress: recipient,
           returnAddress,
           customerEmail,
+          userId: user?.uid,
+          scheduledSendDate: scheduledSendDate || undefined,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize checkout.");
+      }
+
+      // If user is logged in and opted to save recipient address to their address book
+      if (user && saveRecipientToAddressBook) {
+        saveAddress({
+          firstName: recipient.firstName,
+          lastName: recipient.lastName,
+          street1: recipient.street1,
+          street2: recipient.street2,
+          city: recipient.city,
+          state: recipient.state,
+          zip: recipient.zip,
+          country: recipient.country,
+          label: `${recipient.firstName}'s Address`,
+        }).catch((err) => console.warn("Notice saving recipient:", err));
       }
 
       setOrderId(data.orderId);
@@ -178,6 +220,29 @@ export function VendingMachineBuilder() {
                 $9.00 <span className="text-xs font-sans font-normal text-emerald-600">Postage Incl.</span>
               </span>
             </div>
+
+            <div className="h-6 w-px bg-stone-200 hidden sm:block" />
+
+            {user ? (
+              <Link
+                href="/account"
+                className="flex items-center gap-2 px-3 py-1.5 bg-stone-100 hover:bg-stone-200/70 rounded-xl border border-stone-200 transition text-xs font-semibold text-stone-800"
+              >
+                <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] font-bold">
+                  {user.email ? user.email[0].toUpperCase() : "U"}
+                </div>
+                <span className="hidden md:inline">My Account</span>
+              </Link>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAuthModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-100 hover:bg-stone-200/70 rounded-xl border border-stone-200 transition text-xs font-semibold text-stone-700 cursor-pointer"
+              >
+                <LogIn className="w-3.5 h-3.5" />
+                <span>Sign In</span>
+              </button>
+            )}
           </div>
         </div>
       </header>
@@ -292,6 +357,10 @@ export function VendingMachineBuilder() {
                 onChangeRecipient={handleUpdateRecipient}
                 returnAddress={returnAddress}
                 onChangeReturnAddress={handleUpdateReturn}
+                scheduledSendDate={scheduledSendDate}
+                onChangeScheduledSendDate={setScheduledSendDate}
+                saveRecipientToAddressBook={saveRecipientToAddressBook}
+                onToggleSaveRecipient={setSaveRecipientToAddressBook}
               />
             )}
 
@@ -362,6 +431,11 @@ export function VendingMachineBuilder() {
           sendmynotes.com &copy; {new Date().getFullYear()} — Meaningful Handwritten Greeting Cards Made Simple
         </p>
       </footer>
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+      />
     </div>
   );
 }

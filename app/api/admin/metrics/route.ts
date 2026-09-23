@@ -2,9 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrdersCollection, firestoreDb } from "@/lib/firebase-admin";
 import { Order, AdminMetrics, TelemetryEvent } from "@/lib/types";
 import { TELEMETRY_COLLECTION } from "@/lib/telemetry";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 
 export async function GET(req: NextRequest) {
   try {
+    if (!verifyAdminAuth(req)) {
+      return NextResponse.json({ error: "Unauthorized access to admin metrics" }, { status: 401 });
+    }
+
     // 1. Fetch Orders from Firestore
     const ordersSnapshot = await getOrdersCollection().get();
     const orders: Order[] = [];

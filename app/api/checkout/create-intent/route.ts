@@ -15,6 +15,8 @@ export async function POST(req: NextRequest) {
       recipientAddress,
       returnAddress,
       customerEmail = "",
+      userId,
+      scheduledSendDate,
     } = body;
 
     if (!frontImageUrl) {
@@ -32,7 +34,7 @@ export async function POST(req: NextRequest) {
     // Generate unique order ID
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    // Create Stripe PaymentIntent ($6.50 flat rate)
+    // Create Stripe PaymentIntent ($9.00 flat rate)
     const paymentIntentResult = await createCardPaymentIntent({
       orderId,
       customerEmail: customerEmail || undefined,
@@ -43,12 +45,14 @@ export async function POST(req: NextRequest) {
       id: orderId,
       stripePaymentId: paymentIntentResult.paymentIntentId,
       customerEmail,
+      userId: userId || undefined,
       frontImageUrl,
       printedMessage: printedMessage || "",
       handwrittenNote: handwrittenNote || "",
       fontStyleId,
       recipientAddress: recipientAddress as MailingAddress,
       returnAddress: returnAddress as MailingAddress,
+      scheduledSendDate: scheduledSendDate || undefined,
       status: "PENDING_PAYMENT",
       amountInCents: CARD_FLAT_RATE_CENTS,
       createdAt: Date.now(),

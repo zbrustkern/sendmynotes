@@ -66,6 +66,7 @@ export async function POST(req: NextRequest) {
         fontId: order.fontStyleId || "1",
         recipient: order.recipientAddress,
         returnAddress: order.returnAddress,
+        scheduledSendDate: order.scheduledSendDate,
       });
 
       if (!fulfillment.success) {

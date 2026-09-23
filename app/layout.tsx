@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/context/AuthContext";
 
 export const metadata: Metadata = {
   title: "sendmynotes.com | AI-Designed, Real-Pen Handwritten Greeting Cards",
@@ -28,7 +29,7 @@ export default function RootLayout({
         />
       </head>
       <body className="min-h-screen bg-[#FAF8F5] text-stone-900 antialiased selection:bg-amber-100 selection:text-amber-900">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

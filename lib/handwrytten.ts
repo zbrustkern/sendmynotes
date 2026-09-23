@@ -125,6 +125,7 @@ export async function fulfillHandwryttenOrder(
         card_id: customCardId,
         font_label: fontLabel,
         message: params.handwrittenMessage,
+        ...(params.scheduledSendDate ? { date_send: params.scheduledSendDate } : {}),
         recipient_first_name: params.recipient.firstName,
         recipient_last_name: params.recipient.lastName,
         recipient_address1: params.recipient.street1,

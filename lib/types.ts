@@ -16,6 +16,12 @@ export type OrderStatus =
   | "QUEUED_FOR_FULFILLMENT"
   | "FAILED";
 
+export interface SavedAddress extends MailingAddress {
+  id: string;
+  label?: string;
+  occasionReminderDate?: string; // YYYY-MM-DD for birthdays/anniversaries
+}
+
 export interface Order {
   id: string;
   stripePaymentId?: string;
@@ -30,6 +36,7 @@ export interface Order {
   status: OrderStatus;
   handwryttenOrderId?: string;
   fulfillmentError?: string;
+  scheduledSendDate?: string; // YYYY-MM-DD if scheduled
   amountInCents: number;
   createdAt: number;
   updatedAt: number;
@@ -64,6 +71,7 @@ export interface HandwryttenOrderParams {
   fontId: string;
   recipient: MailingAddress;
   returnAddress: MailingAddress;
+  scheduledSendDate?: string; // YYYY-MM-DD
 }
 
 export interface HandwryttenOrderResult {
@@ -80,6 +88,7 @@ export interface FontOption {
   fontClass: string;
   description: string;
   handwryttenFontId: string;
+  handwryttenFontLabel?: string;
 }
 
 // User Accounts Model
@@ -87,7 +96,7 @@ export interface UserAccount {
   uid: string;
   email: string;
   displayName?: string;
-  savedAddresses: MailingAddress[];
+  savedAddresses: SavedAddress[];
   defaultReturnAddress?: MailingAddress;
   savedCovers: string[];
   creditsBalance: number;

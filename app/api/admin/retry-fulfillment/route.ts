@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 
 export async function POST(req: NextRequest) {
   try {
+    if (!verifyAdminAuth(req)) {
+      return NextResponse.json({ error: "Unauthorized access to fulfillment retry" }, { status: 401 });
+    }
+
     const { orderId } = await req.json();
 
     if (!orderId) {
@@ -24,6 +29,7 @@ export async function POST(req: NextRequest) {
       fontId: order.fontStyleId || "1",
       recipient: order.recipientAddress,
       returnAddress: order.returnAddress,
+      scheduledSendDate: order.scheduledSendDate,
     });
 
     if (!fulfillment.success) {

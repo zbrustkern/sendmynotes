@@ -27,6 +27,7 @@ export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessKey, setAccessKey] = useState("");
   const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
 
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [loading, setLoading] = useState(false);
@@ -34,14 +35,35 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [retryingId, setRetryingId] = useState<string | null>(null);
 
-  const verifyAccess = (keyToTest: string) => {
-    // Allows instant dev access with 'admin' or environment access
-    if (keyToTest === "admin" || keyToTest === "sendmynotes2026" || process.env.NODE_ENV === "development") {
-      setIsAuthenticated(true);
-      sessionStorage.setItem("smn_admin_auth", "true");
-      fetchMetrics();
-    } else {
-      setAuthError("Invalid admin access key. Please try again.");
+  const verifyAccess = async (keyToTest: string) => {
+    setAuthLoading(true);
+    setAuthError("");
+    try {
+      const res = await fetch("/api/admin/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ passphrase: keyToTest }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setAuthError(data.error || "Invalid admin passphrase. Please try again.");
+      } else {
+        setIsAuthenticated(true);
+        fetchMetrics();
+      }
+    } catch {
+      setAuthError("Network error. Please try again.");
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/admin/auth", { method: "DELETE" });
+    } finally {
+      setIsAuthenticated(false);
+      setMetrics(null);
     }
   };
 
@@ -49,6 +71,10 @@ export default function AdminDashboardPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/admin/metrics");
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
       if (!res.ok) throw new Error("Failed to load metrics");
       const data = await res.json();
       setMetrics(data);
@@ -83,10 +109,19 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    if (sessionStorage.getItem("smn_admin_auth") === "true") {
-      setIsAuthenticated(true);
-      fetchMetrics();
-    }
+    const checkAuth = async () => {
+      try {
+        const res = await fetch("/api/admin/auth");
+        const data = await res.json();
+        if (data.authenticated) {
+          setIsAuthenticated(true);
+          fetchMetrics();
+        }
+      } catch (err) {
+        console.error("Admin auth check failed:", err);
+      }
+    };
+    checkAuth();
   }, []);
 
   if (!isAuthenticated) {
@@ -206,6 +241,13 @@ export default function AdminDashboardPage() {
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Storefront</span>
             </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl border border-rose-200 transition"
+            >
+              Log Out
+            </button>
           </div>
         </div>
       </header>
