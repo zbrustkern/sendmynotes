@@ -13,6 +13,7 @@ export type OrderStatus =
   | "PENDING_PAYMENT"
   | "PAYMENT_RECEIVED"
   | "PROCESSING_HANDWRYTTEN"
+  | "QUEUED_FOR_FULFILLMENT"
   | "FAILED";
 
 export interface Order {
@@ -28,6 +29,7 @@ export interface Order {
   returnAddress: MailingAddress;
   status: OrderStatus;
   handwryttenOrderId?: string;
+  fulfillmentError?: string;
   amountInCents: number;
   createdAt: number;
   updatedAt: number;

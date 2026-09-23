@@ -69,14 +69,16 @@ export async function POST(req: NextRequest) {
       });
 
       if (!fulfillment.success) {
-        console.error(`[Webhook] Handwrytten fulfillment failed for Order ${orderId}:`, fulfillment.error);
+        console.error(`[Webhook] Handwrytten fulfillment queued/retry for Order ${orderId}:`, fulfillment.error);
         await updateOrderStatus(orderId, {
-          status: "FAILED",
+          status: "QUEUED_FOR_FULFILLMENT",
+          fulfillmentError: fulfillment.error || "Awaiting studio fulfillment queue",
         });
         return NextResponse.json({
           received: true,
+          status: "QUEUED_FOR_FULFILLMENT",
           error: fulfillment.error,
-        }, { status: 500 });
+        }, { status: 200 });
       }
 
       // 3. Update Firestore Order to PROCESSING_HANDWRYTTEN

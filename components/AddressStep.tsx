@@ -42,9 +42,6 @@ export function AddressStep({
               <Send className="w-4 h-4 text-amber-500" />
               Recipient (Send To)
             </h3>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60">
-              Envelope Front
-            </span>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
@@ -149,9 +146,6 @@ export function AddressStep({
               <MapPin className="w-4 h-4 text-stone-500" />
               Sender (Return Address)
             </h3>
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-stone-600 bg-stone-100 px-2 py-0.5 rounded-full">
-              Top Left Corner
-            </span>
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">

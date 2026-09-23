@@ -89,8 +89,42 @@ export default function OrderStatusPage() {
     );
   }
 
-  const isFulfilled =
-    order.status === "PROCESSING_HANDWRYTTEN" || order.status === "PAYMENT_RECEIVED";
+  const getStatusDisplay = (status: string) => {
+    switch (status) {
+      case "PROCESSING_HANDWRYTTEN":
+        return {
+          label: "Inking in Progress",
+          className: "text-emerald-700 bg-emerald-50 border-emerald-200",
+        };
+      case "COMPLETED":
+      case "MAILED":
+        return {
+          label: "Mailed via USPS",
+          className: "text-emerald-700 bg-emerald-50 border-emerald-200",
+        };
+      case "PENDING_PAYMENT":
+        return {
+          label: "Awaiting Payment",
+          className: "text-amber-700 bg-amber-50 border-amber-200",
+        };
+      case "PAYMENT_RECEIVED":
+      case "QUEUED_FOR_FULFILLMENT":
+      case "FAILED":
+      default:
+        return {
+          label: "Queued for Inking",
+          className: "text-amber-700 bg-amber-50 border-amber-200",
+        };
+    }
+  };
+
+  const statusDisplay = getStatusDisplay(order.status);
+  const isInking = order.status === "PROCESSING_HANDWRYTTEN";
+  const isQueuedOrPaid =
+    order.status === "PAYMENT_RECEIVED" ||
+    order.status === "QUEUED_FOR_FULFILLMENT" ||
+    order.status === "FAILED" ||
+    isInking;
 
   const trackingSteps = [
     {
@@ -100,18 +134,20 @@ export default function OrderStatusPage() {
       status: "complete",
     },
     {
-      title: "Artwork Printed on 5×7 Linen",
-      description: "Cover artwork & left page printed sentiment pressed.",
+      title: "Artwork Printed on Heavy Cardstock",
+      description: "5×7 folded card printed with rich front cover artwork.",
       icon: Sparkles,
       status: "complete",
     },
     {
-      title: "Robotic Pen Inking In Progress",
-      description: `Handwrytten robotic plotter applying real blue ballpoint ink to right page. ${
-        order.handwryttenOrderId ? `(ID: ${order.handwryttenOrderId})` : ""
-      }`,
+      title: "Real Ink Handwriting In Progress",
+      description: isInking
+        ? `Handwrytten robotic pen applying real blue ballpoint ink to inside right leaf. ${
+            order.handwryttenOrderId ? `(Order ID: ${order.handwryttenOrderId})` : ""
+          }`
+        : "Order confirmed. Queued for real ink handwriting in our studio.",
       icon: PenTool,
-      status: isFulfilled ? "current" : "upcoming",
+      status: isQueuedOrPaid ? "current" : "upcoming",
     },
     {
       title: "Enveloped & Stamped",
@@ -153,10 +189,10 @@ export default function OrderStatusPage() {
             <CheckCircle2 className="w-8 h-8 stroke-[2.5]" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900">
-            Order Confirmed & Sent to Robotic Inking!
+            Order Confirmed & Queued for Inking!
           </h1>
           <p className="text-stone-600 text-sm max-w-lg mx-auto">
-            Your card is currently queued on a Handwrytten robotic pen plotter. We will write it with real ink, stamp it, and mail it directly to your recipient.
+            Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient.
           </p>
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-2 text-xs">
@@ -164,7 +200,7 @@ export default function OrderStatusPage() {
               Receipt Sent: {order.customerEmail || "Delivered"}
             </span>
             <span className="bg-indigo-50 text-indigo-800 font-semibold px-3 py-1 rounded-full border border-indigo-200">
-              Robotic Pen: Active
+              Real Ink: Active
             </span>
             <span className="bg-emerald-50 text-emerald-800 font-semibold px-3 py-1 rounded-full border border-emerald-200">
               USPS Postage: Included
@@ -177,10 +213,10 @@ export default function OrderStatusPage() {
           <div className="flex items-center justify-between pb-4 border-b border-stone-100">
             <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
               <PenTool className="w-4 h-4 text-indigo-600" />
-              Robotic Fulfillment Tracker
+              Real Ink Fulfillment Tracker
             </h2>
-            <span className="text-xs font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-              {order.status}
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusDisplay.className}`}>
+              {statusDisplay.label}
             </span>
           </div>
 
@@ -246,7 +282,7 @@ export default function OrderStatusPage() {
                 <strong>Inside Top:</strong> &ldquo;{order.printedMessage}&rdquo;
               </p>
               <p className="text-indigo-800 font-medium">
-                <strong>Inside Bottom (Robot Pen):</strong> &ldquo;{order.handwrittenNote.slice(0, 100)}...&rdquo;
+                <strong>Inside Right (Real Ink Handwriting):</strong> &ldquo;{order.handwrittenNote.slice(0, 100)}...&rdquo;
               </p>
             </div>
           </div>

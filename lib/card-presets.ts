@@ -83,7 +83,8 @@ export const FONT_OPTIONS = [
     sample: "Warm, flowing handwritten cursive with graceful loops",
     fontClass: "font-handwriting",
     description: "Classic cursive pen strokes, perfect for warm personal letters and sentiments.",
-    handwryttenFontId: "1", // David / Standard Cursive
+    handwryttenFontId: "1", // Executive Adam
+    handwryttenFontLabel: "Executive Adam",
   },
   {
     id: "font-casual",
@@ -91,7 +92,8 @@ export const FONT_OPTIONS = [
     sample: "Clean, natural everyday print with organic pen weight",
     fontClass: "font-sans font-medium tracking-wide",
     description: "Friendly everyday penmanship with clean readability and human rhythm.",
-    handwryttenFontId: "2", // Casual Print
+    handwryttenFontId: "2", // Chill Charity
+    handwryttenFontLabel: "Chill Charity",
   },
   {
     id: "font-calligraphy",
@@ -99,6 +101,7 @@ export const FONT_OPTIONS = [
     sample: "Elegant dancing calligraphy with expressive flourishes",
     fontClass: "font-script",
     description: "Artistic, expressive flourished lettering ideal for milestone celebrations.",
-    handwryttenFontId: "3", // Modern Calligraphy
+    handwryttenFontId: "3", // Charming Chase
+    handwryttenFontLabel: "Charming Chase",
   },
 ];

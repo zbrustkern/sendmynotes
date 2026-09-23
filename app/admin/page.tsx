@@ -32,6 +32,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const verifyAccess = (keyToTest: string) => {
     // Allows instant dev access with 'admin' or environment access
@@ -55,6 +56,29 @@ export default function AdminDashboardPage() {
       console.error("Error loading admin metrics:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRetryFulfillment = async (orderId: string) => {
+    setRetryingId(orderId);
+    try {
+      const res = await fetch("/api/admin/retry-fulfillment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(`Retry failed: ${data.error || "Unknown error"}`);
+      } else {
+        alert(`Order successfully dispatched to Handwrytten! Order ID: ${data.handwryttenOrderId}`);
+      }
+      await fetchMetrics();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      alert(`Error retrying fulfillment: ${msg}`);
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -351,14 +375,15 @@ export default function AdminDashboardPage() {
                     <th className="py-3 px-4">Customer Email</th>
                     <th className="py-3 px-4">Status & Robot ID</th>
                     <th className="py-3 px-4 text-right">Amount</th>
+                    <th className="py-3 px-4 text-center">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {filteredOrders.map((order) => {
                     const isProcessing =
-                      order.status === "PROCESSING_HANDWRYTTEN" ||
-                      order.status === "PAYMENT_RECEIVED";
+                      order.status === "PROCESSING_HANDWRYTTEN";
                     const isPending = order.status === "PENDING_PAYMENT";
+                    const canRetry = !isProcessing && !isPending;
 
                     return (
                       <tr key={order.id} className="hover:bg-stone-50/50 transition">
@@ -408,11 +433,13 @@ export default function AdminDashboardPage() {
                                 isProcessing
                                   ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                                   : isPending
-                                  ? "bg-amber-100 text-amber-800 border border-amber-200"
-                                  : "bg-rose-100 text-rose-800 border border-rose-200"
+                                  ? "bg-stone-100 text-stone-600 border border-stone-200"
+                                  : "bg-amber-100 text-amber-800 border border-amber-200"
                               }`}
                             >
-                              {order.status}
+                              {order.status === "QUEUED_FOR_FULFILLMENT"
+                                ? "QUEUED"
+                                : order.status}
                             </span>
                             {order.handwryttenOrderId && (
                               <p className="font-mono text-[9px] text-indigo-700">
@@ -423,6 +450,28 @@ export default function AdminDashboardPage() {
                         </td>
                         <td className="py-3 px-4 text-right font-serif font-bold text-stone-900 text-sm">
                           ${((order.amountInCents || 900) / 100).toFixed(2)}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          {canRetry ? (
+                            <button
+                              onClick={() => handleRetryFulfillment(order.id)}
+                              disabled={retryingId === order.id}
+                              className="px-2.5 py-1 text-[11px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-300 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
+                            >
+                              <RefreshCw
+                                className={`w-3 h-3 ${
+                                  retryingId === order.id ? "animate-spin" : ""
+                                }`}
+                              />
+                              {retryingId === order.id ? "Inking..." : "Retry Dispatch"}
+                            </button>
+                          ) : isProcessing ? (
+                            <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" /> Dispatched
+                            </span>
+                          ) : (
+                            <span className="text-stone-300">—</span>
+                          )}
                         </td>
                       </tr>
                     );

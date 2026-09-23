@@ -235,9 +235,6 @@ export function VendingMachineBuilder() {
                   <Printer className="w-3.5 h-3.5 text-stone-400" />
                   Live Card Preview
                 </span>
-                <span className="text-[11px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium border border-emerald-200/60">
-                  Real-time Sync
-                </span>
               </div>
 
               <CardPreview
@@ -254,8 +251,8 @@ export function VendingMachineBuilder() {
                   <span>Heavy Cardstock</span>
                 </div>
                 <div className="p-2 bg-stone-50 rounded-lg">
-                  <span className="block font-bold text-indigo-700">Robotic Pen</span>
-                  <span>Real Blue Ink</span>
+                  <span className="block font-bold text-indigo-700">Real Ink</span>
+                  <span>Handwritten</span>
                 </div>
                 <div className="p-2 bg-stone-50 rounded-lg">
                   <span className="block font-bold text-emerald-700">USPS Stamp</span>

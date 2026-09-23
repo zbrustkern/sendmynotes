@@ -1,11 +1,23 @@
 import { HandwryttenOrderParams, HandwryttenOrderResult } from "./types";
 
+const FONT_MAP: Record<string, string> = {
+  "1": "Executive Adam",
+  "2": "Chill Charity",
+  "3": "Charming Chase",
+  "font-classic": "Executive Adam",
+  "font-casual": "Chill Charity",
+  "font-calligraphy": "Charming Chase",
+  "hwAdam": "Executive Adam",
+  "hwCharity": "Chill Charity",
+  "hwChase": "Charming Chase",
+};
+
 /**
- * Handwrytten API v2 Client for robotic pen-on-paper card fulfillment.
+ * Handwrytten API v2 Client for real ink card fulfillment.
  * Executes the 3-step pipeline:
- * 1. Upload custom Nano Banana cover image
- * 2. Create custom folded card with printed sentiment header
- * 3. Dispatch single-step robotic pen order with recipient & return addresses
+ * 1. Upload custom cover image via /cards/uploadCustomLogo (with multipart/form-data)
+ * 2. Create custom folded portrait card (dimension_id: 4, back_type: "cover")
+ * 3. Dispatch singleStepOrder with flat recipient & sender fields
  */
 export async function fulfillHandwryttenOrder(
   params: HandwryttenOrderParams
@@ -14,7 +26,7 @@ export async function fulfillHandwryttenOrder(
     process.env.HANDWRYTTEN_API_KEY || process.env["handwrytten-api-key"];
 
   if (!apiKey) {
-    console.log("[MOCK] Simulating Handwrytten Order Submission with robotic pen:", {
+    console.log("[MOCK] Simulating Handwrytten Order Submission with real ink pen:", {
       recipient: `${params.recipient.firstName} ${params.recipient.lastName}, ${params.recipient.city}, ${params.recipient.state}`,
       returnAddress: `${params.returnAddress.firstName} ${params.returnAddress.lastName}, ${params.returnAddress.city}, ${params.returnAddress.state}`,
       fontId: params.fontId || "1",
@@ -26,104 +38,124 @@ export async function fulfillHandwryttenOrder(
       order_id: `mock_hw_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
       details: {
         mode: "mock_simulation",
-        cardType: "A2 Folded Custom Card (5x7 equivalent)",
+        cardType: "A2 Folded Portrait Custom Card (5x7 equivalent)",
         robotPenStatus: "queued_for_writing",
       },
     };
   }
 
-  const headers = {
-    Authorization: apiKey, // Handwrytten does NOT use "Bearer "
-    "Content-Type": "application/json",
-    Accept: "application/json",
-  };
-
   try {
-    // 1. Upload the custom Nano Banana image
-    const imgUploadRes = await fetch("https://api.handwrytten.com/v2/cards/uploadCustomImage", {
+    // 1. Fetch cover image bytes and upload via uploadCustomLogo
+    console.log("[Handwrytten] Fetching cover image from:", params.imageUrl);
+    const imgRes = await fetch(params.imageUrl);
+    if (!imgRes.ok) {
+      throw new Error(`Failed to download cover image (${imgRes.status}): ${imgRes.statusText}`);
+    }
+    const imgBuffer = await imgRes.arrayBuffer();
+
+    const formData = new FormData();
+    const blob = new Blob([imgBuffer], { type: "image/jpeg" });
+    formData.append("file", blob, "cover.jpg");
+    formData.append("type", "cover");
+
+    console.log("[Handwrytten] Uploading cover image to /v2/cards/uploadCustomLogo...");
+    const uploadRes = await fetch("https://api.handwrytten.com/v2/cards/uploadCustomLogo", {
       method: "POST",
-      headers,
-      body: JSON.stringify({
-        image_url: params.imageUrl,
-        image_type: "cover",
-      }),
+      headers: {
+        Authorization: apiKey,
+      },
+      body: formData,
     });
 
-    if (!imgUploadRes.ok) {
-      const errText = await imgUploadRes.text();
-      console.error("[Handwrytten] Failed to upload custom image:", errText);
-      return { success: false, error: `Image upload failed: ${errText}` };
+    const uploadData = await uploadRes.json();
+    if (!uploadRes.ok || uploadData.status !== "ok" || !uploadData.id) {
+      console.error("[Handwrytten] Image upload failed:", uploadData);
+      return {
+        success: false,
+        error: uploadData.message || "Failed to upload custom card cover to Handwrytten",
+        details: uploadData,
+      };
     }
 
-    const imgData = await imgUploadRes.json();
-    const coverId = imgData.image_id;
+    const coverId = uploadData.id;
+    console.log(`[Handwrytten] Cover uploaded successfully. Cover ID: ${coverId}`);
 
-    // 2. Create the custom card (Folded)
-    // dimension_id 2 corresponds to Folded Portrait Card
+    // 2. Create Custom Folded Portrait Card (dimension_id: 4)
+    console.log("[Handwrytten] Creating custom card via /v2/cards/createCustomCard...");
     const cardRes = await fetch("https://api.handwrytten.com/v2/cards/createCustomCard", {
       method: "POST",
-      headers,
+      headers: {
+        Authorization: apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify({
-        dimension_id: 2,
+        dimension_id: 4, // A2 Folded Portrait
+        name: `SendMyNotes-${Date.now()}`,
+        back_type: "cover",
         cover_id: coverId,
-        header_text: params.printedGreeting || "",
-        header_align: "center",
-        header_font_size: 16,
       }),
     });
 
-    if (!cardRes.ok) {
-      const errText = await cardRes.text();
-      console.error("[Handwrytten] Failed to create custom card:", errText);
-      return { success: false, error: `Card creation failed: ${errText}` };
+    const cardData = await cardRes.json();
+    if (!cardRes.ok || cardData.status !== "ok" || !cardData.card_id) {
+      console.error("[Handwrytten] Card creation failed:", cardData);
+      return {
+        success: false,
+        error: cardData.message || "Failed to create custom card in Handwrytten",
+        details: cardData,
+      };
     }
 
-    const cardData = await cardRes.json();
     const customCardId = cardData.card_id;
+    console.log(`[Handwrytten] Custom card created. Card ID: ${customCardId}`);
 
-    // 3. Dispatch the order
+    // 3. Dispatch Single-Step Order with real ink
+    const fontLabel = FONT_MAP[params.fontId || "1"] || "Executive Adam";
+    console.log(`[Handwrytten] Dispatching singleStepOrder with font "${fontLabel}"...`);
+
     const orderRes = await fetch("https://api.handwrytten.com/v2/orders/singleStepOrder", {
       method: "POST",
-      headers,
+      headers: {
+        Authorization: apiKey,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
       body: JSON.stringify({
         card_id: customCardId,
-        font_id: params.fontId || "1",
+        font_label: fontLabel,
         message: params.handwrittenMessage,
-        recipient: {
-          first_name: params.recipient.firstName,
-          last_name: params.recipient.lastName,
-          address1: params.recipient.street1,
-          address2: params.recipient.street2 || "",
-          city: params.recipient.city,
-          state: params.recipient.state,
-          zip: params.recipient.zip,
-        },
-        return_address: {
-          first_name: params.returnAddress.firstName,
-          last_name: params.returnAddress.lastName,
-          address1: params.returnAddress.street1,
-          address2: params.returnAddress.street2 || "",
-          city: params.returnAddress.city,
-          state: params.returnAddress.state,
-          zip: params.returnAddress.zip,
-        },
+        recipient_first_name: params.recipient.firstName,
+        recipient_last_name: params.recipient.lastName,
+        recipient_address1: params.recipient.street1,
+        recipient_address2: params.recipient.street2 || "",
+        recipient_city: params.recipient.city,
+        recipient_state: params.recipient.state,
+        recipient_zip: params.recipient.zip,
+        sender_first_name: params.returnAddress.firstName,
+        sender_last_name: params.returnAddress.lastName,
+        sender_address1: params.returnAddress.street1,
+        sender_address2: params.returnAddress.street2 || "",
+        sender_city: params.returnAddress.city,
+        sender_state: params.returnAddress.state,
+        sender_zip: params.returnAddress.zip,
       }),
     });
 
     const orderData = await orderRes.json();
-
-    if (!orderRes.ok || orderData.error) {
+    if (!orderRes.ok || orderData.status === "error" || !orderData.order_id) {
       console.error("[Handwrytten] Order dispatch error:", orderData);
       return {
         success: false,
-        error: orderData.message || orderData.error || "Order dispatch failed",
+        error: orderData.message || "Order dispatch to Handwrytten failed",
         details: orderData,
       };
     }
 
+    console.log(`[Handwrytten] Order successfully submitted! HW Order ID: ${orderData.order_id}`);
     return {
       success: true,
-      order_id: orderData.order_id || orderData.id || String(orderData.data?.order_id),
+      order_id: String(orderData.order_id),
       details: orderData,
     };
   } catch (err: unknown) {
