@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
@@ -13,6 +14,10 @@ import {
   Printer,
   ChevronRight,
   CreditCard,
+  Eye,
+  X,
+  User,
+  LogIn,
 } from "lucide-react";
 import { CardPreview } from "./CardPreview";
 import { CoverStep } from "./CoverStep";
@@ -25,7 +30,6 @@ import { trackEvent } from "@/lib/telemetry";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "./AuthModal";
 import Link from "next/link";
-import { User, LogIn } from "lucide-react";
 
 export function VendingMachineBuilder() {
   const router = useRouter();
@@ -36,6 +40,9 @@ export function VendingMachineBuilder() {
 
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Mobile Card Preview Modal Drawer State
+  const [isMobilePreviewOpen, setIsMobilePreviewOpen] = useState(false);
 
   // Card Content State
   const [occasion, setOccasion] = useState<string>("Birthday");
@@ -203,12 +210,12 @@ export function VendingMachineBuilder() {
                 <span className="font-serif text-lg sm:text-xl font-bold tracking-tight text-stone-900">
                   sendmynotes<span className="text-amber-600">.com</span>
                 </span>
-                <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
-                  No Account Required
+                <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200 font-serif">
+                  Stationery Atelier
                 </span>
               </div>
               <p className="text-xs text-stone-500 hidden sm:block">
-                AI-designed 5×7 greeting cards, written with real pens by robotic plotters.
+                Boutique 5×7 greeting cards, penned in real ballpoint ink by robotic plotters.
               </p>
             </div>
           </div>
@@ -312,17 +319,17 @@ export function VendingMachineBuilder() {
               />
 
               <div className="mt-6 pt-5 border-t border-stone-100 grid grid-cols-3 gap-2 text-center text-[11px] text-stone-500">
-                <div className="p-2 bg-stone-50 rounded-lg">
+                <div className="p-2 bg-stone-50/80 rounded-lg border border-stone-200/50">
                   <span className="block font-bold text-stone-800">5&quot; × 7&quot;</span>
-                  <span>Heavy Cardstock</span>
+                  <span className="text-[10px] text-stone-500">120 lb Cardstock</span>
                 </div>
-                <div className="p-2 bg-stone-50 rounded-lg">
-                  <span className="block font-bold text-indigo-700">Real Ink</span>
-                  <span>Handwritten</span>
+                <div className="p-2 bg-stone-50/80 rounded-lg border border-stone-200/50">
+                  <span className="block font-bold text-indigo-900">Archival Ink</span>
+                  <span className="text-[10px] text-stone-500">Robotic Plotter</span>
                 </div>
-                <div className="p-2 bg-stone-50 rounded-lg">
-                  <span className="block font-bold text-emerald-700">USPS Stamp</span>
-                  <span>First Class Mail</span>
+                <div className="p-2 bg-stone-50/80 rounded-lg border border-stone-200/50">
+                  <span className="block font-bold text-emerald-800">USPS Stamp</span>
+                  <span className="text-[10px] text-stone-500">First Class Mail</span>
                 </div>
               </div>
             </div>
@@ -374,6 +381,7 @@ export function VendingMachineBuilder() {
                 onChangeCustomerEmail={setCustomerEmail}
                 onSuccess={handlePaymentSuccess}
                 isMock={isMockIntent}
+                scheduledSendDate={scheduledSendDate}
               />
             )}
 
@@ -418,6 +426,92 @@ export function VendingMachineBuilder() {
           </div>
         </div>
       </main>
+
+      {/* MOBILE FLOATING PREVIEW TRIGGER BAR */}
+      <div className="lg:hidden fixed bottom-4 inset-x-4 z-30">
+        <div className="bg-stone-900/95 backdrop-blur-md text-white p-2.5 pl-3 pr-3.5 rounded-2xl shadow-2xl border border-white/10 flex items-center justify-between">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="relative w-8 aspect-[5/7] rounded-md overflow-hidden border border-white/20 shrink-0 bg-stone-800">
+              <Image
+                src={coverUrl}
+                alt="Card thumbnail"
+                fill
+                unoptimized
+                className="object-cover"
+              />
+            </div>
+            <div className="min-w-0">
+              <span className="block text-[10px] uppercase font-bold tracking-wider text-amber-400 truncate">
+                {occasion} Card
+              </span>
+              <span className="block text-xs font-medium text-stone-200 truncate">
+                {currentStep === 1
+                  ? "Front Cover Art"
+                  : currentStep === 2
+                  ? "Inside Note"
+                  : currentStep === 3
+                  ? "Mailing Address"
+                  : "Order Summary"}
+              </span>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsMobilePreviewOpen(true)}
+            className="px-3 py-1.5 bg-white/15 hover:bg-white/25 border border-white/20 rounded-xl text-xs font-semibold tracking-wide flex items-center gap-1.5 transition active:scale-95 cursor-pointer shrink-0"
+          >
+            <Eye className="w-3.5 h-3.5 text-amber-400" />
+            <span>Preview Card</span>
+          </button>
+        </div>
+      </div>
+
+      {/* MOBILE CARD PREVIEW MODAL DRAWER */}
+      {isMobilePreviewOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex flex-col justify-end p-0 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-[#FAF8F5] rounded-t-3xl sm:rounded-3xl border border-stone-200 max-h-[92vh] flex flex-col shadow-2xl overflow-hidden">
+            <div className="p-4 border-b border-stone-200 flex items-center justify-between bg-white">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-stone-700 font-serif">
+                  Physical Card Preview
+                </span>
+                <span className="text-[10px] font-semibold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-full">
+                  5&quot; × 7&quot;
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsMobilePreviewOpen(false)}
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-4 sm:p-6 overflow-y-auto flex-1 flex flex-col items-center">
+              <CardPreview
+                coverUrl={coverUrl}
+                printedGreeting={printedGreeting}
+                handwrittenNote={handwrittenNote}
+                fontStyleId={fontStyleId}
+                occasion={occasion}
+                currentStep={currentStep}
+              />
+            </div>
+
+            <div className="p-3 bg-white border-t border-stone-200">
+              <button
+                type="button"
+                onClick={() => setIsMobilePreviewOpen(false)}
+                className="w-full py-2.5 bg-stone-900 hover:bg-black text-white rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer"
+              >
+                Back to Editing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* FOOTER BADGES */}
       <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16 pt-8 border-t border-stone-200/60 text-center text-xs text-stone-400 space-y-2">

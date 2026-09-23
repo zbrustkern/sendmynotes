@@ -95,6 +95,9 @@ export function CardPreview({
               {/* Natural Left Spine Fold Shadow */}
               <div className="absolute left-0 top-0 bottom-0 w-3.5 bg-gradient-to-r from-black/35 via-black/10 to-transparent pointer-events-none" />
 
+              {/* Blind-Deboss Inset Micro-Rule (Letterpress Effect) */}
+              <div className="absolute inset-2 sm:inset-2.5 border border-white/35 rounded-xl pointer-events-none" />
+
               {/* Occasion Badge */}
               <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase text-stone-700 shadow-sm border border-stone-200/50 flex items-center gap-1">
                 <Sparkles className="w-3 h-3 text-amber-500" />
@@ -102,8 +105,9 @@ export function CardPreview({
               </div>
 
               {/* Physical Card Stock Badge */}
-              <div className="absolute bottom-3 left-3 bg-black/65 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-medium text-white/90 tracking-wide">
-                5&quot; × 7&quot; Heavy Cardstock
+              <div className="absolute bottom-3 left-3 bg-stone-900/85 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-medium text-stone-200 tracking-wide border border-white/10 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+                <span>120 lb Archival Cardstock</span>
               </div>
             </div>
           </div>
@@ -114,13 +118,16 @@ export function CardPreview({
       {viewMode === "rightPage" && (
         <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[5/7] transition-all duration-300">
           <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex flex-col justify-between p-5 sm:p-6">
+            {/* Blind-Deboss Inset Micro-Rule (Letterpress Effect) */}
+            <div className="absolute inset-2 sm:inset-3 border border-stone-300/35 rounded-xl pointer-events-none" />
+
             {/* Realistic Left Spine Fold Shadow indicating this is the Right Leaf */}
             <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-stone-400/40 via-stone-300/15 to-transparent pointer-events-none" />
 
             {/* TOP: Printed Sentiment Header */}
             <div className="pt-2 pb-4 border-b border-dashed border-stone-200 text-center relative z-10 pl-2">
-              <div className="text-[9px] uppercase tracking-widest text-stone-400 mb-1.5 font-semibold">
-                Printed Sentiment • Top of Inside Leaf
+              <div className="text-[9px] uppercase tracking-widest text-stone-400 mb-1.5 font-serif font-medium">
+                Printed Sentiment • Top of Leaf
               </div>
               <p className="font-serif text-sm sm:text-base md:text-lg text-stone-900 leading-snug tracking-tight font-medium italic">
                 {printedGreeting || "Wishing you a wonderful celebration."}
@@ -129,9 +136,9 @@ export function CardPreview({
 
             {/* LOWER: Real Pen Handwritten Note */}
             <div className="flex-1 flex flex-col justify-center py-4 pl-3 pr-1 relative z-10">
-              <div className="text-[9px] uppercase tracking-widest text-indigo-700 font-semibold mb-2 flex items-center gap-1">
-                <PenTool className="w-3 h-3 text-indigo-600" />
-                <span>Real Ink Handwriting</span>
+              <div className="text-[9px] uppercase tracking-widest text-indigo-900/80 font-serif font-semibold mb-2 flex items-center gap-1.5">
+                <PenTool className="w-3 h-3 text-indigo-700" />
+                <span>Robotic Pen Plotter • Real Ballpoint Ink</span>
               </div>
               <p
                 className={`text-[#1B3B6F] text-sm sm:text-base leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
@@ -141,12 +148,12 @@ export function CardPreview({
             </div>
 
             {/* Bottom Status Chip */}
-            <div className="flex items-center justify-between pt-2 border-t border-stone-200 text-[10px] text-stone-500 pl-2">
+            <div className="flex items-center justify-between pt-2 border-t border-stone-200 text-[10px] text-stone-500 pl-2 relative z-10">
               <span className="flex items-center gap-1 text-emerald-700 font-medium">
                 <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                Real Blue Ballpoint Ink
+                Archival Blue Ballpoint Ink
               </span>
-              <span className="font-mono text-[9px] bg-stone-100 px-2 py-0.5 rounded text-stone-700 font-medium">
+              <span className="font-mono text-[9px] bg-stone-100 px-2 py-0.5 rounded text-stone-700 font-medium border border-stone-200/60">
                 {currentFont.name}
               </span>
             </div>
@@ -159,13 +166,19 @@ export function CardPreview({
         <div className="relative w-full max-w-full lg:max-w-[560px] aspect-[10/7] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex transition-all duration-300">
           {/* LEFT PAGE: Inside Left Page (Clean Minimalist Stationery Watermark) */}
           <div className="w-1/2 p-4 sm:p-6 flex flex-col justify-center items-center relative border-r border-stone-200/70 bg-[#FAF9F4]/40 select-none">
-            {/* Subtle embossed stationery watermark logo */}
-            <div className="text-center opacity-30 select-none">
-              <div className="w-8 h-8 mx-auto mb-2 rounded-full border border-stone-400 flex items-center justify-center text-stone-500">
-                <Feather className="w-4 h-4" />
+            {/* Blind-Deboss Inset Micro-Rule */}
+            <div className="absolute inset-2 sm:inset-3 border border-stone-300/35 rounded-xl pointer-events-none" />
+
+            {/* Subtle embossed stationery watermark colophon */}
+            <div className="text-center opacity-40 select-none space-y-1 relative z-10">
+              <div className="w-7 h-7 mx-auto mb-1.5 rounded-full border border-stone-400/80 flex items-center justify-center text-stone-600">
+                <Feather className="w-3.5 h-3.5" />
               </div>
-              <span className="font-serif text-xs italic tracking-wider text-stone-600 block">
+              <span className="font-serif text-[11px] uppercase tracking-widest text-stone-800 font-semibold block">
                 sendmynotes
+              </span>
+              <span className="text-[8px] uppercase tracking-wider text-stone-500 block font-mono">
+                Atelier No. 5×7 • 120 lb
               </span>
             </div>
           </div>

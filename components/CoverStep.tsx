@@ -14,6 +14,49 @@ interface CoverStepProps {
   onChangePrompt: (prompt: string) => void;
 }
 
+const OCCASION_PROMPT_INSPIRATIONS: Record<string, string[]> = {
+  Birthday: [
+    "Whimsical watercolor balloons in golden hour sunset",
+    "Wildflower botanical meadow with gentle gold flecks",
+    "Sparkling vintage champagne coupes with starry sky",
+  ],
+  "Thank You": [
+    "Warm botanical painting of lavender and chamomile",
+    "Sunlit ceramic coffee mug on rustic oak desk",
+    "Classical olive branch wreath in warm earthen tones",
+  ],
+  "Thinking of You": [
+    "Cozy window armchair looking out on gentle rain",
+    "Misty emerald evergreen pine forest in watercolor",
+    "Quiet coastal dunes at dusk with soft ocean tide",
+  ],
+  Congratulations: [
+    "Champagne coupe with starry effervescence",
+    "Majestic sunrise breaking over mountain summit",
+    "Festive laurel garland with celebratory starlight",
+  ],
+  Anniversary: [
+    "Two swans on moonlit lake with willow reflections",
+    "Intertwined botanical monstera and gardenia blooms",
+    "Quiet golden hour shoreline with soft ocean breeze",
+  ],
+  "Love & Romance": [
+    "Velvet crimson garden roses in classic oil painting",
+    "Two silhouettes under umbrella along cozy city walk",
+    "Crescent moon and glowing lanterns in twilight sky",
+  ],
+  "Sympathy & Support": [
+    "Gentle weeping willow beside tranquil reflective stream",
+    "Single white lily in soft morning light",
+    "Serene pastel sunrise over peaceful rolling hills",
+  ],
+  "Just Because": [
+    "Curious ginger cat in sunlit botanic conservatory",
+    "Vintage typewriter with sweet pea flowers on desk",
+    "Whimsical hot air balloon floating over orchards",
+  ],
+};
+
 export function CoverStep({
   selectedCover,
   onSelectCover,
@@ -158,6 +201,27 @@ export function CoverStep({
                   </>
                 )}
               </button>
+            </div>
+
+            {/* Inspiration Prompt Chips */}
+            <div className="mt-2.5 flex items-center gap-1.5 flex-wrap">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 mr-1 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-amber-500" /> Ideas:
+              </span>
+              {(OCCASION_PROMPT_INSPIRATIONS[occasion] || OCCASION_PROMPT_INSPIRATIONS["Birthday"]).map((chip, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => {
+                    onChangePrompt(chip);
+                    if (error) setError(null);
+                  }}
+                  className="text-[11px] px-2.5 py-0.5 rounded-full bg-stone-100 hover:bg-amber-50 text-stone-600 hover:text-amber-900 border border-stone-200/90 hover:border-amber-300 transition-all text-left truncate max-w-[210px] sm:max-w-[260px] cursor-pointer"
+                  title={chip}
+                >
+                  &ldquo;{chip}&rdquo;
+                </button>
+              ))}
             </div>
           </div>
         </div>

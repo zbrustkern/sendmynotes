@@ -1,9 +1,9 @@
 "use client";
-
 import React, { useMemo } from "react";
-import { Mail, MapPin, Send, ShieldCheck, Calendar, BookOpen, BookmarkCheck } from "lucide-react";
+import { Mail, MapPin, Send, ShieldCheck, Calendar, BookOpen, BookmarkCheck, Clock } from "lucide-react";
 import { MailingAddress, SavedAddress } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
+import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 
 interface AddressStepProps {
   recipient: MailingAddress;
@@ -27,6 +27,11 @@ export function AddressStep({
   onToggleSaveRecipient,
 }: AddressStepProps) {
   const { user, account } = useAuth();
+
+  const deliveryEstimate = useMemo(
+    () => calculateDeliveryEstimate(scheduledSendDate),
+    [scheduledSendDate]
+  );
 
   const tomorrowStr = useMemo(() => {
     const d = new Date();
@@ -413,6 +418,26 @@ export function AddressStep({
             </p>
           </div>
         )}
+
+        {/* Dynamic USPS Delivery Estimate Banner */}
+        <div className="p-3 bg-stone-50 border border-stone-200/90 rounded-xl flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-100/90 text-emerald-800 flex items-center justify-center font-bold text-sm shrink-0">
+              📬
+            </div>
+            <div>
+              <span className="block text-[10px] uppercase font-bold tracking-wider text-stone-500">
+                Estimated USPS Delivery Window
+              </span>
+              <span className="text-xs sm:text-sm font-bold text-stone-900">
+                {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
+              </span>
+            </div>
+          </div>
+          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-2 py-0.5 rounded-full shrink-0">
+            {deliveryEstimate.isScheduled ? "Scheduled Hold" : "Dispatches Next Day"}
+          </span>
+        </div>
       </div>
 
       {/* USPS Postage Included Badge */}

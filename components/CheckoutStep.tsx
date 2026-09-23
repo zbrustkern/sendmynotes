@@ -9,6 +9,7 @@ import {
 } from "@stripe/react-stripe-js";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
 import { Lock, ShieldCheck, Mail, ArrowRight, Loader2, AlertCircle } from "lucide-react";
+import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 
 interface CheckoutStepProps {
   orderId: string;
@@ -18,6 +19,7 @@ interface CheckoutStepProps {
   onChangeCustomerEmail: (email: string) => void;
   onSuccess: (orderId: string) => void;
   isMock: boolean;
+  scheduledSendDate?: string;
 }
 
 function InnerPaymentForm({
@@ -26,18 +28,25 @@ function InnerPaymentForm({
   onChangeCustomerEmail,
   onSuccess,
   isMock,
+  scheduledSendDate,
 }: {
   orderId: string;
   customerEmail: string;
   onChangeCustomerEmail: (email: string) => void;
   onSuccess: (orderId: string) => void;
   isMock: boolean;
+  scheduledSendDate?: string;
 }) {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaymentElementReady, setIsPaymentElementReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const deliveryEstimate = React.useMemo(
+    () => calculateDeliveryEstimate(scheduledSendDate),
+    [scheduledSendDate]
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -211,10 +220,10 @@ function InnerPaymentForm({
         </div>
       )}
 
-      {/* Flat Rate Total Box */}
+      {/* Flat Rate Total Box with Delivery Window */}
       <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-2">
         <div className="flex justify-between text-xs text-stone-600">
-          <span>5×7 Custom Folded Linen Card</span>
+          <span>5×7 Heavy Cardstock (120 lb Cotton-Blend)</span>
           <span>$6.00</span>
         </div>
         <div className="flex justify-between text-xs text-stone-600">
@@ -228,6 +237,16 @@ function InnerPaymentForm({
         <div className="pt-2 border-t border-amber-200/60 flex justify-between items-baseline font-bold text-stone-900">
           <span className="text-sm">Total Due</span>
           <span className="text-xl text-amber-950 font-serif">$9.00</span>
+        </div>
+
+        {/* Estimated Arrival Line */}
+        <div className="pt-2 border-t border-amber-200/40 flex items-center justify-between text-[11px] text-amber-900/90 font-medium">
+          <span className="flex items-center gap-1">
+            <span>📬</span> Est. USPS Arrival:
+          </span>
+          <span className="font-bold text-stone-900">
+            {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
+          </span>
         </div>
       </div>
 
