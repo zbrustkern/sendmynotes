@@ -132,7 +132,7 @@ async function runMilestone1Tests() {
     orderId: testOrderId,
     customerEmail: "buyer@example.com",
   });
-  assert(CARD_FLAT_RATE_CENTS === 650, "Flat rate price is exactly $6.50 (650 cents)");
+  assert(CARD_FLAT_RATE_CENTS === 900, "Flat rate price is exactly $9.00 (900 cents)");
   assert(stripeResult.paymentIntentId.length > 0, "Payment intent ID generated");
   assert(stripeResult.clientSecret !== null, "Client secret provided");
 

@@ -19,6 +19,7 @@ export interface Order {
   id: string;
   stripePaymentId?: string;
   customerEmail: string;
+  userId?: string;
   frontImageUrl: string;
   printedMessage: string;
   handwrittenNote: string;
@@ -77,4 +78,66 @@ export interface FontOption {
   fontClass: string;
   description: string;
   handwryttenFontId: string;
+}
+
+// User Accounts Model
+export interface UserAccount {
+  uid: string;
+  email: string;
+  displayName?: string;
+  savedAddresses: MailingAddress[];
+  defaultReturnAddress?: MailingAddress;
+  savedCovers: string[];
+  creditsBalance: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// Customer Journey Telemetry
+export type TelemetryEventName =
+  | "session_start"
+  | "cover_preset_selected"
+  | "ai_generate_started"
+  | "ai_generate_succeeded"
+  | "ai_generate_rate_limited"
+  | "step_navigated"
+  | "inside_note_edited"
+  | "font_style_selected"
+  | "address_completed"
+  | "checkout_initiated"
+  | "payment_attempted"
+  | "payment_succeeded"
+  | "payment_failed"
+  | "card_abandoned";
+
+export interface TelemetryEvent {
+  id: string;
+  eventName: TelemetryEventName;
+  sessionId: string;
+  step?: number;
+  orderId?: string;
+  metadata?: Record<string, unknown>;
+  path: string;
+  timestamp: number;
+  createdAt: number;
+}
+
+// Admin Dashboard Analytics
+export interface AdminMetrics {
+  totalRevenueCents: number;
+  totalOrders: number;
+  ordersByStatus: {
+    pending: number;
+    processing: number;
+    failed: number;
+  };
+  funnel: {
+    totalSessions: number;
+    coverSelected: number;
+    noteCompleted: number;
+    addressCompleted: number;
+    checkoutInitiated: number;
+    paid: number;
+  };
+  recentOrders: Order[];
 }

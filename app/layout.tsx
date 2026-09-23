@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "sendmynotes.com | AI-Designed, Real-Pen Handwritten Greeting Cards",
   description:
-    "Custom 5x7 folded greeting cards written with real robotic pen inking on heavy cardstock. No account required. Mailed anywhere in the US for $6.50 flat.",
+    "Custom 5x7 folded greeting cards written with real robotic pen inking on heavy cardstock. No account required. Mailed anywhere in the US for $9.00 flat.",
   openGraph: {
     title: "sendmynotes.com - Handwritten Cards by Robot Pen",
     description: "Physical 5x7 folded greeting cards with real ballpoint ink. Mailed via USPS First Class.",

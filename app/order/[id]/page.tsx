@@ -13,7 +13,6 @@ import {
   ArrowLeft,
   Sparkles,
   ExternalLink,
-  Coins,
   ShieldCheck,
 } from "lucide-react";
 import { Order } from "@/lib/types";
@@ -95,7 +94,7 @@ export default function OrderStatusPage() {
 
   const trackingSteps = [
     {
-      title: "Payment Confirmed ($6.50 Paid)",
+      title: "Payment Confirmed ($9.00 Paid)",
       description: "Transaction complete. Receipt delivered to email.",
       icon: CheckCircle2,
       status: "complete",
@@ -290,7 +289,7 @@ export default function OrderStatusPage() {
 
             <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/60 text-xs flex items-center justify-between text-amber-900">
               <span>Amount Paid</span>
-              <span className="font-serif font-bold text-base">$6.50 Flat Rate</span>
+              <span className="font-serif font-bold text-base">$9.00 Flat Rate</span>
             </div>
           </div>
         </div>
@@ -302,7 +301,7 @@ export default function OrderStatusPage() {
             className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-xl shadow-amber-600/20 transition-all cursor-pointer"
           >
             <PenTool className="w-4 h-4 text-amber-100" />
-            <span>Send Another Card ($6.50)</span>
+            <span>Send Another Card ($9.00)</span>
           </Link>
         </div>
       </main>

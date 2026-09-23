@@ -1,18 +1,18 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   Sparkles,
   ArrowRight,
   ArrowLeft,
   CheckCircle2,
-  Coins,
   ShieldCheck,
   Mail,
   PenTool,
   Printer,
   ChevronRight,
+  CreditCard,
 } from "lucide-react";
 import { CardPreview } from "./CardPreview";
 import { CoverStep } from "./CoverStep";
@@ -21,6 +21,7 @@ import { AddressStep } from "./AddressStep";
 import { CheckoutStep } from "./CheckoutStep";
 import { CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { MailingAddress } from "@/lib/types";
+import { trackEvent } from "@/lib/telemetry";
 
 export function VendingMachineBuilder() {
   const router = useRouter();
@@ -66,12 +67,18 @@ export function VendingMachineBuilder() {
   const [isInitializingCheckout, setIsInitializingCheckout] = useState<boolean>(false);
   const [isMockIntent, setIsMockIntent] = useState<boolean>(true);
 
+  // Telemetry: Track session start on mount
+  useEffect(() => {
+    trackEvent("session_start", 1);
+  }, []);
+
   // Handle Preset Selection
   const handleSelectPreset = (url: string, preset?: CardPreset) => {
     setCoverUrl(url);
     if (preset) {
       setOccasion(preset.occasion);
       setCustomPrompt(preset.prompt);
+      trackEvent("cover_preset_selected", 1, { presetId: preset.id, occasion: preset.occasion, title: preset.title });
       if (!printedGreeting || printedGreeting === CARD_PRESETS[0].defaultPrintedMessage) {
         setPrintedGreeting(preset.defaultPrintedMessage);
       }
@@ -89,9 +96,15 @@ export function VendingMachineBuilder() {
     setReturnAddress((prev) => ({ ...prev, [field]: value }));
   };
 
+  const navigateToStep = (targetStep: number) => {
+    trackEvent("step_navigated", targetStep, { fromStep: currentStep, toStep: targetStep });
+    setCurrentStep(targetStep);
+  };
+
   // Move to Step 4 and create PaymentIntent
   const proceedToCheckout = async () => {
     setIsInitializingCheckout(true);
+    trackEvent("address_completed", 3);
     try {
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
@@ -115,6 +128,7 @@ export function VendingMachineBuilder() {
       setOrderId(data.orderId);
       setClientSecret(data.clientSecret);
       setIsMockIntent(data.isMock);
+      trackEvent("checkout_initiated", 4, { orderId: data.orderId, amount: 900 });
       setCurrentStep(4);
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error initializing payment";
@@ -125,6 +139,7 @@ export function VendingMachineBuilder() {
   };
 
   const handlePaymentSuccess = (completedOrderId: string) => {
+    trackEvent("payment_succeeded", 4, { orderId: completedOrderId });
     router.push(`/order/${completedOrderId}`);
   };
 
@@ -156,7 +171,7 @@ export function VendingMachineBuilder() {
             <div className="text-right">
               <span className="block text-[10px] uppercase font-semibold text-stone-400">Flat Rate</span>
               <span className="font-serif text-base sm:text-lg font-bold text-stone-900 leading-none">
-                $6.50 <span className="text-xs font-sans font-normal text-emerald-600">Postage Incl.</span>
+                $9.00 <span className="text-xs font-sans font-normal text-emerald-600">Postage Incl.</span>
               </span>
             </div>
           </div>
@@ -170,7 +185,7 @@ export function VendingMachineBuilder() {
             { step: 1, label: "1. Cover Art", icon: Sparkles },
             { step: 2, label: "2. Inside Note", icon: PenTool },
             { step: 3, label: "3. Address", icon: Mail },
-            { step: 4, label: "4. Checkout", icon: Coins },
+            { step: 4, label: "4. Checkout", icon: CreditCard },
           ].map((item) => {
             const Icon = item.icon;
             const isActive = currentStep === item.step;
@@ -184,7 +199,7 @@ export function VendingMachineBuilder() {
                     if (item.step === 4) {
                       proceedToCheckout();
                     } else {
-                      setCurrentStep(item.step);
+                      navigateToStep(item.step);
                     }
                   }
                 }}
@@ -295,7 +310,7 @@ export function VendingMachineBuilder() {
               {currentStep > 1 ? (
                 <button
                   type="button"
-                  onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
+                  onClick={() => navigateToStep(Math.max(1, currentStep - 1))}
                   className="px-4 py-2.5 rounded-xl border border-stone-300 text-stone-700 text-sm font-semibold hover:bg-stone-50 flex items-center gap-1.5 transition"
                 >
                   <ArrowLeft className="w-4 h-4" />
@@ -308,7 +323,7 @@ export function VendingMachineBuilder() {
               {currentStep < 3 && (
                 <button
                   type="button"
-                  onClick={() => setCurrentStep((prev) => prev + 1)}
+                  onClick={() => navigateToStep(currentStep + 1)}
                   className="px-6 py-2.5 rounded-xl bg-stone-900 hover:bg-black text-white text-sm font-semibold shadow-md flex items-center gap-1.5 transition cursor-pointer"
                 >
                   <span>Continue</span>
@@ -323,7 +338,7 @@ export function VendingMachineBuilder() {
                   onClick={proceedToCheckout}
                   className="px-7 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-500 text-white text-sm font-bold shadow-lg shadow-amber-500/25 flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
                 >
-                  <span>Proceed to Payment ($6.50)</span>
+                  <span>Proceed to Payment ($9.00)</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               )}

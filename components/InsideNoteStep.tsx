@@ -30,20 +30,20 @@ export function InsideNoteStep({
             2
           </span>
           <h2 className="text-xl font-bold tracking-tight text-stone-900 flex items-center gap-2">
-            Inside Open Card (Two-Page Spread)
+            Inside Card Note (Traditional Layout)
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          When the 5×7 card opens like a book, the left page features your printed sentiment, while the right page is inked by a real robotic pen.
+          Following classic greeting card tradition, your printed sentiment is positioned at the top of the right page, followed directly by your robotic pen message.
         </p>
       </div>
 
-      {/* Left Page: Printed Greeting */}
+      {/* Top of Right Page: Printed Greeting */}
       <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Type className="w-3.5 h-3.5 text-stone-500" />
-            Left Page: Printed Sentiment (Commercial Serif)
+            Top of Right Page: Printed Sentiment (Commercial Serif)
           </label>
           <span className="text-[11px] text-stone-400">Centered press font</span>
         </div>
@@ -58,7 +58,7 @@ export function InsideNoteStep({
         />
 
         <div className="flex items-center justify-between text-[11px] text-stone-400">
-          <span>Appears on inside left cover page</span>
+          <span>Appears at the top of inside right page</span>
           <span>{printedGreeting.length}/120 characters</span>
         </div>
       </div>
@@ -105,12 +105,12 @@ export function InsideNoteStep({
         </div>
       </div>
 
-      {/* Right Page: Handwritten Message Text Area */}
+      {/* Lower Right Page: Handwritten Message Text Area */}
       <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Right Page: Personal Note (Robotic Inking)
+            Lower Right Page: Personal Message (Robotic Inking)
           </label>
           <span className="text-[11px] text-stone-400">Up to 500 characters</span>
         </div>

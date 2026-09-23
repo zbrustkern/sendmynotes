@@ -7,7 +7,7 @@ export const stripe = new Stripe(stripeSecretKey, {
   typescript: true,
 });
 
-export const CARD_FLAT_RATE_CENTS = 650; // $6.50 flat rate (Card + Robot Pen + Envelope + USPS Postage)
+export const CARD_FLAT_RATE_CENTS = 900; // $9.00 flat rate (Card + Robot Pen + Envelope + USPS Postage)
 
 export interface CreateIntentParams {
   orderId: string;

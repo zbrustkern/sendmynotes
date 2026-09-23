@@ -30,7 +30,7 @@ export function AddressStep({
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          We ink, package, stamp, and mail this physical card via USPS First Class Mail. Postage is 100% included in the $6.50 flat fee.
+          We ink, package, stamp, and mail this physical card via USPS First Class Mail. Postage is 100% included in the $9.00 flat fee.
         </p>
       </div>
 
@@ -260,7 +260,7 @@ export function AddressStep({
         </div>
         <div className="flex items-center gap-1 font-semibold text-amber-800 text-[11px] whitespace-nowrap">
           <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-          Included in $6.50
+          Included in $9.00
         </div>
       </div>
     </div>

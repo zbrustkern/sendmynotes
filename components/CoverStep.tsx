@@ -24,6 +24,7 @@ export function CoverStep({
 }: CoverStepProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [remainingGenerations, setRemainingGenerations] = useState<number | null>(null);
 
   const handleGenerate = async () => {
     if (!customPrompt.trim()) {
@@ -44,11 +45,21 @@ export function CoverStep({
         }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        throw new Error("Failed to generate artwork. Please try again.");
+        if (res.status === 429) {
+          setRemainingGenerations(0);
+          setError(data.message || "You've reached the 5-card AI generation limit for now. Please select from our curated designs below!");
+          return;
+        }
+        throw new Error(data.error || "Failed to generate artwork. Please try again.");
       }
 
-      const data = await res.json();
+      if (typeof data.remaining === "number") {
+        setRemainingGenerations(data.remaining);
+      }
+
       if (data.imageUrl) {
         onSelectCover(data.imageUrl);
       }
@@ -98,9 +109,16 @@ export function CoverStep({
           </div>
 
           <div className="sm:col-span-2">
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-1.5">
-              AI Artwork Prompt
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold uppercase tracking-wider text-stone-500">
+                AI Artwork Prompt
+              </label>
+              {remainingGenerations !== null && (
+                <span className="text-[10px] text-stone-400 font-medium">
+                  {remainingGenerations} of 5 generations available
+                </span>
+              )}
+            </div>
             <div className="relative">
               <input
                 type="text"

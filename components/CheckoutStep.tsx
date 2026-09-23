@@ -8,7 +8,7 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
-import { Lock, ShieldCheck, Mail, Coins, ArrowRight, Loader2 } from "lucide-react";
+import { Lock, ShieldCheck, Mail, ArrowRight, Loader2 } from "lucide-react";
 
 interface CheckoutStepProps {
   orderId: string;
@@ -174,19 +174,19 @@ function InnerPaymentForm({
       <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-2">
         <div className="flex justify-between text-xs text-stone-600">
           <span>5×7 Custom Folded Linen Card</span>
-          <span>$4.50</span>
+          <span>$6.00</span>
         </div>
         <div className="flex justify-between text-xs text-stone-600">
           <span>Robotic Pen Inking (Real Ballpoint)</span>
-          <span className="text-emerald-700 font-medium">Included</span>
+          <span>$2.00</span>
         </div>
         <div className="flex justify-between text-xs text-stone-600">
           <span>USPS First Class Stamp & Mailing</span>
-          <span className="text-emerald-700 font-medium">Included</span>
+          <span>$1.00</span>
         </div>
         <div className="pt-2 border-t border-amber-200/60 flex justify-between items-baseline font-bold text-stone-900">
           <span className="text-sm">Total Due</span>
-          <span className="text-xl text-amber-950 font-serif">$6.50</span>
+          <span className="text-xl text-amber-950 font-serif">$9.00</span>
         </div>
       </div>
 
@@ -203,7 +203,7 @@ function InnerPaymentForm({
           </>
         ) : (
           <>
-            <span>Send Handwritten Card — $6.50 Flat</span>
+            <span>Send Handwritten Card — $9.00 Flat</span>
             <ArrowRight className="w-4 h-4 ml-1" />
           </>
         )}
@@ -236,7 +236,7 @@ export function CheckoutStep(props: CheckoutStepProps) {
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          Zero accounts or onboarding required. Flat \$6.50 all-inclusive with real pen inking and USPS postage.
+          Zero accounts or onboarding required. Flat \$9.00 all-inclusive with real pen inking and USPS postage.
         </p>
       </div>
 
