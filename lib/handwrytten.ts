@@ -4,12 +4,14 @@ const FONT_MAP: Record<string, string> = {
   "1": "Executive Adam",
   "2": "Chill Charity",
   "3": "Charming Chase",
+  "4": "Casual David",
   "font-classic": "Executive Adam",
   "font-casual": "Chill Charity",
   "font-calligraphy": "Charming Chase",
   "hwAdam": "Executive Adam",
   "hwCharity": "Chill Charity",
   "hwChase": "Charming Chase",
+  "hwDavid": "Casual David",
 };
 
 /**

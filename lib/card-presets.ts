@@ -76,32 +76,57 @@ export const CARD_PRESETS: CardPreset[] = [
   },
 ];
 
-export const FONT_OPTIONS = [
+export interface FontOption {
+  id: string;
+  name: string;
+  sample: string;
+  fontClass: string;
+  fontFamily: string;
+  description: string;
+  handwryttenFontId: string;
+  handwryttenFontLabel: string;
+}
+
+export const FONT_OPTIONS: FontOption[] = [
   {
-    id: "font-classic",
-    name: "Classic Script",
+    id: "hwAdam",
+    name: "Executive Adam",
     sample: "Warm, flowing handwritten cursive with graceful loops",
-    fontClass: "font-handwriting",
+    fontClass: "font-hwAdam text-lg sm:text-xl",
+    fontFamily: "'HandwryttenAdam', Caveat, cursive",
     description: "Classic cursive pen strokes, perfect for warm personal letters and sentiments.",
-    handwryttenFontId: "1", // Executive Adam
+    handwryttenFontId: "1",
     handwryttenFontLabel: "Executive Adam",
   },
   {
-    id: "font-casual",
-    name: "Casual Print",
-    sample: "Clean, natural everyday print with organic pen weight",
-    fontClass: "font-sans font-medium tracking-wide",
+    id: "hwCharity",
+    name: "Chill Charity",
+    sample: "Friendly, natural everyday print with organic pen weight",
+    fontClass: "font-hwCharity text-lg sm:text-xl",
+    fontFamily: "'HandwryttenCharity', Caveat, cursive",
     description: "Friendly everyday penmanship with clean readability and human rhythm.",
-    handwryttenFontId: "2", // Chill Charity
+    handwryttenFontId: "2",
     handwryttenFontLabel: "Chill Charity",
   },
   {
-    id: "font-calligraphy",
-    name: "Modern Calligraphy",
-    sample: "Elegant dancing calligraphy with expressive flourishes",
-    fontClass: "font-script",
-    description: "Artistic, expressive flourished lettering ideal for milestone celebrations.",
-    handwryttenFontId: "3", // Charming Chase
+    id: "hwChase",
+    name: "Charming Chase",
+    sample: "Expressive, stylish modern handwriting with artistic flair",
+    fontClass: "font-hwChase text-lg sm:text-xl",
+    fontFamily: "'HandwryttenChase', 'Dancing Script', cursive",
+    description: "Artistic, expressive lettering ideal for milestone celebrations.",
+    handwryttenFontId: "3",
     handwryttenFontLabel: "Charming Chase",
   },
+  {
+    id: "hwDavid",
+    name: "Casual David",
+    sample: "Upright, effortless print with clean human cadence",
+    fontClass: "font-hwDavid text-lg sm:text-xl",
+    fontFamily: "'HandwryttenDavid', Caveat, cursive",
+    description: "Clean, upright everyday print with effortless charm.",
+    handwryttenFontId: "4",
+    handwryttenFontLabel: "Casual David",
+  },
 ];
+

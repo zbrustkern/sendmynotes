@@ -34,7 +34,9 @@ export function CardPreview({
   }, [currentStep]);
 
   const currentFont =
-    FONT_OPTIONS.find((f) => f.handwryttenFontId === fontStyleId) || FONT_OPTIONS[0];
+    FONT_OPTIONS.find(
+      (f) => f.handwryttenFontId === fontStyleId || f.id === fontStyleId
+    ) || FONT_OPTIONS[0];
 
   return (
     <div className="flex flex-col items-center w-full">
@@ -129,7 +131,7 @@ export function CardPreview({
               <div className="text-[9px] uppercase tracking-widest text-stone-400 mb-1.5 font-serif font-medium">
                 Printed Sentiment • Top of Leaf
               </div>
-              <p className="font-serif text-sm sm:text-base md:text-lg text-stone-900 leading-snug tracking-tight font-medium italic">
+              <p className="font-serif text-sm sm:text-base md:text-lg text-stone-800 leading-relaxed tracking-normal font-semibold">
                 {printedGreeting || "Wishing you a wonderful celebration."}
               </p>
             </div>
@@ -141,7 +143,8 @@ export function CardPreview({
                 <span>Robotic Pen Plotter • Real Ballpoint Ink</span>
               </div>
               <p
-                className={`text-[#1B3B6F] text-sm sm:text-base leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
+                style={{ fontFamily: currentFont.fontFamily }}
+                className={`text-[#1B3B6F] text-lg sm:text-xl md:text-2xl leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
               >
                 {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
               </p>
@@ -192,7 +195,7 @@ export function CardPreview({
           <div className="w-1/2 p-3 sm:p-5 flex flex-col justify-between relative bg-white/70">
             {/* TOP OF RIGHT PAGE: Printed Sentiment */}
             <div className="pb-2 border-b border-dashed border-stone-200 text-center">
-              <p className="font-serif text-xs sm:text-sm text-stone-800 leading-snug tracking-tight font-medium italic">
+              <p className="font-serif text-xs sm:text-sm text-stone-800 leading-normal tracking-normal font-semibold">
                 {printedGreeting || "Wishing you a wonderful celebration."}
               </p>
             </div>
@@ -200,7 +203,8 @@ export function CardPreview({
             {/* LOWER OF RIGHT PAGE: Real Ink Handwritten Note */}
             <div className="flex-1 flex flex-col justify-center py-2 px-1">
               <p
-                className={`text-[#1B3B6F] text-xs sm:text-sm leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
+                style={{ fontFamily: currentFont.fontFamily }}
+                className={`text-[#1B3B6F] text-sm sm:text-base leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
               >
                 {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
               </p>

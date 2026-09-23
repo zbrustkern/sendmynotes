@@ -25,9 +25,14 @@ const config: Config = {
         },
       },
       fontFamily: {
-        serif: ["'Playfair Display'", "Georgia", "'Times New Roman'", "serif"],
-        handwriting: ["Caveat", "'Bradley Hand'", "'Brush Script MT'", "cursive"],
-        script: ["'Dancing Script'", "'Snell Roundhand'", "'Brush Script MT'", "cursive"],
+        serif: ["'Cormorant Garamond'", "'Playfair Display'", "Georgia", "'Times New Roman'", "serif"],
+        display: ["'Playfair Display'", "Georgia", "serif"],
+        hwAdam: ["'HandwryttenAdam'", "Caveat", "'Bradley Hand'", "cursive"],
+        hwCharity: ["'HandwryttenCharity'", "Caveat", "'Bradley Hand'", "cursive"],
+        hwChase: ["'HandwryttenChase'", "'Dancing Script'", "'Snell Roundhand'", "cursive"],
+        hwDavid: ["'HandwryttenDavid'", "Caveat", "'Bradley Hand'", "cursive"],
+        handwriting: ["'HandwryttenAdam'", "Caveat", "'Bradley Hand'", "cursive"],
+        script: ["'HandwryttenChase'", "'Dancing Script'", "'Snell Roundhand'", "cursive"],
         sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "Roboto", "sans-serif"],
       },
       boxShadow: {

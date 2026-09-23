@@ -54,7 +54,7 @@ export function InsideNoteStep({
           onChange={(e) => onChangePrintedGreeting(e.target.value)}
           placeholder="e.g. Wishing you the happiest of birthdays!"
           maxLength={120}
-          className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-serif italic text-stone-800 transition"
+          className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-serif font-medium text-stone-800 transition"
         />
 
         <div className="flex items-center justify-between text-[11px] text-stone-400">
@@ -75,15 +75,15 @@ export function InsideNoteStep({
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
           {FONT_OPTIONS.map((font) => {
-            const isSelected = fontStyleId === font.handwryttenFontId;
+            const isSelected = fontStyleId === font.handwryttenFontId || fontStyleId === font.id;
             return (
               <button
                 key={font.id}
                 type="button"
                 onClick={() => onChangeFontStyleId(font.handwryttenFontId)}
-                className={`p-3 text-left rounded-xl border-2 transition-all flex flex-col justify-between ${
+                className={`p-3 text-left rounded-xl border-2 transition-all flex flex-col justify-between cursor-pointer ${
                   isSelected
                     ? "border-indigo-600 bg-indigo-50/40 shadow-sm ring-1 ring-indigo-500/20"
                     : "border-stone-200 hover:border-stone-300 bg-stone-50/50"
@@ -94,7 +94,10 @@ export function InsideNoteStep({
                     <span className="text-xs font-bold text-stone-800">{font.name}</span>
                     {isSelected && <Check className="w-3.5 h-3.5 text-indigo-600 stroke-[3]" />}
                   </div>
-                  <p className={`text-base text-[#1B3B6F] my-1 ${font.fontClass}`}>
+                  <p
+                    style={{ fontFamily: font.fontFamily }}
+                    className={`text-xl text-[#1B3B6F] my-1 ${font.fontClass}`}
+                  >
                     Warmest wishes
                   </p>
                 </div>

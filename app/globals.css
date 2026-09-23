@@ -2,6 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Real Handwrytten Robotic Pen Fonts */
+@font-face {
+  font-family: 'HandwryttenAdam';
+  src: url('/fonts/hwAdam.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HandwryttenCharity';
+  src: url('/fonts/hwCharity.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HandwryttenChase';
+  src: url('/fonts/hwChase.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'HandwryttenDavid';
+  src: url('/fonts/hwDavid.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --background: #FAF8F5;
   --foreground: #1C2434;
