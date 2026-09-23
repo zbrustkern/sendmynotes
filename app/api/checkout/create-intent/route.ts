@@ -58,8 +58,10 @@ export async function POST(req: NextRequest) {
     await saveOrder(orderRecord);
 
     const publishableKey =
-      process.env.STRIPE_PUBLISHABLE_KEY ||
       process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+      process.env["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] ||
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env["stripe-publishable-key"] ||
       null;
 
     return NextResponse.json({

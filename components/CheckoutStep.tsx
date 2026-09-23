@@ -8,7 +8,7 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { loadStripe, Stripe } from "@stripe/stripe-js";
-import { Lock, ShieldCheck, Mail, ArrowRight, Loader2 } from "lucide-react";
+import { Lock, ShieldCheck, Mail, ArrowRight, Loader2, AlertCircle } from "lucide-react";
 
 interface CheckoutStepProps {
   orderId: string;
@@ -188,8 +188,26 @@ function InnerPaymentForm({
       </div>
 
       {errorMessage && (
-        <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-lg font-medium">
-          {errorMessage}
+        <div className="p-3.5 bg-amber-50/90 border border-amber-200/90 text-stone-800 text-xs rounded-xl flex items-start gap-2.5 shadow-sm">
+          <AlertCircle className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
+          <div className="flex-1 space-y-1">
+            <p className="font-semibold text-stone-900">
+              {errorMessage.includes("does not match") || errorMessage.includes("publishable key")
+                ? "Payment system is currently updating settings."
+                : "Unable to process payment right now."}
+            </p>
+            <p className="text-[11px] text-stone-600 leading-normal">
+              {errorMessage.includes("does not match") || errorMessage.includes("publishable key")
+                ? "Please refresh the page in a moment to complete your order."
+                : errorMessage}
+            </p>
+            <details className="text-[10px] text-stone-400 cursor-pointer pt-1">
+              <summary>Technical Details</summary>
+              <p className="mt-1 font-mono bg-white/80 p-2 rounded border border-stone-200 text-stone-600 break-all select-all">
+                {errorMessage}
+              </p>
+            </details>
+          </div>
         </div>
       )}
 

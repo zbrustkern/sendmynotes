@@ -1,11 +1,22 @@
 import Stripe from "stripe";
 
-const stripeSecretKey = process.env.STRIPE_SECRET_KEY || "sk_test_placeholder_key_for_dev";
+export function getStripeSecretKey(): string {
+  return (
+    process.env["stripe-secret-key"] ||
+    process.env.STRIPE_SECRET_KEY ||
+    "sk_test_placeholder_key_for_dev"
+  );
+}
 
-export const stripe = new Stripe(stripeSecretKey, {
-  apiVersion: "2025-01-27.acacia" as unknown as Stripe.LatestApiVersion,
-  typescript: true,
-});
+export function getStripeClient(): Stripe {
+  return new Stripe(getStripeSecretKey(), {
+    apiVersion: "2025-01-27.acacia" as unknown as Stripe.LatestApiVersion,
+    typescript: true,
+  });
+}
+
+// Export singleton for backward compatibility
+export const stripe = getStripeClient();
 
 export const CARD_FLAT_RATE_CENTS = 900; // $9.00 flat rate (Card + Robot Pen + Envelope + USPS Postage)
 
@@ -22,7 +33,7 @@ export interface PaymentIntentResult {
 }
 
 export async function createCardPaymentIntent(params: CreateIntentParams): Promise<PaymentIntentResult> {
-  const secret = process.env.STRIPE_SECRET_KEY;
+  const secret = getStripeSecretKey();
 
   if (!secret || secret.startsWith("sk_test_placeholder")) {
     console.log("[MOCK Stripe] Creating simulated PaymentIntent for order:", params.orderId);
@@ -33,7 +44,8 @@ export async function createCardPaymentIntent(params: CreateIntentParams): Promi
     };
   }
 
-  const paymentIntent = await stripe.paymentIntents.create({
+  const client = getStripeClient();
+  const paymentIntent = await client.paymentIntents.create({
     amount: CARD_FLAT_RATE_CENTS,
     currency: "usd",
     receipt_email: params.customerEmail,
@@ -57,7 +69,13 @@ export async function createCardPaymentIntent(params: CreateIntentParams): Promi
 export function constructWebhookEvent(
   rawBody: string | Buffer,
   signature: string,
-  secret: string
+  secret?: string
 ): Stripe.Event {
-  return stripe.webhooks.constructEvent(rawBody, signature, secret);
+  const webhookSecret =
+    secret ||
+    process.env["stripe-webhook-secret"] ||
+    process.env.STRIPE_WEBHOOK_SECRET ||
+    "";
+  const client = getStripeClient();
+  return client.webhooks.constructEvent(rawBody, signature, webhookSecret);
 }

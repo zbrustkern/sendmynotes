@@ -10,7 +10,8 @@ import { HandwryttenOrderParams, HandwryttenOrderResult } from "./types";
 export async function fulfillHandwryttenOrder(
   params: HandwryttenOrderParams
 ): Promise<HandwryttenOrderResult> {
-  const apiKey = process.env.HANDWRYTTEN_API_KEY;
+  const apiKey =
+    process.env.HANDWRYTTEN_API_KEY || process.env["handwrytten-api-key"];
 
   if (!apiKey) {
     console.log("[MOCK] Simulating Handwrytten Order Submission with robotic pen:", {
