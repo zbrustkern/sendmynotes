@@ -11,7 +11,7 @@ export interface GenerateCoverResult {
   occasion: string;
   isMock: boolean;
   aspectRatio: string;
-  provider?: "gemini_imagen" | "nano_banana" | "preset_fallback";
+  provider?: "gemini_imagen" | "nano_banana" | "pollinations_ai" | "preset_fallback";
 }
 
 /**
@@ -71,7 +71,7 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
   }
 
   // 2. Nano Banana API
-  if (nanoApiKey) {
+  if (nanoApiKey && !nanoApiKey.includes("your_nano_banana_api_key_here")) {
     try {
       const response = await fetch("https://api.nanobanana.ai/v1/images/generate", {
         method: "POST",
@@ -102,13 +102,32 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
           };
         }
       }
-      console.warn("[Nano Banana] API returned error or empty response, falling back to curated preset pool.");
+      console.warn("[Nano Banana] API returned error or empty response.");
     } catch (error) {
       console.error("[Nano Banana] Failed to call generation API:", error);
     }
   }
 
-  // 3. Graceful fallback: Curated card presets matching occasion/prompt
+  // 3. Free Instant Real AI Image Generation via Pollinations (Flux / Stable Diffusion)
+  // Generates genuine high-resolution 5:7 vertical artwork directly from prompt without requiring API keys
+  try {
+    const seed = Math.floor(Math.random() * 10000000);
+    const safePrompt = encodeURIComponent(refinedPrompt);
+    const pollinationsUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1000&height=1400&nologo=true&seed=${seed}`;
+
+    return {
+      imageUrl: pollinationsUrl,
+      prompt,
+      occasion,
+      isMock: true,
+      aspectRatio,
+      provider: "pollinations_ai",
+    };
+  } catch (err) {
+    console.warn("[AI Generator] Pollinations fallback encountered error:", err);
+  }
+
+  // 4. Graceful fallback: Curated card presets matching occasion/prompt
   const matchedByOccasion = CARD_PRESETS.find(
     (p) => p.occasion.toLowerCase() === occasion.toLowerCase()
   );
@@ -118,7 +137,7 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
   );
 
   const selectedPreset: CardPreset = matchedByPrompt || matchedByOccasion || CARD_PRESETS[0];
-  const mockImageUrl = `${selectedPreset.imageUrl}&prompt=${encodeURIComponent(prompt.slice(0, 30))}`;
+  const mockImageUrl = `${selectedPreset.imageUrl}&prompt=${encodeURIComponent(prompt.slice(0, 30))}&seed=${Date.now()}`;
 
   return {
     imageUrl: mockImageUrl,

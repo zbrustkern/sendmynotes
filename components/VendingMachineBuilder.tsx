@@ -308,6 +308,7 @@ export function VendingMachineBuilder() {
                 handwrittenNote={handwrittenNote}
                 fontStyleId={fontStyleId}
                 occasion={occasion}
+                currentStep={currentStep}
               />
 
               <div className="mt-6 pt-5 border-t border-stone-100 grid grid-cols-3 gap-2 text-center text-[11px] text-stone-500">

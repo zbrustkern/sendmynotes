@@ -25,6 +25,11 @@ export function CoverStep({
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remainingGenerations, setRemainingGenerations] = useState<number | null>(null);
+  const [generatedArt, setGeneratedArt] = useState<{
+    imageUrl: string;
+    prompt: string;
+    occasion: string;
+  } | null>(null);
 
   const handleGenerate = async () => {
     if (!customPrompt.trim()) {
@@ -61,6 +66,11 @@ export function CoverStep({
       }
 
       if (data.imageUrl) {
+        setGeneratedArt({
+          imageUrl: data.imageUrl,
+          prompt: customPrompt,
+          occasion,
+        });
         onSelectCover(data.imageUrl);
       }
     } catch (err: unknown) {
@@ -157,6 +167,58 @@ export function CoverStep({
         )}
       </div>
 
+      {/* NEW: Display Generated AI Art Immediately with Visual Confirmation */}
+      {generatedArt && (
+        <div className="bg-gradient-to-r from-amber-50 to-orange-50/70 border-2 border-amber-400/80 rounded-2xl p-4 shadow-sm animate-in fade-in zoom-in-95 duration-300">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              Your Custom AI Painting
+            </span>
+            {selectedCover === generatedArt.imageUrl ? (
+              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                <Check className="w-3 h-3 stroke-[3]" />
+                Selected Cover
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => onSelectCover(generatedArt.imageUrl)}
+                className="text-[11px] font-semibold text-amber-800 bg-white border border-amber-300 hover:bg-amber-100 px-2.5 py-0.5 rounded-full transition cursor-pointer"
+              >
+                Use this AI painting
+              </button>
+            )}
+          </div>
+
+          <div
+            onClick={() => onSelectCover(generatedArt.imageUrl)}
+            className="flex items-center gap-4 bg-white/80 backdrop-blur-sm p-3 rounded-xl border border-amber-200/80 cursor-pointer hover:border-amber-400 transition"
+          >
+            <div className="relative w-16 sm:w-20 aspect-[5/7] rounded-lg overflow-hidden border border-stone-200 shadow-sm shrink-0 bg-stone-100">
+              <Image
+                src={generatedArt.imageUrl}
+                alt="AI Generated Cover Art"
+                fill
+                unoptimized
+                className="object-cover"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <span className="block text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-0.5">
+                {generatedArt.occasion} • Custom Prompt
+              </span>
+              <p className="text-xs sm:text-sm font-medium text-stone-800 italic line-clamp-2">
+                &ldquo;{generatedArt.prompt}&rdquo;
+              </p>
+              <p className="text-[11px] text-stone-500 mt-1 flex items-center gap-1">
+                Active on your 5×7 greeting card preview &rarr;
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Quick-Pick Carousel / Grid */}
       <div>
         <div className="flex items-center justify-between mb-3">
@@ -186,6 +248,7 @@ export function CoverStep({
                     src={preset.imageUrl}
                     alt={preset.title}
                     fill
+                    unoptimized
                     sizes="(max-width: 640px) 50vw, 33vw"
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                   />

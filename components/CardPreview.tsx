@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Sparkles, Eye, BookOpen, PenTool, CheckCircle2, Feather } from "lucide-react";
 import { FONT_OPTIONS } from "@/lib/card-presets";
@@ -11,6 +11,7 @@ interface CardPreviewProps {
   handwrittenNote: string;
   fontStyleId: string;
   occasion?: string;
+  currentStep?: number;
 }
 
 export function CardPreview({
@@ -19,8 +20,18 @@ export function CardPreview({
   handwrittenNote,
   fontStyleId,
   occasion = "Custom Card",
+  currentStep,
 }: CardPreviewProps) {
   const [viewMode, setViewMode] = useState<"cover" | "rightPage" | "spread">("cover");
+
+  // Automatically focus on cover for Step 1, inside note for Step 2
+  useEffect(() => {
+    if (currentStep === 1) {
+      setViewMode("cover");
+    } else if (currentStep === 2) {
+      setViewMode("rightPage");
+    }
+  }, [currentStep]);
 
   const currentFont =
     FONT_OPTIONS.find((f) => f.handwryttenFontId === fontStyleId) || FONT_OPTIONS[0];
@@ -79,6 +90,7 @@ export function CardPreview({
                 sizes="(max-width: 768px) 100vw, 400px"
                 className="object-cover transition-transform duration-700 group-hover:scale-[1.02]"
                 priority
+                unoptimized
               />
               {/* Natural Left Spine Fold Shadow */}
               <div className="absolute left-0 top-0 bottom-0 w-3.5 bg-gradient-to-r from-black/35 via-black/10 to-transparent pointer-events-none" />
