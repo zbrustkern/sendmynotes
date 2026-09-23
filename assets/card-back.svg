@@ -1,0 +1,180 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 1100" width="100%" height="100%">
+  <!-- A2 Card Back Canvas (4.25" x 5.5" at 200 DPI scale) -->
+  <rect width="850" height="1100" fill="#FCFAF7" />
+
+  <defs>
+    <style>
+      .arch-bold   { fill: none; stroke: #26231F; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .arch-med    { fill: none; stroke: #26231F; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+      .arch-fine   { fill: none; stroke: #59544D; stroke-width: 0.75; stroke-linecap: round; stroke-linejoin: round; }
+      .arch-hair   { fill: none; stroke: #878177; stroke-width: 0.5; stroke-linecap: round; stroke-linejoin: round; }
+      .paper-fill  { fill: #FCFAF7; }
+      .brand-serif { font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif; }
+      .brand-sans  { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+    </style>
+  </defs>
+
+  <!-- ============================================================ -->
+  <!-- 1. ARCHITECTURAL VIGNETTE                                    -->
+  <!-- ============================================================ -->
+  <g id="estate-illustration" transform="translate(125, 210)">
+    <!-- Oak Bough Accent -->
+    <path class="arch-med" d="M 0 35 C 50 38 98 26 148 48 C 178 61 198 56 222 68" />
+    <path class="arch-fine" d="M 64 34 C 78 20 102 18 118 24 M 128 42 C 146 30 168 32 182 41" />
+    <path class="arch-hair" d="
+      M 78 22 C 73 14 85 10 91 18 C 97 10 107 14 103 22 C 111 24 109 34 101 32
+      M 138 30 C 133 20 145 16 151 24 C 159 18 169 24 165 32 C 173 36 169 46 159 42" />
+
+    <!-- Chimneys & Main Roofline -->
+    <rect class="paper-fill arch-med" x="166" y="52" width="18" height="32" />
+    <rect class="paper-fill arch-bold" x="163" y="48" width="24" height="4" />
+    <line class="arch-hair" x1="166" y1="60" x2="184" y2="60" />
+    <rect class="paper-fill arch-med" x="470" y="60" width="18" height="34" />
+    <rect class="paper-fill arch-bold" x="467" y="56" width="24" height="4" />
+    <line class="arch-hair" x1="470" y1="68" x2="488" y2="68" />
+
+    <line class="arch-med" x1="184" y1="82" x2="470" y2="82" />
+    <line class="arch-fine" x1="470" y1="82" x2="518" y2="142" />
+    <line class="arch-med" x1="518" y1="142" x2="518" y2="202" />
+
+    <!-- Skylights -->
+    <line class="arch-fine" x1="400" y1="82" x2="470" y2="128" />
+    <polygon class="paper-fill arch-fine" points="436,104 446,110 441,120 431,114" />
+    <polygon class="paper-fill arch-fine" points="422,118 432,124 427,134 417,128" />
+    <polygon class="paper-fill arch-fine" points="408,132 418,138 413,148 403,142" />
+
+    <!-- Left Wing: Gable, Siding, Eyebrow Arch Window -->
+    <path class="paper-fill arch-bold" d="M 170 100 L 106 156 L 112 160 L 170 108 L 230 160 L 236 156 Z" />
+    <line class="arch-bold" x1="116" y1="158" x2="116" y2="250" />
+    <line class="arch-med" x1="226" y1="158" x2="226" y2="186" />
+    <line class="arch-hair" x1="132" y1="120" x2="208" y2="120" />
+    <line class="arch-hair" x1="124" y1="128" x2="216" y2="128" />
+    <line class="arch-hair" x1="120" y1="136" x2="220" y2="136" />
+    <line class="arch-hair" x1="118" y1="144" x2="222" y2="144" />
+    <line class="arch-hair" x1="117" y1="152" x2="224" y2="152" />
+    <rect class="paper-fill arch-med" x="114" y="173" width="114" height="4" />
+
+    <path class="paper-fill arch-med" d="M 144 133 C 157 126 181 126 194 133 L 194 164 L 144 164 Z" />
+    <path class="arch-fine" d="M 141 132 C 156 123 182 123 197 132" />
+    <rect class="paper-fill arch-fine" x="148" y="134" width="42" height="28" />
+    <line class="arch-fine" x1="162" y1="134" x2="162" y2="162" />
+    <line class="arch-fine" x1="176" y1="134" x2="176" y2="162" />
+    <rect class="arch-fine" x="143" y="164" width="52" height="3" />
+
+    <rect class="paper-fill arch-med" x="145" y="190" width="48" height="36" />
+    <line class="arch-fine" x1="161" y1="190" x2="161" y2="226" />
+    <line class="arch-fine" x1="177" y1="190" x2="177" y2="226" />
+    <rect class="arch-fine" x="142" y="226" width="54" height="3" />
+
+    <!-- Center Entry Arch & Dormer -->
+    <path class="paper-fill arch-med" d="M 268 128 L 250 146 L 286 146 Z" />
+    <rect class="paper-fill arch-med" x="253" y="146" width="30" height="18" />
+    <path class="paper-fill arch-bold" d="M 254 250 V 204 A 17 17 0 0 1 288 204 V 250" />
+    <path class="arch-fine" d="M 250 250 V 202 A 21 21 0 0 1 292 202 V 250" />
+    <rect class="paper-fill arch-med" x="259" y="206" width="24" height="44" />
+    <path class="arch-fine" d="M 259 206 A 12 12 0 0 1 283 206" />
+
+    <!-- Right Wing: Timber Gable & Flared Copper Hood -->
+    <path class="paper-fill arch-bold" d="M 410 80 L 302 186 L 308 190 L 410 88 L 512 190 L 518 186 Z" />
+    <line class="arch-bold" x1="410" y1="88" x2="410" y2="116" />
+    <line class="arch-bold" x1="388" y1="116" x2="432" y2="116" />
+    <line class="arch-bold" x1="308" y1="190" x2="308" y2="250" />
+    <line class="arch-bold" x1="508" y1="190" x2="508" y2="250" />
+
+    <rect class="paper-fill arch-med" x="389" y="156" width="42" height="4" />
+    <path class="paper-fill arch-bold" d="M 392 160 C 388 180 374 196 358 204 H 462 C 446 196 432 180 428 160 Z" />
+    <path class="arch-fine" d="M 399 160 C 396 178 388 194 378 204" />
+    <path class="arch-fine" d="M 406 160 C 405 178 402 194 399 204" />
+    <path class="arch-fine" d="M 410 160 V 204" />
+    <path class="arch-fine" d="M 414 160 C 415 178 418 194 421 204" />
+    <path class="arch-fine" d="M 421 160 C 424 178 432 194 442 204" />
+    <line class="arch-med" x1="356" y1="204" x2="464" y2="204" />
+
+    <rect class="paper-fill arch-med" x="364" y="206" width="92" height="38" />
+    <line class="arch-fine" x1="387" y1="206" x2="387" y2="244" />
+    <line class="arch-fine" x1="410" y1="206" x2="410" y2="244" />
+    <line class="arch-fine" x1="433" y1="206" x2="433" y2="244" />
+    <rect class="arch-med" x="361" y="244" width="98" height="4" />
+
+    <!-- Foundation, Wall & Curved Walkway -->
+    <line class="arch-bold" x1="106" y1="250" x2="516" y2="250" />
+    <path class="arch-med" d="M 318 258 C 369 260 429 256 489 251" />
+    <path class="arch-fine" d="M 256 250 C 252 266 274 276 319 280 C 389 284 469 278 544 293" />
+    <path class="arch-fine" d="M 284 250 C 290 264 316 270 359 272 C 429 274 499 270 559 283" />
+  </g>
+
+  <!-- ============================================================ -->
+  <!-- 2. HIGH-CLARITY COLOPHON TYPOGRAPHY                          -->
+  <!-- ============================================================ -->
+  <g text-anchor="middle" transform="translate(425, 595)">
+    <!-- Ornamental Stamp Flourish -->
+    <circle cx="0" cy="0" r="2.5" fill="#26231F" />
+    <line x1="-42" y1="0" x2="-10" y2="0" stroke="#26231F" stroke-width="0.9" />
+    <line x1="10" y1="0" x2="42" y2="0" stroke="#26231F" stroke-width="0.9" />
+    <path d="M -10 0 C -18 -5 -26 -5 -34 0" fill="none" stroke="#59544D" stroke-width="0.7" />
+    <path d="M 10 0 C 18 -5 26 -5 34 0" fill="none" stroke="#59544D" stroke-width="0.7" />
+
+    <!-- PRIMARY IMPRINT -->
+    <text 
+      class="brand-serif" 
+      x="0" 
+      y="38" 
+      font-size="28" 
+      font-weight="600" 
+      letter-spacing="9" 
+      fill="#1C1A18">
+      ASTER &amp; BLANCHE
+    </text>
+
+    <!-- SUB-HEADING -->
+    <text 
+      class="brand-sans" 
+      x="0" 
+      y="66" 
+      font-size="11" 
+      font-weight="500" 
+      letter-spacing="7" 
+      fill="#59544D">
+      PRESS
+    </text>
+
+    <!-- CENTER DIVIDER -->
+    <line x1="-34" y1="84" x2="34" y2="84" stroke="#D1CCC4" stroke-width="0.9" />
+
+    <!-- HERITAGE LOCATION -->
+    <text 
+      class="brand-serif" 
+      x="0" 
+      y="114" 
+      font-size="15" 
+      font-weight="500" 
+      letter-spacing="5" 
+      fill="#2E2B26">
+      LAKE FOREST, IL
+    </text>
+
+    <!-- FOUNDER IMPRINT -->
+    <text 
+      class="brand-serif" 
+      x="0" 
+      y="140" 
+      font-size="13" 
+      font-style="italic" 
+      letter-spacing="3" 
+      fill="#544F47">
+      The Private Press of Ezekiel Brustkern
+    </text>
+
+    <!-- PAPER CREDENTIAL SPECIFICATION -->
+    <text 
+      class="brand-sans" 
+      x="0" 
+      y="172" 
+      font-size="8" 
+      font-weight="400" 
+      letter-spacing="3.5" 
+      fill="#8F8A80">
+      100% RECYCLED COTTON CARDSTOCK • MAILED IN LAKE FOREST
+    </text>
+  </g>
+</svg>

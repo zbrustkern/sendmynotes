@@ -191,3 +191,18 @@ export async function claimImageCacheItem(id: string): Promise<void> {
     });
   }
 }
+
+// System Config Helpers
+export const SYSTEM_CONFIG_COLLECTION = "system_config";
+export const getSystemConfigCollection = () => firestoreDb.collection(SYSTEM_CONFIG_COLLECTION);
+
+export async function getSystemConfig<T = Record<string, unknown>>(configId: string): Promise<T | null> {
+  const doc = await getSystemConfigCollection().doc(configId).get();
+  if (!doc.exists) return null;
+  return doc.data() as T;
+}
+
+export async function setSystemConfig(configId: string, data: Record<string, unknown>): Promise<void> {
+  await getSystemConfigCollection().doc(configId).set(data, { merge: true });
+}
+

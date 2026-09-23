@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:assets": "tsx scripts/generate-backplate.ts",
     "start": "next start",
     "lint": "next lint",
     "test:m1": "tsx tests/milestone1.test.ts",
@@ -13,6 +14,7 @@
   "dependencies": {
     "@stripe/react-stripe-js": "^3.1.1",
     "@stripe/stripe-js": "^5.6.0",
+    "@types/sharp": "^0.32.0",
     "canvas-confetti": "^1.9.4",
     "firebase": "^12.19.0",
     "firebase-admin": "^13.1.0",
@@ -20,6 +22,7 @@
     "next": "^15.1.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "sharp": "^0.35.4",
     "stripe": "^17.6.0"
   },
   "devDependencies": {

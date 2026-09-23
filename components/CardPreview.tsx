@@ -22,7 +22,7 @@ export function CardPreview({
   occasion = "Custom Card",
   currentStep,
 }: CardPreviewProps) {
-  const [viewMode, setViewMode] = useState<"cover" | "rightPage" | "spread">("cover");
+  const [viewMode, setViewMode] = useState<"cover" | "rightPage" | "spread" | "back">("cover");
 
   // Automatically focus on cover for Step 1, inside note for Step 2
   useEffect(() => {
@@ -52,7 +52,7 @@ export function CardPreview({
           }`}
         >
           <Eye className="w-3.5 h-3.5" />
-          Front Cover (5×7)
+          Front Cover
         </button>
         <button
           type="button"
@@ -64,7 +64,7 @@ export function CardPreview({
           }`}
         >
           <PenTool className="w-3.5 h-3.5 text-indigo-600" />
-          Inside Note (Focus)
+          Inside Note
         </button>
         <button
           type="button"
@@ -76,7 +76,19 @@ export function CardPreview({
           }`}
         >
           <BookOpen className="w-3.5 h-3.5 text-stone-600" />
-          Full Spread (10×7)
+          Open Spread
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode("back")}
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap ${
+            viewMode === "back"
+              ? "bg-white text-stone-900 shadow-sm"
+              : "text-stone-500 hover:text-stone-800"
+          }`}
+        >
+          <Feather className="w-3.5 h-3.5 text-amber-700" />
+          Card Back
         </button>
       </div>
 
@@ -173,15 +185,15 @@ export function CardPreview({
             <div className="absolute inset-2 sm:inset-3 border border-stone-300/35 rounded-xl pointer-events-none" />
 
             {/* Subtle embossed stationery watermark colophon */}
-            <div className="text-center opacity-40 select-none space-y-1 relative z-10">
-              <div className="w-7 h-7 mx-auto mb-1.5 rounded-full border border-stone-400/80 flex items-center justify-center text-stone-600">
+            <div className="text-center opacity-45 select-none space-y-1 relative z-10">
+              <div className="w-7 h-7 mx-auto mb-1.5 rounded-full border border-stone-400/80 flex items-center justify-center text-stone-700">
                 <Feather className="w-3.5 h-3.5" />
               </div>
               <span className="font-serif text-[11px] uppercase tracking-widest text-stone-800 font-semibold block">
-                sendmynotes
+                Aster &amp; Blanche Press
               </span>
-              <span className="text-[8px] uppercase tracking-wider text-stone-500 block font-mono">
-                Atelier No. 5×7 • 120 lb
+              <span className="text-[8px] uppercase tracking-wider text-stone-500 block font-sans">
+                Lake Forest, IL • 120 lb Cotton
               </span>
             </div>
           </div>
@@ -223,6 +235,30 @@ export function CardPreview({
         </div>
       )}
 
+      {/* 4. CARD BACK VIEW: Aster & Blanche Press Architectural Colophon */}
+      {viewMode === "back" && (
+        <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[5/7] transition-all duration-300">
+          <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FCFAF7] paper-texture flex flex-col justify-center items-center group p-2">
+            <Image
+              src="/aster-blanche-backplate.png"
+              alt="Aster & Blanche Press Card Back Colophon"
+              fill
+              sizes="(max-width: 768px) 100vw, 400px"
+              className="object-contain p-2"
+              priority
+            />
+            {/* Natural Right Spine Fold Shadow indicating this is the Back of Card */}
+            <div className="absolute right-0 top-0 bottom-0 w-3.5 bg-gradient-to-l from-black/25 via-black/5 to-transparent pointer-events-none" />
+
+            {/* Physical Imprint Badge */}
+            <div className="absolute bottom-3 bg-stone-900/85 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-medium text-stone-200 tracking-wide border border-white/10 flex items-center gap-1.5 z-10">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span>Aster &amp; Blanche Press • Lake Forest, IL</span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Caption description */}
       <p className="text-center text-xs text-stone-500 mt-3 flex items-center gap-1.5">
         <span>
@@ -230,7 +266,9 @@ export function CardPreview({
             ? "5×7 portrait front cover artwork."
             : viewMode === "rightPage"
             ? "Inside right leaf with printed sentiment above and real ink handwriting below."
-            : "Panoramic 10×7 open card spread."}
+            : viewMode === "spread"
+            ? "Panoramic 10×7 open card spread."
+            : "Card backplate with Aster & Blanche Press architectural colophon."}
         </span>
       </p>
     </div>
