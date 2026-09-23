@@ -149,14 +149,14 @@ function InnerPaymentForm({
           <div className="p-3 bg-white border border-stone-200 rounded-lg text-xs space-y-1.5 text-stone-600">
             <div className="flex items-center justify-between text-amber-700 font-medium">
               <span className="flex items-center gap-1">
-                <Coins className="w-3.5 h-3.5" /> Instant Vending Simulator Mode
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-600" /> Test Mode Active
               </span>
               <span className="bg-amber-100 px-2 py-0.5 rounded text-[10px] uppercase font-bold tracking-wider">
-                Dev Mode
+                Dev / Test
               </span>
             </div>
             <p className="text-[11px] text-stone-500 leading-normal">
-              Stripe test simulation active. Clicking &quot;Drop Coin & Mail Card&quot; will process your \$6.50 order and dispatch the robotic pen fulfillment pipeline immediately.
+              Stripe test mode active. Clicking &quot;Send Handwritten Card&quot; will process your \$6.50 order and dispatch the robotic pen fulfillment pipeline immediately.
             </p>
           </div>
         ) : (
@@ -190,7 +190,7 @@ function InnerPaymentForm({
         </div>
       </div>
 
-      {/* Vending Machine Coin-Drop Push Button */}
+      {/* Order Confirmation Primary Action Button */}
       <button
         type="submit"
         disabled={isProcessing}
@@ -199,12 +199,11 @@ function InnerPaymentForm({
         {isProcessing ? (
           <>
             <Loader2 className="w-5 h-5 animate-spin" />
-            <span>Dispensing & Writing Card...</span>
+            <span>Processing & Inking Card...</span>
           </>
         ) : (
           <>
-            <Coins className="w-5 h-5 text-amber-200" />
-            <span>Drop Coin & Mail Card ($6.50)</span>
+            <span>Send Handwritten Card — $6.50 Flat</span>
             <ArrowRight className="w-4 h-4 ml-1" />
           </>
         )}
@@ -213,10 +212,10 @@ function InnerPaymentForm({
       <div className="flex items-center justify-center gap-3 text-[11px] text-stone-400">
         <span className="flex items-center gap-1">
           <ShieldCheck className="w-3.5 h-3.5 text-stone-400" />
-          No Subscription
+          No Account Required
         </span>
         <span>•</span>
-        <span>Coins In, Card Out</span>
+        <span>Real Pen-on-Paper</span>
         <span>•</span>
         <span>USPS First Class Delivery</span>
       </div>
@@ -233,11 +232,11 @@ export function CheckoutStep(props: CheckoutStepProps) {
             4
           </span>
           <h2 className="text-xl font-bold tracking-tight text-stone-900">
-            1-Click Vending Checkout
+            Payment & Mailing Confirmation
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          No signups, no onboarding, no recurring memberships. Just \$6.50 flat all-inclusive.
+          Zero accounts or onboarding required. Flat \$6.50 all-inclusive with real pen inking and USPS postage.
         </p>
       </div>
 

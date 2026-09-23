@@ -134,20 +134,20 @@ export function VendingMachineBuilder() {
       <header className="border-b border-stone-200/80 bg-white/80 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-500/30">
-              <Coins className="w-5 h-5 text-amber-100" />
+            <div className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-600/20">
+              <PenTool className="w-5 h-5 text-amber-100" />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-serif text-lg sm:text-xl font-bold tracking-tight text-stone-900">
                   sendmynotes<span className="text-amber-600">.com</span>
                 </span>
-                <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300/60">
-                  Internet Vending Machine
+                <span className="hidden sm:inline-block text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
+                  No Account Required
                 </span>
               </div>
               <p className="text-xs text-stone-500 hidden sm:block">
-                Coins in, physical card out. Real robotic pen on heavy 5×7 cardstock.
+                AI-designed 5×7 greeting cards, written with real pens by robotic plotters.
               </p>
             </div>
           </div>
@@ -335,16 +335,14 @@ export function VendingMachineBuilder() {
       {/* FOOTER BADGES */}
       <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16 pt-8 border-t border-stone-200/60 text-center text-xs text-stone-400 space-y-2">
         <p className="flex items-center justify-center gap-2">
-          <span>Three Kind Words Ethos</span>
+          <span>No Account Required</span>
           <span>•</span>
-          <span>Zero Accounts</span>
-          <span>•</span>
-          <span>Handwritten by Robotic Plotters in the USA</span>
+          <span>Inked by Robotic Plotters in the USA</span>
           <span>•</span>
           <span>USPS First Class Delivery</span>
         </p>
         <p className="text-[11px] text-stone-400">
-          sendmynotes.com &copy; {new Date().getFullYear()} — An Internet Vending Machine for Thoughtfulness
+          sendmynotes.com &copy; {new Date().getFullYear()} — Meaningful Handwritten Greeting Cards Made Simple
         </p>
       </footer>
     </div>

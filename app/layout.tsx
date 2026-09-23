@@ -2,12 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "sendmynotes.com | The Internet Vending Machine for Handwritten Cards",
+  title: "sendmynotes.com | AI-Designed, Real-Pen Handwritten Greeting Cards",
   description:
-    "Zero login, zero accounts. AI-designed 5x7 folded cards with robotic pen-on-paper calligraphy, mailed anywhere via USPS for $6.50 flat.",
+    "Custom 5x7 folded greeting cards written with real robotic pen inking on heavy cardstock. No account required. Mailed anywhere in the US for $6.50 flat.",
   openGraph: {
     title: "sendmynotes.com - Handwritten Cards by Robot Pen",
-    description: "Coins in, physical card sent. 5x7 folded greeting cards with real pen inking.",
+    description: "Physical 5x7 folded greeting cards with real ballpoint ink. Mailed via USPS First Class.",
     type: "website",
   },
 };

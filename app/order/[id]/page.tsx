@@ -61,8 +61,8 @@ export default function OrderStatusPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-12 h-12 rounded-2xl bg-amber-500 text-white flex items-center justify-center animate-bounce shadow-lg shadow-amber-500/25 mb-4">
-          <Coins className="w-6 h-6" />
+        <div className="w-12 h-12 rounded-2xl bg-amber-600 text-white flex items-center justify-center animate-bounce shadow-lg shadow-amber-600/25 mb-4">
+          <PenTool className="w-6 h-6" />
         </div>
         <h2 className="text-xl font-bold font-serif text-stone-900 mb-2">
           Retrieving Physical Order Tracker...
@@ -83,7 +83,7 @@ export default function OrderStatusPage() {
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-stone-900 text-white text-sm font-semibold rounded-xl hover:bg-black transition"
           >
             <ArrowLeft className="w-4 h-4" />
-            Return to Vending Machine
+            Return to Home
           </Link>
         </div>
       </div>
@@ -95,20 +95,20 @@ export default function OrderStatusPage() {
 
   const trackingSteps = [
     {
-      title: "Coin Accepted ($6.50 Paid)",
-      description: "Payment confirmed. Zero account required.",
-      icon: Coins,
+      title: "Payment Confirmed ($6.50 Paid)",
+      description: "Transaction complete. Receipt delivered to email.",
+      icon: CheckCircle2,
       status: "complete",
     },
     {
       title: "Artwork Printed on 5×7 Linen",
-      description: "Cover artwork & top printed sentiment pressed.",
+      description: "Cover artwork & left page printed sentiment pressed.",
       icon: Sparkles,
       status: "complete",
     },
     {
       title: "Robotic Pen Inking In Progress",
-      description: `Handwrytten robotic plotter applying real blue ballpoint ink to bottom panel. ${
+      description: `Handwrytten robotic plotter applying real blue ballpoint ink to right page. ${
         order.handwryttenOrderId ? `(ID: ${order.handwryttenOrderId})` : ""
       }`,
       icon: PenTool,
@@ -154,7 +154,7 @@ export default function OrderStatusPage() {
             <CheckCircle2 className="w-8 h-8 stroke-[2.5]" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900">
-            Card Dispensed & Sent to Robot Inking!
+            Order Confirmed & Sent to Robotic Inking!
           </h1>
           <p className="text-stone-600 text-sm max-w-lg mx-auto">
             Your card is currently queued on a Handwrytten robotic pen plotter. We will write it with real ink, stamp it, and mail it directly to your recipient.
@@ -299,10 +299,10 @@ export default function OrderStatusPage() {
         <div className="text-center pt-4">
           <Link
             href="/"
-            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-xl shadow-amber-500/20 transition-all cursor-pointer"
+            className="inline-flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-sm shadow-xl shadow-amber-600/20 transition-all cursor-pointer"
           >
-            <Coins className="w-4 h-4 text-amber-100" />
-            <span>Dispense Another Card ($6.50)</span>
+            <PenTool className="w-4 h-4 text-amber-100" />
+            <span>Send Another Card ($6.50)</span>
           </Link>
         </div>
       </main>

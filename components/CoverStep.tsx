@@ -73,7 +73,7 @@ export function CoverStep({
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          Pick a curated design from our vending carousel or type a custom prompt to have AI paint a unique card cover.
+          Pick a design from our curated collection or type a custom prompt to have AI paint a unique card cover.
         </p>
       </div>
 
@@ -144,9 +144,9 @@ export function CoverStep({
         <div className="flex items-center justify-between mb-3">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-500 flex items-center gap-1">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Quick-Pick Vending Slots
+            Curated Card Collection
           </label>
-          <span className="text-[11px] text-stone-400">Click to dispense</span>
+          <span className="text-[11px] text-stone-400">Click to preview</span>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">

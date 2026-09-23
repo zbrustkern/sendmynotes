@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { PenTool, Type, Sparkles, Check } from "lucide-react";
+import { PenTool, Type, Sparkles, Check, BookOpen } from "lucide-react";
 import { FONT_OPTIONS } from "@/lib/card-presets";
 
 interface InsideNoteStepProps {
@@ -29,23 +29,23 @@ export function InsideNoteStep({
           <span className="w-6 h-6 rounded-full bg-amber-500 text-white font-bold text-xs flex items-center justify-center">
             2
           </span>
-          <h2 className="text-xl font-bold tracking-tight text-stone-900">
-            Inside Note (Dual-Panel)
+          <h2 className="text-xl font-bold tracking-tight text-stone-900 flex items-center gap-2">
+            Inside Open Card (Two-Page Spread)
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          The top panel is printed in a clean commercial serif. The bottom panel is written with a real robotic ballpoint pen in real blue ink.
+          When the 5×7 card opens like a book, the left page features your printed sentiment, while the right page is inked by a real robotic pen.
         </p>
       </div>
 
-      {/* Top Panel: Printed Greeting */}
+      {/* Left Page: Printed Greeting */}
       <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Type className="w-3.5 h-3.5 text-stone-500" />
-            Top Panel: Printed Greeting (Commercial Press)
+            Left Page: Printed Sentiment (Commercial Serif)
           </label>
-          <span className="text-[11px] text-stone-400">Centered Serif font</span>
+          <span className="text-[11px] text-stone-400">Centered press font</span>
         </div>
 
         <input
@@ -58,7 +58,7 @@ export function InsideNoteStep({
         />
 
         <div className="flex items-center justify-between text-[11px] text-stone-400">
-          <span>Appears on inside upper fold</span>
+          <span>Appears on inside left cover page</span>
           <span>{printedGreeting.length}/120 characters</span>
         </div>
       </div>
@@ -68,10 +68,10 @@ export function InsideNoteStep({
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <PenTool className="w-3.5 h-3.5 text-indigo-600" />
-            Robotic Pen Handwriting Style
+            Robotic Pen Handwriting Style (Right Page)
           </label>
           <span className="text-[11px] text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
-            Real Pen-on-Paper
+            Real Ballpoint Ink
           </span>
         </div>
 
@@ -105,12 +105,12 @@ export function InsideNoteStep({
         </div>
       </div>
 
-      {/* Bottom Panel: Handwritten Message Text Area */}
+      {/* Right Page: Handwritten Message Text Area */}
       <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Bottom Panel: Personal Note (Robotic Inking)
+            Right Page: Personal Note (Robotic Inking)
           </label>
           <span className="text-[11px] text-stone-400">Up to 500 characters</span>
         </div>
