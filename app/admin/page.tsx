@@ -35,8 +35,12 @@ import {
   ToggleRight,
   ExternalLink,
   Sparkles,
+  Globe,
+  Compass,
+  BookOpen,
+  Layers,
 } from "lucide-react";
-import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType } from "@/lib/types";
+import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType, ScenarioPerformanceMetric } from "@/lib/types";
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -45,7 +49,7 @@ export default function AdminDashboardPage() {
   const [authLoading, setAuthLoading] = useState(false);
 
   // Tab Navigation State
-  const [activeTab, setActiveTab] = useState<"orders" | "discounts" | "incidents">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "discounts" | "scenarios" | "incidents">("orders");
 
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [loading, setLoading] = useState(false);
@@ -85,6 +89,19 @@ export default function AdminDashboardPage() {
   const [discountFormError, setDiscountFormError] = useState("");
   const [discountFormSuccess, setDiscountFormSuccess] = useState("");
 
+  // SEO & Scenario Performance Engine State
+  const [scenarioMetrics, setScenarioMetrics] = useState<ScenarioPerformanceMetric[]>([]);
+  const [scenarioSummary, setScenarioSummary] = useState<{
+    totalViews: number;
+    totalOrders: number;
+    overallConversionRate: number;
+    topScenario: string;
+    activeScenariosCount: number;
+  } | null>(null);
+  const [loadingScenarios, setLoadingScenarios] = useState(false);
+  const [scenarioSearchQuery, setScenarioSearchQuery] = useState("");
+  const [copiedScenarioUrl, setCopiedScenarioUrl] = useState<string | null>(null);
+
   const verifyAccess = async (keyToTest: string) => {
     setAuthLoading(true);
     setAuthError("");
@@ -102,6 +119,7 @@ export default function AdminDashboardPage() {
         fetchMetrics();
         fetchIncidents();
         fetchDiscounts();
+        fetchScenarios();
       }
     } catch {
       setAuthError("Network error. Please try again.");
@@ -376,6 +394,36 @@ export default function AdminDashboardPage() {
     }, 2500);
   };
 
+  const fetchScenarios = async () => {
+    setLoadingScenarios(true);
+    try {
+      const res = await fetch("/api/admin/scenarios");
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setScenarioMetrics(data.metrics || []);
+        setScenarioSummary(data.summary || null);
+      }
+    } catch (err) {
+      console.error("Error fetching scenario analytics:", err);
+    } finally {
+      setLoadingScenarios(false);
+    }
+  };
+
+  const handleCopyScenarioLink = (path: string) => {
+    if (typeof window === "undefined") return;
+    const url = `${window.location.origin}${path}`;
+    navigator.clipboard.writeText(url);
+    setCopiedScenarioUrl(path);
+    setTimeout(() => {
+      setCopiedScenarioUrl((curr) => (curr === path ? null : curr));
+    }, 2500);
+  };
+
   const applyPreset = (preset: "VIP" | "DOLLAR2" | "PERCENT20") => {
     setDiscountFormError("");
     setDiscountFormSuccess("");
@@ -407,6 +455,7 @@ export default function AdminDashboardPage() {
           fetchMetrics();
           fetchIncidents();
           fetchDiscounts();
+          fetchScenarios();
         }
       } catch (err) {
         console.error("Admin auth check failed:", err);
@@ -494,6 +543,16 @@ export default function AdminDashboardPage() {
     );
   });
 
+  const filteredScenarioMetrics = (scenarioMetrics || []).filter((m) => {
+    if (!scenarioSearchQuery) return true;
+    const q = scenarioSearchQuery.toLowerCase();
+    return (
+      m.title.toLowerCase().includes(q) ||
+      m.slug.toLowerCase().includes(q) ||
+      m.category.toLowerCase().includes(q)
+    );
+  });
+
   const revenueDollars = ((metrics?.totalRevenueCents || 0) / 100).toFixed(2);
   const conversionRate =
     metrics && metrics.funnel.totalSessions > 0
@@ -531,14 +590,15 @@ export default function AdminDashboardPage() {
                 fetchMetrics();
                 fetchIncidents();
                 fetchDiscounts();
+                fetchScenarios();
               }}
-              disabled={loading || loadingIncidents || loadingDiscounts}
+              disabled={loading || loadingIncidents || loadingDiscounts || loadingScenarios}
               className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition cursor-pointer"
               title="Refresh Data & Incidents"
             >
               <RefreshCw
                 className={`w-4 h-4 ${
-                  loading || loadingIncidents || loadingDiscounts ? "animate-spin" : ""
+                  loading || loadingIncidents || loadingDiscounts || loadingScenarios ? "animate-spin" : ""
                 }`}
               />
             </button>
@@ -596,6 +656,24 @@ export default function AdminDashboardPage() {
               {discountStats?.activeCodes !== undefined && discountStats.activeCodes > 0 && (
                 <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-amber-100 text-amber-800 font-bold">
                   {discountStats.activeCodes} Active
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("scenarios")}
+              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                activeTab === "scenarios"
+                  ? "border-indigo-600 text-indigo-900 font-semibold"
+                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+              }`}
+            >
+              <Globe className="w-4 h-4 text-indigo-600" />
+              <span>SEO &amp; Scenarios</span>
+              {scenarioSummary?.activeScenariosCount !== undefined && (
+                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-indigo-100 text-indigo-800 font-bold">
+                  {scenarioSummary.activeScenariosCount} Active
                 </span>
               )}
             </button>
@@ -1401,6 +1479,267 @@ export default function AdminDashboardPage() {
                                   className="p-1 text-stone-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===================== TAB: SEO & SCENARIOS ===================== */}
+        {activeTab === "scenarios" && (
+          <div className="space-y-8">
+            {/* KPI METRIC CARDS FOR SCENARIOS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Scenario Traffic</span>
+                  <Globe className="w-4 h-4 text-indigo-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-stone-900">
+                  {scenarioSummary?.totalViews ?? 0}
+                </p>
+                <p className="text-[11px] text-stone-400">Total organic landing page visits</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Scenario Orders</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-emerald-900">
+                  {scenarioSummary?.totalOrders ?? 0}
+                </p>
+                <p className="text-[11px] text-stone-400">Physical cards placed ($9 flat)</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Scenario Conversion</span>
+                  <TrendingUp className="w-4 h-4 text-amber-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-stone-900">
+                  {scenarioSummary?.overallConversionRate ?? 0}%
+                </p>
+                <p className="text-[11px] text-stone-400">Visitor to paid order conversion</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Active Engine Pages</span>
+                  <Layers className="w-4 h-4 text-indigo-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-indigo-900">
+                  {scenarioSummary?.activeScenariosCount ?? 12}
+                </p>
+                <p className="text-[11px] text-stone-400">Curated high-intent landing pages</p>
+              </div>
+            </div>
+
+            {/* CONTINUOUS IMPROVEMENT & AUTOMATED INSIGHTS */}
+            <div className="bg-gradient-to-br from-indigo-900 via-stone-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-amber-400" />
+                  <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                    Continuous Improvement Engine
+                  </span>
+                </div>
+                <Link
+                  href="/send"
+                  target="_blank"
+                  className="text-xs font-medium text-stone-300 hover:text-white underline inline-flex items-center gap-1"
+                >
+                  <span>View Public Occasion Directory</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <div className="p-4 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-xs space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">
+                    Top Converting Anchor
+                  </span>
+                  <p className="font-bold text-sm text-white">
+                    {scenarioSummary?.topScenario || "Job Interview Thank You"}
+                  </p>
+                  <p className="text-[11px] text-stone-300">
+                    High intent searchers with immediate urgency convert at above average rates.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-xs space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
+                    Anti-Spam Safeguard
+                  </span>
+                  <p className="font-bold text-sm text-white">12 Hand-Curated Pages</p>
+                  <p className="text-[11px] text-stone-300">
+                    Protected against Google Helpful Content updates with custom etiquette guides and FAQ schema.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-xs space-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+                    Rich Schema Status
+                  </span>
+                  <p className="font-bold text-sm text-white">Product &amp; Offer Enabled</p>
+                  <p className="text-[11px] text-stone-300">
+                    Google SERP rich snippets active: $9.00 flat, in-stock, free USPS First Class delivery.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* SCENARIOS PERFORMANCE TABLE */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+                <div>
+                  <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-stone-600" />
+                    Programmatic Landing Pages Telemetry
+                  </h2>
+                  <p className="text-xs text-stone-500">
+                    Monitor traffic volume, conversion rates, drop-off bottlenecks, and automated recommendations.
+                  </p>
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
+                  <input
+                    type="text"
+                    value={scenarioSearchQuery}
+                    onChange={(e) => setScenarioSearchQuery(e.target.value)}
+                    placeholder="Search scenario or query..."
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
+                  />
+                </div>
+              </div>
+
+              {filteredScenarioMetrics.length === 0 ? (
+                <div className="text-center py-12 text-stone-400 text-xs">
+                  <Globe className="w-8 h-8 text-stone-300 mx-auto mb-2" />
+                  <p className="font-semibold text-stone-700">No scenarios found</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-stone-600">
+                    <thead className="bg-stone-50 text-stone-400 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
+                      <tr>
+                        <th className="py-3 px-4">Scenario &amp; Query</th>
+                        <th className="py-3 px-4">Category</th>
+                        <th className="py-3 px-4 text-center">Views</th>
+                        <th className="py-3 px-4 text-center">Funnel (View→Edit→Pay)</th>
+                        <th className="py-3 px-4 text-center">Conversion</th>
+                        <th className="py-3 px-4 text-center">Health Status</th>
+                        <th className="py-3 px-4">Optimization Recommendation</th>
+                        <th className="py-3 px-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {filteredScenarioMetrics.map((item) => {
+                        const isTop = item.status === "top_performer";
+                        const isNeedsAttention = item.status === "needs_attention";
+                        const isHealthy = item.status === "healthy";
+
+                        return (
+                          <tr key={item.slug} className="hover:bg-stone-50/50 transition">
+                            <td className="py-3.5 px-4">
+                              <p className="font-semibold text-stone-900 text-sm">
+                                {item.title}
+                              </p>
+                              <span className="font-mono text-[10px] text-stone-400 block mt-0.5">
+                                {item.path}
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <span className="capitalize px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-700 border border-stone-200">
+                                {item.category}
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center font-bold text-stone-900">
+                              {item.views}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="inline-flex items-center gap-1 font-mono text-[11px] text-stone-700 bg-stone-50 px-2 py-1 rounded-lg border border-stone-200">
+                                <span>{item.views}</span>
+                                <span className="text-stone-300">&rarr;</span>
+                                <span className="text-amber-700">{item.customizations}</span>
+                                <span className="text-stone-300">&rarr;</span>
+                                <span className="text-indigo-700">{item.checkouts}</span>
+                                <span className="text-stone-300">&rarr;</span>
+                                <span className="font-bold text-emerald-700">{item.paidOrders}</span>
+                              </div>
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center font-serif font-bold text-stone-900 text-sm">
+                              {item.conversionRate}%
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              <span
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                  isTop
+                                    ? "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                    : isHealthy
+                                    ? "bg-blue-100 text-blue-800 border-blue-300"
+                                    : isNeedsAttention
+                                    ? "bg-rose-100 text-rose-800 border-rose-300"
+                                    : "bg-stone-100 text-stone-600 border-stone-200"
+                                }`}
+                              >
+                                {isTop
+                                  ? "Top Performer"
+                                  : isHealthy
+                                  ? "Healthy"
+                                  : isNeedsAttention
+                                  ? "Needs Tweak"
+                                  : "Gathering Data"}
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 px-4 max-w-[240px]">
+                              <p className="text-[11px] text-stone-600 leading-snug">
+                                {item.actionableInsight}
+                              </p>
+                              {item.primaryDropoffStep !== "None (Initial Traffic)" && (
+                                <span className="text-[10px] text-amber-800 font-medium block mt-0.5">
+                                  Bottleneck: {item.primaryDropoffStep}
+                                </span>
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <Link
+                                  href={item.path}
+                                  target="_blank"
+                                  title="Open live landing page in new tab"
+                                  className="p-1 text-stone-500 hover:text-stone-900 rounded-lg hover:bg-stone-100 transition"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </Link>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyScenarioLink(item.path)}
+                                  title="Copy URL"
+                                  className={`px-2 py-0.5 text-[10px] font-medium rounded-lg border transition cursor-pointer ${
+                                    copiedScenarioUrl === item.path
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                      : "bg-stone-50 text-stone-600 hover:bg-stone-100 border-stone-200"
+                                  }`}
+                                >
+                                  {copiedScenarioUrl === item.path ? "Copied!" : "Copy"}
                                 </button>
                               </div>
                             </td>

@@ -145,6 +145,8 @@ export interface UserAccount {
 export type TelemetryEventName =
   | "session_start"
   | "agent_url_prefilled"
+  | "scenario_landing_viewed"
+  | "scenario_customized"
   | "cover_preset_selected"
   | "ai_generate_started"
   | "ai_generate_succeeded"
@@ -169,6 +171,54 @@ export interface TelemetryEvent {
   path: string;
   timestamp: number;
   createdAt: number;
+}
+
+// Programmatic SEO Scenario Types
+export interface ScenarioEtiquetteTip {
+  title: string;
+  content: string;
+}
+
+export interface ScenarioFaqItem {
+  question: string;
+  answer: string;
+}
+
+export interface ScenarioConfig {
+  slug: string; // e.g. "after-job-interview"
+  occasionSlug: string; // e.g. "thank-you"
+  occasionName: string; // e.g. "Thank You"
+  category: "career" | "milestone" | "sympathy" | "gratitude" | "support";
+  badgeText: string;
+  h1Title: string;
+  heroTagline: string;
+  metaTitle: string;
+  metaDescription: string;
+  keywords: string[];
+  coverUrl: string;
+  coverPrompt: string;
+  printedGreeting: string;
+  handwrittenNote: string;
+  fontStyleId: string;
+  fontName: string;
+  etiquetteTips: ScenarioEtiquetteTip[];
+  faq: ScenarioFaqItem[];
+}
+
+export interface ScenarioPerformanceMetric {
+  slug: string;
+  occasionSlug: string;
+  path: string;
+  title: string;
+  category: string;
+  views: number;
+  customizations: number;
+  checkouts: number;
+  paidOrders: number;
+  conversionRate: number; // e.g. 7.5 (%)
+  primaryDropoffStep: string;
+  status: "top_performer" | "healthy" | "needs_attention" | "gathering_data";
+  actionableInsight: string;
 }
 
 // Admin Dashboard Analytics

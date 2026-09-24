@@ -34,14 +34,25 @@ import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "./AuthModal";
 import Link from "next/link";
 
-export function VendingMachineBuilder() {
+export interface VendingMachineBuilderProps {
+  initialOccasion?: string;
+  initialPrompt?: string;
+  initialCoverUrl?: string;
+  initialPrintedGreeting?: string;
+  initialHandwrittenNote?: string;
+  initialFontStyleId?: string;
+  initialStep?: number;
+  scenarioSlug?: string;
+}
+
+export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, account, saveAddress } = useAuth();
 
   // Builder Steps: 1 = Cover, 2 = Inside Note, 3 = Address, 4 = Checkout
-  const [currentStep, setCurrentStep] = useState<number>(1);
-  const [isPrefilledFromUrl, setIsPrefilledFromUrl] = useState(false);
+  const [currentStep, setCurrentStep] = useState<number>(props?.initialStep || 1);
+  const [isPrefilledFromUrl, setIsPrefilledFromUrl] = useState(Boolean(props?.initialHandwrittenNote));
 
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -53,12 +64,12 @@ export function VendingMachineBuilder() {
   const [isMobilePreviewOpen, setIsMobilePreviewOpen] = useState(false);
 
   // Card Content State
-  const [occasion, setOccasion] = useState<string>("Birthday");
-  const [customPrompt, setCustomPrompt] = useState<string>("Whimsical watercolor balloons");
-  const [coverUrl, setCoverUrl] = useState<string>(CARD_PRESETS[0].imageUrl);
-  const [printedGreeting, setPrintedGreeting] = useState<string>(CARD_PRESETS[0].defaultPrintedMessage);
-  const [handwrittenNote, setHandwrittenNote] = useState<string>(CARD_PRESETS[0].defaultHandwrittenNote);
-  const [fontStyleId, setFontStyleId] = useState<string>("1");
+  const [occasion, setOccasion] = useState<string>(props?.initialOccasion || "Birthday");
+  const [customPrompt, setCustomPrompt] = useState<string>(props?.initialPrompt || "Whimsical watercolor balloons");
+  const [coverUrl, setCoverUrl] = useState<string>(props?.initialCoverUrl || CARD_PRESETS[0].imageUrl);
+  const [printedGreeting, setPrintedGreeting] = useState<string>(props?.initialPrintedGreeting || CARD_PRESETS[0].defaultPrintedMessage);
+  const [handwrittenNote, setHandwrittenNote] = useState<string>(props?.initialHandwrittenNote || CARD_PRESETS[0].defaultHandwrittenNote);
+  const [fontStyleId, setFontStyleId] = useState<string>(props?.initialFontStyleId || "1");
 
   // Address State & Scheduling
   const [scheduledSendDate, setScheduledSendDate] = useState<string>("");
@@ -124,7 +135,10 @@ export function VendingMachineBuilder() {
   // Telemetry: Track session start on mount
   useEffect(() => {
     trackEvent("session_start", 1);
-  }, []);
+    if (props?.scenarioSlug) {
+      trackEvent("scenario_landing_viewed", 1, { scenarioSlug: props.scenarioSlug });
+    }
+  }, [props?.scenarioSlug]);
 
   // Hydrate card state from URL search parameters (Supports AI Agents & Direct Deep Links)
   useEffect(() => {
