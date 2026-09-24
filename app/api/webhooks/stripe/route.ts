@@ -6,6 +6,7 @@ import {
   getImageCachePoolCollection,
 } from "@/lib/firebase-admin";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
+import { logIncident } from "@/lib/incident-logger";
 import Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
@@ -75,6 +76,15 @@ export async function POST(req: NextRequest) {
           status: "QUEUED_FOR_FULFILLMENT",
           fulfillmentError: fulfillment.error || "Awaiting studio fulfillment queue",
         });
+
+        await logIncident({
+          type: "HANDWRYTTEN",
+          severity: "error",
+          summary: `Handwrytten robotic pen dispatch failed for Order ${orderId}`,
+          technicalDetails: fulfillment.error || "Handwrytten singleStepOrder API error",
+          metadata: { orderId, details: fulfillment.details },
+        });
+
         return NextResponse.json({
           received: true,
           status: "QUEUED_FOR_FULFILLMENT",
@@ -119,6 +129,14 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Webhook handler exception";
     console.error("[Webhook Exception]:", msg);
+
+    await logIncident({
+      type: "WEBHOOK",
+      severity: "error",
+      summary: "Stripe Webhook Processing Exception",
+      technicalDetails: msg,
+    });
+
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }

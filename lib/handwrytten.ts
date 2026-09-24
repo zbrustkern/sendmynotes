@@ -124,16 +124,33 @@ export async function fulfillHandwryttenOrder(
 
   try {
     // 1. Fetch cover image bytes and upload via uploadCustomLogo
-    console.log("[Handwrytten] Fetching cover image from:", params.imageUrl);
-    const imgRes = await fetch(params.imageUrl);
-    if (!imgRes.ok) {
-      throw new Error(`Failed to download cover image (${imgRes.status}): ${imgRes.statusText}`);
+    let imgBuffer: ArrayBuffer;
+    let mimeType = "image/jpeg";
+    let fileName = "cover.jpg";
+
+    if (params.imageUrl.startsWith("data:")) {
+      console.log("[Handwrytten] Extracting cover image from base64 data URI...");
+      const matches = params.imageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches[2]) {
+        mimeType = matches[1] || "image/jpeg";
+        fileName = mimeType.includes("png") ? "cover.png" : "cover.jpg";
+        const buffer = Buffer.from(matches[2], "base64");
+        imgBuffer = buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength);
+      } else {
+        throw new Error("Invalid base64 data URI for card cover art");
+      }
+    } else {
+      console.log("[Handwrytten] Fetching cover image from URL:", params.imageUrl);
+      const imgRes = await fetch(params.imageUrl);
+      if (!imgRes.ok) {
+        throw new Error(`Failed to download cover image (${imgRes.status}): ${imgRes.statusText}`);
+      }
+      imgBuffer = await imgRes.arrayBuffer();
     }
-    const imgBuffer = await imgRes.arrayBuffer();
 
     const formData = new FormData();
-    const blob = new Blob([imgBuffer], { type: "image/jpeg" });
-    formData.append("file", blob, "cover.jpg");
+    const blob = new Blob([imgBuffer], { type: mimeType });
+    formData.append("file", blob, fileName);
     formData.append("type", "cover");
 
     console.log("[Handwrytten] Uploading cover image to /v2/cards/uploadCustomLogo...");
@@ -218,20 +235,20 @@ export async function fulfillHandwryttenOrder(
         font_label: fontLabel,
         message: params.handwrittenMessage,
         ...(params.scheduledSendDate ? { date_send: params.scheduledSendDate } : {}),
-        recipient_first_name: params.recipient.firstName,
-        recipient_last_name: params.recipient.lastName,
-        recipient_address1: params.recipient.street1,
-        recipient_address2: params.recipient.street2 || "",
-        recipient_city: params.recipient.city,
-        recipient_state: params.recipient.state,
-        recipient_zip: params.recipient.zip,
-        sender_first_name: params.returnAddress.firstName,
-        sender_last_name: params.returnAddress.lastName,
-        sender_address1: params.returnAddress.street1,
-        sender_address2: params.returnAddress.street2 || "",
-        sender_city: params.returnAddress.city,
-        sender_state: params.returnAddress.state,
-        sender_zip: params.returnAddress.zip,
+        recipient_first_name: (params.recipient.firstName || "Friend").trim(),
+        recipient_last_name: (params.recipient.lastName || "").trim(),
+        recipient_address1: params.recipient.street1.trim(),
+        recipient_address2: (params.recipient.street2 || "").trim(),
+        recipient_city: params.recipient.city.trim(),
+        recipient_state: params.recipient.state.trim().toUpperCase(),
+        recipient_zip: params.recipient.zip.trim(),
+        sender_first_name: (params.returnAddress.firstName || "Aster & Blanche").trim(),
+        sender_last_name: (params.returnAddress.lastName || "Press").trim(),
+        sender_address1: params.returnAddress.street1.trim(),
+        sender_address2: (params.returnAddress.street2 || "").trim(),
+        sender_city: params.returnAddress.city.trim(),
+        sender_state: params.returnAddress.state.trim().toUpperCase(),
+        sender_zip: params.returnAddress.zip.trim(),
       }),
     });
 
