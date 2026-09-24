@@ -11,15 +11,15 @@ export interface GenerateCoverResult {
   occasion: string;
   isMock: boolean;
   aspectRatio: string;
-  provider?: "gemini_imagen" | "nano_banana" | "pollinations_ai" | "preset_fallback";
+  provider?: "gemini_imagen" | "nano_banana" | "preset_fallback";
+  error?: string;
 }
 
 /**
  * AI Image Generator Client
- * Supports:
- * 1. Google Gemini / Imagen 3 (via GEMINI_API_KEY)
+ * 1. Google Gemini / Imagen 3 (via GEMINI_API_KEY / GOOGLE_API_KEY)
  * 2. Nano Banana API (via NANO_BANANA_API_KEY)
- * 3. Curated 5:7 presets fallback for instant offline testing
+ * 3. Fallback: Curated Aster & Blanche 5:7 boutique presets
  */
 export async function generateCoverArt(params: GenerateCoverParams): Promise<GenerateCoverResult> {
   const geminiApiKey =
@@ -34,7 +34,9 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
 
   const refinedPrompt = `${prompt}, ${occasion} greeting card cover art, vertical 5:7 portrait orientation, detailed illustration, fine art paper texture, high print resolution`;
 
-  // 1. Prioritize Google's Imagen 3 if GEMINI_API_KEY is available
+  const errors: string[] = [];
+
+  // 1. Prioritize Google's Imagen 3 if API key is available
   if (geminiApiKey) {
     const modelsToTry = [
       "imagen-3.0-generate-002",
@@ -54,7 +56,7 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
             instances: [{ prompt: refinedPrompt }],
             parameters: {
               sampleCount: 1,
-              aspectRatio: "3:4", // supported portrait aspect ratio (closest to 5:7)
+              aspectRatio: "3:4", // closest standard ratio to 5:7
               outputOptions: {
                 mimeType: "image/jpeg",
               },
@@ -80,16 +82,26 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
             };
           }
         } else {
-          const err = await response.text();
-          console.warn(`[Google Imagen ${model}] API error (${response.status}):`, err);
+          const errText = await response.text();
+          console.warn(`[Google Imagen ${model}] API error (${response.status}):`, errText);
+          let parsedMsg = errText;
+          try {
+            const parsed = JSON.parse(errText);
+            parsedMsg = parsed.error?.message || errText;
+          } catch {}
+          errors.push(`Google Imagen (${response.status}): ${parsedMsg}`);
         }
       } catch (err) {
-        console.error(`[Google Imagen ${model}] Exception:`, err);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[Google Imagen ${model}] Exception:`, msg);
+        errors.push(`Google Imagen network exception: ${msg}`);
       }
     }
+  } else {
+    errors.push("GEMINI_API_KEY environment variable was not found in runtime container");
   }
 
-  // 2. Nano Banana API
+  // 2. Nano Banana API (if configured)
   if (nanoApiKey && !nanoApiKey.includes("your_nano_banana_api_key_here")) {
     try {
       const response = await fetch("https://api.nanobanana.ai/v1/images/generate", {
@@ -127,26 +139,7 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
     }
   }
 
-  // 3. Free Instant Real AI Image Generation via Pollinations (Flux / Stable Diffusion)
-  // Generates genuine high-resolution 5:7 vertical artwork directly from prompt without requiring API keys
-  try {
-    const seed = Math.floor(Math.random() * 10000000);
-    const safePrompt = encodeURIComponent(refinedPrompt);
-    const pollinationsUrl = `https://image.pollinations.ai/prompt/${safePrompt}?width=1000&height=1400&nologo=true&seed=${seed}`;
-
-    return {
-      imageUrl: pollinationsUrl,
-      prompt,
-      occasion,
-      isMock: true,
-      aspectRatio,
-      provider: "pollinations_ai",
-    };
-  } catch (err) {
-    console.warn("[AI Generator] Pollinations fallback encountered error:", err);
-  }
-
-  // 4. Graceful fallback: Curated card presets matching occasion/prompt
+  // 3. Fallback: Curated Aster & Blanche 5:7 boutique card presets (No Pollinations)
   const matchedByOccasion = CARD_PRESETS.find(
     (p) => p.occasion.toLowerCase() === occasion.toLowerCase()
   );
@@ -156,14 +149,15 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
   );
 
   const selectedPreset: CardPreset = matchedByPrompt || matchedByOccasion || CARD_PRESETS[0];
-  const mockImageUrl = `${selectedPreset.imageUrl}&prompt=${encodeURIComponent(prompt.slice(0, 30))}&seed=${Date.now()}`;
+  const presetImageUrl = selectedPreset.imageUrl;
 
   return {
-    imageUrl: mockImageUrl,
+    imageUrl: presetImageUrl,
     prompt,
     occasion,
     isMock: true,
     aspectRatio,
     provider: "preset_fallback",
+    error: errors.join(" | "),
   };
 }

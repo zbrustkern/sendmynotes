@@ -127,6 +127,12 @@ export function CoverStep({
         setRemainingGenerations(data.remaining);
       }
 
+      if (data.warning && data.isMock) {
+        setError(`Notice: ${data.warning}`);
+      } else {
+        setError(null);
+      }
+
       if (data.imageUrl) {
         setGeneratedArt({
           imageUrl: data.imageUrl,

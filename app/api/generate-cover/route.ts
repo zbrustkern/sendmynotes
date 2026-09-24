@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
       isMock: art.isMock,
       aspectRatio: art.aspectRatio,
       provider: art.provider,
+      warning: art.error || null,
       remaining: rateLimit.remaining,
       limit: rateLimit.limit,
     });
