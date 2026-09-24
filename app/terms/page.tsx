@@ -40,20 +40,20 @@ export default function TermsPage() {
             Terms of Service &amp; Conditions
           </h1>
           <p className="text-xs text-stone-500 max-w-lg mx-auto leading-relaxed">
-            Effective Date: September 24, 2026 • Published by Ezekiel Brustkern, doing business as <strong>Aster &amp; Blanche Press</strong> and <strong>sendmynotes.com</strong> (Lake Forest, IL).
+            Effective Date: September 24, 2026 • Published by <strong>Aster &amp; Blanche Press</strong>, operator of <strong>sendmynotes.com</strong> (Lake Forest, IL).
           </p>
         </div>
 
         {/* Legal Prose */}
         <div className="space-y-8 text-sm leading-relaxed text-stone-700 bg-white p-6 sm:p-10 rounded-3xl border border-stone-200/80 shadow-xs">
-          {/* Section 1: Overview & Sole Proprietorship */}
+          {/* Section 1: Overview & Service Scope */}
           <section className="space-y-3">
             <h2 className="font-serif text-lg font-bold text-stone-900 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-stone-100 text-stone-700 text-xs font-mono flex items-center justify-center font-bold">1</span>
               Operating Identity &amp; Acceptance
             </h2>
             <p>
-              These Terms of Service (&ldquo;Terms&rdquo;) govern your use of the website located at <strong>sendmynotes.com</strong> (the &ldquo;Service&rdquo; or &ldquo;Site&rdquo;), operated by <strong>Ezekiel Brustkern</strong>, operating as a sole proprietorship under the trade name <strong>Aster &amp; Blanche Press</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;).
+              These Terms of Service (&ldquo;Terms&rdquo;) govern your use of the website located at <strong>sendmynotes.com</strong> (the &ldquo;Service&rdquo; or &ldquo;Site&rdquo;), operated by <strong>Aster &amp; Blanche Press</strong> (&ldquo;we&rdquo;, &ldquo;us&rdquo;, or &ldquo;our&rdquo;).
             </p>
             <p>
               By accessing our website, creating custom greeting cards, generating imagery, or purchasing our robotic pen mailing services, you agree to be bound by these Terms and all applicable laws. If you do not agree with any part of these Terms, you may not use the Service.
@@ -135,7 +135,7 @@ export default function TermsPage() {
             </p>
           </section>
 
-          {/* Section 6: Limitation of Liability (CRITICAL FOR SOLE PROP) */}
+          {/* Section 6: Limitation of Liability */}
           <section className="space-y-3">
             <h2 className="font-serif text-lg font-bold text-stone-900 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-stone-100 text-stone-700 text-xs font-mono flex items-center justify-center font-bold">6</span>
@@ -143,10 +143,10 @@ export default function TermsPage() {
             </h2>
             <div className="p-4 bg-stone-100 rounded-2xl text-xs space-y-2 text-stone-700">
               <p className="font-bold uppercase tracking-wider text-stone-900">
-                Sole Proprietorship Liability Ceiling:
+                Studio Liability Ceiling:
               </p>
               <p>
-                TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL EZEKIEL BRUSTKERN, ASTER &amp; BLANCHE PRESS, OR SENDMYNOTES.COM BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES (INCLUDING LOSS OF PROFITS, DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES) ARISING FROM OR RELATED TO YOUR USE OF THE SERVICE, POSTAL DELAYS, OR CARRIER FAILURES.
+                TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL ASTER &amp; BLANCHE PRESS, SENDMYNOTES.COM, OR ITS OPERATORS, AFFILIATES, OR SUPPLIERS BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES (INCLUDING LOSS OF PROFITS, DATA, USE, GOODWILL, OR OTHER INTANGIBLE LOSSES) ARISING FROM OR RELATED TO YOUR USE OF THE SERVICE, POSTAL DELAYS, OR CARRIER FAILURES.
               </p>
               <p>
                 UNDER NO CIRCUMSTANCES SHALL OUR TOTAL AGGREGATE LIABILITY ARISING OUT OF OR IN CONNECTION WITH ANY ORDER EXCEED THE TOTAL AMOUNT ACTUALLY PAID BY YOU FOR THAT SPECIFIC ORDER (I.E., $9.00 USD).
@@ -171,7 +171,6 @@ export default function TermsPage() {
               Studio Inquiries &amp; Notice:
             </h3>
             <p>Aster &amp; Blanche Press / sendmynotes.com</p>
-            <p>Attention: Ezekiel Brustkern</p>
             <p>Lake Forest, Illinois, USA</p>
             <p>Email: <a href="mailto:support@sendmynotes.com" className="text-amber-700 underline font-medium">support@sendmynotes.com</a></p>
           </section>
@@ -180,3 +179,4 @@ export default function TermsPage() {
     </div>
   );
 }
+
