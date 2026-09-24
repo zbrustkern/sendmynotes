@@ -123,28 +123,35 @@ export function CardPreview({
       {/* 2. INSIDE NOTE (RIGHT PAGE FOCUS): Prominent Full 5×7 View with Left Spine Fold */}
       {viewMode === "rightPage" && (
         <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[5/7] transition-all duration-300">
-          <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex flex-col justify-between p-6 sm:p-8">
+          <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex flex-col p-4 sm:p-5">
             {/* Blind-Deboss Inset Micro-Rule (Letterpress Effect) */}
             <div className="absolute inset-2 sm:inset-3 border border-stone-300/35 rounded-xl pointer-events-none" />
 
             {/* Realistic Left Spine Fold Shadow indicating this is the Right Leaf */}
             <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-stone-400/30 via-stone-300/10 to-transparent pointer-events-none" />
 
-            {/* TOP: Printed Sentiment Header */}
-            <div className="pt-3 pb-2 text-center relative z-10 pl-2">
-              <p className="font-serif text-sm sm:text-base md:text-lg text-stone-800 leading-relaxed tracking-normal font-semibold">
-                {printedGreeting || "Wishing you a wonderful celebration."}
-              </p>
-            </div>
+            {/* Physical Print Content Layout: Upper Third Greeting + Naturally Flowing Handwriting */}
+            <div className="relative z-10 w-full h-full flex flex-col">
+              {/* Upper Third: Centered Printed Sentiment */}
+              {printedGreeting ? (
+                <div className="pt-[16%] sm:pt-[18%] pb-[6%] px-4 sm:px-6 text-center">
+                  <p className="font-serif text-sm sm:text-base md:text-[17px] text-stone-800 leading-relaxed font-semibold">
+                    {printedGreeting}
+                  </p>
+                </div>
+              ) : (
+                <div className="pt-[14%]" />
+              )}
 
-            {/* LOWER: Real Pen Handwritten Note */}
-            <div className="flex-1 flex flex-col justify-center py-4 pl-3 pr-2 relative z-10">
-              <p
-                style={{ fontFamily: currentFont.fontFamily }}
-                className={`text-[#1B3B6F] text-lg sm:text-xl md:text-2xl leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
-              >
-                {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
-              </p>
+              {/* Lower Portion: Real Pen Inking anchored from top baseline */}
+              <div className="flex-1 px-4 sm:px-5 pt-2 pb-6 flex flex-col justify-start">
+                <p
+                  style={{ fontFamily: currentFont.fontFamily }}
+                  className={`text-[#1B3B6F] text-base sm:text-lg md:text-xl leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
+                >
+                  {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -154,7 +161,7 @@ export function CardPreview({
       {viewMode === "spread" && (
         <div className="relative w-full max-w-full lg:max-w-[560px] aspect-[10/7] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex transition-all duration-300">
           {/* LEFT PAGE: Inside Left Page (Pristine Unprinted Archival Cardstock) */}
-          <div className="w-1/2 p-4 sm:p-6 flex flex-col justify-center items-center relative border-r border-stone-200/70 bg-[#FAF9F4]/30 select-none">
+          <div className="w-1/2 p-3 sm:p-4 flex flex-col justify-center items-center relative border-r border-stone-200/70 select-none">
             {/* Blind-Deboss Inset Micro-Rule (Traditional Letterpress Border) */}
             <div className="absolute inset-2 sm:inset-3 border border-stone-300/30 rounded-xl pointer-events-none" />
           </div>
@@ -164,20 +171,24 @@ export function CardPreview({
             <div className="w-[1.5px] h-full bg-stone-300/80 shadow-[0_0_8px_rgba(0,0,0,0.15)]" />
           </div>
 
-          {/* RIGHT PAGE: Printed Header at Top + Real Ink Note Below */}
-          <div className="w-1/2 p-4 sm:p-6 flex flex-col justify-between relative bg-white/70">
-            {/* TOP OF RIGHT PAGE: Printed Sentiment */}
-            <div className="pb-2 text-center">
-              <p className="font-serif text-xs sm:text-sm text-stone-800 leading-normal font-semibold">
-                {printedGreeting || "Wishing you a wonderful celebration."}
-              </p>
-            </div>
+          {/* RIGHT PAGE: Upper Third Greeting + Naturally Flowing Handwriting */}
+          <div className="w-1/2 p-2 sm:p-3 flex flex-col relative">
+            {/* Upper Third: Printed Sentiment */}
+            {printedGreeting ? (
+              <div className="pt-[16%] pb-[6%] px-2 text-center">
+                <p className="font-serif text-xs sm:text-[13px] text-stone-800 leading-snug font-semibold">
+                  {printedGreeting}
+                </p>
+              </div>
+            ) : (
+              <div className="pt-[14%]" />
+            )}
 
-            {/* LOWER OF RIGHT PAGE: Real Ink Handwritten Note */}
-            <div className="flex-1 flex flex-col justify-center py-2 px-1">
+            {/* Lower Portion: Real Pen Inking anchored from top baseline */}
+            <div className="flex-1 px-2 pt-1 pb-2 flex flex-col justify-start">
               <p
                 style={{ fontFamily: currentFont.fontFamily }}
-                className={`text-[#1B3B6F] text-sm sm:text-base leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
+                className={`text-[#1B3B6F] text-xs sm:text-sm leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
               >
                 {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
               </p>
