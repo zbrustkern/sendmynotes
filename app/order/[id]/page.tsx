@@ -43,6 +43,32 @@ export default function OrderStatusPage() {
           throw new Error("Order not found or still processing.");
         }
         const data = await res.json();
+        if (data.order && data.order.status === "PENDING_PAYMENT" && typeof window !== "undefined") {
+          const urlParams = new URLSearchParams(window.location.search);
+          const paymentIntentId = urlParams.get("payment_intent") || data.order.stripePaymentId;
+          if (paymentIntentId) {
+            try {
+              const confirmRes = await fetch("/api/checkout/confirm-order", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  orderId,
+                  paymentIntentId,
+                }),
+              });
+              if (confirmRes.ok) {
+                const confirmData = await confirmRes.json();
+                if (confirmData.success && confirmData.status) {
+                  data.order.status = confirmData.status;
+                  data.order.handwryttenOrderId = confirmData.handwryttenOrderId;
+                }
+              }
+            } catch (cErr) {
+              console.warn("Notice during order page auto-confirmation:", cErr);
+            }
+          }
+        }
+
         if (isMounted) {
           setOrder(data.order);
           setLoading(false);

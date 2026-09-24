@@ -39,6 +39,7 @@ import {
   Compass,
   BookOpen,
   Layers,
+  CreditCard,
 } from "lucide-react";
 import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType, ScenarioPerformanceMetric } from "@/lib/types";
 
@@ -57,6 +58,7 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [syncingStripeId, setSyncingStripeId] = useState<string | null>(null);
 
   // Incidents & Alerts State
   const [incidents, setIncidents] = useState<SystemIncident[]>([]);
@@ -202,6 +204,28 @@ export default function AdminDashboardPage() {
       alert(`Error syncing status from Handwrytten: ${msg}`);
     } finally {
       setSyncingId(null);
+    }
+  };
+
+  const handleSyncStripe = async (orderId: string) => {
+    setSyncingStripeId(orderId);
+    try {
+      const res = await fetch("/api/admin/sync-stripe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(data.message || data.error || "Could not verify Stripe payment for this order.");
+      } else {
+        alert(data.message || "Stripe payment verified and robotic dispatch started!");
+        await fetchMetrics();
+      }
+    } catch {
+      alert("Network error verifying Stripe payment.");
+    } finally {
+      setSyncingStripeId(null);
     }
   };
 
@@ -1017,7 +1041,18 @@ export default function AdminDashboardPage() {
                                     <CheckCircle2 className="w-3 h-3" /> Dispatched
                                   </span>
                                 )}
-                                {!canRetry && !order.handwryttenOrderId && (
+                                {isPending && (
+                                  <button
+                                    onClick={() => handleSyncStripe(order.id)}
+                                    disabled={syncingStripeId === order.id}
+                                    title="Check if customer completed payment on Stripe and initiate fulfillment"
+                                    className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                  >
+                                    <CreditCard className={`w-3 h-3 ${syncingStripeId === order.id ? "animate-spin" : ""}`} />
+                                    {syncingStripeId === order.id ? "Verifying..." : "Verify Stripe"}
+                                  </button>
+                                )}
+                                {!isPending && !canRetry && !order.handwryttenOrderId && (
                                   <span className="text-stone-300">—</span>
                                 )}
                               </div>

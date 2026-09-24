@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { constructWebhookEvent } from "@/lib/stripe";
-import {
-  getOrderById,
-  updateOrderStatus,
-  getImageCachePoolCollection,
-  recordDiscountUsage,
-} from "@/lib/firebase-admin";
-import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
+import { processPaidOrder } from "@/lib/order-processor";
 import { logIncident } from "@/lib/incident-logger";
 import Stripe from "stripe";
 
@@ -44,94 +38,27 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ received: true, warning: "Missing orderId in metadata" });
       }
 
-      console.log(`[Webhook] Payment confirmed for Order ${orderId}. Starting Handwrytten fulfillment...`);
+      console.log(`[Webhook] Payment confirmed for Order ${orderId}. Processing order...`);
 
-      // 1. Read Order from Firestore
-      const order = await getOrderById(orderId);
-      if (!order) {
-        console.error(`[Webhook] Order ${orderId} not found in Firestore.`);
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
-      }
+      const result = await processPaidOrder(
+        orderId,
+        paymentIntent.id,
+        paymentIntent.receipt_email || undefined
+      );
 
-      // Update status to PAYMENT_RECEIVED
-      await updateOrderStatus(orderId, {
-        status: "PAYMENT_RECEIVED",
-        stripePaymentId: paymentIntent.id,
-        customerEmail: paymentIntent.receipt_email || order.customerEmail,
-      });
-
-      // Record discount code usage metrics if applicable
-      if (order.discountCode) {
-        try {
-          await recordDiscountUsage(order.discountCode, order.discountAmountInCents || 0);
-        } catch (discErr) {
-          console.warn("[Webhook] Notice recording discount code usage:", discErr);
-        }
-      }
-
-      // 2. Fulfill via Handwrytten robotic pen API
-      const fulfillment = await fulfillHandwryttenOrder({
-        imageUrl: order.frontImageUrl,
-        printedGreeting: order.printedMessage,
-        handwrittenMessage: order.handwrittenNote,
-        fontId: order.fontStyleId || "1",
-        recipient: order.recipientAddress,
-        returnAddress: order.returnAddress,
-        scheduledSendDate: order.scheduledSendDate,
-      });
-
-      if (!fulfillment.success) {
-        console.error(`[Webhook] Handwrytten fulfillment queued/retry for Order ${orderId}:`, fulfillment.error);
-        await updateOrderStatus(orderId, {
-          status: "QUEUED_FOR_FULFILLMENT",
-          fulfillmentError: fulfillment.error || "Awaiting studio fulfillment queue",
-        });
-
-        await logIncident({
-          type: "HANDWRYTTEN",
-          severity: "error",
-          summary: `Handwrytten robotic pen dispatch failed for Order ${orderId}`,
-          technicalDetails: fulfillment.error || "Handwrytten singleStepOrder API error",
-          metadata: { orderId, details: fulfillment.details },
-        });
-
+      if (!result.success) {
         return NextResponse.json({
           received: true,
-          status: "QUEUED_FOR_FULFILLMENT",
-          error: fulfillment.error,
+          status: result.status,
+          error: result.error,
         }, { status: 200 });
       }
-
-      // 3. Update Firestore Order to PROCESSING_HANDWRYTTEN
-      await updateOrderStatus(orderId, {
-        status: "PROCESSING_HANDWRYTTEN",
-        handwryttenOrderId: fulfillment.order_id,
-      });
-
-      // 4. Mark image as CLAIMED in image_cache_pool if matched
-      try {
-        const cacheSnapshot = await getImageCachePoolCollection()
-          .where("imageUrl", "==", order.frontImageUrl)
-          .limit(1)
-          .get();
-
-        if (!cacheSnapshot.empty) {
-          const docId = cacheSnapshot.docs[0].id;
-          await getImageCachePoolCollection().doc(docId).update({
-            status: "CLAIMED",
-          });
-        }
-      } catch (cacheErr) {
-        console.warn("[Webhook] Notice updating cache pool status:", cacheErr);
-      }
-
-      console.log(`[Webhook] Order ${orderId} successfully dispatched to Handwrytten robot pen! OrderID: ${fulfillment.order_id}`);
 
       return NextResponse.json({
         received: true,
         orderId,
-        handwryttenOrderId: fulfillment.order_id,
-        status: "PROCESSING_HANDWRYTTEN",
+        handwryttenOrderId: result.handwryttenOrderId,
+        status: result.status,
       });
     }
 

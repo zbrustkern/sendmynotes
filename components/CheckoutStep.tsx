@@ -193,6 +193,20 @@ function InnerPaymentForm({
         setErrorMessage(error.message || "Payment failed. Please check your card info.");
         setIsProcessing(false);
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
+        try {
+          await fetch("/api/checkout/confirm-order", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              orderId,
+              paymentIntentId: paymentIntent.id,
+              customerEmail,
+            }),
+          });
+        } catch (confirmErr) {
+          console.warn("[Checkout] Notice calling confirm-order fallback:", confirmErr);
+        }
+        setIsProcessing(false);
         onSuccess(orderId);
       }
     } catch (err: unknown) {
