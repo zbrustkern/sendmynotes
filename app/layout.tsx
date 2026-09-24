@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
+import { fontHwAdam, fontHwCharity, fontHwChase, fontHwDavid } from "@/lib/fonts";
 
 export const metadata: Metadata = {
   title: "sendmynotes.com | AI-Designed, Real-Pen Handwritten Greeting Cards",
@@ -24,7 +25,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
-          href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Cormorant+Garamond:wght@400;500;600;700&family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,600&display=swap"
+          href="https://fonts.googleapis.com/css2?family=Architects+Daughter&family=Caveat:wght@500;700&family=Cormorant+Garamond:wght@400;500;600;700&family=Dancing+Script:wght@600;700&family=Inter:wght@400;500;600;700&family=Patrick+Hand&family=Playfair+Display:ital,wght@0,600;1,600&display=swap"
           rel="stylesheet"
         />
         {/* Schema.org Semantic Data for AI Agents & Search Engines */}
@@ -76,7 +77,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-screen bg-[#FAF8F5] text-stone-900 antialiased selection:bg-amber-100 selection:text-amber-900">
+      <body
+        className={`${fontHwAdam.variable} ${fontHwCharity.variable} ${fontHwChase.variable} ${fontHwDavid.variable} min-h-screen bg-[#FAF8F5] text-stone-900 antialiased selection:bg-amber-100 selection:text-amber-900`}
+      >
         <AuthProvider>{children}</AuthProvider>
       </body>
     </html>

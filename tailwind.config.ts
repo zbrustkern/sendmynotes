@@ -27,12 +27,12 @@ const config: Config = {
       fontFamily: {
         serif: ["'Cormorant Garamond'", "'Playfair Display'", "Georgia", "'Times New Roman'", "serif"],
         display: ["'Playfair Display'", "Georgia", "serif"],
-        hwAdam: ["'HandwryttenAdam'", "Caveat", "'Bradley Hand'", "cursive"],
-        hwCharity: ["'HandwryttenCharity'", "Caveat", "'Bradley Hand'", "cursive"],
-        hwChase: ["'HandwryttenChase'", "'Dancing Script'", "'Snell Roundhand'", "cursive"],
-        hwDavid: ["'HandwryttenDavid'", "Caveat", "'Bradley Hand'", "cursive"],
-        handwriting: ["'HandwryttenAdam'", "Caveat", "'Bradley Hand'", "cursive"],
-        script: ["'HandwryttenChase'", "'Dancing Script'", "'Snell Roundhand'", "cursive"],
+        hwAdam: ["var(--font-hw-adam)", "'HandwryttenAdam'", "Caveat", "'Bradley Hand'", "cursive"],
+        hwCharity: ["var(--font-hw-charity)", "'HandwryttenCharity'", "'Patrick Hand'", "cursive"],
+        hwChase: ["var(--font-hw-chase)", "'HandwryttenChase'", "'Dancing Script'", "'Snell Roundhand'", "cursive"],
+        hwDavid: ["var(--font-hw-david)", "'HandwryttenDavid'", "'Architects Daughter'", "cursive"],
+        handwriting: ["var(--font-hw-adam)", "Caveat", "'Bradley Hand'", "cursive"],
+        script: ["var(--font-hw-chase)", "'Dancing Script'", "'Snell Roundhand'", "cursive"],
         sans: ["Inter", "-apple-system", "BlinkMacSystemFont", "'Segoe UI'", "Roboto", "sans-serif"],
       },
       boxShadow: {
