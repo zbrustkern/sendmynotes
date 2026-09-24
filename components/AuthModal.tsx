@@ -40,7 +40,13 @@ export function AuthModal({
       onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Google sign-in error";
-      setError(msg);
+      if (msg.includes("auth/unauthorized-domain")) {
+        setError(
+          "This domain (e.g. sendmynotes.com) is not yet listed under Authorized Domains in Firebase Authentication. Please add it in Firebase Console → Authentication → Settings → Authorized domains."
+        );
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
