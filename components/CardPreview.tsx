@@ -179,21 +179,15 @@ export function CardPreview({
       {/* 3. FULL OPEN SPREAD: Panoramic 10×7 View Showing Both Leaves */}
       {viewMode === "spread" && (
         <div className="relative w-full max-w-full lg:max-w-[560px] aspect-[10/7] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex transition-all duration-300">
-          {/* LEFT PAGE: Inside Left Page (Clean Minimalist Stationery Watermark) */}
-          <div className="w-1/2 p-4 sm:p-6 flex flex-col justify-center items-center relative border-r border-stone-200/70 bg-[#FAF9F4]/40 select-none">
-            {/* Blind-Deboss Inset Micro-Rule */}
-            <div className="absolute inset-2 sm:inset-3 border border-stone-300/35 rounded-xl pointer-events-none" />
+          {/* LEFT PAGE: Inside Left Page (Pristine Unprinted Archival Cardstock) */}
+          <div className="w-1/2 p-4 sm:p-6 flex flex-col justify-center items-center relative border-r border-stone-200/70 bg-[#FAF9F4]/30 select-none">
+            {/* Blind-Deboss Inset Micro-Rule (Traditional Letterpress Border) */}
+            <div className="absolute inset-2 sm:inset-3 border border-stone-300/30 rounded-xl pointer-events-none" />
 
-            {/* Subtle embossed stationery watermark colophon */}
-            <div className="text-center opacity-45 select-none space-y-1 relative z-10">
-              <div className="w-7 h-7 mx-auto mb-1.5 rounded-full border border-stone-400/80 flex items-center justify-center text-stone-700">
-                <Feather className="w-3.5 h-3.5" />
-              </div>
-              <span className="font-serif text-[11px] uppercase tracking-widest text-stone-800 font-semibold block">
-                Aster &amp; Blanche Press
-              </span>
-              <span className="text-[8px] uppercase tracking-wider text-stone-500 block font-sans">
-                Lake Forest, IL • 120 lb Cotton
+            {/* Subtle blank cardstock watermark indicator */}
+            <div className="text-center opacity-25 select-none relative z-10">
+              <span className="font-serif text-[10px] tracking-widest uppercase text-stone-500 italic block">
+                Blank Leaf
               </span>
             </div>
           </div>
