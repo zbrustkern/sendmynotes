@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import fs from "fs";
 import path from "path";
 import { Order, ImageCachePoolItem, DiscountCode, SystemIncident } from "./types";
+import { optimizeCoverImage } from "./image-optimizer";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "mock-firestore.json");
@@ -310,7 +311,15 @@ export async function recordSystemIncident(
 }
 
 export async function saveOrder(order: Order): Promise<void> {
-  await getOrdersCollection().doc(order.id).set(order);
+  const sanitized = { ...order };
+  if (sanitized.frontImageUrl && sanitized.frontImageUrl.length > 800000) {
+    try {
+      sanitized.frontImageUrl = await optimizeCoverImage(sanitized.frontImageUrl);
+    } catch (err) {
+      console.warn("[saveOrder] Image optimization notice:", err);
+    }
+  }
+  await getOrdersCollection().doc(sanitized.id).set(sanitized);
 }
 
 export async function getOrderById(orderId: string): Promise<Order | null> {
@@ -330,7 +339,15 @@ export async function updateOrderStatus(
 }
 
 export async function saveImageCacheItem(item: ImageCachePoolItem): Promise<void> {
-  await getImageCachePoolCollection().doc(item.id).set(item);
+  const sanitized = { ...item };
+  if (sanitized.imageUrl && sanitized.imageUrl.length > 800000) {
+    try {
+      sanitized.imageUrl = await optimizeCoverImage(sanitized.imageUrl);
+    } catch (err) {
+      console.warn("[saveImageCacheItem] Image optimization notice:", err);
+    }
+  }
+  await getImageCachePoolCollection().doc(sanitized.id).set(sanitized);
 }
 
 export async function claimImageCacheItem(id: string): Promise<void> {

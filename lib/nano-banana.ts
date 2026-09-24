@@ -1,4 +1,5 @@
 import { CARD_PRESETS, CardPreset } from "./card-presets";
+import { optimizeCoverImage } from "./image-optimizer";
 
 export interface GenerateCoverParams {
   prompt: string;
@@ -140,8 +141,9 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
           const dataUrl = extractImageDataUrl(data);
           if (dataUrl) {
             console.log(`[Google Gemini] Successfully generated artwork via Interactions API using ${model}`);
+            const optimizedUrl = await optimizeCoverImage(dataUrl);
             return {
-              imageUrl: dataUrl,
+              imageUrl: optimizedUrl,
               prompt,
               occasion,
               isMock: false,
@@ -198,8 +200,9 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
           const dataUrl = extractImageDataUrl(data);
           if (dataUrl) {
             console.log(`[Google Gemini] Successfully generated artwork via generateContent using ${model}`);
+            const optimizedUrl = await optimizeCoverImage(dataUrl);
             return {
-              imageUrl: dataUrl,
+              imageUrl: optimizedUrl,
               prompt,
               occasion,
               isMock: false,
@@ -249,8 +252,9 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
         const data = await response.json();
         const imageUrl = data.image_url || data.data?.[0]?.url || data.url;
         if (imageUrl) {
+          const optimizedUrl = await optimizeCoverImage(imageUrl);
           return {
-            imageUrl,
+            imageUrl: optimizedUrl,
             prompt,
             occasion,
             isMock: false,
