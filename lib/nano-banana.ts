@@ -22,7 +22,11 @@ export interface GenerateCoverResult {
  * 3. Curated 5:7 presets fallback for instant offline testing
  */
 export async function generateCoverArt(params: GenerateCoverParams): Promise<GenerateCoverResult> {
-  const geminiApiKey = process.env.GEMINI_API_KEY;
+  const geminiApiKey =
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY ||
+    process.env.GOOGLE_GENAI_API_KEY ||
+    process.env["gemini-api-key"];
   const nanoApiKey = process.env.NANO_BANANA_API_KEY;
   const prompt = params.prompt.trim();
   const occasion = params.occasion || "Just Because";
@@ -32,41 +36,56 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
 
   // 1. Prioritize Google's Imagen 3 if GEMINI_API_KEY is available
   if (geminiApiKey) {
-    try {
-      const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${geminiApiKey}`;
-      const response = await fetch(imagenUrl, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          instances: [{ prompt: refinedPrompt }],
-          parameters: {
-            sampleCount: 1,
-            aspectRatio: "3:4", // closest standard ratio to 5:7
-            outputMimeType: "image/jpeg",
-          },
-        }),
-      });
+    const modelsToTry = [
+      "imagen-3.0-generate-002",
+      "imagen-3.0-generate-001",
+    ];
 
-      if (response.ok) {
-        const data = await response.json();
-        const base64Bytes = data.predictions?.[0]?.bytesBase64Encoded;
-        if (base64Bytes) {
-          const dataUrl = `data:image/jpeg;base64,${base64Bytes}`;
-          return {
-            imageUrl: dataUrl,
-            prompt,
-            occasion,
-            isMock: false,
-            aspectRatio,
-            provider: "gemini_imagen",
-          };
+    for (const model of modelsToTry) {
+      try {
+        const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${geminiApiKey}`;
+        const response = await fetch(imagenUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": geminiApiKey,
+          },
+          body: JSON.stringify({
+            instances: [{ prompt: refinedPrompt }],
+            parameters: {
+              sampleCount: 1,
+              aspectRatio: "3:4", // supported portrait aspect ratio (closest to 5:7)
+              outputOptions: {
+                mimeType: "image/jpeg",
+              },
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const prediction = data.predictions?.[0];
+          const base64Bytes = prediction?.bytesBase64Encoded || prediction?.image?.bytesBase64Encoded;
+          const mimeType = prediction?.mimeType || "image/jpeg";
+          if (base64Bytes) {
+            const dataUrl = `data:${mimeType};base64,${base64Bytes}`;
+            console.log(`[Google Imagen] Successfully generated artwork using ${model}`);
+            return {
+              imageUrl: dataUrl,
+              prompt,
+              occasion,
+              isMock: false,
+              aspectRatio,
+              provider: "gemini_imagen",
+            };
+          }
+        } else {
+          const err = await response.text();
+          console.warn(`[Google Imagen ${model}] API error (${response.status}):`, err);
         }
-      } else {
-        const err = await response.text();
-        console.warn("[Google Imagen 3] API responded with error:", err);
+      } catch (err) {
+        console.error(`[Google Imagen ${model}] Exception:`, err);
       }
-    } catch (err) {
-      console.error("[Google Imagen 3] Exception calling Imagen API:", err);
     }
   }
 

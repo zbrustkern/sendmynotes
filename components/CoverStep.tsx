@@ -90,6 +90,7 @@ export function CoverStep({
     imageUrl: string;
     prompt: string;
     occasion: string;
+    provider?: string;
   } | null>(null);
 
   const handleGenerate = async () => {
@@ -131,6 +132,7 @@ export function CoverStep({
           imageUrl: data.imageUrl,
           prompt: customPrompt,
           occasion,
+          provider: data.provider,
         });
         onSelectCover(data.imageUrl);
       }
@@ -255,7 +257,9 @@ export function CoverStep({
           <div className="flex items-center justify-between mb-3">
             <span className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-amber-600" />
-              Your Custom AI Painting
+              {generatedArt.provider === "gemini_imagen"
+                ? "Google Imagen 3 Artwork"
+                : "Your Custom AI Painting"}
             </span>
             {selectedCover === generatedArt.imageUrl ? (
               <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
