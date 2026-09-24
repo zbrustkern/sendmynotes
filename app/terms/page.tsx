@@ -174,6 +174,14 @@ export default function TermsPage() {
             <p>Lake Forest, Illinois, USA</p>
             <p>Email: <a href="mailto:support@sendmynotes.com" className="text-amber-700 underline font-medium">support@sendmynotes.com</a></p>
           </section>
+
+          {/* Cross link to Privacy Policy */}
+          <div className="pt-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
+            <span>Also see our data protection practices:</span>
+            <Link href="/privacy" className="text-amber-800 font-semibold underline hover:text-stone-900">
+              Privacy Policy &amp; Data Notice →
+            </Link>
+          </div>
         </div>
       </main>
     </div>

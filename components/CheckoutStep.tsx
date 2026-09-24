@@ -278,6 +278,10 @@ function InnerPaymentForm({
         By placing your order, you agree to our{" "}
         <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-amber-800 underline hover:text-stone-900 font-medium">
           Terms of Service
+        </a>{" "}
+        and{" "}
+        <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-amber-800 underline hover:text-stone-900 font-medium">
+          Privacy Policy
         </a>
         . As cards are personalized custom goods penned on demand, all sales are final once production begins.
       </p>

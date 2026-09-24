@@ -773,7 +773,11 @@ export function VendingMachineBuilder() {
           </button>
           <span>•</span>
           <Link href="/terms" className="hover:text-stone-900 transition underline underline-offset-2">
-            Terms of Service &amp; Notice
+            Terms of Service
+          </Link>
+          <span>•</span>
+          <Link href="/privacy" className="hover:text-stone-900 transition underline underline-offset-2">
+            Privacy Policy
           </Link>
         </div>
         <p className="flex items-center justify-center gap-2">
