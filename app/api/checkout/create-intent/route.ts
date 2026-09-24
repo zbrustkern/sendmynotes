@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 import { saveOrder, getDiscountCode } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { validateDiscount } from "@/lib/discount";
@@ -34,8 +35,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Complete return address is required." }, { status: 400 });
     }
 
-    // Generate unique order ID
-    const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    // Generate unguessable 128-bit cryptographically secure Order ID and View Token
+    const orderId = `order_${crypto.randomBytes(16).toString("hex")}`;
+    const viewToken = `tok_${crypto.randomBytes(16).toString("hex")}`;
 
     // Evaluate discount code if provided
     let finalAmountInCents = CARD_FLAT_RATE_CENTS; // 900
@@ -78,6 +80,7 @@ export async function POST(req: NextRequest) {
         discountCode: appliedCode,
         discountAmountInCents,
         paymentMethod: "PROMO_CODE",
+        viewToken,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -86,6 +89,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({
         orderId,
+        viewToken,
         isFree: true,
         amountInCents: 0,
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
@@ -130,6 +134,7 @@ export async function POST(req: NextRequest) {
       discountCode: appliedCode,
       discountAmountInCents: discountAmountInCents > 0 ? discountAmountInCents : undefined,
       paymentMethod: "STRIPE",
+      viewToken,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -145,6 +150,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       orderId,
+      viewToken,
       clientSecret: paymentIntentResult.clientSecret,
       paymentIntentId: paymentIntentResult.paymentIntentId,
       publishableKey,

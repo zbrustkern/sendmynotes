@@ -17,6 +17,11 @@ import {
   Feather,
   Calendar,
   User as UserIcon,
+  Lock,
+  Unlock,
+  KeyRound,
+  Eye,
+  Loader2,
 } from "lucide-react";
 import { Order } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
@@ -32,20 +37,33 @@ export default function OrderStatusPage() {
   const [error, setError] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
+  // Privacy verification unlock state
+  const [verifyInput, setVerifyInput] = useState("");
+  const [verifyLoading, setVerifyLoading] = useState(false);
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+
   useEffect(() => {
     if (!orderId) return;
 
     let isMounted = true;
     const fetchOrder = async () => {
       try {
-        const res = await fetch(`/api/orders/${orderId}`);
+        const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+        const tokenFromUrl = urlParams?.get("token");
+        const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem(`order_token_${orderId}`) : null;
+        const activeToken = tokenFromUrl || tokenFromStorage;
+
+        const endpoint = activeToken
+          ? `/api/orders/${orderId}?token=${encodeURIComponent(activeToken)}`
+          : `/api/orders/${orderId}`;
+
+        const res = await fetch(endpoint);
         if (!res.ok) {
           throw new Error("Order not found or still processing.");
         }
         const data = await res.json();
         if (data.order && data.order.status === "PENDING_PAYMENT" && typeof window !== "undefined") {
-          const urlParams = new URLSearchParams(window.location.search);
-          const paymentIntentId = urlParams.get("payment_intent") || data.order.stripePaymentId;
+          const paymentIntentId = urlParams?.get("payment_intent") || data.order.stripePaymentId;
           if (paymentIntentId) {
             try {
               const confirmRes = await fetch("/api/checkout/confirm-order", {
@@ -89,6 +107,41 @@ export default function OrderStatusPage() {
       clearInterval(interval);
     };
   }, [orderId]);
+
+  const handleUnlock = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!verifyInput.trim()) return;
+    setVerifyLoading(true);
+    setVerifyError(null);
+    try {
+      const isEmail = verifyInput.includes("@");
+      const payload = isEmail
+        ? { email: verifyInput.trim() }
+        : { zip: verifyInput.trim() };
+
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setVerifyError(
+          data.error || "Verification failed. Please check the entered ZIP code or email."
+        );
+      } else {
+        setOrder(data.order);
+        if (data.viewToken && typeof window !== "undefined") {
+          sessionStorage.setItem(`order_token_${orderId}`, data.viewToken);
+        }
+      }
+    } catch {
+      setVerifyError("Network error verifying order.");
+    } finally {
+      setVerifyLoading(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -353,6 +406,59 @@ export default function OrderStatusPage() {
           </div>
         </div>
 
+        {/* PRIVACY UNLOCK BANNER IF REDACTED */}
+        {order.isRedacted && (
+          <div className="bg-stone-900 text-white rounded-3xl p-6 border border-stone-800 shadow-xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-400 flex items-center justify-center flex-shrink-0 border border-amber-500/30">
+                <Lock className="w-5 h-5" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-serif font-bold text-white flex items-center gap-2">
+                  <span>Private Details Protected</span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 font-sans">
+                    Zero-Trust Privacy
+                  </span>
+                </h3>
+                <p className="text-xs text-stone-300 mt-1 leading-relaxed">
+                  Personal handwritten card messages and exact street addresses are obscured for privacy. If you placed or received this card, enter the 5-digit delivery ZIP code or billing email to reveal full details.
+                </p>
+              </div>
+            </div>
+
+            <form onSubmit={handleUnlock} className="flex flex-col sm:flex-row gap-2 max-w-lg">
+              <input
+                type="text"
+                value={verifyInput}
+                onChange={(e) => {
+                  setVerifyInput(e.target.value);
+                  if (verifyError) setVerifyError(null);
+                }}
+                placeholder="Enter 5-digit delivery ZIP or purchaser email"
+                className="flex-1 px-4 py-2.5 rounded-xl bg-stone-800 border border-stone-700 text-white text-xs placeholder:text-stone-500 focus:outline-none focus:ring-2 focus:ring-amber-500"
+              />
+              <button
+                type="submit"
+                disabled={verifyLoading || !verifyInput.trim()}
+                className="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold text-xs transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+              >
+                {verifyLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Unlock className="w-3.5 h-3.5" />
+                )}
+                <span>Unlock Full Card</span>
+              </button>
+            </form>
+
+            {verifyError && (
+              <p className="text-xs text-rose-400 font-medium animate-in fade-in duration-150">
+                {verifyError}
+              </p>
+            )}
+          </div>
+        )}
+
         {/* ORDER DETAILS & MAILING SUMMARY */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Card Preview Thumbnail */}
@@ -373,9 +479,16 @@ export default function OrderStatusPage() {
               <p>
                 <strong>Inside Top:</strong> &ldquo;{order.printedMessage}&rdquo;
               </p>
-              <p className="text-indigo-800 font-medium">
-                <strong>Inside Right (Real Ink Handwriting):</strong> &ldquo;{order.handwrittenNote.slice(0, 100)}...&rdquo;
-              </p>
+              <div className="text-indigo-800 font-medium">
+                <strong>Inside Right (Real Ink Handwriting):</strong>{" "}
+                {order.isRedacted ? (
+                  <span className="italic text-stone-400 inline-flex items-center gap-1 text-[11px]">
+                    <Lock className="w-3 h-3 text-amber-600 inline" /> Personal handwritten note shielded for privacy
+                  </span>
+                ) : (
+                  <span>&ldquo;{order.handwrittenNote.slice(0, 100)}...&rdquo;</span>
+                )}
+              </div>
             </div>
           </div>
 

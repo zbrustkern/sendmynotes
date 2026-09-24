@@ -47,6 +47,8 @@ export interface Order {
   discountCode?: string;
   discountAmountInCents?: number;
   paymentMethod?: "STRIPE" | "PROMO_CODE";
+  viewToken?: string;
+  isRedacted?: boolean;
   createdAt: number;
   updatedAt: number;
 }

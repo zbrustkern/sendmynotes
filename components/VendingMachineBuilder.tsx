@@ -396,6 +396,9 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       }
 
       setOrderId(data.orderId);
+      if (data.viewToken && typeof window !== "undefined") {
+        sessionStorage.setItem(`order_token_${data.orderId}`, data.viewToken);
+      }
       setClientSecret(data.clientSecret);
       if (data.publishableKey) {
         setPublishableKey(data.publishableKey);
@@ -417,7 +420,14 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
   const handlePaymentSuccess = (completedOrderId: string) => {
     trackEvent("payment_succeeded", 4, { orderId: completedOrderId });
-    router.push(`/order/${completedOrderId}`);
+    const storedToken =
+      typeof window !== "undefined"
+        ? sessionStorage.getItem(`order_token_${completedOrderId}`)
+        : null;
+    const dest = storedToken
+      ? `/order/${completedOrderId}?token=${encodeURIComponent(storedToken)}`
+      : `/order/${completedOrderId}`;
+    router.push(dest);
   };
 
   return (

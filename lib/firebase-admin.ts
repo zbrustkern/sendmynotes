@@ -1,7 +1,12 @@
 import * as admin from "firebase-admin";
+import fs from "fs";
+import path from "path";
 import { Order, ImageCachePoolItem, DiscountCode } from "./types";
 
-// In-memory mock store for offline testing or when GCP credentials are not present
+const DATA_DIR = path.join(process.cwd(), ".data");
+const DATA_FILE = path.join(DATA_DIR, "mock-firestore.json");
+
+// Mock Document and Query Snapshots
 class MockDocumentSnapshot<T = unknown> {
   constructor(private _id: string, private _data: T | undefined) {}
   get id() {
@@ -47,6 +52,7 @@ class MockDocRef<T = unknown> {
     } else {
       this._collection.store.set(this._id, JSON.parse(JSON.stringify(data)));
     }
+    this._collection.notifyChanged();
   }
   async update(data: Partial<T>): Promise<void> {
     const existing = this._collection.store.get(this._id);
@@ -54,18 +60,41 @@ class MockDocRef<T = unknown> {
       throw new Error(`Document ${this._id} does not exist.`);
     }
     this._collection.store.set(this._id, { ...existing, ...data });
+    this._collection.notifyChanged();
   }
   async delete(): Promise<void> {
     this._collection.store.delete(this._id);
+    this._collection.notifyChanged();
   }
 }
 
 class MockCollection<T = Record<string, unknown>> {
   public store = new Map<string, T>();
 
+  constructor(private firestore?: MockFirestore) {}
+
+  public notifyChanged() {
+    if (this.firestore) {
+      this.firestore.scheduleSave();
+    }
+  }
+
   doc(id?: string): MockDocRef<T> {
     const docId = id || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
     return new MockDocRef<T>(this, docId);
+  }
+
+  limit(n: number) {
+    return {
+      get: async (): Promise<MockQuerySnapshot<T>> => {
+        const results: MockDocumentSnapshot<T>[] = [];
+        for (const [id, data] of this.store.entries()) {
+          results.push(new MockDocumentSnapshot<T>(id, data));
+          if (results.length >= n) break;
+        }
+        return new MockQuerySnapshot<T>(results);
+      },
+    };
   }
 
   where(field: string, op: string, value: unknown) {
@@ -136,10 +165,62 @@ class MockCollection<T = Record<string, unknown>> {
 
 class MockFirestore {
   private collections = new Map<string, MockCollection>();
+  private saveTimeout: NodeJS.Timeout | null = null;
+
+  constructor() {
+    this.loadFromDisk();
+  }
+
+  private loadFromDisk() {
+    try {
+      if (typeof process !== "undefined" && fs.existsSync(DATA_FILE)) {
+        const raw = fs.readFileSync(DATA_FILE, "utf-8");
+        const parsed = JSON.parse(raw);
+        for (const [colName, docs] of Object.entries(parsed)) {
+          const col = this.collection(colName);
+          if (docs && typeof docs === "object") {
+            for (const [docId, docData] of Object.entries(docs as Record<string, unknown>)) {
+              col.store.set(docId, docData as Record<string, unknown>);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[MockFirestore] Notice reading persistent store:", err);
+    }
+  }
+
+  public scheduleSave() {
+    if (this.saveTimeout) return;
+    this.saveTimeout = setTimeout(() => {
+      this.saveTimeout = null;
+      this.saveToDisk();
+    }, 150);
+  }
+
+  public saveToDisk() {
+    try {
+      if (typeof process !== "undefined") {
+        if (!fs.existsSync(DATA_DIR)) {
+          fs.mkdirSync(DATA_DIR, { recursive: true });
+        }
+        const serialized: Record<string, Record<string, unknown>> = {};
+        for (const [colName, col] of this.collections.entries()) {
+          serialized[colName] = {};
+          for (const [docId, docData] of col.store.entries()) {
+            serialized[colName][docId] = docData;
+          }
+        }
+        fs.writeFileSync(DATA_FILE, JSON.stringify(serialized, null, 2), "utf-8");
+      }
+    } catch (err) {
+      console.warn("[MockFirestore] Notice saving store to disk:", err);
+    }
+  }
 
   collection(name: string) {
     if (!this.collections.has(name)) {
-      this.collections.set(name, new MockCollection());
+      this.collections.set(name, new MockCollection(this));
     }
     return this.collections.get(name)!;
   }
@@ -149,7 +230,7 @@ const mockFirestoreInstance = new MockFirestore();
 
 // Singleton check for Real vs Mock Firebase Admin
 function initializeFirebase() {
-  const projectId = process.env.FIREBASE_PROJECT_ID;
+  const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
@@ -157,6 +238,7 @@ function initializeFirebase() {
     return { db: admin.firestore(), isMock: false };
   }
 
+  // 1. Explicit Service Account credentials
   if (projectId && clientEmail && privateKey) {
     try {
       admin.initializeApp({
@@ -166,14 +248,32 @@ function initializeFirebase() {
           privateKey,
         }),
       });
-      console.log("[Firebase Admin] Connected to live Cloud Firestore:", projectId);
+      console.log("[Firebase Admin] Connected to live Cloud Firestore via Service Account:", projectId);
       return { db: admin.firestore(), isMock: false };
     } catch (err) {
-      console.warn("[Firebase Admin] Error initializing live SDK, falling back to mock:", err);
+      console.warn("[Firebase Admin] Error initializing live SDK with cert, falling back:", err);
     }
   }
 
-  console.log("[Firebase Admin] Using in-memory mock Firestore store (development/test mode).");
+  // 2. Google Cloud / Firebase App Hosting / Cloud Run Application Default Credentials
+  if (
+    process.env.K_SERVICE ||
+    process.env.FIREBASE_CONFIG ||
+    process.env.GOOGLE_CLOUD_PROJECT ||
+    (process.env.NODE_ENV === "production" && projectId)
+  ) {
+    try {
+      admin.initializeApp({
+        projectId: projectId || process.env.GOOGLE_CLOUD_PROJECT,
+      });
+      console.log("[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC:", projectId);
+      return { db: admin.firestore(), isMock: false };
+    } catch (err) {
+      console.warn("[Firebase Admin] Error initializing ADC Firestore:", err);
+    }
+  }
+
+  console.log("[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).");
   return { db: mockFirestoreInstance as unknown as admin.firestore.Firestore, isMock: true };
 }
 
