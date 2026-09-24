@@ -565,6 +565,10 @@ export function VendingMachineBuilder() {
             <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
             <span>Give App Feedback</span>
           </button>
+          <span>•</span>
+          <Link href="/terms" className="hover:text-stone-900 transition underline underline-offset-2">
+            Terms of Service &amp; Notice
+          </Link>
         </div>
         <p className="flex items-center justify-center gap-2">
           <span>No Account Required</span>

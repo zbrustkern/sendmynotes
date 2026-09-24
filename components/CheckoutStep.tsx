@@ -274,6 +274,14 @@ function InnerPaymentForm({
         )}
       </button>
 
+      <p className="text-[11px] text-stone-500 text-center leading-relaxed">
+        By placing your order, you agree to our{" "}
+        <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-amber-800 underline hover:text-stone-900 font-medium">
+          Terms of Service
+        </a>
+        . As cards are personalized custom goods penned on demand, all sales are final once production begins.
+      </p>
+
       <div className="flex items-center justify-center gap-3 text-[11px] text-stone-400">
         <span className="flex items-center gap-1">
           <ShieldCheck className="w-3.5 h-3.5 text-stone-400" />
