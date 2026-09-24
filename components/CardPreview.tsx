@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Sparkles, Eye, BookOpen, PenTool, CheckCircle2, Feather, ArrowRight, ArrowLeft } from "lucide-react";
+import { Eye, BookOpen, PenTool, Feather, ArrowRight, ArrowLeft } from "lucide-react";
 import { FONT_OPTIONS } from "@/lib/card-presets";
 
 interface CardPreviewProps {
@@ -44,12 +44,12 @@ export function CardPreview({
 
   return (
     <div className="flex flex-col items-center w-full">
-      {/* View Switcher Controls */}
+      {/* View Switcher Controls (Outside the Card) */}
       <div className="flex items-center gap-1 mb-4 bg-stone-100 p-1 rounded-full border border-stone-200 shadow-sm max-w-full overflow-x-auto">
         <button
           type="button"
           onClick={() => setViewMode("cover")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap cursor-pointer ${
             viewMode === "cover"
               ? "bg-white text-stone-900 shadow-sm"
               : "text-stone-500 hover:text-stone-800"
@@ -61,7 +61,7 @@ export function CardPreview({
         <button
           type="button"
           onClick={() => setViewMode("rightPage")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap cursor-pointer ${
             viewMode === "rightPage"
               ? "bg-white text-stone-900 shadow-sm"
               : "text-stone-500 hover:text-stone-800"
@@ -73,7 +73,7 @@ export function CardPreview({
         <button
           type="button"
           onClick={() => setViewMode("spread")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap cursor-pointer ${
             viewMode === "spread"
               ? "bg-white text-stone-900 shadow-sm"
               : "text-stone-500 hover:text-stone-800"
@@ -85,7 +85,7 @@ export function CardPreview({
         <button
           type="button"
           onClick={() => setViewMode("back")}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide transition-all whitespace-nowrap cursor-pointer ${
             viewMode === "back"
               ? "bg-white text-stone-900 shadow-sm"
               : "text-stone-500 hover:text-stone-800"
@@ -96,7 +96,7 @@ export function CardPreview({
         </button>
       </div>
 
-      {/* 1. FRONT COVER VIEW: Standard Portrait 5" x 7" Greeting Card */}
+      {/* 1. FRONT COVER VIEW: Standard Portrait 5" x 7" Greeting Card (Pure Artwork Only) */}
       {viewMode === "cover" && (
         <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[5/7] transition-all duration-300">
           <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-white flex flex-col group">
@@ -111,22 +111,10 @@ export function CardPreview({
                 unoptimized
               />
               {/* Natural Left Spine Fold Shadow */}
-              <div className="absolute left-0 top-0 bottom-0 w-3.5 bg-gradient-to-r from-black/35 via-black/10 to-transparent pointer-events-none" />
+              <div className="absolute left-0 top-0 bottom-0 w-3.5 bg-gradient-to-r from-black/30 via-black/10 to-transparent pointer-events-none" />
 
               {/* Blind-Deboss Inset Micro-Rule (Letterpress Effect) */}
               <div className="absolute inset-2 sm:inset-2.5 border border-white/35 rounded-xl pointer-events-none" />
-
-              {/* Occasion Badge */}
-              <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-bold tracking-wider uppercase text-stone-700 shadow-sm border border-stone-200/50 flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                {occasion}
-              </div>
-
-              {/* Physical Card Stock Badge */}
-              <div className="absolute bottom-3 left-3 bg-stone-900/85 backdrop-blur-md px-2.5 py-1 rounded-full text-[10px] font-medium text-stone-200 tracking-wide border border-white/10 flex items-center gap-1.5">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-                <span>120 lb Archival Cardstock</span>
-              </div>
             </div>
           </div>
         </div>
@@ -135,46 +123,28 @@ export function CardPreview({
       {/* 2. INSIDE NOTE (RIGHT PAGE FOCUS): Prominent Full 5×7 View with Left Spine Fold */}
       {viewMode === "rightPage" && (
         <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[5/7] transition-all duration-300">
-          <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex flex-col justify-between p-5 sm:p-6">
+          <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex flex-col justify-between p-6 sm:p-8">
             {/* Blind-Deboss Inset Micro-Rule (Letterpress Effect) */}
             <div className="absolute inset-2 sm:inset-3 border border-stone-300/35 rounded-xl pointer-events-none" />
 
             {/* Realistic Left Spine Fold Shadow indicating this is the Right Leaf */}
-            <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-stone-400/40 via-stone-300/15 to-transparent pointer-events-none" />
+            <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-stone-400/30 via-stone-300/10 to-transparent pointer-events-none" />
 
             {/* TOP: Printed Sentiment Header */}
-            <div className="pt-2 pb-4 border-b border-dashed border-stone-200 text-center relative z-10 pl-2">
-              <div className="text-[9px] uppercase tracking-widest text-stone-400 mb-1.5 font-serif font-medium">
-                Printed Sentiment • Top of Leaf
-              </div>
+            <div className="pt-3 pb-2 text-center relative z-10 pl-2">
               <p className="font-serif text-sm sm:text-base md:text-lg text-stone-800 leading-relaxed tracking-normal font-semibold">
                 {printedGreeting || "Wishing you a wonderful celebration."}
               </p>
             </div>
 
             {/* LOWER: Real Pen Handwritten Note */}
-            <div className="flex-1 flex flex-col justify-center py-4 pl-3 pr-1 relative z-10">
-              <div className="text-[9px] uppercase tracking-widest text-indigo-900/80 font-serif font-semibold mb-2 flex items-center gap-1.5">
-                <PenTool className="w-3 h-3 text-indigo-700" />
-                <span>Robotic Pen Plotter • Real Ballpoint Ink</span>
-              </div>
+            <div className="flex-1 flex flex-col justify-center py-4 pl-3 pr-2 relative z-10">
               <p
                 style={{ fontFamily: currentFont.fontFamily }}
                 className={`text-[#1B3B6F] text-lg sm:text-xl md:text-2xl leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
               >
                 {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
               </p>
-            </div>
-
-            {/* Bottom Status Chip */}
-            <div className="flex items-center justify-between pt-2 border-t border-stone-200 text-[10px] text-stone-500 pl-2 relative z-10">
-              <span className="flex items-center gap-1 text-emerald-700 font-medium">
-                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                Archival Blue Ballpoint Ink
-              </span>
-              <span className="font-mono text-[9px] bg-stone-100 px-2 py-0.5 rounded text-stone-700 font-medium border border-stone-200/60">
-                {currentFont.name}
-              </span>
             </div>
           </div>
         </div>
@@ -187,13 +157,6 @@ export function CardPreview({
           <div className="w-1/2 p-4 sm:p-6 flex flex-col justify-center items-center relative border-r border-stone-200/70 bg-[#FAF9F4]/30 select-none">
             {/* Blind-Deboss Inset Micro-Rule (Traditional Letterpress Border) */}
             <div className="absolute inset-2 sm:inset-3 border border-stone-300/30 rounded-xl pointer-events-none" />
-
-            {/* Subtle blank cardstock watermark indicator */}
-            <div className="text-center opacity-25 select-none relative z-10">
-              <span className="font-serif text-[10px] tracking-widest uppercase text-stone-500 italic block">
-                Blank Leaf
-              </span>
-            </div>
           </div>
 
           {/* CENTER BOOK SPINE FOLD: Realistic vertical crease */}
@@ -202,10 +165,10 @@ export function CardPreview({
           </div>
 
           {/* RIGHT PAGE: Printed Header at Top + Real Ink Note Below */}
-          <div className="w-1/2 p-3 sm:p-5 flex flex-col justify-between relative bg-white/70">
+          <div className="w-1/2 p-4 sm:p-6 flex flex-col justify-between relative bg-white/70">
             {/* TOP OF RIGHT PAGE: Printed Sentiment */}
-            <div className="pb-2 border-b border-dashed border-stone-200 text-center">
-              <p className="font-serif text-xs sm:text-sm text-stone-800 leading-normal tracking-normal font-semibold">
+            <div className="pb-2 text-center">
+              <p className="font-serif text-xs sm:text-sm text-stone-800 leading-normal font-semibold">
                 {printedGreeting || "Wishing you a wonderful celebration."}
               </p>
             </div>
@@ -219,21 +182,11 @@ export function CardPreview({
                 {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
               </p>
             </div>
-
-            {/* Handwriting status chip */}
-            <div className="flex items-center justify-between pt-1 border-t border-stone-100 text-[8px] text-stone-400">
-              <span className="flex items-center gap-1 text-emerald-600 font-medium">
-                <CheckCircle2 className="w-2.5 h-2.5 inline" /> Real Blue Ink
-              </span>
-              <span className="font-mono text-[8px] bg-stone-100 px-1.5 py-0.5 rounded text-stone-600">
-                {currentFont.name}
-              </span>
-            </div>
           </div>
         </div>
       )}
 
-      {/* 4. CARD BACK VIEW: Aster & Blanche Press Architectural Colophon */}
+      {/* 4. CARD BACK VIEW: Aster & Blanche Press Colophon Only */}
       {viewMode === "back" && (
         <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[5/7] transition-all duration-300">
           <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FCFAF7] paper-texture flex flex-col justify-center items-center group p-2">
@@ -247,28 +200,22 @@ export function CardPreview({
             />
             {/* Natural Right Spine Fold Shadow indicating this is the Back of Card */}
             <div className="absolute right-0 top-0 bottom-0 w-3.5 bg-gradient-to-l from-black/25 via-black/5 to-transparent pointer-events-none" />
-
-            {/* Physical Imprint Badge */}
-            <div className="absolute bottom-3 bg-stone-900/85 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-medium text-stone-200 tracking-wide border border-white/10 flex items-center gap-1.5 z-10">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span>Aster &amp; Blanche Press • Lake Forest, IL</span>
-            </div>
           </div>
         </div>
       )}
 
-      {/* Caption description */}
-      <p className="text-center text-xs text-stone-500 mt-3 flex items-center gap-1.5">
-        <span>
-          {viewMode === "cover"
-            ? "5×7 portrait front cover artwork."
-            : viewMode === "rightPage"
-            ? "Inside right leaf with printed sentiment above and real ink handwriting below."
-            : viewMode === "spread"
-            ? "Panoramic 10×7 open card spread."
-            : "Card backplate with Aster & Blanche Press architectural colophon."}
+      {/* Clean external indicator OUTSIDE the card confirming exact 1:1 print reproduction */}
+      <div className="w-full max-w-[380px] mt-3 px-1 flex items-center justify-between text-xs text-stone-500">
+        <span className="font-medium text-stone-700">
+          {viewMode === "cover" && "Front Cover Art"}
+          {viewMode === "rightPage" && "Inside Right Page"}
+          {viewMode === "spread" && "Open Card Spread"}
+          {viewMode === "back" && "Card Back"}
         </span>
-      </p>
+        <span className="text-[11px] text-stone-400">
+          Exact physical print preview
+        </span>
+      </div>
 
       {/* DIRECT STEP PROGRESSION BUTTON: Move forward from here */}
       {onNextStep && (
