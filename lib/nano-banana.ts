@@ -16,8 +16,79 @@ export interface GenerateCoverResult {
 }
 
 /**
+ * Universal extractor for image data returned by Google GenAI APIs
+ * Handles Interactions API, generateContent, and legacy prediction response shapes.
+ */
+function extractImageDataUrl(data: any): string | null {
+  if (!data) return null;
+
+  // 1. Direct output_image in modern Interactions API
+  const directImage = data.output_image || data.outputImage;
+  if (directImage?.data) {
+    const mime = directImage.mime_type || directImage.mimeType || "image/png";
+    return `data:${mime};base64,${directImage.data}`;
+  }
+
+  // 2. Steps in Interactions API
+  if (Array.isArray(data.steps)) {
+    for (const step of data.steps) {
+      const contentList = step.content || step.model_output?.content || step.modelOutputStep?.content;
+      if (Array.isArray(contentList)) {
+        for (const item of contentList) {
+          const imgObj = item.image_content || item.imageContent || (item.type === "image" ? item : null);
+          const base64 = imgObj?.data || item.data;
+          if (base64) {
+            const mime = imgObj?.mime_type || imgObj?.mimeType || item.mime_type || "image/png";
+            return `data:${mime};base64,${base64}`;
+          }
+        }
+      }
+    }
+  }
+
+  // 3. Outputs array in Interactions API
+  if (Array.isArray(data.outputs)) {
+    for (const out of data.outputs) {
+      const base64 = out.data || out.image?.data;
+      if (base64) {
+        const mime = out.mime_type || out.mimeType || "image/png";
+        return `data:${mime};base64,${base64}`;
+      }
+    }
+  }
+
+  // 4. GenerateContent candidates parts with inlineData
+  if (Array.isArray(data.candidates)) {
+    for (const candidate of data.candidates) {
+      const parts = candidate.content?.parts;
+      if (Array.isArray(parts)) {
+        for (const part of parts) {
+          const inline = part.inlineData || part.inline_data;
+          if (inline?.data) {
+            const mime = inline.mimeType || inline.mime_type || "image/png";
+            return `data:${mime};base64,${inline.data}`;
+          }
+        }
+      }
+    }
+  }
+
+  // 5. Predictions in legacy Imagen predict API
+  if (Array.isArray(data.predictions)) {
+    const pred = data.predictions[0];
+    const base64 = pred?.bytesBase64Encoded || pred?.image?.bytesBase64Encoded;
+    if (base64) {
+      const mime = pred?.mimeType || "image/jpeg";
+      return `data:${mime};base64,${base64}`;
+    }
+  }
+
+  return null;
+}
+
+/**
  * AI Image Generator Client
- * 1. Google Gemini / Imagen 3 (via GEMINI_API_KEY / GOOGLE_API_KEY)
+ * 1. Google Gemini (Interactions API / generateContent with gemini-3.1-flash-image / gemini-2.5-flash-image)
  * 2. Nano Banana API (via NANO_BANANA_API_KEY)
  * 3. Fallback: Curated Aster & Blanche 5:7 boutique presets
  */
@@ -36,42 +107,39 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
 
   const errors: string[] = [];
 
-  // 1. Prioritize Google's Imagen 3 if API key is available
+  // 1. Google Gemini Native Image Generation (Nano Banana / Gemini 3.1 & 2.5 Flash Image)
   if (geminiApiKey) {
-    const modelsToTry = [
-      "imagen-3.0-generate-002",
-      "imagen-3.0-generate-001",
+    // Strategy A: Modern Interactions API (Google GenAI recommended standard)
+    const interactionModels = [
+      "gemini-3.1-flash-image",
+      "gemini-2.5-flash-image",
+      "gemini-3.1-flash-lite-image",
     ];
 
-    for (const model of modelsToTry) {
+    for (const model of interactionModels) {
       try {
-        const imagenUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict?key=${geminiApiKey}`;
-        const response = await fetch(imagenUrl, {
+        const interactionUrl = `https://generativelanguage.googleapis.com/v1beta/interactions?key=${geminiApiKey}`;
+        const response = await fetch(interactionUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             "x-goog-api-key": geminiApiKey,
           },
           body: JSON.stringify({
-            instances: [{ prompt: refinedPrompt }],
-            parameters: {
-              sampleCount: 1,
-              aspectRatio: "3:4", // closest standard ratio to 5:7
-              outputOptions: {
-                mimeType: "image/jpeg",
-              },
+            model,
+            input: refinedPrompt,
+            response_format: {
+              type: "image",
+              aspect_ratio: "3:4",
             },
           }),
         });
 
         if (response.ok) {
           const data = await response.json();
-          const prediction = data.predictions?.[0];
-          const base64Bytes = prediction?.bytesBase64Encoded || prediction?.image?.bytesBase64Encoded;
-          const mimeType = prediction?.mimeType || "image/jpeg";
-          if (base64Bytes) {
-            const dataUrl = `data:${mimeType};base64,${base64Bytes}`;
-            console.log(`[Google Imagen] Successfully generated artwork using ${model}`);
+          const dataUrl = extractImageDataUrl(data);
+          if (dataUrl) {
+            console.log(`[Google Gemini] Successfully generated artwork via Interactions API using ${model}`);
             return {
               imageUrl: dataUrl,
               prompt,
@@ -83,18 +151,76 @@ export async function generateCoverArt(params: GenerateCoverParams): Promise<Gen
           }
         } else {
           const errText = await response.text();
-          console.warn(`[Google Imagen ${model}] API error (${response.status}):`, errText);
           let parsedMsg = errText;
           try {
             const parsed = JSON.parse(errText);
             parsedMsg = parsed.error?.message || errText;
           } catch {}
-          errors.push(`Google Imagen (${response.status}): ${parsedMsg}`);
+          console.warn(`[Google Interactions ${model}] API error (${response.status}):`, parsedMsg);
+          errors.push(`Interactions ${model} (${response.status}): ${parsedMsg}`);
         }
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.error(`[Google Imagen ${model}] Exception:`, msg);
-        errors.push(`Google Imagen network exception: ${msg}`);
+        console.error(`[Google Interactions ${model}] Exception:`, msg);
+        errors.push(`Interactions ${model} network error: ${msg}`);
+      }
+    }
+
+    // Strategy B: generateContent with IMAGE response modalities
+    const contentModels = [
+      "gemini-2.5-flash-image",
+      "gemini-3.1-flash-image",
+    ];
+
+    for (const model of contentModels) {
+      try {
+        const generateUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${geminiApiKey}`;
+        const response = await fetch(generateUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-goog-api-key": geminiApiKey,
+          },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [{ text: refinedPrompt }],
+              },
+            ],
+            generationConfig: {
+              response_modalities: ["IMAGE"],
+            },
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const dataUrl = extractImageDataUrl(data);
+          if (dataUrl) {
+            console.log(`[Google Gemini] Successfully generated artwork via generateContent using ${model}`);
+            return {
+              imageUrl: dataUrl,
+              prompt,
+              occasion,
+              isMock: false,
+              aspectRatio,
+              provider: "gemini_imagen",
+            };
+          }
+        } else {
+          const errText = await response.text();
+          let parsedMsg = errText;
+          try {
+            const parsed = JSON.parse(errText);
+            parsedMsg = parsed.error?.message || errText;
+          } catch {}
+          console.warn(`[Google generateContent ${model}] API error (${response.status}):`, parsedMsg);
+          errors.push(`generateContent ${model} (${response.status}): ${parsedMsg}`);
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[Google generateContent ${model}] Exception:`, msg);
+        errors.push(`generateContent ${model} network error: ${msg}`);
       }
     }
   } else {
