@@ -56,6 +56,21 @@ const OCCASION_PROMPT_INSPIRATIONS: Record<string, string[]> = {
     "Vintage typewriter with sweet pea flowers on desk",
     "Whimsical hot air balloon floating over orchards",
   ],
+  "Christmas & Holidays": [
+    "Cozy snow-dusted pine cottage with glowing windows at twilight",
+    "Vintage botanical evergreen branch with gold ribbon and berries",
+    "Whimsical watercolor nutcracker and warm festive fireplace",
+  ],
+  Halloween: [
+    "Warm glowing carved jack-o'-lantern on vintage stone porch",
+    "Misty autumn moonlight over enchanted pumpkin patch",
+    "Whimsical cozy ghost with candle in vintage autumn forest",
+  ],
+  "Easter & Spring": [
+    "Gentle pastel spring bunny nestled in blooming chamomile meadow",
+    "Soft watercolor easter basket with speckled eggs and sweet peas",
+    "Sunlit spring blossom bough with robin singing in morning dew",
+  ],
 };
 
 export function CoverStep({

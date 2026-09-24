@@ -107,6 +107,7 @@ export interface UserAccount {
 // Customer Journey Telemetry
 export type TelemetryEventName =
   | "session_start"
+  | "agent_url_prefilled"
   | "cover_preset_selected"
   | "ai_generate_started"
   | "ai_generate_succeeded"

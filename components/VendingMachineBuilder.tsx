@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Sparkles,
   ArrowRight,
@@ -26,7 +26,7 @@ import { InsideNoteStep } from "./InsideNoteStep";
 import { AddressStep } from "./AddressStep";
 import { CheckoutStep } from "./CheckoutStep";
 import { FeedbackModal } from "./FeedbackModal";
-import { CARD_PRESETS, CardPreset } from "@/lib/card-presets";
+import { CARD_PRESETS, OCCASIONS, FONT_OPTIONS, CardPreset } from "@/lib/card-presets";
 import { MailingAddress } from "@/lib/types";
 import { trackEvent } from "@/lib/telemetry";
 import { useAuth } from "@/context/AuthContext";
@@ -35,10 +35,12 @@ import Link from "next/link";
 
 export function VendingMachineBuilder() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, account, saveAddress } = useAuth();
 
   // Builder Steps: 1 = Cover, 2 = Inside Note, 3 = Address, 4 = Checkout
   const [currentStep, setCurrentStep] = useState<number>(1);
+  const [isPrefilledFromUrl, setIsPrefilledFromUrl] = useState(false);
 
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -109,6 +111,135 @@ export function VendingMachineBuilder() {
   useEffect(() => {
     trackEvent("session_start", 1);
   }, []);
+
+  // Hydrate card state from URL search parameters (Supports AI Agents & Direct Deep Links)
+  useEffect(() => {
+    if (!searchParams) return;
+    let didPrefill = false;
+
+    // 1. Occasion
+    const occasionParam = searchParams.get("occasion");
+    if (occasionParam) {
+      const match = OCCASIONS.find(
+        (o) => o.toLowerCase() === occasionParam.toLowerCase()
+      );
+      if (match) {
+        setOccasion(match);
+        didPrefill = true;
+      }
+    }
+
+    // 2. Printed Greeting Sentiment
+    const printedParam = searchParams.get("printed") || searchParams.get("greeting");
+    if (printedParam) {
+      setPrintedGreeting(printedParam);
+      didPrefill = true;
+    }
+
+    // 3. Handwritten Inking Message
+    const noteParam =
+      searchParams.get("note") ||
+      searchParams.get("message") ||
+      searchParams.get("handwritten");
+    if (noteParam) {
+      setHandwrittenNote(noteParam);
+      didPrefill = true;
+    }
+
+    // 4. Robotic Pen Style
+    const fontParam = searchParams.get("font") || searchParams.get("fontId");
+    if (fontParam) {
+      if (["1", "2", "3", "4"].includes(fontParam)) {
+        setFontStyleId(fontParam);
+        didPrefill = true;
+      } else {
+        const foundFont = FONT_OPTIONS.find(
+          (f) =>
+            f.id.toLowerCase() === fontParam.toLowerCase() ||
+            f.name.toLowerCase().includes(fontParam.toLowerCase())
+        );
+        if (foundFont) {
+          setFontStyleId(foundFont.handwryttenFontId);
+          didPrefill = true;
+        }
+      }
+    }
+
+    // 5. Cover Image or Prompt
+    const coverParam = searchParams.get("cover");
+    if (coverParam) {
+      setCoverUrl(coverParam);
+      didPrefill = true;
+    }
+    const promptParam = searchParams.get("prompt");
+    if (promptParam) {
+      setCustomPrompt(promptParam);
+      didPrefill = true;
+    }
+
+    // 6. Recipient Address
+    const to = searchParams.get("to") || searchParams.get("toName");
+    const toFirst = searchParams.get("toFirst");
+    const toLast = searchParams.get("toLast");
+    const toStreet =
+      searchParams.get("toStreet") ||
+      searchParams.get("street1") ||
+      searchParams.get("street");
+    const toStreet2 = searchParams.get("toStreet2") || searchParams.get("street2");
+    const toCity = searchParams.get("toCity") || searchParams.get("city");
+    const toState = searchParams.get("toState") || searchParams.get("state");
+    const toZip = searchParams.get("toZip") || searchParams.get("zip");
+
+    if (to || toFirst || toLast || toStreet || toCity || toState || toZip) {
+      didPrefill = true;
+      setRecipient((prev) => {
+        let fName = prev.firstName;
+        let lName = prev.lastName;
+        if (to) {
+          const parts = to.trim().split(/\s+/);
+          if (parts.length === 1) {
+            fName = parts[0];
+            lName = "";
+          } else {
+            fName = parts[0];
+            lName = parts.slice(1).join(" ");
+          }
+        }
+        if (toFirst) fName = toFirst;
+        if (toLast) lName = toLast;
+
+        return {
+          ...prev,
+          firstName: fName,
+          lastName: lName,
+          street1: toStreet || prev.street1,
+          street2: toStreet2 || prev.street2,
+          city: toCity || prev.city,
+          state: toState ? toState.toUpperCase() : prev.state,
+          zip: toZip || prev.zip,
+        };
+      });
+    }
+
+    // 7. Step Navigation
+    const stepParam = searchParams.get("step");
+    if (stepParam) {
+      const s = parseInt(stepParam, 10);
+      if (s >= 1 && s <= 4) {
+        setCurrentStep(s);
+      }
+    }
+
+    if (didPrefill) {
+      setIsPrefilledFromUrl(true);
+      trackEvent("agent_url_prefilled", 1, {
+        occasion: occasionParam,
+        hasPrinted: !!printedParam,
+        hasNote: !!noteParam,
+        hasRecipient: !!to || !!toStreet,
+      });
+    }
+  }, [searchParams]);
 
   // Handle Preset Selection
   const handleSelectPreset = (url: string, preset?: CardPreset) => {
@@ -301,6 +432,28 @@ export function VendingMachineBuilder() {
         </div>
       </section>
 
+      {/* PREFILLED VIA ASSISTANT BANNER */}
+      {isPrefilledFromUrl && (
+        <div className="max-w-2xl mx-auto px-4 pt-2 mb-2">
+          <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200/80 text-amber-950 flex items-center justify-between shadow-xs">
+            <div className="flex items-center gap-2.5">
+              <Sparkles className="w-4 h-4 text-amber-700 shrink-0" />
+              <p className="text-xs sm:text-sm font-medium">
+                Card details pre-loaded via assistant link. Feel free to review or customize below!
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsPrefilledFromUrl(false)}
+              className="text-stone-400 hover:text-stone-700 p-1 cursor-pointer"
+              aria-label="Dismiss banner"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* STEP PROGRESS BAR */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
         <div className="grid grid-cols-4 gap-2 bg-stone-100/80 p-1.5 rounded-2xl border border-stone-200/60 max-w-2xl mx-auto mb-6 shadow-inner">
@@ -416,6 +569,8 @@ export function VendingMachineBuilder() {
                 onChangeHandwrittenNote={setHandwrittenNote}
                 fontStyleId={fontStyleId}
                 onChangeFontStyleId={setFontStyleId}
+                occasion={occasion}
+                onChangeOccasion={setOccasion}
               />
             )}
 
