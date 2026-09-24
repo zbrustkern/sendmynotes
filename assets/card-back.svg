@@ -152,29 +152,6 @@
       fill="#2E2B26">
       LAKE FOREST, IL
     </text>
-
-    <!-- FOUNDER IMPRINT -->
-    <text 
-      class="brand-serif" 
-      x="0" 
-      y="140" 
-      font-size="13" 
-      font-style="italic" 
-      letter-spacing="3" 
-      fill="#544F47">
-      The Private Press of Ezekiel Brustkern
-    </text>
-
-    <!-- PAPER CREDENTIAL SPECIFICATION -->
-    <text 
-      class="brand-sans" 
-      x="0" 
-      y="172" 
-      font-size="8" 
-      font-weight="400" 
-      letter-spacing="3.5" 
-      fill="#8F8A80">
-      100% RECYCLED COTTON CARDSTOCK • MAILED IN LAKE FOREST
-    </text>
   </g>
 </svg>
+
