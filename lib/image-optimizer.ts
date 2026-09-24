@@ -21,19 +21,28 @@ export async function optimizeCoverImage(input: string | Buffer): Promise<string
     return input;
   }
 
-  // 1. Resize to 875x1225 (exact 5:7 portrait greeting card ratio) and compress to JPEG
+  // 1. Target true commercial print resolution: 1500x2100 pixels (300 DPI for a 5" x 7" card).
+  // Use 4:4:4 chroma subsampling (no color downsampling) to preserve fine ink lines, watercolor washes, and typography.
   let optimizedBuffer = await sharp(buffer)
-    .resize(875, 1225, { fit: "cover", position: "center" })
-    .jpeg({ quality: 82, mozjpeg: true })
+    .resize(1500, 2100, { fit: "cover", position: "center" })
+    .jpeg({ quality: 88, mozjpeg: true, chromaSubsampling: "4:4:4" })
     .toBuffer();
 
   // 2. Strict guard against Firestore 1,048,487-byte limit:
-  // Base64 encoding inflates byte size by ~33%. A 500KB buffer produces ~667KB base64.
-  // If buffer is larger than 450KB, reduce quality and dimensions to guarantee safety.
-  if (optimizedBuffer.length > 450 * 1024) {
+  // Base64 encoding inflates byte size by ~33%. A 600KB buffer produces ~800KB base64.
+  // If a high-entropy image exceeds 600KB, fall back to 1250x1750 (250 DPI) at 84% quality.
+  if (optimizedBuffer.length > 600 * 1024) {
     optimizedBuffer = await sharp(buffer)
-      .resize(750, 1050, { fit: "cover", position: "center" })
-      .jpeg({ quality: 72 })
+      .resize(1250, 1750, { fit: "cover", position: "center" })
+      .jpeg({ quality: 84, mozjpeg: true, chromaSubsampling: "4:4:4" })
+      .toBuffer();
+  }
+
+  // 3. Absolute failsafe: if still > 700KB, scale to 1050x1470 (210 DPI)
+  if (optimizedBuffer.length > 700 * 1024) {
+    optimizedBuffer = await sharp(buffer)
+      .resize(1050, 1470, { fit: "cover", position: "center" })
+      .jpeg({ quality: 78 })
       .toBuffer();
   }
 
