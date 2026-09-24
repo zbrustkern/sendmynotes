@@ -257,3 +257,74 @@ export async function fulfillHandwryttenOrder(
     return { success: false, error: message };
   }
 }
+
+export interface HandwryttenStatusResult {
+  success: boolean;
+  status?: string;
+  trackingNumber?: string;
+  trackingUrl?: string;
+  dateSent?: string;
+  raw?: unknown;
+  error?: string;
+}
+
+/**
+ * Queries live status from Handwrytten API v2 via /orders/view
+ */
+export async function fetchHandwryttenOrderStatus(
+  orderId: string
+): Promise<HandwryttenStatusResult> {
+  const apiKey =
+    process.env.HANDWRYTTEN_API_KEY || process.env["handwrytten-api-key"];
+
+  if (!apiKey || orderId.startsWith("mock_hw_")) {
+    return {
+      success: true,
+      status: "processing",
+      raw: { mode: "mock" },
+    };
+  }
+
+  try {
+    const res = await fetch(
+      `https://api.handwrytten.com/v2/orders/view?order_id=${encodeURIComponent(orderId)}`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: apiKey,
+          Accept: "application/json",
+        },
+      }
+    );
+
+    const data = await res.json();
+    if (!res.ok || data.status === "error") {
+      return {
+        success: false,
+        error: data.message || `Failed to fetch order status (${res.status})`,
+      };
+    }
+
+    const orderData = data.order || data.data || data;
+    const status =
+      orderData.status || orderData.order_status || data.order_status || "processing";
+    const trackingNumber =
+      orderData.tracking_number || orderData.tracking || null;
+    const trackingUrl = orderData.tracking_url || null;
+    const dateSent =
+      orderData.date_sent || orderData.mailed_date || orderData.completed_at || null;
+
+    return {
+      success: true,
+      status: String(status),
+      trackingNumber: trackingNumber ? String(trackingNumber) : undefined,
+      trackingUrl: trackingUrl ? String(trackingUrl) : undefined,
+      dateSent: dateSent ? String(dateSent) : undefined,
+      raw: data,
+    };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, error: msg };
+  }
+}
+

@@ -126,12 +126,14 @@ export default function OrderStatusPage() {
   };
 
   const statusDisplay = getStatusDisplay(order.status);
+  const isMailed = order.status === "MAILED";
   const isInking = order.status === "PROCESSING_HANDWRYTTEN";
   const isQueuedOrPaid =
     order.status === "PAYMENT_RECEIVED" ||
     order.status === "QUEUED_FOR_FULFILLMENT" ||
     order.status === "FAILED" ||
-    isInking;
+    isInking ||
+    isMailed;
 
   const trackingSteps = [
     {
@@ -149,28 +151,40 @@ export default function OrderStatusPage() {
     {
       title: order.scheduledSendDate
         ? `Scheduled Handwriting (${order.scheduledSendDate})`
+        : isMailed
+        ? "Real Ink Handwriting Complete"
         : "Real Ink Handwriting In Progress",
       description: order.scheduledSendDate
         ? `Order confirmed. Queued to be penned with real ink and postmarked on ${order.scheduledSendDate}.`
+        : isMailed
+        ? `Penned with real blue ballpoint ink. (Handwrytten Order ID: ${order.handwryttenOrderId || "confirmed"})`
         : isInking
         ? `Handwrytten robotic pen applying real blue ballpoint ink to inside right leaf. ${
             order.handwryttenOrderId ? `(Order ID: ${order.handwryttenOrderId})` : ""
           }`
         : "Order confirmed. Queued for real ink handwriting in our studio.",
       icon: order.scheduledSendDate ? Calendar : PenTool,
-      status: isQueuedOrPaid ? "current" : "upcoming",
+      status: isMailed ? "complete" : isQueuedOrPaid ? "current" : "upcoming",
     },
     {
       title: "Enveloped & Stamped",
       description: `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} with USPS First Class postage.`,
       icon: Mail,
-      status: "upcoming",
+      status: isMailed ? "complete" : "upcoming",
     },
     {
       title: "Mailed via USPS First Class",
-      description: "Dispatched into postal stream. Estimated delivery: 2-4 business days.",
+      description: isMailed
+        ? `Dispatched into USPS postal stream${
+            order.handwryttenMailedDate ? ` on ${order.handwryttenMailedDate}` : ""
+          }.${
+            order.handwryttenTrackingNumber
+              ? ` Tracking: ${order.handwryttenTrackingNumber}`
+              : " Estimated delivery: 2-4 business days."
+          }`
+        : "Dispatched into postal stream. Estimated delivery: 2-4 business days.",
       icon: Truck,
-      status: "upcoming",
+      status: isMailed ? "complete" : "upcoming",
     },
   ];
 

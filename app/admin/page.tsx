@@ -34,6 +34,7 @@ export default function AdminDashboardPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [retryingId, setRetryingId] = useState<string | null>(null);
+  const [syncingId, setSyncingId] = useState<string | null>(null);
 
   const verifyAccess = async (keyToTest: string) => {
     setAuthLoading(true);
@@ -105,6 +106,33 @@ export default function AdminDashboardPage() {
       alert(`Error retrying fulfillment: ${msg}`);
     } finally {
       setRetryingId(null);
+    }
+  };
+
+  const handleSyncHandwrytten = async (orderId: string) => {
+    setSyncingId(orderId);
+    try {
+      const res = await fetch("/api/admin/sync-handwrytten", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        alert(`Sync failed: ${data.error || "Unknown error"}`);
+      } else {
+        alert(
+          `Handwrytten status updated: ${data.handwryttenStatus || data.status}${
+            data.mailedDate ? ` (Mailed: ${data.mailedDate})` : ""
+          }`
+        );
+      }
+      await fetchMetrics();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error";
+      alert(`Error syncing status from Handwrytten: ${msg}`);
+    } finally {
+      setSyncingId(null);
     }
   };
 
@@ -422,10 +450,11 @@ export default function AdminDashboardPage() {
                 </thead>
                 <tbody className="divide-y divide-stone-100">
                   {filteredOrders.map((order) => {
+                    const isMailed = order.status === "MAILED";
                     const isProcessing =
                       order.status === "PROCESSING_HANDWRYTTEN";
                     const isPending = order.status === "PENDING_PAYMENT";
-                    const canRetry = !isProcessing && !isPending;
+                    const canRetry = !isProcessing && !isPending && !isMailed;
 
                     return (
                       <tr key={order.id} className="hover:bg-stone-50/50 transition">
@@ -472,7 +501,9 @@ export default function AdminDashboardPage() {
                           <div className="space-y-1">
                             <span
                               className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                isProcessing
+                                isMailed
+                                  ? "bg-purple-100 text-purple-800 border border-purple-200"
+                                  : isProcessing
                                   ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
                                   : isPending
                                   ? "bg-stone-100 text-stone-600 border border-stone-200"
@@ -488,32 +519,71 @@ export default function AdminDashboardPage() {
                                 HW: {order.handwryttenOrderId}
                               </p>
                             )}
+                            {order.handwryttenStatus && (
+                              <p className="text-[10px] font-medium text-stone-600">
+                                HW: <span className="capitalize font-semibold text-stone-900">{order.handwryttenStatus}</span>
+                              </p>
+                            )}
+                            {order.handwryttenMailedDate && (
+                              <p className="text-[9px] text-purple-700 font-medium">
+                                Mailed: {order.handwryttenMailedDate}
+                              </p>
+                            )}
+                            {order.handwryttenTrackingNumber && (
+                              <p className="text-[9px] text-stone-500 font-mono">
+                                Trk: {order.handwryttenTrackingNumber}
+                              </p>
+                            )}
                           </div>
                         </td>
                         <td className="py-3 px-4 text-right font-serif font-bold text-stone-900 text-sm">
                           ${((order.amountInCents || 900) / 100).toFixed(2)}
                         </td>
                         <td className="py-3 px-4 text-center">
-                          {canRetry ? (
-                            <button
-                              onClick={() => handleRetryFulfillment(order.id)}
-                              disabled={retryingId === order.id}
-                              className="px-2.5 py-1 text-[11px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-300 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
-                            >
-                              <RefreshCw
-                                className={`w-3 h-3 ${
-                                  retryingId === order.id ? "animate-spin" : ""
-                                }`}
-                              />
-                              {retryingId === order.id ? "Inking..." : "Retry Dispatch"}
-                            </button>
-                          ) : isProcessing ? (
-                            <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
-                              <CheckCircle2 className="w-3 h-3" /> Dispatched
-                            </span>
-                          ) : (
-                            <span className="text-stone-300">—</span>
-                          )}
+                          <div className="flex flex-col items-center gap-1.5">
+                            {canRetry && (
+                              <button
+                                onClick={() => handleRetryFulfillment(order.id)}
+                                disabled={retryingId === order.id}
+                                className="px-2.5 py-1 text-[11px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-300 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
+                              >
+                                <RefreshCw
+                                  className={`w-3 h-3 ${
+                                    retryingId === order.id ? "animate-spin" : ""
+                                  }`}
+                                />
+                                {retryingId === order.id ? "Inking..." : "Retry Dispatch"}
+                              </button>
+                            )}
+                            {order.handwryttenOrderId && (
+                              <button
+                                onClick={() => handleSyncHandwrytten(order.id)}
+                                disabled={syncingId === order.id}
+                                title="Check latest order and postal status directly from Handwrytten API"
+                                className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
+                              >
+                                <RefreshCw
+                                  className={`w-2.5 h-2.5 ${
+                                    syncingId === order.id ? "animate-spin" : ""
+                                  }`}
+                                />
+                                {syncingId === order.id ? "Checking..." : "Sync HW"}
+                              </button>
+                            )}
+                            {isMailed && (
+                              <span className="text-[11px] text-purple-700 font-medium inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Mailed
+                              </span>
+                            )}
+                            {isProcessing && !isMailed && (
+                              <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
+                                <CheckCircle2 className="w-3 h-3" /> Dispatched
+                              </span>
+                            )}
+                            {!canRetry && !order.handwryttenOrderId && (
+                              <span className="text-stone-300">—</span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

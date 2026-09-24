@@ -14,6 +14,7 @@ export type OrderStatus =
   | "PAYMENT_RECEIVED"
   | "PROCESSING_HANDWRYTTEN"
   | "QUEUED_FOR_FULFILLMENT"
+  | "MAILED"
   | "FAILED";
 
 export interface SavedAddress extends MailingAddress {
@@ -35,6 +36,10 @@ export interface Order {
   returnAddress: MailingAddress;
   status: OrderStatus;
   handwryttenOrderId?: string;
+  handwryttenStatus?: string; // e.g. "writing", "mailed", "processing"
+  handwryttenTrackingNumber?: string;
+  handwryttenTrackingUrl?: string;
+  handwryttenMailedDate?: string;
   fulfillmentError?: string;
   scheduledSendDate?: string; // YYYY-MM-DD if scheduled
   amountInCents: number;
