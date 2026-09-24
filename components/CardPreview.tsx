@@ -2,8 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Eye, BookOpen, PenTool, Feather, ArrowRight, ArrowLeft } from "lucide-react";
-import { FONT_OPTIONS } from "@/lib/card-presets";
+import { Eye, BookOpen, PenTool, Feather, ArrowRight, ArrowLeft, Maximize2, X } from "lucide-react";
+import { FONT_OPTIONS, FontOption } from "@/lib/card-presets";
 
 interface CardPreviewProps {
   coverUrl: string;
@@ -14,6 +14,96 @@ interface CardPreviewProps {
   currentStep?: number;
   onNextStep?: () => void;
   onPreviousStep?: () => void;
+}
+
+/**
+ * Canonical Inside Right Leaf component.
+ * Uses CSS Container Queries (inline-size) with `cqw` units so that
+ * font sizes, line wrapping, line heights, and margins scale in 100% exact
+ * mathematical proportion across both single-page focus and panoramic spread views.
+ */
+function InsideRightLeaf({
+  printedGreeting,
+  handwrittenNote,
+  currentFont,
+  showSpineShadow = false,
+}: {
+  printedGreeting: string;
+  handwrittenNote: string;
+  currentFont: FontOption;
+  showSpineShadow?: boolean;
+}) {
+  return (
+    <div
+      style={{ containerType: "inline-size" }}
+      className="relative w-full h-full bg-[#FDFCF7] paper-texture flex flex-col select-none overflow-hidden"
+    >
+      {/* Blind-Deboss Inset Micro-Rule (Traditional Letterpress Border, scaled in cqw) */}
+      <div
+        style={{
+          position: "absolute",
+          inset: "3.5cqw",
+          borderRadius: "2.5cqw",
+          border: "1px solid rgba(120, 113, 108, 0.25)",
+          pointerEvents: "none",
+        }}
+      />
+
+      {/* Realistic Left Spine Fold Shadow indicating the bound hinge */}
+      {showSpineShadow && (
+        <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/30 via-stone-300/10 to-transparent pointer-events-none z-10" />
+      )}
+
+      {/* Physical Print Content Layout */}
+      <div className="relative z-10 w-full h-full flex flex-col justify-start">
+        {/* Upper Third: Centered Printed Sentiment (Classic Hallmark/Crane Stationery Golden Ratio) */}
+        {printedGreeting ? (
+          <div
+            style={{
+              paddingTop: "33cqw", // ~23.5% of card height (140cqw total height in 5:7)
+              paddingBottom: "6cqw",
+              paddingLeft: "8cqw",
+              paddingRight: "8cqw",
+            }}
+            className="text-center"
+          >
+            <p
+              style={{
+                fontSize: "4.3cqw",
+                lineHeight: 1.45,
+              }}
+              className="font-serif text-stone-800 font-semibold tracking-normal"
+            >
+              {printedGreeting}
+            </p>
+          </div>
+        ) : (
+          <div style={{ paddingTop: "26cqw" }} /> // ~18.5% top margin if no pre-printed greeting
+        )}
+
+        {/* Lower Portion: Real Pen Inking anchored right below the printed sentiment */}
+        <div
+          style={{
+            paddingLeft: "8cqw",
+            paddingRight: "8cqw",
+            paddingBottom: "8cqw",
+          }}
+          className="flex-1 flex flex-col justify-start"
+        >
+          <p
+            style={{
+              fontFamily: currentFont.fontFamily,
+              fontSize: "4.8cqw",
+              lineHeight: 1.5,
+            }}
+            className={`text-[#1B3B6F] whitespace-pre-line ${currentFont.fontClass}`}
+          >
+            {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 export function CardPreview({
@@ -27,6 +117,7 @@ export function CardPreview({
   onPreviousStep,
 }: CardPreviewProps) {
   const [viewMode, setViewMode] = useState<"cover" | "rightPage" | "spread" | "back">("cover");
+  const [isSpreadModalOpen, setIsSpreadModalOpen] = useState(false);
 
   // Automatically focus on cover for Step 1, inside note for Step 2
   useEffect(() => {
@@ -122,78 +213,61 @@ export function CardPreview({
 
       {/* 2. INSIDE NOTE (RIGHT PAGE FOCUS): Prominent Full 5×7 View with Left Spine Fold */}
       {viewMode === "rightPage" && (
-        <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[5/7] transition-all duration-300">
-          <div className="relative w-full h-full rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex flex-col p-4 sm:p-5">
-            {/* Blind-Deboss Inset Micro-Rule (Letterpress Effect) */}
-            <div className="absolute inset-2 sm:inset-3 border border-stone-300/35 rounded-xl pointer-events-none" />
-
-            {/* Realistic Left Spine Fold Shadow indicating this is the Right Leaf */}
-            <div className="absolute left-0 top-0 bottom-0 w-4 bg-gradient-to-r from-stone-400/30 via-stone-300/10 to-transparent pointer-events-none" />
-
-            {/* Physical Print Content Layout: Upper Third Greeting + Naturally Flowing Handwriting */}
-            <div className="relative z-10 w-full h-full flex flex-col">
-              {/* Upper Third: Centered Printed Sentiment */}
-              {printedGreeting ? (
-                <div className="pt-[16%] sm:pt-[18%] pb-[6%] px-4 sm:px-6 text-center">
-                  <p className="font-serif text-sm sm:text-base md:text-[17px] text-stone-800 leading-relaxed font-semibold">
-                    {printedGreeting}
-                  </p>
-                </div>
-              ) : (
-                <div className="pt-[14%]" />
-              )}
-
-              {/* Lower Portion: Real Pen Inking anchored from top baseline */}
-              <div className="flex-1 px-4 sm:px-5 pt-2 pb-6 flex flex-col justify-start">
-                <p
-                  style={{ fontFamily: currentFont.fontFamily }}
-                  className={`text-[#1B3B6F] text-base sm:text-lg md:text-xl leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
-                >
-                  {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
-                </p>
-              </div>
-            </div>
-          </div>
+        <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[5/7] rounded-2xl overflow-hidden shadow-2xl border-4 border-white transition-all duration-300">
+          <InsideRightLeaf
+            printedGreeting={printedGreeting}
+            handwrittenNote={handwrittenNote}
+            currentFont={currentFont}
+            showSpineShadow={true}
+          />
         </div>
       )}
 
-      {/* 3. FULL OPEN SPREAD: Panoramic 10×7 View Showing Both Leaves */}
+      {/* 3. FULL OPEN SPREAD: Panoramic 10×7 View Showing Both Leaves with 100% Proportional Fidelity */}
       {viewMode === "spread" && (
-        <div className="relative w-full max-w-full lg:max-w-[560px] aspect-[10/7] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex transition-all duration-300">
+        <div className="relative w-full max-w-full lg:max-w-[560px] aspect-[10/7] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex transition-all duration-300 group">
           {/* LEFT PAGE: Inside Left Page (Pristine Unprinted Archival Cardstock) */}
-          <div className="w-1/2 p-3 sm:p-4 flex flex-col justify-center items-center relative border-r border-stone-200/70 select-none">
-            {/* Blind-Deboss Inset Micro-Rule (Traditional Letterpress Border) */}
-            <div className="absolute inset-2 sm:inset-3 border border-stone-300/30 rounded-xl pointer-events-none" />
+          <div
+            style={{ containerType: "inline-size" }}
+            className="w-1/2 relative bg-[#FDFCF7] paper-texture border-r border-stone-200/70 select-none overflow-hidden"
+          >
+            {/* Blind-Deboss Inset Micro-Rule (Traditional Letterpress Border, scaled in cqw) */}
+            <div
+              style={{
+                position: "absolute",
+                inset: "3.5cqw",
+                borderRadius: "2.5cqw",
+                border: "1px solid rgba(120, 113, 108, 0.25)",
+                pointerEvents: "none",
+              }}
+            />
           </div>
 
           {/* CENTER BOOK SPINE FOLD: Realistic vertical crease */}
-          <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-4 pointer-events-none z-10 flex items-center justify-center">
+          <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-4 pointer-events-none z-20 flex items-center justify-center">
             <div className="w-[1.5px] h-full bg-stone-300/80 shadow-[0_0_8px_rgba(0,0,0,0.15)]" />
           </div>
 
-          {/* RIGHT PAGE: Upper Third Greeting + Naturally Flowing Handwriting */}
-          <div className="w-1/2 p-2 sm:p-3 flex flex-col relative">
-            {/* Upper Third: Printed Sentiment */}
-            {printedGreeting ? (
-              <div className="pt-[16%] pb-[6%] px-2 text-center">
-                <p className="font-serif text-xs sm:text-[13px] text-stone-800 leading-snug font-semibold">
-                  {printedGreeting}
-                </p>
-              </div>
-            ) : (
-              <div className="pt-[14%]" />
-            )}
-
-            {/* Lower Portion: Real Pen Inking anchored from top baseline */}
-            <div className="flex-1 px-2 pt-1 pb-2 flex flex-col justify-start">
-              <p
-                style={{ fontFamily: currentFont.fontFamily }}
-                className={`text-[#1B3B6F] text-xs sm:text-sm leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}
-              >
-                {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
-              </p>
-            </div>
+          {/* RIGHT PAGE: Uses the exact same InsideRightLeaf component */}
+          <div className="w-1/2 relative">
+            <InsideRightLeaf
+              printedGreeting={printedGreeting}
+              handwrittenNote={handwrittenNote}
+              currentFont={currentFont}
+              showSpineShadow={false}
+            />
           </div>
+
+          {/* Expand Full Spread Button (Overlaid in bottom right corner) */}
+          <button
+            type="button"
+            onClick={() => setIsSpreadModalOpen(true)}
+            className="absolute bottom-2.5 right-2.5 z-30 px-2.5 py-1.5 bg-stone-900/80 hover:bg-stone-900 text-white text-[11px] font-semibold rounded-lg shadow-md flex items-center gap-1.5 backdrop-blur-xs transition cursor-pointer"
+            title="Inspect Full Size Spread"
+          >
+            <Maximize2 className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Inspect Full Spread</span>
+          </button>
         </div>
       )}
 
@@ -219,14 +293,81 @@ export function CardPreview({
       <div className="w-full max-w-[380px] mt-3 px-1 flex items-center justify-between text-xs text-stone-500">
         <span className="font-medium text-stone-700">
           {viewMode === "cover" && "Front Cover Art"}
-          {viewMode === "rightPage" && "Inside Right Page"}
-          {viewMode === "spread" && "Open Card Spread"}
-          {viewMode === "back" && "Card Back"}
+          {viewMode === "rightPage" && "Inside Right Page (1:1 Detail)"}
+          {viewMode === "spread" && "Open Card Spread (Both Leaves)"}
+          {viewMode === "back" && "Card Back Colophon"}
         </span>
         <span className="text-[11px] text-stone-400">
           Exact physical print preview
         </span>
       </div>
+
+      {/* FULL OPEN SPREAD ENLARGED INSPECTION MODAL */}
+      {isSpreadModalOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-stone-900/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
+          onClick={() => setIsSpreadModalOpen(false)}
+        >
+          <div
+            className="relative bg-white rounded-3xl p-5 sm:p-6 max-w-4xl w-full shadow-2xl border border-stone-200"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-stone-100">
+              <div>
+                <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                  <BookOpen className="w-4 h-4 text-stone-700" />
+                  Full Open Card Spread (10&quot; × 7&quot; Open Panoramic)
+                </h3>
+                <p className="text-xs text-stone-500">
+                  Exact 1:1 physical proportion of inside left page and robotic-inked inside right page.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSpreadModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="relative w-full aspect-[10/7] rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-[#FDFCF7] paper-texture flex">
+              {/* Left page */}
+              <div
+                style={{ containerType: "inline-size" }}
+                className="w-1/2 relative bg-[#FDFCF7] paper-texture border-r border-stone-200/70 select-none overflow-hidden"
+              >
+                <div
+                  style={{
+                    position: "absolute",
+                    inset: "3.5cqw",
+                    borderRadius: "2.5cqw",
+                    border: "1px solid rgba(120, 113, 108, 0.25)",
+                    pointerEvents: "none",
+                  }}
+                />
+              </div>
+
+              {/* Center spine crease */}
+              <div className="absolute left-1/2 top-0 bottom-0 -translate-x-1/2 w-4 pointer-events-none z-20 flex items-center justify-center">
+                <div className="w-[1.5px] h-full bg-stone-300/80 shadow-[0_0_8px_rgba(0,0,0,0.15)]" />
+              </div>
+
+              {/* Right page */}
+              <div className="w-1/2 relative">
+                <InsideRightLeaf
+                  printedGreeting={printedGreeting}
+                  handwrittenNote={handwrittenNote}
+                  currentFont={currentFont}
+                  showSpineShadow={false}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* DIRECT STEP PROGRESSION BUTTON: Move forward from here */}
       {onNextStep && (

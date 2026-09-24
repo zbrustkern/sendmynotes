@@ -67,7 +67,7 @@ export function InsideNoteStep({
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          Following classic greeting card tradition, your printed sentiment is positioned at the top of the right page, followed directly by your robotic pen message.
+          Following classic greeting card tradition, your printed sentiment is centered in the upper third of the inside right page, followed naturally by your robotic pen message.
         </p>
       </div>
 
@@ -221,7 +221,7 @@ export function InsideNoteStep({
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Type className="w-3.5 h-3.5 text-stone-500" />
-            Top of Right Page: Printed Sentiment (Commercial Serif)
+            Inside Right Page: Printed Sentiment (Commercial Serif)
           </label>
           <span className="text-[11px] text-stone-400">Centered press font</span>
         </div>
@@ -236,7 +236,7 @@ export function InsideNoteStep({
         />
 
         <div className="flex items-center justify-between text-[11px] text-stone-400">
-          <span>Appears centered at the top of inside right page</span>
+          <span>Appears centered in the upper third of inside right page</span>
           <span>{printedGreeting.length}/120 characters</span>
         </div>
       </div>
