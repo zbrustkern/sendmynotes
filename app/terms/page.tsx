@@ -175,12 +175,18 @@ export default function TermsPage() {
             <p>Email: <a href="mailto:support@sendmynotes.com" className="text-amber-700 underline font-medium">support@sendmynotes.com</a></p>
           </section>
 
-          {/* Cross link to Privacy Policy */}
-          <div className="pt-4 border-t border-stone-100 flex items-center justify-between text-xs text-stone-500">
-            <span>Also see our data protection practices:</span>
-            <Link href="/privacy" className="text-amber-800 font-semibold underline hover:text-stone-900">
-              Privacy Policy &amp; Data Notice →
-            </Link>
+          {/* Cross links to Privacy & Return Policy */}
+          <div className="pt-4 border-t border-stone-100 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs text-stone-500">
+            <span>Also see our operational policies:</span>
+            <div className="flex items-center gap-3 font-semibold text-amber-800">
+              <Link href="/return-policy" className="underline hover:text-stone-900">
+                Refund &amp; Return Policy
+              </Link>
+              <span>•</span>
+              <Link href="/privacy" className="underline hover:text-stone-900">
+                Privacy Policy
+              </Link>
+            </div>
           </div>
         </div>
       </main>

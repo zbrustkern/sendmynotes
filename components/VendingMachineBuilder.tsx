@@ -913,6 +913,10 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
           <Link href="/privacy" className="hover:text-stone-900 transition underline underline-offset-2">
             Privacy Policy
           </Link>
+          <span>•</span>
+          <Link href="/return-policy" className="hover:text-stone-900 transition underline underline-offset-2">
+            Return Policy
+          </Link>
         </div>
         <p className="flex items-center justify-center gap-2">
           <span>No Account Required</span>
