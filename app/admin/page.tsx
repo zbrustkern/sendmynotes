@@ -20,8 +20,11 @@ import {
   PenTool,
   Send,
   Eye,
+  Mail,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { AdminMetrics, Order } from "@/lib/types";
+import { AdminMetrics, Order, SystemIncident } from "@/lib/types";
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -35,6 +38,14 @@ export default function AdminDashboardPage() {
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
+
+  // Incidents & Alerts State
+  const [incidents, setIncidents] = useState<SystemIncident[]>([]);
+  const [alertEmail, setAlertEmail] = useState("");
+  const [newAlertEmail, setNewAlertEmail] = useState("");
+  const [loadingIncidents, setLoadingIncidents] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
 
   const verifyAccess = async (keyToTest: string) => {
     setAuthLoading(true);
@@ -51,6 +62,7 @@ export default function AdminDashboardPage() {
       } else {
         setIsAuthenticated(true);
         fetchMetrics();
+        fetchIncidents();
       }
     } catch {
       setAuthError("Network error. Please try again.");
@@ -136,6 +148,62 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const fetchIncidents = async () => {
+    setLoadingIncidents(true);
+    try {
+      const res = await fetch("/api/admin/incidents");
+      if (res.ok) {
+        const data = await res.json();
+        setIncidents(data.incidents || []);
+        setAlertEmail(data.alertEmail || "");
+        setNewAlertEmail(data.alertEmail || "");
+      }
+    } catch (err) {
+      console.error("Error fetching incidents:", err);
+    } finally {
+      setLoadingIncidents(false);
+    }
+  };
+
+  const handleSaveAlertEmail = async () => {
+    setSavingEmail(true);
+    try {
+      const res = await fetch("/api/admin/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_alert_email", email: newAlertEmail }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAlertEmail(data.alertEmail);
+        alert(data.message || "Alert email updated successfully");
+      } else {
+        alert(data.error || "Failed to save alert email");
+      }
+    } catch {
+      alert("Network error saving alert email");
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleResolveIncident = async (incidentId: string) => {
+    try {
+      const res = await fetch("/api/admin/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resolve_incident", incidentId }),
+      });
+      if (res.ok) {
+        setIncidents((prev) =>
+          prev.map((inc) => (inc.id === incidentId ? { ...inc, resolved: true } : inc))
+        );
+      }
+    } catch (err) {
+      console.error("Error resolving incident:", err);
+    }
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -144,6 +212,7 @@ export default function AdminDashboardPage() {
         if (data.authenticated) {
           setIsAuthenticated(true);
           fetchMetrics();
+          fetchIncidents();
         }
       } catch (err) {
         console.error("Admin auth check failed:", err);
@@ -255,12 +324,19 @@ export default function AdminDashboardPage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={fetchMetrics}
-              disabled={loading}
-              className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition"
-              title="Refresh Data"
+              onClick={() => {
+                fetchMetrics();
+                fetchIncidents();
+              }}
+              disabled={loading || loadingIncidents}
+              className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition cursor-pointer"
+              title="Refresh Data & Incidents"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`w-4 h-4 ${
+                  loading || loadingIncidents ? "animate-spin" : ""
+                }`}
+              />
             </button>
             <Link
               href="/"
@@ -390,6 +466,157 @@ export default function AdminDashboardPage() {
               </div>
             ))}
           </div>
+        </div>
+
+        {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-stone-100">
+            <div>
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                  <AlertTriangle
+                    className={`w-4 h-4 ${
+                      incidents.some((i) => !i.resolved)
+                        ? "text-rose-600"
+                        : "text-emerald-600"
+                    }`}
+                  />
+                  System Health &amp; Incident Feed
+                </h2>
+                {incidents.filter((i) => !i.resolved).length > 0 ? (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                    {incidents.filter((i) => !i.resolved).length} Unresolved
+                  </span>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    All Systems Operational
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-stone-500 mt-0.5">
+                Real-time incident log for Stripe checkout, AI image generation, and Handwrytten robot fulfillment.
+              </p>
+            </div>
+
+            {/* ALERT SUBSCRIPTION EMAIL */}
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <div className="relative flex-1 sm:w-72">
+                <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
+                <input
+                  type="email"
+                  value={newAlertEmail}
+                  onChange={(e) => setNewAlertEmail(e.target.value)}
+                  placeholder="Alert email (e.g. zeke@...)"
+                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={handleSaveAlertEmail}
+                disabled={savingEmail}
+                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-stone-900 hover:bg-black text-white transition disabled:opacity-50 shrink-0 cursor-pointer"
+              >
+                {savingEmail ? "Saving..." : alertEmail ? "Update Alert Email" : "Subscribe"}
+              </button>
+            </div>
+          </div>
+
+          {/* INCIDENTS LIST */}
+          {incidents.length === 0 ? (
+            <div className="text-center py-6 text-stone-400 text-xs">
+              <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+              <p className="font-semibold text-stone-700">No Incidents Recorded</p>
+              <p className="text-[11px] text-stone-400 mt-0.5">
+                Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {incidents.map((incident) => {
+                const isExpanded = expandedIncidentId === incident.id;
+                const typeColor =
+                  incident.type === "STRIPE"
+                    ? "bg-purple-100 text-purple-800 border-purple-200"
+                    : incident.type === "IMAGE_GEN"
+                    ? "bg-amber-100 text-amber-800 border-amber-200"
+                    : incident.type === "HANDWRYTTEN"
+                    ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                    : "bg-stone-100 text-stone-800 border-stone-200";
+
+                return (
+                  <div
+                    key={incident.id}
+                    className={`p-4 rounded-2xl border transition-all ${
+                      incident.resolved
+                        ? "bg-stone-50/70 border-stone-200 opacity-60"
+                        : incident.severity === "error"
+                        ? "bg-rose-50/40 border-rose-200"
+                        : "bg-amber-50/40 border-amber-200"
+                    }`}
+                  >
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${typeColor}`}>
+                          {incident.type}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                            incident.severity === "error"
+                              ? "bg-rose-100 text-rose-800 border-rose-300"
+                              : "bg-amber-100 text-amber-800 border-amber-300"
+                          }`}
+                        >
+                          {incident.severity}
+                        </span>
+                        <span className="text-[11px] text-stone-400">
+                          {new Date(incident.createdAt).toLocaleDateString()} at{" "}
+                          {new Date(incident.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                        {incident.resolved && (
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            Resolved
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {incident.technicalDetails && (
+                          <button
+                            type="button"
+                            onClick={() => setExpandedIncidentId(isExpanded ? null : incident.id)}
+                            className="text-[11px] font-medium text-stone-600 hover:text-stone-900 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 transition cursor-pointer"
+                          >
+                            <span>{isExpanded ? "Hide Details" : "Inspect"}</span>
+                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                          </button>
+                        )}
+                        {!incident.resolved && (
+                          <button
+                            type="button"
+                            onClick={() => handleResolveIncident(incident.id)}
+                            className="text-[11px] font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                          >
+                            Mark Resolved
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <p className="font-semibold text-xs text-stone-800 mt-2">{incident.summary}</p>
+
+                    {isExpanded && incident.technicalDetails && (
+                      <div className="mt-3 p-3 bg-stone-900 text-stone-100 rounded-xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-64 shadow-inner">
+                        {incident.technicalDetails}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* RECENT ORDERS TABLE */}

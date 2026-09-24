@@ -19,6 +19,7 @@ import {
   User,
   LogIn,
   MessageSquare,
+  AlertCircle,
 } from "lucide-react";
 import { CardPreview } from "./CardPreview";
 import { CoverStep } from "./CoverStep";
@@ -99,6 +100,7 @@ export function VendingMachineBuilder() {
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
   const [isInitializingCheckout, setIsInitializingCheckout] = useState<boolean>(false);
   const [isMockIntent, setIsMockIntent] = useState<boolean>(true);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
   // Pre-fill customer email if logged in
   useEffect(() => {
@@ -273,6 +275,7 @@ export function VendingMachineBuilder() {
   // Move to Step 4 and create PaymentIntent
   const proceedToCheckout = async () => {
     setIsInitializingCheckout(true);
+    setCheckoutError(null);
     trackEvent("address_completed", 3);
     try {
       const res = await fetch("/api/checkout/create-intent", {
@@ -320,8 +323,11 @@ export function VendingMachineBuilder() {
       trackEvent("checkout_initiated", 4, { orderId: data.orderId, amount: 900 });
       setCurrentStep(4);
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Error initializing payment";
-      alert(msg);
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "We were unable to connect to our payment processor. Please try again shortly.";
+      setCheckoutError(msg);
     } finally {
       setIsInitializingCheckout(false);
     }
@@ -598,6 +604,19 @@ export function VendingMachineBuilder() {
                 isMock={isMockIntent}
                 scheduledSendDate={scheduledSendDate}
               />
+            )}
+
+            {/* INLINE CHECKOUT ERROR BANNER */}
+            {checkoutError && (
+              <div className="p-4 bg-rose-50 border border-rose-200/90 rounded-2xl flex items-start gap-3 text-rose-900 text-xs shadow-xs animate-in fade-in duration-200">
+                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="font-semibold">{checkoutError}</p>
+                  <p className="text-[11px] text-rose-600 mt-1">
+                    Our studio team has been automatically notified. You can click &ldquo;Proceed to Payment&rdquo; to retry or review your details.
+                  </p>
+                </div>
+              </div>
             )}
 
             {/* NAVIGATION BUTTONS */}

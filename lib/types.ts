@@ -47,6 +47,17 @@ export interface Order {
   updatedAt: number;
 }
 
+export interface SystemIncident {
+  id: string;
+  type: "STRIPE" | "IMAGE_GEN" | "HANDWRYTTEN" | "WEBHOOK" | "SYSTEM";
+  severity: "error" | "warning" | "info";
+  summary: string;
+  technicalDetails?: string;
+  metadata?: Record<string, unknown>;
+  resolved: boolean;
+  createdAt: number;
+}
+
 export type ImageCacheStatus = "AVAILABLE" | "RESERVED" | "CLAIMED";
 
 export interface ImageCachePoolItem {

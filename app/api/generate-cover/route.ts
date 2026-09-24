@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateCoverArt } from "@/lib/nano-banana";
 import { saveImageCacheItem } from "@/lib/firebase-admin";
 import { checkRateLimit } from "@/lib/rate-limiter";
+import { logIncident } from "@/lib/incident-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -51,6 +52,17 @@ export async function POST(req: NextRequest) {
       createdAt: Date.now(),
     });
 
+    // If external AI provider had errors, record in admin incident feed
+    if (art.error) {
+      await logIncident({
+        type: "IMAGE_GEN",
+        severity: "warning",
+        summary: `AI cover generation fell back to signature preset for "${occasion}"`,
+        technicalDetails: art.error,
+        metadata: { prompt, occasion, provider: art.provider },
+      });
+    }
+
     return NextResponse.json({
       cacheId,
       imageUrl: art.imageUrl,
@@ -59,12 +71,27 @@ export async function POST(req: NextRequest) {
       isMock: art.isMock,
       aspectRatio: art.aspectRatio,
       provider: art.provider,
-      warning: art.error || null,
+      fallbackNotice: art.isMock ? "Selected from our Aster & Blanche signature cards." : null,
       remaining: rateLimit.remaining,
       limit: rateLimit.limit,
     });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error generating cover";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const rawMsg = error instanceof Error ? error.message : "Error generating cover";
+    console.error("[Cover Gen Exception]", rawMsg);
+
+    await logIncident({
+      type: "IMAGE_GEN",
+      severity: "error",
+      summary: "AI Image Generation Exception",
+      technicalDetails: rawMsg,
+    });
+
+    return NextResponse.json(
+      {
+        error:
+          "Our AI studio artist is briefly resting. Please choose from our curated signature cards below or try again in a moment.",
+      },
+      { status: 500 }
+    );
   }
 }

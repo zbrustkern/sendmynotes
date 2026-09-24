@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { saveOrder } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { Order, MailingAddress } from "@/lib/types";
+import { logIncident } from "@/lib/incident-logger";
 
 export async function POST(req: NextRequest) {
   try {
@@ -77,8 +78,24 @@ export async function POST(req: NextRequest) {
       amountInCents: CARD_FLAT_RATE_CENTS,
     });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error creating checkout intent";
-    console.error("[Checkout Intent Error]", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    const rawMsg = error instanceof Error ? error.message : "Error creating checkout intent";
+    console.error("[Checkout Intent Error]", rawMsg);
+
+    // Record incident in admin incident feed with sanitized details
+    const incidentId = await logIncident({
+      type: "STRIPE",
+      severity: "error",
+      summary: "Stripe PaymentIntent Initialization Error",
+      technicalDetails: rawMsg,
+    });
+
+    return NextResponse.json(
+      {
+        error:
+          "We are temporarily experiencing difficulty connecting to our secure payment gateway. Our studio team has been notified. Please try again in a moment.",
+        incidentId,
+      },
+      { status: 500 }
+    );
   }
 }

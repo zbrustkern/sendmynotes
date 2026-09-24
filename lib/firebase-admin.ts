@@ -96,6 +96,35 @@ class MockCollection<T = Record<string, unknown>> {
     };
   }
 
+  orderBy(field: string, direction: "asc" | "desc" = "asc") {
+    return {
+      limit: (n: number) => ({
+        get: async (): Promise<MockQuerySnapshot<T>> => {
+          const sorted = Array.from(this.store.entries()).sort((a, b) => {
+            const valA = (a[1] as Record<string, unknown>)[field] as number | string | undefined;
+            const valB = (b[1] as Record<string, unknown>)[field] as number | string | undefined;
+            if (valA === undefined) return 1;
+            if (valB === undefined) return -1;
+            return direction === "desc" ? (valB > valA ? 1 : -1) : (valA > valB ? 1 : -1);
+          });
+          const results = sorted.slice(0, n).map(([id, data]) => new MockDocumentSnapshot<T>(id, data));
+          return new MockQuerySnapshot<T>(results);
+        },
+      }),
+      get: async (): Promise<MockQuerySnapshot<T>> => {
+        const sorted = Array.from(this.store.entries()).sort((a, b) => {
+          const valA = (a[1] as Record<string, unknown>)[field] as number | string | undefined;
+          const valB = (b[1] as Record<string, unknown>)[field] as number | string | undefined;
+          if (valA === undefined) return 1;
+          if (valB === undefined) return -1;
+          return direction === "desc" ? (valB > valA ? 1 : -1) : (valA > valB ? 1 : -1);
+        });
+        const results = sorted.map(([id, data]) => new MockDocumentSnapshot<T>(id, data));
+        return new MockQuerySnapshot<T>(results);
+      },
+    };
+  }
+
   async get(): Promise<MockQuerySnapshot<T>> {
     const results: MockDocumentSnapshot<T>[] = [];
     for (const [id, data] of this.store.entries()) {
@@ -155,9 +184,11 @@ export { firestoreDb, isFirestoreMock };
 // Collection Helpers
 export const ORDERS_COLLECTION = "orders";
 export const IMAGE_CACHE_POOL_COLLECTION = "image_cache_pool";
+export const SYSTEM_INCIDENTS_COLLECTION = "system_incidents";
 
 export const getOrdersCollection = () => firestoreDb.collection(ORDERS_COLLECTION);
 export const getImageCachePoolCollection = () => firestoreDb.collection(IMAGE_CACHE_POOL_COLLECTION);
+export const getSystemIncidentsCollection = () => firestoreDb.collection(SYSTEM_INCIDENTS_COLLECTION);
 
 export async function saveOrder(order: Order): Promise<void> {
   await getOrdersCollection().doc(order.id).set(order);
