@@ -18,12 +18,14 @@ import {
   X,
   User,
   LogIn,
+  MessageSquare,
 } from "lucide-react";
 import { CardPreview } from "./CardPreview";
 import { CoverStep } from "./CoverStep";
 import { InsideNoteStep } from "./InsideNoteStep";
 import { AddressStep } from "./AddressStep";
 import { CheckoutStep } from "./CheckoutStep";
+import { FeedbackModal } from "./FeedbackModal";
 import { CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { MailingAddress } from "@/lib/types";
 import { trackEvent } from "@/lib/telemetry";
@@ -40,6 +42,9 @@ export function VendingMachineBuilder() {
 
   // Auth Modal State
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Feedback Modal State
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
 
   // Mobile Card Preview Modal Drawer State
   const [isMobilePreviewOpen, setIsMobilePreviewOpen] = useState(false);
@@ -230,6 +235,16 @@ export function VendingMachineBuilder() {
 
             <div className="h-6 w-px bg-stone-200 hidden sm:block" />
 
+            <button
+              type="button"
+              onClick={() => setIsFeedbackModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-xl border border-stone-200/80 transition text-xs font-semibold cursor-pointer"
+              title="Give feedback on your experience"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+              <span className="hidden sm:inline">Feedback</span>
+            </button>
+
             {user ? (
               <Link
                 href="/account"
@@ -316,6 +331,18 @@ export function VendingMachineBuilder() {
                 fontStyleId={fontStyleId}
                 occasion={occasion}
                 currentStep={currentStep}
+                onNextStep={() => {
+                  if (currentStep < 3) {
+                    navigateToStep(currentStep + 1);
+                  } else if (currentStep === 3) {
+                    proceedToCheckout();
+                  }
+                }}
+                onPreviousStep={() => {
+                  if (currentStep > 1) {
+                    navigateToStep(currentStep - 1);
+                  }
+                }}
               />
 
               <div className="mt-6 pt-5 border-t border-stone-100 grid grid-cols-3 gap-2 text-center text-[11px] text-stone-500">
@@ -345,6 +372,7 @@ export function VendingMachineBuilder() {
                 onChangeOccasion={setOccasion}
                 customPrompt={customPrompt}
                 onChangePrompt={setCustomPrompt}
+                onContinue={() => navigateToStep(2)}
               />
             )}
 
@@ -497,6 +525,19 @@ export function VendingMachineBuilder() {
                 fontStyleId={fontStyleId}
                 occasion={occasion}
                 currentStep={currentStep}
+                onNextStep={() => {
+                  setIsMobilePreviewOpen(false);
+                  if (currentStep < 3) {
+                    navigateToStep(currentStep + 1);
+                  } else if (currentStep === 3) {
+                    proceedToCheckout();
+                  }
+                }}
+                onPreviousStep={() => {
+                  if (currentStep > 1) {
+                    navigateToStep(currentStep - 1);
+                  }
+                }}
               />
             </div>
 
@@ -515,6 +556,16 @@ export function VendingMachineBuilder() {
 
       {/* FOOTER BADGES */}
       <footer className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16 pt-8 border-t border-stone-200/60 text-center text-xs text-stone-400 space-y-2">
+        <div className="flex items-center justify-center gap-4 text-xs font-medium text-stone-500 pb-1">
+          <button
+            type="button"
+            onClick={() => setIsFeedbackModalOpen(true)}
+            className="hover:text-stone-900 transition flex items-center gap-1.5 cursor-pointer"
+          >
+            <MessageSquare className="w-3.5 h-3.5 text-amber-600" />
+            <span>Give App Feedback</span>
+          </button>
+        </div>
         <p className="flex items-center justify-center gap-2">
           <span>No Account Required</span>
           <span>•</span>
@@ -530,6 +581,13 @@ export function VendingMachineBuilder() {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
+      />
+
+      <FeedbackModal
+        isOpen={isFeedbackModalOpen}
+        onClose={() => setIsFeedbackModalOpen(false)}
+        currentStep={currentStep}
+        initialEmail={user?.email || customerEmail}
       />
     </div>
   );

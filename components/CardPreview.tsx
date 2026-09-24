@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
-import { Sparkles, Eye, BookOpen, PenTool, CheckCircle2, Feather } from "lucide-react";
+import { Sparkles, Eye, BookOpen, PenTool, CheckCircle2, Feather, ArrowRight, ArrowLeft } from "lucide-react";
 import { FONT_OPTIONS } from "@/lib/card-presets";
 
 interface CardPreviewProps {
@@ -12,6 +12,8 @@ interface CardPreviewProps {
   fontStyleId: string;
   occasion?: string;
   currentStep?: number;
+  onNextStep?: () => void;
+  onPreviousStep?: () => void;
 }
 
 export function CardPreview({
@@ -20,7 +22,9 @@ export function CardPreview({
   handwrittenNote,
   fontStyleId,
   occasion = "Custom Card",
-  currentStep,
+  currentStep = 1,
+  onNextStep,
+  onPreviousStep,
 }: CardPreviewProps) {
   const [viewMode, setViewMode] = useState<"cover" | "rightPage" | "spread" | "back">("cover");
 
@@ -265,6 +269,41 @@ export function CardPreview({
             : "Card backplate with Aster & Blanche Press architectural colophon."}
         </span>
       </p>
+
+      {/* DIRECT STEP PROGRESSION BUTTON: Move forward from here */}
+      {onNextStep && (
+        <div className="w-full mt-4 pt-3.5 border-t border-stone-200/60 flex items-center justify-between gap-3">
+          {onPreviousStep && currentStep > 1 ? (
+            <button
+              type="button"
+              onClick={onPreviousStep}
+              className="px-3 py-2 rounded-xl border border-stone-200 text-stone-600 hover:text-stone-900 hover:bg-stone-50 text-xs font-semibold flex items-center gap-1 transition cursor-pointer"
+            >
+              <ArrowLeft className="w-3.5 h-3.5" />
+              <span>Back</span>
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <button
+            type="button"
+            onClick={onNextStep}
+            className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-md flex items-center gap-1.5 transition active:scale-95 cursor-pointer ml-auto"
+          >
+            <span>
+              {currentStep === 1
+                ? "Next: Write Inside Note"
+                : currentStep === 2
+                ? "Next: Add Mailing Address"
+                : currentStep === 3
+                ? "Next: Review & Payment"
+                : "Complete Order"}
+            </span>
+            <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
