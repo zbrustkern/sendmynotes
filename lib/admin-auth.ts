@@ -59,5 +59,15 @@ export function verifyAdminAuth(req: NextRequest): boolean {
 }
 
 export function verifyAdminPassphrase(passphrase: string): boolean {
-  return passphrase === ADMIN_SECRET;
+  if (!passphrase || typeof passphrase !== "string") return false;
+  const passBuf = Buffer.from(passphrase);
+  const secretBuf = Buffer.from(ADMIN_SECRET);
+
+  if (passBuf.length !== secretBuf.length) {
+    // Perform dummy timing comparison to defend against timing side-channel attacks
+    crypto.timingSafeEqual(passBuf, passBuf);
+    return false;
+  }
+
+  return crypto.timingSafeEqual(passBuf, secretBuf);
 }

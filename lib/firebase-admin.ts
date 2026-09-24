@@ -1,7 +1,7 @@
 import * as admin from "firebase-admin";
 import fs from "fs";
 import path from "path";
-import { Order, ImageCachePoolItem, DiscountCode } from "./types";
+import { Order, ImageCachePoolItem, DiscountCode, SystemIncident } from "./types";
 
 const DATA_DIR = path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "mock-firestore.json");
@@ -285,10 +285,29 @@ export { firestoreDb, isFirestoreMock };
 export const ORDERS_COLLECTION = "orders";
 export const IMAGE_CACHE_POOL_COLLECTION = "image_cache_pool";
 export const SYSTEM_INCIDENTS_COLLECTION = "system_incidents";
+export const ADMIN_AUTH_ATTEMPTS_COLLECTION = "admin_auth_attempts";
 
 export const getOrdersCollection = () => firestoreDb.collection(ORDERS_COLLECTION);
 export const getImageCachePoolCollection = () => firestoreDb.collection(IMAGE_CACHE_POOL_COLLECTION);
 export const getSystemIncidentsCollection = () => firestoreDb.collection(SYSTEM_INCIDENTS_COLLECTION);
+export const getAdminAuthAttemptsCollection = () => firestoreDb.collection(ADMIN_AUTH_ATTEMPTS_COLLECTION);
+
+export async function recordSystemIncident(
+  incident: Omit<SystemIncident, "id" | "createdAt" | "resolved">
+): Promise<void> {
+  try {
+    const id = `inc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const fullIncident: SystemIncident = {
+      ...incident,
+      id,
+      resolved: false,
+      createdAt: Date.now(),
+    };
+    await getSystemIncidentsCollection().doc(id).set(fullIncident);
+  } catch (err) {
+    console.error("[Record System Incident Error]", err);
+  }
+}
 
 export async function saveOrder(order: Order): Promise<void> {
   await getOrdersCollection().doc(order.id).set(order);
