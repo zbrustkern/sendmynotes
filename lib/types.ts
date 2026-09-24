@@ -43,6 +43,27 @@ export interface Order {
   fulfillmentError?: string;
   scheduledSendDate?: string; // YYYY-MM-DD if scheduled
   amountInCents: number;
+  originalAmountInCents?: number;
+  discountCode?: string;
+  discountAmountInCents?: number;
+  paymentMethod?: "STRIPE" | "PROMO_CODE";
+  createdAt: number;
+  updatedAt: number;
+}
+
+export type DiscountType = "PERCENTAGE" | "FIXED_AMOUNT";
+
+export interface DiscountCode {
+  id: string; // Uppercase code (e.g. "WELCOME10")
+  code: string; // Uppercase code
+  type: DiscountType;
+  value: number; // Percentage (e.g. 20 for 20%) or Fixed Cents (e.g. 200 for $2.00, 900 for $9.00)
+  description?: string;
+  isActive: boolean;
+  maxUses?: number | null; // null or undefined means unlimited
+  usedCount: number;
+  totalDiscountGivenCents: number; // cumulative savings in cents
+  expiresAt?: number | null; // timestamp ms, null = never expires
   createdAt: number;
   updatedAt: number;
 }

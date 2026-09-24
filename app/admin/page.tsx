@@ -23,14 +23,29 @@ import {
   Mail,
   ChevronDown,
   ChevronUp,
+  Tag,
+  Percent,
+  Copy,
+  Trash2,
+  Check,
+  Share2,
+  Gift,
+  Plus,
+  ToggleLeft,
+  ToggleRight,
+  ExternalLink,
+  Sparkles,
 } from "lucide-react";
-import { AdminMetrics, Order, SystemIncident } from "@/lib/types";
+import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType } from "@/lib/types";
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [accessKey, setAccessKey] = useState("");
   const [authError, setAuthError] = useState("");
   const [authLoading, setAuthLoading] = useState(false);
+
+  // Tab Navigation State
+  const [activeTab, setActiveTab] = useState<"orders" | "discounts" | "incidents">("orders");
 
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [loading, setLoading] = useState(false);
@@ -46,6 +61,29 @@ export default function AdminDashboardPage() {
   const [loadingIncidents, setLoadingIncidents] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
   const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
+
+  // Discount Codes State
+  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [discountStats, setDiscountStats] = useState<{
+    totalCodes: number;
+    activeCodes: number;
+    totalRedemptions: number;
+    totalSavingsCents: number;
+  } | null>(null);
+  const [loadingDiscounts, setLoadingDiscounts] = useState(false);
+  const [discountSearchQuery, setDiscountSearchQuery] = useState("");
+  const [copiedCode, setCopiedCode] = useState<string | null>(null);
+
+  // Create Discount Form State
+  const [newCode, setNewCode] = useState("");
+  const [newType, setNewType] = useState<DiscountType>("PERCENTAGE");
+  const [newValue, setNewValue] = useState("");
+  const [newMaxUses, setNewMaxUses] = useState("");
+  const [newExpiresAt, setNewExpiresAt] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [creatingDiscount, setCreatingDiscount] = useState(false);
+  const [discountFormError, setDiscountFormError] = useState("");
+  const [discountFormSuccess, setDiscountFormSuccess] = useState("");
 
   const verifyAccess = async (keyToTest: string) => {
     setAuthLoading(true);
@@ -63,6 +101,7 @@ export default function AdminDashboardPage() {
         setIsAuthenticated(true);
         fetchMetrics();
         fetchIncidents();
+        fetchDiscounts();
       }
     } catch {
       setAuthError("Network error. Please try again.");
@@ -204,6 +243,160 @@ export default function AdminDashboardPage() {
     }
   };
 
+  const fetchDiscounts = async () => {
+    setLoadingDiscounts(true);
+    try {
+      const res = await fetch("/api/admin/discounts");
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setDiscountCodes(data.codes || []);
+        setDiscountStats(data.stats || null);
+      }
+    } catch (err) {
+      console.error("Error fetching discounts:", err);
+    } finally {
+      setLoadingDiscounts(false);
+    }
+  };
+
+  const handleCreateDiscount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDiscountFormError("");
+    setDiscountFormSuccess("");
+
+    const trimmedCode = newCode.trim().toUpperCase();
+    if (!trimmedCode || trimmedCode.length < 2) {
+      setDiscountFormError("Code must be at least 2 characters.");
+      return;
+    }
+
+    const valNum = parseFloat(newValue);
+    if (isNaN(valNum) || valNum <= 0) {
+      setDiscountFormError("Please enter a valid positive discount value.");
+      return;
+    }
+
+    if (newType === "PERCENTAGE" && valNum > 100) {
+      setDiscountFormError("Percentage discount cannot exceed 100%.");
+      return;
+    }
+
+    setCreatingDiscount(true);
+    try {
+      const res = await fetch("/api/admin/discounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "create",
+          code: trimmedCode,
+          type: newType,
+          value: valNum,
+          maxUses: newMaxUses.trim() ? parseInt(newMaxUses, 10) : undefined,
+          expiresAt: newExpiresAt.trim() || undefined,
+          description: newDescription.trim(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setDiscountFormError(data.error || "Failed to create discount code.");
+      } else {
+        setDiscountFormSuccess(`Discount code "${trimmedCode}" successfully created!`);
+        setNewCode("");
+        setNewValue("");
+        setNewMaxUses("");
+        setNewExpiresAt("");
+        setNewDescription("");
+        await fetchDiscounts();
+      }
+    } catch {
+      setDiscountFormError("Network error creating discount code.");
+    } finally {
+      setCreatingDiscount(false);
+    }
+  };
+
+  const handleToggleDiscount = async (code: string, currentStatus: boolean) => {
+    try {
+      const res = await fetch("/api/admin/discounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "toggle",
+          code,
+          isActive: !currentStatus,
+        }),
+      });
+      if (res.ok) {
+        setDiscountCodes((prev) =>
+          prev.map((c) => (c.code === code ? { ...c, isActive: !currentStatus } : c))
+        );
+        fetchDiscounts();
+      }
+    } catch (err) {
+      console.error("Error toggling discount status:", err);
+    }
+  };
+
+  const handleDeleteDiscount = async (code: string) => {
+    if (!window.confirm(`Are you sure you want to permanently delete discount code "${code}"?`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/admin/discounts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete",
+          code,
+        }),
+      });
+      if (res.ok) {
+        setDiscountCodes((prev) => prev.filter((c) => c.code !== code));
+        fetchDiscounts();
+      }
+    } catch (err) {
+      console.error("Error deleting discount code:", err);
+    }
+  };
+
+  const handleCopyShareLink = (code: string) => {
+    if (typeof window === "undefined") return;
+    const origin = window.location.origin;
+    const url = `${origin}/?discount=${encodeURIComponent(code)}`;
+    navigator.clipboard.writeText(url);
+    setCopiedCode(code);
+    setTimeout(() => {
+      setCopiedCode((curr) => (curr === code ? null : curr));
+    }, 2500);
+  };
+
+  const applyPreset = (preset: "VIP" | "DOLLAR2" | "PERCENT20") => {
+    setDiscountFormError("");
+    setDiscountFormSuccess("");
+    if (preset === "VIP") {
+      setNewCode("VIP100");
+      setNewType("PERCENTAGE");
+      setNewValue("100");
+      setNewDescription("100% Free VIP Card Voucher");
+    } else if (preset === "DOLLAR2") {
+      setNewCode("SAVE2");
+      setNewType("FIXED_AMOUNT");
+      setNewValue("2.00");
+      setNewDescription("$2.00 Off Order Promo");
+    } else if (preset === "PERCENT20") {
+      setNewCode("LAUNCH20");
+      setNewType("PERCENTAGE");
+      setNewValue("20");
+      setNewDescription("20% Off Launch Celebration");
+    }
+  };
+
   useEffect(() => {
     const checkAuth = async () => {
       try {
@@ -213,6 +406,7 @@ export default function AdminDashboardPage() {
           setIsAuthenticated(true);
           fetchMetrics();
           fetchIncidents();
+          fetchDiscounts();
         }
       } catch (err) {
         console.error("Admin auth check failed:", err);
@@ -291,6 +485,15 @@ export default function AdminDashboardPage() {
     return matchesSearch && matchesStatus;
   });
 
+  const filteredDiscountCodes = (discountCodes || []).filter((c) => {
+    if (!discountSearchQuery) return true;
+    const q = discountSearchQuery.toLowerCase();
+    return (
+      c.code.toLowerCase().includes(q) ||
+      (c.description && c.description.toLowerCase().includes(q))
+    );
+  });
+
   const revenueDollars = ((metrics?.totalRevenueCents || 0) / 100).toFixed(2);
   const conversionRate =
     metrics && metrics.funnel.totalSessions > 0
@@ -327,14 +530,15 @@ export default function AdminDashboardPage() {
               onClick={() => {
                 fetchMetrics();
                 fetchIncidents();
+                fetchDiscounts();
               }}
-              disabled={loading || loadingIncidents}
+              disabled={loading || loadingIncidents || loadingDiscounts}
               className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition cursor-pointer"
               title="Refresh Data & Incidents"
             >
               <RefreshCw
                 className={`w-4 h-4 ${
-                  loading || loadingIncidents ? "animate-spin" : ""
+                  loading || loadingIncidents || loadingDiscounts ? "animate-spin" : ""
                 }`}
               />
             </button>
@@ -356,470 +560,1016 @@ export default function AdminDashboardPage() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
-        {/* KPI METRIC CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-            <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-              <span>Gross Revenue</span>
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-            </div>
-            <p className="font-serif text-2xl font-bold text-stone-900">${revenueDollars}</p>
-            <p className="text-[11px] text-stone-400">$9.00 flat per delivered card</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-            <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-              <span>Robotic Inking Queue</span>
-              <PenTool className="w-4 h-4 text-indigo-600" />
-            </div>
-            <p className="font-serif text-2xl font-bold text-indigo-900">
-              {metrics?.ordersByStatus.processing || 0}
-            </p>
-            <p className="text-[11px] text-indigo-600 font-medium">Dispatched to Handwrytten</p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-            <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-              <span>Total Orders</span>
-              <Package className="w-4 h-4 text-amber-600" />
-            </div>
-            <p className="font-serif text-2xl font-bold text-stone-900">
-              {metrics?.totalOrders || 0}
-            </p>
-            <p className="text-[11px] text-stone-400">
-              {metrics?.ordersByStatus.pending || 0} pending drafts
-            </p>
-          </div>
-
-          <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-            <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-              <span>Funnel Conversion</span>
-              <TrendingUp className="w-4 h-4 text-emerald-600" />
-            </div>
-            <p className="font-serif text-2xl font-bold text-stone-900">{conversionRate}%</p>
-            <p className="text-[11px] text-stone-400">
-              {metrics?.funnel.paid || 0} paid / {metrics?.funnel.totalSessions || 0} visits
-            </p>
-          </div>
-        </div>
-
-        {/* CUSTOMER JOURNEY FUNNEL & DROP-OFF TELEMETRY */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-          <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-            <div>
-              <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                <TrendingUp className="w-4 h-4 text-amber-600" />
-                Customer Funnel & Drop-Off Telemetry
-              </h2>
-              <p className="text-xs text-stone-500">
-                Track where prospective customers proceed or abandon before payment.
-              </p>
-            </div>
-            <span className="text-xs bg-amber-50 text-amber-800 font-semibold px-2.5 py-1 rounded-full border border-amber-200">
-              {metrics?.funnel.totalSessions || 0} Active Sessions
-            </span>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-center">
-            {[
-              {
-                step: "1. Cover Selection",
-                count: metrics?.funnel.coverSelected || 0,
-                desc: "Chose / painted AI cover",
-              },
-              {
-                step: "2. Note Written",
-                count: metrics?.funnel.noteCompleted || 0,
-                desc: "Entered sentiment & note",
-              },
-              {
-                step: "3. Address Entered",
-                count: metrics?.funnel.addressCompleted || 0,
-                desc: "Completed mailing form",
-              },
-              {
-                step: "4. Checkout Loaded",
-                count: metrics?.funnel.checkoutInitiated || 0,
-                desc: "Viewed Stripe payment",
-              },
-              {
-                step: "5. Completed Order",
-                count: metrics?.funnel.paid || 0,
-                desc: "Inked & dispatched ($9.00)",
-                highlight: true,
-              },
-            ].map((f, i) => (
-              <div
-                key={i}
-                className={`p-4 rounded-2xl border transition-all ${
-                  f.highlight
-                    ? "bg-emerald-50/70 border-emerald-200 text-emerald-950 font-medium"
-                    : "bg-stone-50/60 border-stone-200 text-stone-800"
-                }`}
-              >
-                <span className="block text-[10px] uppercase font-bold text-stone-400 tracking-wider">
-                  {f.step}
+      {/* ADMIN TABS NAVIGATION */}
+      <div className="border-b border-stone-200/80 bg-white shadow-sm">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-2 sm:space-x-8 overflow-x-auto" aria-label="Admin Tabs">
+            <button
+              type="button"
+              onClick={() => setActiveTab("orders")}
+              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                activeTab === "orders"
+                  ? "border-stone-900 text-stone-900 font-semibold"
+                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+              }`}
+            >
+              <Package className="w-4 h-4" />
+              <span>Orders &amp; Operations</span>
+              {metrics?.totalOrders !== undefined && (
+                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-stone-100 text-stone-600 font-bold">
+                  {metrics.totalOrders}
                 </span>
-                <span className="block font-serif text-2xl font-bold my-1">{f.count}</span>
-                <span className="block text-[11px] text-stone-500">{f.desc}</span>
-              </div>
-            ))}
-          </div>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("discounts")}
+              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                activeTab === "discounts"
+                  ? "border-amber-600 text-amber-900 font-semibold"
+                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+              }`}
+            >
+              <Tag className="w-4 h-4 text-amber-600" />
+              <span>Discount Codes</span>
+              {discountStats?.activeCodes !== undefined && discountStats.activeCodes > 0 && (
+                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-amber-100 text-amber-800 font-bold">
+                  {discountStats.activeCodes} Active
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("incidents")}
+              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                activeTab === "incidents"
+                  ? "border-rose-600 text-rose-900 font-semibold"
+                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+              }`}
+            >
+              <AlertTriangle className="w-4 h-4 text-rose-600" />
+              <span>System Health &amp; Incidents</span>
+              {incidents.filter((i) => !i.resolved).length > 0 && (
+                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-rose-100 text-rose-800 font-bold">
+                  {incidents.filter((i) => !i.resolved).length} Unresolved
+                </span>
+              )}
+            </button>
+          </nav>
         </div>
+      </div>
 
-        {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-stone-100">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                  <AlertTriangle
-                    className={`w-4 h-4 ${
-                      incidents.some((i) => !i.resolved)
-                        ? "text-rose-600"
-                        : "text-emerald-600"
-                    }`}
-                  />
-                  System Health &amp; Incident Feed
-                </h2>
-                {incidents.filter((i) => !i.resolved).length > 0 ? (
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                    {incidents.filter((i) => !i.resolved).length} Unresolved
-                  </span>
-                ) : (
-                  <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                    All Systems Operational
-                  </span>
-                )}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+        {/* ===================== TAB: ORDERS & OPERATIONS ===================== */}
+        {activeTab === "orders" && (
+          <div className="space-y-8">
+            {/* KPI METRIC CARDS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Gross Revenue</span>
+                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-stone-900">${revenueDollars}</p>
+                <p className="text-[11px] text-stone-400">$9.00 flat per delivered card</p>
               </div>
-              <p className="text-xs text-stone-500 mt-0.5">
-                Real-time incident log for Stripe checkout, AI image generation, and Handwrytten robot fulfillment.
-              </p>
-            </div>
 
-            {/* ALERT SUBSCRIPTION EMAIL */}
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-72">
-                <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
-                <input
-                  type="email"
-                  value={newAlertEmail}
-                  onChange={(e) => setNewAlertEmail(e.target.value)}
-                  placeholder="Alert email (e.g. zeke@...)"
-                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
-                />
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Robotic Inking Queue</span>
+                  <PenTool className="w-4 h-4 text-indigo-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-indigo-900">
+                  {metrics?.ordersByStatus.processing || 0}
+                </p>
+                <p className="text-[11px] text-indigo-600 font-medium">Dispatched to Handwrytten</p>
               </div>
-              <button
-                type="button"
-                onClick={handleSaveAlertEmail}
-                disabled={savingEmail}
-                className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-stone-900 hover:bg-black text-white transition disabled:opacity-50 shrink-0 cursor-pointer"
-              >
-                {savingEmail ? "Saving..." : alertEmail ? "Update Alert Email" : "Subscribe"}
-              </button>
-            </div>
-          </div>
 
-          {/* INCIDENTS LIST */}
-          {incidents.length === 0 ? (
-            <div className="text-center py-6 text-stone-400 text-xs">
-              <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-              <p className="font-semibold text-stone-700">No Incidents Recorded</p>
-              <p className="text-[11px] text-stone-400 mt-0.5">
-                Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {incidents.map((incident) => {
-                const isExpanded = expandedIncidentId === incident.id;
-                const typeColor =
-                  incident.type === "STRIPE"
-                    ? "bg-purple-100 text-purple-800 border-purple-200"
-                    : incident.type === "IMAGE_GEN"
-                    ? "bg-amber-100 text-amber-800 border-amber-200"
-                    : incident.type === "HANDWRYTTEN"
-                    ? "bg-indigo-100 text-indigo-800 border-indigo-200"
-                    : "bg-stone-100 text-stone-800 border-stone-200";
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Total Orders</span>
+                  <Package className="w-4 h-4 text-amber-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-stone-900">
+                  {metrics?.totalOrders || 0}
+                </p>
+                <p className="text-[11px] text-stone-400">
+                  {metrics?.ordersByStatus.pending || 0} pending drafts
+                </p>
+              </div>
 
-                return (
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Funnel Conversion</span>
+                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-stone-900">{conversionRate}%</p>
+                <p className="text-[11px] text-stone-400">
+                  {metrics?.funnel.paid || 0} paid / {metrics?.funnel.totalSessions || 0} visits
+                </p>
+              </div>
+            </div>
+
+            {/* CUSTOMER JOURNEY FUNNEL & DROP-OFF TELEMETRY */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                <div>
+                  <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <TrendingUp className="w-4 h-4 text-amber-600" />
+                    Customer Funnel & Drop-Off Telemetry
+                  </h2>
+                  <p className="text-xs text-stone-500">
+                    Track where prospective customers proceed or abandon before payment.
+                  </p>
+                </div>
+                <span className="text-xs bg-amber-50 text-amber-800 font-semibold px-2.5 py-1 rounded-full border border-amber-200">
+                  {metrics?.funnel.totalSessions || 0} Active Sessions
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-center">
+                {[
+                  {
+                    step: "1. Cover Selection",
+                    count: metrics?.funnel.coverSelected || 0,
+                    desc: "Chose / painted AI cover",
+                  },
+                  {
+                    step: "2. Note Written",
+                    count: metrics?.funnel.noteCompleted || 0,
+                    desc: "Entered sentiment & note",
+                  },
+                  {
+                    step: "3. Address Entered",
+                    count: metrics?.funnel.addressCompleted || 0,
+                    desc: "Completed mailing form",
+                  },
+                  {
+                    step: "4. Checkout Loaded",
+                    count: metrics?.funnel.checkoutInitiated || 0,
+                    desc: "Viewed Stripe payment",
+                  },
+                  {
+                    step: "5. Completed Order",
+                    count: metrics?.funnel.paid || 0,
+                    desc: "Inked & dispatched ($9.00)",
+                    highlight: true,
+                  },
+                ].map((f, i) => (
                   <div
-                    key={incident.id}
+                    key={i}
                     className={`p-4 rounded-2xl border transition-all ${
-                      incident.resolved
-                        ? "bg-stone-50/70 border-stone-200 opacity-60"
-                        : incident.severity === "error"
-                        ? "bg-rose-50/40 border-rose-200"
-                        : "bg-amber-50/40 border-amber-200"
+                      f.highlight
+                        ? "bg-emerald-50/70 border-emerald-200 text-emerald-950 font-medium"
+                        : "bg-stone-50/60 border-stone-200 text-stone-800"
                     }`}
                   >
-                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${typeColor}`}>
-                          {incident.type}
-                        </span>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                            incident.severity === "error"
-                              ? "bg-rose-100 text-rose-800 border-rose-300"
-                              : "bg-amber-100 text-amber-800 border-amber-300"
-                          }`}
-                        >
-                          {incident.severity}
-                        </span>
-                        <span className="text-[11px] text-stone-400">
-                          {new Date(incident.createdAt).toLocaleDateString()} at{" "}
-                          {new Date(incident.createdAt).toLocaleTimeString([], {
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}
-                        </span>
-                        {incident.resolved && (
-                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                            Resolved
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {incident.technicalDetails && (
-                          <button
-                            type="button"
-                            onClick={() => setExpandedIncidentId(isExpanded ? null : incident.id)}
-                            className="text-[11px] font-medium text-stone-600 hover:text-stone-900 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 transition cursor-pointer"
-                          >
-                            <span>{isExpanded ? "Hide Details" : "Inspect"}</span>
-                            {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                          </button>
-                        )}
-                        {!incident.resolved && (
-                          <button
-                            type="button"
-                            onClick={() => handleResolveIncident(incident.id)}
-                            className="text-[11px] font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
-                          >
-                            Mark Resolved
-                          </button>
-                        )}
-                      </div>
-                    </div>
-
-                    <p className="font-semibold text-xs text-stone-800 mt-2">{incident.summary}</p>
-
-                    {isExpanded && incident.technicalDetails && (
-                      <div className="mt-3 p-3 bg-stone-900 text-stone-100 rounded-xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-64 shadow-inner">
-                        {incident.technicalDetails}
-                      </div>
-                    )}
+                    <span className="block text-[10px] uppercase font-bold text-stone-400 tracking-wider">
+                      {f.step}
+                    </span>
+                    <span className="block font-serif text-2xl font-bold my-1">{f.count}</span>
+                    <span className="block text-[11px] text-stone-500">{f.desc}</span>
                   </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* RECENT ORDERS TABLE */}
-        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
-            <div>
-              <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                <Package className="w-4 h-4 text-stone-600" />
-                Physical Orders & Fulfillment Logs
-              </h2>
-              <p className="text-xs text-stone-500">
-                Real-time Handwrytten order IDs and recipient destinations.
-              </p>
+                ))}
+              </div>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-              <div className="relative flex-1 sm:w-64">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search orders, emails..."
-                  className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
-                />
+            {/* RECENT ORDERS TABLE */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+                <div>
+                  <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Package className="w-4 h-4 text-stone-600" />
+                    Physical Orders & Fulfillment Logs
+                  </h2>
+                  <p className="text-xs text-stone-500">
+                    Real-time Handwrytten order IDs and recipient destinations.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search orders, emails..."
+                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
+                    />
+                  </div>
+
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none"
+                  >
+                    <option value="ALL">All Statuses</option>
+                    <option value="PROCESSING_HANDWRYTTEN">Processing / Inked</option>
+                    <option value="PENDING_PAYMENT">Pending Draft</option>
+                    <option value="FAILED">Failed</option>
+                  </select>
+                </div>
               </div>
 
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="PROCESSING_HANDWRYTTEN">Processing / Inked</option>
-                <option value="PENDING_PAYMENT">Pending Draft</option>
-                <option value="FAILED">Failed</option>
-              </select>
+              {filteredOrders.length === 0 ? (
+                <div className="text-center py-12 text-stone-400 text-sm">
+                  No orders found matching your search.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-stone-600">
+                    <thead className="bg-stone-50 text-stone-400 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
+                      <tr>
+                        <th className="py-3 px-4">Card Art</th>
+                        <th className="py-3 px-4">Order ID & Date</th>
+                        <th className="py-3 px-4">Recipient</th>
+                        <th className="py-3 px-4">Customer Email</th>
+                        <th className="py-3 px-4">Status & Robot ID</th>
+                        <th className="py-3 px-4 text-right">Amount</th>
+                        <th className="py-3 px-4 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {filteredOrders.map((order) => {
+                        const isMailed = order.status === "MAILED";
+                        const isProcessing =
+                          order.status === "PROCESSING_HANDWRYTTEN";
+                        const isPending = order.status === "PENDING_PAYMENT";
+                        const canRetry = !isProcessing && !isPending && !isMailed;
+
+                        return (
+                          <tr key={order.id} className="hover:bg-stone-50/50 transition">
+                            <td className="py-3 px-4">
+                              <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-stone-100 flex-shrink-0">
+                                <Image
+                                  src={order.frontImageUrl}
+                                  alt="Cover"
+                                  fill
+                                  sizes="40px"
+                                  unoptimized
+                                  className="object-cover"
+                                />
+                              </div>
+                            </td>
+                            <td className="py-3 px-4">
+                              <Link
+                                href={`/order/${order.id}`}
+                                className="font-mono font-medium text-stone-900 hover:text-amber-600 hover:underline block"
+                              >
+                                {order.id}
+                              </Link>
+                              <span className="text-[10px] text-stone-400">
+                                {new Date(order.createdAt).toLocaleDateString()} at{" "}
+                                {new Date(order.createdAt).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <p className="font-semibold text-stone-800">
+                                {order.recipientAddress.firstName} {order.recipientAddress.lastName}
+                              </p>
+                              <p className="text-[11px] text-stone-400 truncate max-w-[180px]">
+                                {order.recipientAddress.city}, {order.recipientAddress.state}{" "}
+                                {order.recipientAddress.zip}
+                              </p>
+                            </td>
+                            <td className="py-3 px-4 truncate max-w-[160px]">
+                              {order.customerEmail || "Guest (in checkout)"}
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="space-y-1">
+                                <span
+                                  className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                    isMailed
+                                      ? "bg-purple-100 text-purple-800 border border-purple-200"
+                                      : isProcessing
+                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                      : isPending
+                                      ? "bg-stone-100 text-stone-600 border border-stone-200"
+                                      : "bg-amber-100 text-amber-800 border border-amber-200"
+                                  }`}
+                                >
+                                  {order.status === "QUEUED_FOR_FULFILLMENT"
+                                    ? "QUEUED"
+                                    : order.status}
+                                </span>
+                                {order.handwryttenOrderId && (
+                                  <p className="font-mono text-[9px] text-indigo-700">
+                                    HW: {order.handwryttenOrderId}
+                                  </p>
+                                )}
+                                {order.handwryttenStatus && (
+                                  <p className="text-[10px] font-medium text-stone-600">
+                                    HW: <span className="capitalize font-semibold text-stone-900">{order.handwryttenStatus}</span>
+                                  </p>
+                                )}
+                                {order.handwryttenMailedDate && (
+                                  <p className="text-[9px] text-purple-700 font-medium">
+                                    Mailed: {order.handwryttenMailedDate}
+                                  </p>
+                                )}
+                                {order.handwryttenTrackingNumber && (
+                                  <p className="text-[9px] text-stone-500 font-mono">
+                                    Trk: {order.handwryttenTrackingNumber}
+                                  </p>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="font-serif font-bold text-stone-900 text-sm">
+                                ${((order.amountInCents || 900) / 100).toFixed(2)}
+                              </span>
+                              {order.discountCode && (
+                                <div className="mt-1 flex items-center justify-end gap-1">
+                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                    <Tag className="w-2.5 h-2.5" />
+                                    {order.discountCode}
+                                  </span>
+                                  {order.paymentMethod === "PROMO_CODE" && (
+                                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
+                                      VIP Free
+                                    </span>
+                                  )}
+                                </div>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-center">
+                              <div className="flex flex-col items-center gap-1.5">
+                                {canRetry && (
+                                  <button
+                                    onClick={() => handleRetryFulfillment(order.id)}
+                                    disabled={retryingId === order.id}
+                                    className="px-2.5 py-1 text-[11px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-300 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
+                                  >
+                                    <RefreshCw
+                                      className={`w-3 h-3 ${
+                                        retryingId === order.id ? "animate-spin" : ""
+                                      }`}
+                                    />
+                                    {retryingId === order.id ? "Inking..." : "Retry Dispatch"}
+                                  </button>
+                                )}
+                                {order.handwryttenOrderId && (
+                                  <button
+                                    onClick={() => handleSyncHandwrytten(order.id)}
+                                    disabled={syncingId === order.id}
+                                    title="Check latest order and postal status directly from Handwrytten API"
+                                    className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
+                                  >
+                                    <RefreshCw
+                                      className={`w-2.5 h-2.5 ${
+                                        syncingId === order.id ? "animate-spin" : ""
+                                      }`}
+                                    />
+                                    {syncingId === order.id ? "Checking..." : "Sync HW"}
+                                  </button>
+                                )}
+                                {isMailed && (
+                                  <span className="text-[11px] text-purple-700 font-medium inline-flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3" /> Mailed
+                                  </span>
+                                )}
+                                {isProcessing && !isMailed && (
+                                  <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
+                                    <CheckCircle2 className="w-3 h-3" /> Dispatched
+                                  </span>
+                                )}
+                                {!canRetry && !order.handwryttenOrderId && (
+                                  <span className="text-stone-300">—</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </div>
+        )}
 
-          {filteredOrders.length === 0 ? (
-            <div className="text-center py-12 text-stone-400 text-sm">
-              No orders found matching your search.
+        {/* ===================== TAB: DISCOUNT CODES ===================== */}
+        {activeTab === "discounts" && (
+          <div className="space-y-8">
+            {/* KPI METRIC CARDS FOR DISCOUNTS */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Active Promo Codes</span>
+                  <Tag className="w-4 h-4 text-amber-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-stone-900">
+                  {discountStats?.activeCodes ?? 0}
+                </p>
+                <p className="text-[11px] text-stone-400">
+                  {discountStats?.totalCodes ?? 0} total codes configured
+                </p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Total Redemptions</span>
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-emerald-900">
+                  {discountStats?.totalRedemptions ?? 0}
+                </p>
+                <p className="text-[11px] text-stone-400">Orders placed with promo discount</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Total Savings Given</span>
+                  <DollarSign className="w-4 h-4 text-indigo-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-stone-900">
+                  ${((discountStats?.totalSavingsCents ?? 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-[11px] text-stone-400">Cumulative customer savings</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Shareable Links</span>
+                  <Share2 className="w-4 h-4 text-amber-600" />
+                </div>
+                <p className="font-mono text-sm font-bold text-amber-900 truncate">
+                  ?discount=CODE
+                </p>
+                <p className="text-[11px] text-stone-400">
+                  Auto-hydrates and applies promo at checkout
+                </p>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs text-stone-600">
-                <thead className="bg-stone-50 text-stone-400 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
-                  <tr>
-                    <th className="py-3 px-4">Card Art</th>
-                    <th className="py-3 px-4">Order ID & Date</th>
-                    <th className="py-3 px-4">Recipient</th>
-                    <th className="py-3 px-4">Customer Email</th>
-                    <th className="py-3 px-4">Status & Robot ID</th>
-                    <th className="py-3 px-4 text-right">Amount</th>
-                    <th className="py-3 px-4 text-center">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-stone-100">
-                  {filteredOrders.map((order) => {
-                    const isMailed = order.status === "MAILED";
-                    const isProcessing =
-                      order.status === "PROCESSING_HANDWRYTTEN";
-                    const isPending = order.status === "PENDING_PAYMENT";
-                    const canRetry = !isProcessing && !isPending && !isMailed;
+
+            {/* CREATE DISCOUNT CODE FORM */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+                <div>
+                  <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Plus className="w-4 h-4 text-amber-600" />
+                    Create New Discount Code
+                  </h2>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    Generate percentage discounts, dollar coupons, or 100% off VIP launch vouchers.
+                  </p>
+                </div>
+
+                {/* Quick Presets */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider mr-1">
+                    Presets:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset("VIP")}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 transition cursor-pointer inline-flex items-center gap-1"
+                  >
+                    <Gift className="w-3 h-3 text-emerald-600" />
+                    100% Off VIP
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset("DOLLAR2")}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 border border-stone-200 transition cursor-pointer"
+                  >
+                    $2.00 Off
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset("PERCENT20")}
+                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 border border-stone-200 transition cursor-pointer"
+                  >
+                    20% Off Launch
+                  </button>
+                </div>
+              </div>
+
+              {discountFormError && (
+                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center justify-between">
+                  <span>{discountFormError}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountFormError("")}
+                    className="text-rose-500 hover:text-rose-800 font-bold ml-2 cursor-pointer"
+                  >
+                    &times;
+                  </button>
+                </div>
+              )}
+
+              {discountFormSuccess && (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center justify-between">
+                  <span>{discountFormSuccess}</span>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountFormSuccess("")}
+                    className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 cursor-pointer"
+                  >
+                    &times;
+                  </button>
+                </div>
+              )}
+
+              <form onSubmit={handleCreateDiscount} className="space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Code */}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
+                      Discount Code *
+                    </label>
+                    <input
+                      type="text"
+                      value={newCode}
+                      onChange={(e) => setNewCode(e.target.value.toUpperCase())}
+                      placeholder="e.g. VIP100"
+                      required
+                      className="w-full px-3.5 py-2 text-sm font-mono font-bold uppercase bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Type */}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
+                      Discount Type
+                    </label>
+                    <select
+                      value={newType}
+                      onChange={(e) => setNewType(e.target.value as DiscountType)}
+                      className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white cursor-pointer"
+                    >
+                      <option value="PERCENTAGE">Percentage (% Off)</option>
+                      <option value="FIXED_AMOUNT">Fixed Amount ($ Off)</option>
+                    </select>
+                  </div>
+
+                  {/* Value */}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
+                      {newType === "PERCENTAGE" ? "Percentage Value (1-100)" : "Dollar Value ($ USD)"} *
+                    </label>
+                    <div className="relative">
+                      {newType === "FIXED_AMOUNT" && (
+                        <span className="absolute left-3 top-2 text-stone-500 text-sm font-bold">$</span>
+                      )}
+                      <input
+                        type="number"
+                        step={newType === "PERCENTAGE" ? "1" : "0.01"}
+                        min={newType === "PERCENTAGE" ? "1" : "0.50"}
+                        max={newType === "PERCENTAGE" ? "100" : undefined}
+                        value={newValue}
+                        onChange={(e) => setNewValue(e.target.value)}
+                        placeholder={newType === "PERCENTAGE" ? "20 (for 20% off)" : "2.00 (for $2.00 off)"}
+                        required
+                        className={`w-full py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white ${
+                          newType === "FIXED_AMOUNT" ? "pl-7 pr-3" : "px-3.5"
+                        }`}
+                      />
+                      {newType === "PERCENTAGE" && (
+                        <span className="absolute right-3 top-2 text-stone-400 text-sm font-bold">%</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {/* Max Uses */}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
+                      Max Uses Limit (Optional)
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={newMaxUses}
+                      onChange={(e) => setNewMaxUses(e.target.value)}
+                      placeholder="Leave empty for unlimited"
+                      className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Expiration Date */}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
+                      Expiration Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={newExpiresAt}
+                      onChange={(e) => setNewExpiresAt(e.target.value)}
+                      className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                    />
+                  </div>
+
+                  {/* Description / Campaign */}
+                  <div>
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
+                      Campaign Note (Internal)
+                    </label>
+                    <input
+                      type="text"
+                      value={newDescription}
+                      onChange={(e) => setNewDescription(e.target.value)}
+                      placeholder="e.g. VIP friends, Twitter launch"
+                      className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={creatingDiscount}
+                    className="px-5 py-2.5 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-sm transition inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {creatingDiscount ? (
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
+                    <span>{creatingDiscount ? "Creating..." : "Save Discount Code"}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* DISCOUNT CODES TABLE */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+                <div>
+                  <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Tag className="w-4 h-4 text-stone-600" />
+                    Configured Discount Codes
+                  </h2>
+                  <p className="text-xs text-stone-500">
+                    Monitor redemption ratios, customer savings, and share direct links.
+                  </p>
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
+                  <input
+                    type="text"
+                    value={discountSearchQuery}
+                    onChange={(e) => setDiscountSearchQuery(e.target.value)}
+                    placeholder="Search codes, campaigns..."
+                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
+                  />
+                </div>
+              </div>
+
+              {filteredDiscountCodes.length === 0 ? (
+                <div className="text-center py-12 text-stone-400 text-xs">
+                  <Tag className="w-8 h-8 text-stone-300 mx-auto mb-2" />
+                  <p className="font-semibold text-stone-700">No discount codes found</p>
+                  <p className="text-[11px] text-stone-400 mt-0.5">
+                    {discountSearchQuery
+                      ? "Try searching for a different code name."
+                      : "Create your first discount code using the form above."}
+                  </p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs text-stone-600">
+                    <thead className="bg-stone-50 text-stone-400 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
+                      <tr>
+                        <th className="py-3 px-4">Code &amp; Campaign</th>
+                        <th className="py-3 px-4">Discount Value</th>
+                        <th className="py-3 px-4">Usage &amp; Cap</th>
+                        <th className="py-3 px-4 text-right">Total Savings</th>
+                        <th className="py-3 px-4">Expiration</th>
+                        <th className="py-3 px-4 text-center">Status</th>
+                        <th className="py-3 px-4 text-center">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {filteredDiscountCodes.map((c) => {
+                        const isExpired = c.expiresAt && Date.now() > c.expiresAt;
+                        const isExhausted =
+                          c.maxUses != null && c.maxUses > 0 && c.usedCount >= c.maxUses;
+                        const isFree =
+                          (c.type === "PERCENTAGE" && c.value === 100) ||
+                          (c.type === "FIXED_AMOUNT" && c.value >= 900);
+
+                        return (
+                          <tr key={c.id} className="hover:bg-stone-50/50 transition">
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono font-bold text-stone-900 text-sm">
+                                  {c.code}
+                                </span>
+                                {isFree && (
+                                  <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    Free Card VIP
+                                  </span>
+                                )}
+                              </div>
+                              {c.description && (
+                                <p className="text-[11px] text-stone-500 mt-0.5 max-w-[220px] truncate">
+                                  {c.description}
+                                </p>
+                              )}
+                              <span className="text-[10px] text-stone-400">
+                                Created {new Date(c.createdAt).toLocaleDateString()}
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                                  isFree
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                    : c.type === "PERCENTAGE"
+                                    ? "bg-amber-100 text-amber-900 border border-amber-200"
+                                    : "bg-blue-100 text-blue-900 border border-blue-200"
+                                }`}
+                              >
+                                {c.type === "PERCENTAGE"
+                                  ? `${c.value}% OFF`
+                                  : `$${(c.value / 100).toFixed(2)} OFF`}
+                              </span>
+                            </td>
+
+                            <td className="py-3.5 px-4">
+                              <div className="space-y-1">
+                                <span className="font-semibold text-stone-800">
+                                  {c.usedCount}{" "}
+                                  <span className="text-stone-400 font-normal">
+                                    / {c.maxUses != null ? `${c.maxUses} max` : "∞"}
+                                  </span>
+                                </span>
+                                {c.maxUses != null && (
+                                  <div className="w-24 bg-stone-100 rounded-full h-1.5 overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full ${
+                                        isExhausted ? "bg-rose-500" : "bg-amber-500"
+                                      }`}
+                                      style={{
+                                        width: `${Math.min(100, (c.usedCount / c.maxUses) * 100)}%`,
+                                      }}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+
+                            <td className="py-3.5 px-4 text-right font-serif font-bold text-stone-900 text-sm">
+                              ${((c.totalDiscountGivenCents || 0) / 100).toFixed(2)}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-stone-600">
+                              {c.expiresAt ? (
+                                <div>
+                                  <span
+                                    className={`${
+                                      isExpired
+                                        ? "text-rose-600 font-semibold"
+                                        : "text-stone-700"
+                                    }`}
+                                  >
+                                    {new Date(c.expiresAt).toLocaleDateString()}
+                                  </span>
+                                  {isExpired && (
+                                    <span className="block text-[9px] uppercase font-bold text-rose-600">
+                                      Expired
+                                    </span>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="text-stone-400">Never expires</span>
+                              )}
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleToggleDiscount(c.code, c.isActive)}
+                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition cursor-pointer border ${
+                                  !c.isActive
+                                    ? "bg-stone-100 text-stone-600 border-stone-300 hover:bg-stone-200"
+                                    : isExpired || isExhausted
+                                    ? "bg-amber-50 text-amber-800 border-amber-300"
+                                    : "bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200"
+                                }`}
+                              >
+                                {!c.isActive
+                                  ? "Paused"
+                                  : isExpired
+                                  ? "Expired"
+                                  : isExhausted
+                                  ? "Maxed Out"
+                                  : "Active"}
+                              </button>
+                            </td>
+
+                            <td className="py-3.5 px-4 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleCopyShareLink(c.code)}
+                                  title="Copy shareable link (e.g. ?discount=CODE)"
+                                  className={`px-2 py-1 text-[11px] font-medium rounded-lg border transition inline-flex items-center gap-1 cursor-pointer ${
+                                    copiedCode === c.code
+                                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
+                                      : "bg-stone-50 text-stone-700 hover:bg-stone-100 border-stone-200"
+                                  }`}
+                                >
+                                  {copiedCode === c.code ? (
+                                    <>
+                                      <Check className="w-3 h-3 text-emerald-600" />
+                                      <span>Copied!</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Share2 className="w-3 h-3 text-stone-500" />
+                                      <span>Share Link</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteDiscount(c.code)}
+                                  title="Delete discount code"
+                                  className="p-1 text-stone-400 hover:text-rose-600 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ===================== TAB: SYSTEM HEALTH & INCIDENTS ===================== */}
+        {activeTab === "incidents" && (
+          <div className="space-y-8">
+            {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-stone-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                      <AlertTriangle
+                        className={`w-4 h-4 ${
+                          incidents.some((i) => !i.resolved)
+                            ? "text-rose-600"
+                            : "text-emerald-600"
+                        }`}
+                      />
+                      System Health &amp; Incident Feed
+                    </h2>
+                    {incidents.filter((i) => !i.resolved).length > 0 ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                        {incidents.filter((i) => !i.resolved).length} Unresolved
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                        All Systems Operational
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    Real-time incident log for Stripe checkout, AI image generation, and Handwrytten robot fulfillment.
+                  </p>
+                </div>
+
+                {/* ALERT SUBSCRIPTION EMAIL */}
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <div className="relative flex-1 sm:w-72">
+                    <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
+                    <input
+                      type="email"
+                      value={newAlertEmail}
+                      onChange={(e) => setNewAlertEmail(e.target.value)}
+                      placeholder="Alert email (e.g. zeke@...)"
+                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSaveAlertEmail}
+                    disabled={savingEmail}
+                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-stone-900 hover:bg-black text-white transition disabled:opacity-50 shrink-0 cursor-pointer"
+                  >
+                    {savingEmail ? "Saving..." : alertEmail ? "Update Alert Email" : "Subscribe"}
+                  </button>
+                </div>
+              </div>
+
+              {/* INCIDENTS LIST */}
+              {incidents.length === 0 ? (
+                <div className="text-center py-6 text-stone-400 text-xs">
+                  <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
+                  <p className="font-semibold text-stone-700">No Incidents Recorded</p>
+                  <p className="text-[11px] text-stone-400 mt-0.5">
+                    Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {incidents.map((incident) => {
+                    const isExpanded = expandedIncidentId === incident.id;
+                    const typeColor =
+                      incident.type === "STRIPE"
+                        ? "bg-purple-100 text-purple-800 border-purple-200"
+                        : incident.type === "IMAGE_GEN"
+                        ? "bg-amber-100 text-amber-800 border-amber-200"
+                        : incident.type === "HANDWRYTTEN"
+                        ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                        : "bg-stone-100 text-stone-800 border-stone-200";
 
                     return (
-                      <tr key={order.id} className="hover:bg-stone-50/50 transition">
-                        <td className="py-3 px-4">
-                          <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-stone-100 flex-shrink-0">
-                            <Image
-                              src={order.frontImageUrl}
-                              alt="Cover"
-                              fill
-                              sizes="40px"
-                              unoptimized
-                              className="object-cover"
-                            />
-                          </div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Link
-                            href={`/order/${order.id}`}
-                            className="font-mono font-medium text-stone-900 hover:text-amber-600 hover:underline block"
-                          >
-                            {order.id}
-                          </Link>
-                          <span className="text-[10px] text-stone-400">
-                            {new Date(order.createdAt).toLocaleDateString()} at{" "}
-                            {new Date(order.createdAt).toLocaleTimeString([], {
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <p className="font-semibold text-stone-800">
-                            {order.recipientAddress.firstName} {order.recipientAddress.lastName}
-                          </p>
-                          <p className="text-[11px] text-stone-400 truncate max-w-[180px]">
-                            {order.recipientAddress.city}, {order.recipientAddress.state}{" "}
-                            {order.recipientAddress.zip}
-                          </p>
-                        </td>
-                        <td className="py-3 px-4 truncate max-w-[160px]">
-                          {order.customerEmail || "Guest (in checkout)"}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="space-y-1">
+                      <div
+                        key={incident.id}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          incident.resolved
+                            ? "bg-stone-50/70 border-stone-200 opacity-60"
+                            : incident.severity === "error"
+                            ? "bg-rose-50/40 border-rose-200"
+                            : "bg-amber-50/40 border-amber-200"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${typeColor}`}>
+                              {incident.type}
+                            </span>
                             <span
-                              className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                isMailed
-                                  ? "bg-purple-100 text-purple-800 border border-purple-200"
-                                  : isProcessing
-                                  ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                  : isPending
-                                  ? "bg-stone-100 text-stone-600 border border-stone-200"
-                                  : "bg-amber-100 text-amber-800 border border-amber-200"
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                incident.severity === "error"
+                                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                                  : "bg-amber-100 text-amber-800 border-amber-300"
                               }`}
                             >
-                              {order.status === "QUEUED_FOR_FULFILLMENT"
-                                ? "QUEUED"
-                                : order.status}
+                              {incident.severity}
                             </span>
-                            {order.handwryttenOrderId && (
-                              <p className="font-mono text-[9px] text-indigo-700">
-                                HW: {order.handwryttenOrderId}
-                              </p>
-                            )}
-                            {order.handwryttenStatus && (
-                              <p className="text-[10px] font-medium text-stone-600">
-                                HW: <span className="capitalize font-semibold text-stone-900">{order.handwryttenStatus}</span>
-                              </p>
-                            )}
-                            {order.handwryttenMailedDate && (
-                              <p className="text-[9px] text-purple-700 font-medium">
-                                Mailed: {order.handwryttenMailedDate}
-                              </p>
-                            )}
-                            {order.handwryttenTrackingNumber && (
-                              <p className="text-[9px] text-stone-500 font-mono">
-                                Trk: {order.handwryttenTrackingNumber}
-                              </p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-right font-serif font-bold text-stone-900 text-sm">
-                          ${((order.amountInCents || 900) / 100).toFixed(2)}
-                        </td>
-                        <td className="py-3 px-4 text-center">
-                          <div className="flex flex-col items-center gap-1.5">
-                            {canRetry && (
-                              <button
-                                onClick={() => handleRetryFulfillment(order.id)}
-                                disabled={retryingId === order.id}
-                                className="px-2.5 py-1 text-[11px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-300 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
-                              >
-                                <RefreshCw
-                                  className={`w-3 h-3 ${
-                                    retryingId === order.id ? "animate-spin" : ""
-                                  }`}
-                                />
-                                {retryingId === order.id ? "Inking..." : "Retry Dispatch"}
-                              </button>
-                            )}
-                            {order.handwryttenOrderId && (
-                              <button
-                                onClick={() => handleSyncHandwrytten(order.id)}
-                                disabled={syncingId === order.id}
-                                title="Check latest order and postal status directly from Handwrytten API"
-                                className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
-                              >
-                                <RefreshCw
-                                  className={`w-2.5 h-2.5 ${
-                                    syncingId === order.id ? "animate-spin" : ""
-                                  }`}
-                                />
-                                {syncingId === order.id ? "Checking..." : "Sync HW"}
-                              </button>
-                            )}
-                            {isMailed && (
-                              <span className="text-[11px] text-purple-700 font-medium inline-flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" /> Mailed
+                            <span className="text-[11px] text-stone-400">
+                              {new Date(incident.createdAt).toLocaleDateString()} at{" "}
+                              {new Date(incident.createdAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {incident.resolved && (
+                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                Resolved
                               </span>
                             )}
-                            {isProcessing && !isMailed && (
-                              <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
-                                <CheckCircle2 className="w-3 h-3" /> Dispatched
-                              </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {incident.technicalDetails && (
+                              <button
+                                type="button"
+                                onClick={() => setExpandedIncidentId(isExpanded ? null : incident.id)}
+                                className="text-[11px] font-medium text-stone-600 hover:text-stone-900 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 transition cursor-pointer"
+                              >
+                                <span>{isExpanded ? "Hide Details" : "Inspect"}</span>
+                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
                             )}
-                            {!canRetry && !order.handwryttenOrderId && (
-                              <span className="text-stone-300">—</span>
+                            {!incident.resolved && (
+                              <button
+                                type="button"
+                                onClick={() => handleResolveIncident(incident.id)}
+                                className="text-[11px] font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
+                              >
+                                Mark Resolved
+                              </button>
                             )}
                           </div>
-                        </td>
-                      </tr>
+                        </div>
+
+                        <p className="font-semibold text-xs text-stone-800 mt-2">{incident.summary}</p>
+
+                        {isExpanded && incident.technicalDetails && (
+                          <div className="mt-3 p-3 bg-stone-900 text-stone-100 rounded-xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-64 shadow-inner">
+                            {incident.technicalDetails}
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+              )}
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </main>
     </div>
   );

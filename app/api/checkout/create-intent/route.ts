@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { saveOrder } from "@/lib/firebase-admin";
+import { saveOrder, getDiscountCode } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
+import { validateDiscount } from "@/lib/discount";
 import { Order, MailingAddress } from "@/lib/types";
 import { logIncident } from "@/lib/incident-logger";
 
@@ -18,6 +19,7 @@ export async function POST(req: NextRequest) {
       customerEmail = "",
       userId,
       scheduledSendDate,
+      discountCode: rawDiscountCode,
     } = body;
 
     if (!frontImageUrl) {
@@ -35,10 +37,78 @@ export async function POST(req: NextRequest) {
     // Generate unique order ID
     const orderId = `order_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
-    // Create Stripe PaymentIntent ($9.00 flat rate)
+    // Evaluate discount code if provided
+    let finalAmountInCents = CARD_FLAT_RATE_CENTS; // 900
+    let discountAmountInCents = 0;
+    let appliedCode: string | undefined = undefined;
+
+    if (rawDiscountCode && typeof rawDiscountCode === "string" && rawDiscountCode.trim()) {
+      const codeToLookup = rawDiscountCode.trim().toUpperCase();
+      const discountDoc = await getDiscountCode(codeToLookup);
+      const validation = validateDiscount(discountDoc, CARD_FLAT_RATE_CENTS);
+
+      if (!validation.valid) {
+        return NextResponse.json(
+          { error: validation.error || "Invalid discount code." },
+          { status: 400 }
+        );
+      }
+
+      appliedCode = validation.code;
+      discountAmountInCents = validation.discountAmountInCents;
+      finalAmountInCents = validation.finalAmountInCents;
+    }
+
+    // Handle 100% Free Order (e.g. VIP/Launch Voucher)
+    if (finalAmountInCents === 0) {
+      const orderRecord: Order = {
+        id: orderId,
+        customerEmail,
+        userId: userId || undefined,
+        frontImageUrl,
+        printedMessage: printedMessage || "",
+        handwrittenNote: handwrittenNote || "",
+        fontStyleId,
+        recipientAddress: recipientAddress as MailingAddress,
+        returnAddress: returnAddress as MailingAddress,
+        scheduledSendDate: scheduledSendDate || undefined,
+        status: "PENDING_PAYMENT",
+        amountInCents: 0,
+        originalAmountInCents: CARD_FLAT_RATE_CENTS,
+        discountCode: appliedCode,
+        discountAmountInCents,
+        paymentMethod: "PROMO_CODE",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await saveOrder(orderRecord);
+
+      return NextResponse.json({
+        orderId,
+        isFree: true,
+        amountInCents: 0,
+        originalAmountInCents: CARD_FLAT_RATE_CENTS,
+        discountCode: appliedCode,
+        discountAmountInCents,
+        clientSecret: null,
+        paymentIntentId: null,
+        publishableKey: null,
+      });
+    }
+
+    // Create Stripe PaymentIntent for the discounted or standard amount
     const paymentIntentResult = await createCardPaymentIntent({
       orderId,
       customerEmail: customerEmail || undefined,
+      amountInCents: finalAmountInCents,
+      metadata: appliedCode
+        ? {
+            discountCode: appliedCode,
+            discountAmountCents: String(discountAmountInCents),
+            originalAmountCents: String(CARD_FLAT_RATE_CENTS),
+          }
+        : undefined,
     });
 
     // Construct and persist draft Order to Firestore
@@ -55,7 +125,11 @@ export async function POST(req: NextRequest) {
       returnAddress: returnAddress as MailingAddress,
       scheduledSendDate: scheduledSendDate || undefined,
       status: "PENDING_PAYMENT",
-      amountInCents: CARD_FLAT_RATE_CENTS,
+      amountInCents: finalAmountInCents,
+      originalAmountInCents: CARD_FLAT_RATE_CENTS,
+      discountCode: appliedCode,
+      discountAmountInCents: discountAmountInCents > 0 ? discountAmountInCents : undefined,
+      paymentMethod: "STRIPE",
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
@@ -75,7 +149,11 @@ export async function POST(req: NextRequest) {
       paymentIntentId: paymentIntentResult.paymentIntentId,
       publishableKey,
       isMock: paymentIntentResult.isMock,
-      amountInCents: CARD_FLAT_RATE_CENTS,
+      amountInCents: finalAmountInCents,
+      originalAmountInCents: CARD_FLAT_RATE_CENTS,
+      discountCode: appliedCode,
+      discountAmountInCents,
+      isFree: false,
     });
   } catch (error: unknown) {
     const rawMsg = error instanceof Error ? error.message : "Error creating checkout intent";

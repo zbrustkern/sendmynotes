@@ -102,6 +102,18 @@ export function VendingMachineBuilder() {
   const [isMockIntent, setIsMockIntent] = useState<boolean>(true);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
+  // Discount & Promo Voucher State
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    type: "PERCENTAGE" | "FIXED_AMOUNT";
+    value: number;
+    discountAmountInCents: number;
+    finalAmountInCents: number;
+    description?: string;
+    isFree: boolean;
+  } | null>(null);
+  const [isFreeOrder, setIsFreeOrder] = useState<boolean>(false);
+
   // Pre-fill customer email if logged in
   useEffect(() => {
     if (user?.email && !customerEmail) {
@@ -232,6 +244,18 @@ export function VendingMachineBuilder() {
       }
     }
 
+    // 8. Discount & Promo Voucher Codes
+    const promoParam =
+      searchParams.get("discount") ||
+      searchParams.get("code") ||
+      searchParams.get("promo");
+    if (promoParam) {
+      applyDiscountCode(promoParam).catch((err) =>
+        console.warn("Notice validating URL promo code:", err)
+      );
+      didPrefill = true;
+    }
+
     if (didPrefill) {
       setIsPrefilledFromUrl(true);
       trackEvent("agent_url_prefilled", 1, {
@@ -272,11 +296,53 @@ export function VendingMachineBuilder() {
     setCurrentStep(targetStep);
   };
 
+  // Apply or remove discount codes
+  const applyDiscountCode = async (codeToApply: string) => {
+    try {
+      const res = await fetch("/api/discount/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: codeToApply }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.valid) {
+        return { success: false, error: data.error || "Invalid discount code." };
+      }
+      setAppliedDiscount(data);
+      setIsFreeOrder(Boolean(data.isFree));
+
+      // If we are already on step 4 with an initialized order, re-create the intent with the new discount
+      if (currentStep === 4 && orderId) {
+        await proceedToCheckout(data.code);
+      }
+
+      return { success: true };
+    } catch {
+      return { success: false, error: "Unable to validate discount code." };
+    }
+  };
+
+  const removeDiscountCode = async () => {
+    setAppliedDiscount(null);
+    setIsFreeOrder(false);
+    if (currentStep === 4 && orderId) {
+      await proceedToCheckout(null);
+    }
+  };
+
   // Move to Step 4 and create PaymentIntent
-  const proceedToCheckout = async () => {
+  const proceedToCheckout = async (overrideDiscountCode?: string | null) => {
     setIsInitializingCheckout(true);
     setCheckoutError(null);
     trackEvent("address_completed", 3);
+
+    const discountCodeToUse =
+      overrideDiscountCode === null
+        ? undefined
+        : overrideDiscountCode !== undefined
+        ? overrideDiscountCode
+        : appliedDiscount?.code;
+
     try {
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
@@ -291,6 +357,7 @@ export function VendingMachineBuilder() {
           customerEmail,
           userId: user?.uid,
           scheduledSendDate: scheduledSendDate || undefined,
+          discountCode: discountCodeToUse,
         }),
       });
 
@@ -320,7 +387,8 @@ export function VendingMachineBuilder() {
         setPublishableKey(data.publishableKey);
       }
       setIsMockIntent(data.isMock);
-      trackEvent("checkout_initiated", 4, { orderId: data.orderId, amount: 900 });
+      setIsFreeOrder(Boolean(data.isFree));
+      trackEvent("checkout_initiated", 4, { orderId: data.orderId, amount: data.amountInCents });
       setCurrentStep(4);
     } catch (err: unknown) {
       const msg =
@@ -364,7 +432,13 @@ export function VendingMachineBuilder() {
           <div className="flex items-center gap-2 sm:gap-3">
             {/* Clean Price Pill */}
             <div className="px-2.5 py-1 rounded-full bg-amber-50/80 border border-amber-200/80 flex items-center gap-1.5 text-xs">
-              <span className="font-serif font-bold text-amber-950">$9.00</span>
+              <span className="font-serif font-bold text-amber-950">
+                {isFreeOrder
+                  ? "Free"
+                  : appliedDiscount
+                  ? `$${(appliedDiscount.finalAmountInCents / 100).toFixed(2)}`
+                  : "$9.00"}
+              </span>
               <span className="text-[10px] text-amber-900/80 font-medium hidden xs:inline">• Postage Paid</span>
             </div>
 
@@ -403,6 +477,32 @@ export function VendingMachineBuilder() {
           </div>
         </div>
       </header>
+
+      {/* ACTIVE PROMO / DISCOUNT BANNER */}
+      {appliedDiscount && (
+        <div className="bg-emerald-700 text-white px-4 py-2 text-xs font-semibold shadow-xs animate-in fade-in duration-200">
+          <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
+            <span className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
+              <span>
+                Promo code <strong className="underline tracking-wider font-mono uppercase">{appliedDiscount.code}</strong> applied:{" "}
+                {appliedDiscount.isFree
+                  ? "100% Free Order!"
+                  : appliedDiscount.type === "PERCENTAGE"
+                  ? `${appliedDiscount.value}% Off at checkout!`
+                  : `$${(appliedDiscount.discountAmountInCents / 100).toFixed(2)} Off at checkout!`}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={removeDiscountCode}
+              className="text-white/80 hover:text-white underline text-[11px] cursor-pointer shrink-0 ml-2"
+            >
+              Remove
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* EDITORIAL MICRO-HERO: Immediate Clarity on Value Prop */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 text-center pt-6 pb-2">
@@ -603,6 +703,10 @@ export function VendingMachineBuilder() {
                 onSuccess={handlePaymentSuccess}
                 isMock={isMockIntent}
                 scheduledSendDate={scheduledSendDate}
+                appliedDiscount={appliedDiscount}
+                onApplyDiscount={applyDiscountCode}
+                onRemoveDiscount={removeDiscountCode}
+                isFree={isFreeOrder}
               />
             )}
 
@@ -649,10 +753,16 @@ export function VendingMachineBuilder() {
                 <button
                   type="button"
                   disabled={isInitializingCheckout}
-                  onClick={proceedToCheckout}
+                  onClick={() => proceedToCheckout()}
                   className="px-7 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-500 text-white text-sm font-bold shadow-lg shadow-amber-500/25 flex items-center gap-2 transition cursor-pointer disabled:opacity-50"
                 >
-                  <span>Proceed to Payment ($9.00)</span>
+                  <span>
+                    {isFreeOrder
+                      ? "Proceed to Confirmation (Free)"
+                      : appliedDiscount
+                      ? `Proceed to Payment ($${(appliedDiscount.finalAmountInCents / 100).toFixed(2)})`
+                      : "Proceed to Payment ($9.00)"}
+                  </span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               )}

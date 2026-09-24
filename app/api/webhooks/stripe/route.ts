@@ -4,6 +4,7 @@ import {
   getOrderById,
   updateOrderStatus,
   getImageCachePoolCollection,
+  recordDiscountUsage,
 } from "@/lib/firebase-admin";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { logIncident } from "@/lib/incident-logger";
@@ -58,6 +59,15 @@ export async function POST(req: NextRequest) {
         stripePaymentId: paymentIntent.id,
         customerEmail: paymentIntent.receipt_email || order.customerEmail,
       });
+
+      // Record discount code usage metrics if applicable
+      if (order.discountCode) {
+        try {
+          await recordDiscountUsage(order.discountCode, order.discountAmountInCents || 0);
+        } catch (discErr) {
+          console.warn("[Webhook] Notice recording discount code usage:", discErr);
+        }
+      }
 
       // 2. Fulfill via Handwrytten robotic pen API
       const fulfillment = await fulfillHandwryttenOrder({

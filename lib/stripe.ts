@@ -23,6 +23,7 @@ export const CARD_FLAT_RATE_CENTS = 900; // $9.00 flat rate (Card + Robot Pen + 
 export interface CreateIntentParams {
   orderId: string;
   customerEmail?: string;
+  amountInCents?: number;
   metadata?: Record<string, string>;
 }
 
@@ -34,9 +35,10 @@ export interface PaymentIntentResult {
 
 export async function createCardPaymentIntent(params: CreateIntentParams): Promise<PaymentIntentResult> {
   const secret = getStripeSecretKey();
+  const amountToCharge = params.amountInCents !== undefined ? params.amountInCents : CARD_FLAT_RATE_CENTS;
 
   if (!secret || secret.startsWith("sk_test_placeholder")) {
-    console.log("[MOCK Stripe] Creating simulated PaymentIntent for order:", params.orderId);
+    console.log("[MOCK Stripe] Creating simulated PaymentIntent for order:", params.orderId, "amount:", amountToCharge);
     return {
       clientSecret: `mock_pi_secret_${params.orderId}_${Date.now()}`,
       paymentIntentId: `pi_mock_${params.orderId}`,
@@ -46,7 +48,7 @@ export async function createCardPaymentIntent(params: CreateIntentParams): Promi
 
   const client = getStripeClient();
   const paymentIntent = await client.paymentIntents.create({
-    amount: CARD_FLAT_RATE_CENTS,
+    amount: amountToCharge,
     currency: "usd",
     receipt_email: params.customerEmail,
     metadata: {

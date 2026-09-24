@@ -1,5 +1,5 @@
 import * as admin from "firebase-admin";
-import { Order, ImageCachePoolItem } from "./types";
+import { Order, ImageCachePoolItem, DiscountCode } from "./types";
 
 // In-memory mock store for offline testing or when GCP credentials are not present
 class MockDocumentSnapshot<T = unknown> {
@@ -236,4 +236,53 @@ export async function getSystemConfig<T = Record<string, unknown>>(configId: str
 export async function setSystemConfig(configId: string, data: Record<string, unknown>): Promise<void> {
   await getSystemConfigCollection().doc(configId).set(data, { merge: true });
 }
+
+// Discount Code Helpers
+export const DISCOUNT_CODES_COLLECTION = "discount_codes";
+export const getDiscountCodesCollection = () => firestoreDb.collection(DISCOUNT_CODES_COLLECTION);
+
+export async function getDiscountCode(code: string): Promise<DiscountCode | null> {
+  const normalized = code.trim().toUpperCase();
+  const doc = await getDiscountCodesCollection().doc(normalized).get();
+  if (!doc.exists) return null;
+  return doc.data() as DiscountCode;
+}
+
+export async function getAllDiscountCodes(): Promise<DiscountCode[]> {
+  const snapshot = await getDiscountCodesCollection().get();
+  const codes: DiscountCode[] = [];
+  snapshot.forEach((doc) => {
+    codes.push(doc.data() as DiscountCode);
+  });
+  // Sort newest first
+  return codes.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+}
+
+export async function saveDiscountCode(discount: DiscountCode): Promise<void> {
+  const normalized = discount.code.trim().toUpperCase();
+  await getDiscountCodesCollection().doc(normalized).set({
+    ...discount,
+    code: normalized,
+    id: normalized,
+    updatedAt: Date.now(),
+  }, { merge: true });
+}
+
+export async function deleteDiscountCode(code: string): Promise<void> {
+  const normalized = code.trim().toUpperCase();
+  await getDiscountCodesCollection().doc(normalized).delete();
+}
+
+export async function recordDiscountUsage(code: string, discountAmountCents: number): Promise<void> {
+  const normalized = code.trim().toUpperCase();
+  const doc = await getDiscountCodesCollection().doc(normalized).get();
+  if (!doc.exists) return;
+  const current = doc.data() as DiscountCode;
+  await getDiscountCodesCollection().doc(normalized).update({
+    usedCount: (current.usedCount || 0) + 1,
+    totalDiscountGivenCents: (current.totalDiscountGivenCents || 0) + discountAmountCents,
+    updatedAt: Date.now(),
+  });
+}
+
 
