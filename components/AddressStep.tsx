@@ -122,6 +122,7 @@ export function AddressStep({
               <input
                 type="text"
                 required
+                autoComplete="shipping given-name"
                 value={recipient.firstName}
                 onChange={(e) => onChangeRecipient("firstName", e.target.value)}
                 placeholder="Jane"
@@ -135,6 +136,7 @@ export function AddressStep({
               <input
                 type="text"
                 required
+                autoComplete="shipping family-name"
                 value={recipient.lastName}
                 onChange={(e) => onChangeRecipient("lastName", e.target.value)}
                 placeholder="Doe"
@@ -150,6 +152,7 @@ export function AddressStep({
             <input
               type="text"
               required
+              autoComplete="shipping address-line1"
               value={recipient.street1}
               onChange={(e) => onChangeRecipient("street1", e.target.value)}
               placeholder="123 Main Street"
@@ -163,6 +166,7 @@ export function AddressStep({
             </label>
             <input
               type="text"
+              autoComplete="shipping address-line2"
               value={recipient.street2 || ""}
               onChange={(e) => onChangeRecipient("street2", e.target.value)}
               placeholder="Apt 4B"
@@ -176,6 +180,7 @@ export function AddressStep({
               <input
                 type="text"
                 required
+                autoComplete="shipping address-level2"
                 value={recipient.city}
                 onChange={(e) => onChangeRecipient("city", e.target.value)}
                 placeholder="Austin"
@@ -188,6 +193,7 @@ export function AddressStep({
                 type="text"
                 required
                 maxLength={2}
+                autoComplete="shipping address-level1"
                 value={recipient.state}
                 onChange={(e) => onChangeRecipient("state", e.target.value.toUpperCase())}
                 placeholder="TX"
@@ -200,6 +206,7 @@ export function AddressStep({
                 type="text"
                 required
                 maxLength={10}
+                autoComplete="shipping postal-code"
                 value={recipient.zip}
                 onChange={(e) => onChangeRecipient("zip", e.target.value)}
                 placeholder="78701"
@@ -253,6 +260,7 @@ export function AddressStep({
               <input
                 type="text"
                 required
+                autoComplete="given-name"
                 value={returnAddress.firstName}
                 onChange={(e) => onChangeReturnAddress("firstName", e.target.value)}
                 placeholder="Morgan"
@@ -266,6 +274,7 @@ export function AddressStep({
               <input
                 type="text"
                 required
+                autoComplete="family-name"
                 value={returnAddress.lastName}
                 onChange={(e) => onChangeReturnAddress("lastName", e.target.value)}
                 placeholder="Lee"
@@ -281,6 +290,7 @@ export function AddressStep({
             <input
               type="text"
               required
+              autoComplete="address-line1"
               value={returnAddress.street1}
               onChange={(e) => onChangeReturnAddress("street1", e.target.value)}
               placeholder="452 Ocean Avenue"
@@ -294,6 +304,7 @@ export function AddressStep({
             </label>
             <input
               type="text"
+              autoComplete="address-line2"
               value={returnAddress.street2 || ""}
               onChange={(e) => onChangeReturnAddress("street2", e.target.value)}
               placeholder="Apt 2"
@@ -307,6 +318,7 @@ export function AddressStep({
               <input
                 type="text"
                 required
+                autoComplete="address-level2"
                 value={returnAddress.city}
                 onChange={(e) => onChangeReturnAddress("city", e.target.value)}
                 placeholder="City"
@@ -319,6 +331,7 @@ export function AddressStep({
                 type="text"
                 required
                 maxLength={2}
+                autoComplete="address-level1"
                 value={returnAddress.state}
                 onChange={(e) => onChangeReturnAddress("state", e.target.value.toUpperCase())}
                 placeholder="CA"
@@ -331,6 +344,7 @@ export function AddressStep({
                 type="text"
                 required
                 maxLength={10}
+                autoComplete="postal-code"
                 value={returnAddress.zip}
                 onChange={(e) => onChangeReturnAddress("zip", e.target.value)}
                 placeholder="90210"

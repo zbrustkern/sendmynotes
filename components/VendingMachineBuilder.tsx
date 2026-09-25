@@ -78,24 +78,24 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const [saveRecipientToAddressBook, setSaveRecipientToAddressBook] = useState<boolean>(true);
 
   const [recipient, setRecipient] = useState<MailingAddress>({
-    firstName: "Alex",
-    lastName: "Rivera",
-    street1: "742 Evergreen Terrace",
+    firstName: "",
+    lastName: "",
+    street1: "",
     street2: "",
-    city: "Springfield",
-    state: "OR",
-    zip: "97477",
+    city: "",
+    state: "",
+    zip: "",
     country: "USA",
   });
 
   const [returnAddress, setReturnAddress] = useState<MailingAddress>({
-    firstName: "Morgan",
-    lastName: "Lee",
-    street1: "452 Pacific Coast Highway",
+    firstName: "",
+    lastName: "",
+    street1: "",
     street2: "",
-    city: "Santa Monica",
-    state: "CA",
-    zip: "90401",
+    city: "",
+    state: "",
+    zip: "",
     country: "USA",
   });
 
