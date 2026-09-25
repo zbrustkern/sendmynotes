@@ -49,6 +49,8 @@ export function InsideNoteStep({
     } catch {}
   }, []);
 
+  const [shuffleIndex, setShuffleIndex] = useState(0);
+
   const availableFonts = getCohortFontOptions(cohort);
 
   // Retrieve message bank for current occasion, fallback to Birthday
@@ -61,8 +63,19 @@ export function InsideNoteStep({
       : messageBank.filter((item) => item.tone === selectedTone);
 
   const applyInspiration = (item: MessageInspiration) => {
-    onChangePrintedGreeting(item.printed);
     onChangeHandwrittenNote(item.handwritten);
+    onChangePrintedGreeting("");
+    trackEvent("inspiration_applied", 2, { occasion, tone: item.tone });
+  };
+
+  const shuffleNote = () => {
+    if (filteredInspirations.length === 0) return;
+    const nextIdx = (shuffleIndex + 1) % filteredInspirations.length;
+    setShuffleIndex(nextIdx);
+    const chosen = filteredInspirations[nextIdx];
+    onChangeHandwrittenNote(chosen.handwritten);
+    onChangePrintedGreeting("");
+    trackEvent("note_shuffled", 2, { occasion, tone: chosen.tone });
   };
 
   const selectedFont =
@@ -79,11 +92,11 @@ export function InsideNoteStep({
             2
           </span>
           <h2 className="text-xl font-bold tracking-tight text-stone-900 flex items-center gap-2">
-            Inside Card Note (Robotic Penmanship)
+            Inside Note (Real Handwriting)
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          Our robotic plotter pens your note in authentic ballpoint ink directly onto heavyweight 120 lb archival cardstock.
+          Written with a real ballpoint pen on heavy 120 lb archival cardstock. Mailed directly to their door.
         </p>
       </div>
 
@@ -160,9 +173,7 @@ export function InsideNoteStep({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1">
               {filteredInspirations.length > 0 ? (
                 filteredInspirations.map((item, idx) => {
-                  const isCurrentPair =
-                    printedGreeting.trim() === item.printed.trim() &&
-                    handwrittenNote.trim() === item.handwritten.trim();
+                  const isCurrentPair = handwrittenNote.trim() === item.handwritten.trim();
 
                   return (
                     <div
@@ -194,11 +205,6 @@ export function InsideNoteStep({
 
                         {/* Note Preview */}
                         <div className="border-l-2 border-amber-300/80 bg-stone-50/60 rounded-r-lg p-2.5 space-y-1.5">
-                          {item.printed && (
-                            <p className="text-xs font-semibold text-stone-900 leading-snug">
-                              &ldquo;{item.printed}&rdquo;
-                            </p>
-                          )}
                           <p className="text-xs text-stone-700 font-serif italic leading-relaxed line-clamp-3">
                             &ldquo;{item.handwritten}&rdquo;
                           </p>
@@ -224,37 +230,12 @@ export function InsideNoteStep({
         )}
       </div>
 
-      {/* Top of Right Page: Opening Line Input */}
-      <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
-          <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
-            <Type className="w-3.5 h-3.5 text-stone-500" />
-            Opening Line or Sentiment (Optional)
-          </label>
-          <span className="text-[11px] text-stone-400">Optional • Leave blank to start straight into your note</span>
-        </div>
-
-        <input
-          type="text"
-          value={printedGreeting}
-          onChange={(e) => onChangePrintedGreeting(e.target.value)}
-          placeholder="Optional: e.g. Wishing you a wonderful celebration! (or leave blank)"
-          maxLength={120}
-          className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-medium text-stone-800 transition"
-        />
-
-        <div className="flex items-center justify-between text-[11px] text-stone-400">
-          <span>Penned at the top in ballpoint ink with your selected handwriting</span>
-          <span>{printedGreeting.length}/120 characters</span>
-        </div>
-      </div>
-
       {/* Font Style Picker for Real-Pen Handwriting */}
       <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <PenTool className="w-3.5 h-3.5 text-indigo-600" />
-            Handwriting Style (Right Page)
+            Handwriting Style
           </label>
           <span className="text-[11px] text-indigo-600 font-medium bg-indigo-50 px-2 py-0.5 rounded-full">
             Real Ballpoint Ink
@@ -301,27 +282,38 @@ export function InsideNoteStep({
         </div>
       </div>
 
-      {/* Lower Right Page: Handwritten Message Text Area */}
+      {/* Unified Personal Note Text Area */}
       <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Personal Note (Handwritten in Real Ink)
+            Personal Note (Written in Real Ballpoint Ink)
           </label>
-          <span className="text-[11px] text-stone-400">Up to 500 characters</span>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={shuffleNote}
+              className="flex items-center gap-1 text-xs text-amber-800 hover:text-amber-900 font-semibold bg-amber-50 hover:bg-amber-100/80 px-2.5 py-1 rounded-full border border-amber-200/80 shadow-2xs transition cursor-pointer"
+              title="Suggest another pre-written note in this tone"
+            >
+              <Sparkles className="w-3 h-3 text-amber-600" />
+              <span>Suggest another note</span>
+            </button>
+            <span className="text-[11px] text-stone-400">Up to 500 characters</span>
+          </div>
         </div>
 
         <textarea
-          rows={5}
+          rows={6}
           value={handwrittenNote}
           onChange={(e) => onChangeHandwrittenNote(e.target.value)}
-          placeholder="Dear Friend,&#10;&#10;So excited to celebrate your special moment! Thinking of you..."
+          placeholder="Dear Friend,&#10;&#10;Happy Birthday! So excited to celebrate your special moment with you..."
           maxLength={500}
-          className="w-full p-3.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white text-stone-900 transition leading-relaxed"
+          className="w-full p-4 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white text-stone-900 transition leading-relaxed font-sans"
         />
 
         <div className="flex items-center justify-between text-[11px] text-stone-400">
-          <span className="text-indigo-600 font-medium">Written in real ballpoint ink with {selectedFont.name}</span>
+          <span className="text-indigo-600 font-medium">Penned in real ballpoint ink with {selectedFont.name}</span>
           <span>{handwrittenNote.length}/500 characters</span>
         </div>
       </div>

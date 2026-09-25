@@ -155,6 +155,8 @@ export type TelemetryEventName =
   | "ai_generate_rate_limited"
   | "step_navigated"
   | "inside_note_edited"
+  | "inspiration_applied"
+  | "note_shuffled"
   | "font_style_selected"
   | "address_completed"
   | "checkout_initiated"

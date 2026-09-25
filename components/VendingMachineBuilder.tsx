@@ -69,7 +69,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const [occasion, setOccasion] = useState<string>(props?.initialOccasion || "Birthday");
   const [customPrompt, setCustomPrompt] = useState<string>(props?.initialPrompt || "Whimsical watercolor balloons");
   const [coverUrl, setCoverUrl] = useState<string>(props?.initialCoverUrl || CARD_PRESETS[0].imageUrl);
-  const [printedGreeting, setPrintedGreeting] = useState<string>(props?.initialPrintedGreeting || CARD_PRESETS[0].defaultPrintedMessage);
+  const [printedGreeting, setPrintedGreeting] = useState<string>(props?.initialPrintedGreeting || "");
   const [handwrittenNote, setHandwrittenNote] = useState<string>(props?.initialHandwrittenNote || CARD_PRESETS[0].defaultHandwrittenNote);
   const [fontStyleId, setFontStyleId] = useState<string>(props?.initialFontStyleId || "hwDavid");
 
@@ -290,12 +290,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       setOccasion(preset.occasion);
       setCustomPrompt(preset.prompt);
       trackEvent("cover_preset_selected", 1, { presetId: preset.id, occasion: preset.occasion, title: preset.title });
-      if (!printedGreeting || printedGreeting === CARD_PRESETS[0].defaultPrintedMessage) {
-        setPrintedGreeting(preset.defaultPrintedMessage);
-      }
-      if (!handwrittenNote || handwrittenNote === CARD_PRESETS[0].defaultHandwrittenNote) {
-        setHandwrittenNote(preset.defaultHandwrittenNote);
-      }
+      setPrintedGreeting(preset.defaultPrintedMessage || "");
+      setHandwrittenNote(preset.defaultHandwrittenNote);
     }
   };
 
@@ -679,7 +675,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
                 </div>
                 <div className="p-2 bg-stone-50/80 rounded-lg border border-stone-200/50">
                   <span className="block font-bold text-indigo-900">Archival Ink</span>
-                  <span className="text-[10px] text-stone-500">Robotic Plotter</span>
+                  <span className="text-[10px] text-stone-500">Real Pen &amp; Ink</span>
                 </div>
                 <div className="p-2 bg-stone-50/80 rounded-lg border border-stone-200/50">
                   <span className="block font-bold text-emerald-800">USPS Stamp</span>

@@ -35,7 +35,7 @@ function InsideRightLeaf({
 }) {
   const fullMessage = printedGreeting?.trim()
     ? `${printedGreeting.trim()}\n\n${handwrittenNote.trim()}`
-    : (handwrittenNote?.trim() || "Dear friend,\n\nSending you warmth and joy on this special day!");
+    : (handwrittenNote?.trim() || "Happy Birthday!\n\nWishing you a year filled with magic, laughter, and beautiful memories. So grateful for you!");
 
   return (
     <div
@@ -58,12 +58,12 @@ function InsideRightLeaf({
         <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/30 via-stone-300/10 to-transparent pointer-events-none z-10" />
       )}
 
-      {/* Physical Robotic Pen Inking Layout */}
+      {/* Physical Pen Inking Layout */}
       <div
         style={{
-          paddingTop: printedGreeting?.trim() ? "14cqw" : "16cqw",
-          paddingLeft: "8.5cqw",
-          paddingRight: "8.5cqw",
+          paddingTop: "16cqw",
+          paddingLeft: "9.5cqw",
+          paddingRight: "9.5cqw",
           paddingBottom: "10cqw",
         }}
         className="relative z-10 w-full h-full flex flex-col justify-start"
@@ -71,8 +71,8 @@ function InsideRightLeaf({
         <p
           style={{
             fontFamily: currentFont.fontFamily,
-            fontSize: "4.5cqw",
-            lineHeight: 1.55,
+            fontSize: "5.1cqw",
+            lineHeight: 1.62,
           }}
           className={`text-[#1B3B6F] whitespace-pre-line ${currentFont.fontClass}`}
         >

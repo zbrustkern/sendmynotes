@@ -25,7 +25,7 @@ export const OCCASIONS = [
 export type MessageTone = "warm" | "funny" | "short" | "poetic";
 
 export interface MessageInspiration {
-  printed: string;
+  printed?: string;
   handwritten: string;
   tone: MessageTone;
   tag: string;
@@ -36,129 +36,164 @@ export const OCCASION_MESSAGE_BANK: Record<string, MessageInspiration[]> = {
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "Wishing you a year filled with magic and joy.",
-      handwritten: "Happy Birthday! So proud of everything you have accomplished this year. Here is to celebrating many more milestones together!",
+      handwritten: "Happy Birthday! Wishing you a year filled with magic, laughter, and milestones together. So proud of everything you have accomplished this year!",
+    },
+    {
+      tone: "warm",
+      tag: "Heartfelt",
+      handwritten: "Wishing the happiest of birthdays to one of my favorite humans! Thank you for always bringing so much warmth and light into the world.",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "Another year wiser (and more fabulous).",
       handwritten: "Happy Birthday! You don’t look a day older than the age you claim to be. Wishing you wine, cake, and zero adult responsibilities today!",
+    },
+    {
+      tone: "funny",
+      tag: "Playful",
+      handwritten: "Happy Birthday! I was going to make a joke about getting older, but I respect my elders. Have an amazing celebration today!",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "Cheers to you today.",
-      handwritten: "Happy Birthday! Hope today brings you all your favorite things.",
+      handwritten: "Happy Birthday! Cheers to you today—hope your day is filled with all your favorite things and lots of cake.",
+    },
+    {
+      tone: "short",
+      tag: "Brief",
+      handwritten: "Wishing you the happiest birthday and a fantastic year ahead! Sending you big hugs across the miles.",
     },
     {
       tone: "poetic",
       tag: "Literary",
-      printed: "May every season ahead bring you grace and wonder.",
-      handwritten: "Another trip around the sun, another chapter of beautiful memories. May your coming year be as kind, bright, and remarkable as you are.",
+      handwritten: "Another trip around the sun, another chapter of beautiful memories. May your coming year be as kind, bright, and remarkable as you are. Happy Birthday!",
+    },
+    {
+      tone: "poetic",
+      tag: "Literary",
+      handwritten: "May this year open doors you haven't yet imagined and bring peace to every quiet corner of your life. Warmest birthday blessings.",
     },
   ],
   "Thank You": [
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "With sincere appreciation and gratitude.",
-      handwritten: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I will never forget it!",
+      handwritten: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I am so grateful to have you in my corner!",
+    },
+    {
+      tone: "warm",
+      tag: "Heartfelt",
+      handwritten: "I cannot thank you enough for being so thoughtful and dependable. People like you make the world a much better place.",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "You truly didn't have to (but I'm glad you did).",
-      handwritten: "You are an absolute rockstar. Thanks for saving the day and making life infinitely better! Drinks are on me next time.",
+      handwritten: "You are an absolute rockstar. Thanks for saving the day and making life infinitely better! Drinks are definitely on me next time.",
+    },
+    {
+      tone: "funny",
+      tag: "Playful",
+      handwritten: "You truly didn't have to, but I'm thrilled that you did! Thank you for being ridiculously awesome.",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "Deeply grateful for your kindness.",
-      handwritten: "Just wanted to send a quick note of gratitude. Thank you for everything!",
+      handwritten: "Just wanted to send a quick note of gratitude. Thank you so much for everything!",
+    },
+    {
+      tone: "short",
+      tag: "Brief",
+      handwritten: "Deeply grateful for your kindness and time. Thank you from the bottom of my heart.",
     },
     {
       tone: "poetic",
       tag: "Literary",
-      printed: "Gratitude turns what we have into enough.",
-      handwritten: "Your quiet generosity and warmth touched my heart more than words can carry. Thank you for being such an extraordinary light.",
+      handwritten: "Your quiet generosity touched my heart more than words can carry. Gratitude turns what we have into enough—thank you for being such an extraordinary light.",
+    },
+    {
+      tone: "poetic",
+      tag: "Literary",
+      handwritten: "In the rush of everyday life, your thoughtfulness stood out like a steady flame. Thank you for your grace and kindness.",
     },
   ],
   "Thinking of You": [
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "Thinking of you today and always.",
-      handwritten: "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Can't wait to catch up soon!",
+      handwritten: "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!",
+    },
+    {
+      tone: "warm",
+      tag: "Heartfelt",
+      handwritten: "You crossed my mind today and I wanted to send a quick reminder of how much you are loved and appreciated. Hope you're smiling today!",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "A real physical piece of mail for your coffee table.",
-      handwritten: "Look at that—actual mail that isn't a utility bill or coupon flyer! Thinking of you and sending big hugs from across the miles.",
+      handwritten: "Look at that—actual physical mail that isn't a utility bill or coupon flyer! Thinking of you and sending big hugs from across the miles.",
+    },
+    {
+      tone: "funny",
+      tag: "Playful",
+      handwritten: "Sending you this card as proof that I love you enough to write something down on actual paper. Hope you're having an awesome week!",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "Sending you warmth from afar.",
-      handwritten: "You've been on my mind lately. Hope you're doing well and smiling today!",
+      handwritten: "Sending you warmth from afar. You've been on my mind lately and I hope you're having a wonderful day!",
     },
     {
       tone: "poetic",
       tag: "Literary",
-      printed: "Distance means so little when friendship means so much.",
-      handwritten: "Even in the busiest days, you cross my thoughts. Sending a quiet moment of peace and fond memories your way.",
+      handwritten: "Distance means so little when friendship means so much. Even in the busiest days, you cross my thoughts. Sending a quiet moment of peace your way.",
     },
   ],
   Congratulations: [
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "Cheers to your incredible achievement!",
-      handwritten: "Huge congratulations! Your hard work and relentless dedication have paid off in the most wonderful way. Pop the bubbly!",
+      handwritten: "Huge congratulations! Your hard work and relentless dedication have paid off in the most wonderful way. So proud of you—pop the bubbly!",
+    },
+    {
+      tone: "warm",
+      tag: "Heartfelt",
+      handwritten: "So thrilled to celebrate this incredible milestone with you! You earned every bit of this success and I can't wait to see what you do next.",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "Hard work pays off (and you made it look easy).",
       handwritten: "Huge congratulations! We always knew you were a genius, but now it's official. Don't forget the little people now that you're famous!",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "So thrilled for your milestone!",
-      handwritten: "You did it! Huge congratulations on this well-deserved success.",
+      handwritten: "You did it! Huge congratulations on this well-deserved success. Celebrating you today!",
     },
     {
       tone: "poetic",
       tag: "Literary",
-      printed: "Here is to new horizons and bright beginnings.",
-      handwritten: "May this victory be merely the first light of a magnificent dawn. So deeply honored to celebrate your brilliance.",
+      handwritten: "Here is to new horizons and bright beginnings. May this victory be merely the first light of a magnificent dawn. So deeply honored to celebrate your brilliance.",
     },
   ],
   Anniversary: [
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "Another year of love and laughter.",
-      handwritten: "Happy Anniversary my love! Every single day with you is a gift. Thank you for being my rock and my best friend.",
+      handwritten: "Happy Anniversary my love! Every single day with you is a gift. Thank you for being my rock, my best friend, and my favorite adventure.",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "Still crazy about you (and just plain crazy).",
       handwritten: "Happy Anniversary! Another year of successfully pretending we have our lives together. There is no one else I would rather share the remote with.",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "To the love that grows sweeter with time.",
-      handwritten: "Happy Anniversary! Thank you for another wonderful year by my side.",
+      handwritten: "Happy Anniversary! Thank you for another wonderful year by my side. Here is to a lifetime more.",
     },
     {
       tone: "poetic",
       tag: "Literary",
-      printed: "Two souls, one timeless journey.",
       handwritten: "In a world of constant noise and fleeting seasons, your love is my steady harbor. Happy Anniversary to my whole heart.",
     },
   ],
@@ -166,114 +201,97 @@ export const OCCASION_MESSAGE_BANK: Record<string, MessageInspiration[]> = {
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "Forever grateful for you.",
-      handwritten: "Just a reminder of how deeply you are loved. You make life so much more beautiful every single day.",
+      handwritten: "Just a reminder of how deeply you are loved. You make life so much brighter, richer, and sweeter every single day. Forever grateful for you.",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "You stole my heart (and never gave it back).",
-      handwritten: "Just a little love note to remind you that I love you more than morning coffee. And that is saying a lot.",
+      handwritten: "Just a little love note to remind you that I love you more than morning coffee. And that is saying an awful lot. Love you always!",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "Always and forever yours.",
-      handwritten: "Loving you is the easiest thing in the world. Have a wonderful day!",
+      handwritten: "Loving you is the easiest and best thing in the world. Always and forever yours.",
     },
     {
       tone: "poetic",
       tag: "Literary",
-      printed: "You are my favorite place to go when my mind searches for peace.",
-      handwritten: "Whatever our souls are made of, yours and mine are carved from the exact same star. Thinking of you always.",
+      handwritten: "Whatever our souls are made of, yours and mine are carved from the exact same star. You are my favorite place to go when my mind searches for peace.",
     },
   ],
   "Sympathy & Support": [
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "Holding you close in our thoughts and prayers.",
       handwritten: "There are no words to ease your pain, but please know we are surrounding you with love, comfort, and unwavering support during this difficult time.",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "With deepest sympathy.",
-      handwritten: "Sending you strength and peace. Here for you whenever you need anything at all.",
+      handwritten: "Sending you strength and peace. Holding you close in my thoughts and here for you whenever you need anything at all.",
     },
     {
       tone: "poetic",
       tag: "Literary",
-      printed: "Those we love never truly leave us.",
-      handwritten: "May gentle memories bring you comfort, and may you feel the quiet embrace of love that will never fade.",
+      handwritten: "Those we love never truly leave us. May gentle memories bring you comfort, and may you feel the quiet embrace of love that will never fade.",
     },
   ],
   "Just Because": [
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "A little note to brighten your day.",
-      handwritten: "No special occasion needed—just wanted to send some love your way and say I appreciate you more than you know!",
+      handwritten: "No special occasion needed—just wanted to send some love your way and say I appreciate you more than you know! Hope your week is wonderful.",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "Officially breaking the digital monotony.",
-      handwritten: "Because texts are boring, emails are stressful, and real stationery is legendary. Hope this brings a smile to your face today!",
+      handwritten: "Because texts are boring, emails are stressful, and real stationery is legendary. Hope this handwritten note brings a big smile to your face today!",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "Just a little note to say hello.",
-      handwritten: "Thinking of you today! Hope your week is off to a great start.",
+      handwritten: "Just a little note to say hello and brighten your day. Thinking of you and hoping your week is off to a great start!",
     },
   ],
   "Christmas & Holidays": [
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "Warmest holiday wishes from our family to yours.",
-      handwritten: "May your home be blessed with peace, laughter, and cozy moments this holiday season. Here is to a healthy, joyous new year ahead!",
+      handwritten: "Warmest holiday wishes! May your home be blessed with peace, laughter, and cozy moments this season. Here is to a healthy, joyous new year ahead!",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "Eat, drink, and be cozy.",
-      handwritten: "Merry Christmas! May your cookies be sweet, your eggnog be strong, and your holiday shopping be entirely finished. Warmest wishes!",
+      handwritten: "Merry Christmas! May your cookies be sweet, your eggnog be strong, and your holiday shopping be entirely finished. Warmest festive wishes!",
     },
     {
       tone: "poetic",
       tag: "Literary",
-      printed: "Peace on Earth and goodwill to all.",
-      handwritten: "In the quiet chill of winter, may your hearth be warm and your heart full of contentment. Wishing you the sacred blessings of the season.",
+      handwritten: "In the quiet chill of winter, may your hearth be warm and your heart full of contentment. Wishing you the sacred blessings and wonder of the season.",
     },
   ],
   Halloween: [
     {
       tone: "warm",
       tag: "Festive",
-      printed: "Wishing you a spooky and sweet Halloween!",
-      handwritten: "Hope your October is filled with cozy sweaters, pumpkin spice, apple cider, and just the right amount of spooky fun!",
+      handwritten: "Wishing you a spooky and sweet Halloween! Hope your October is filled with cozy sweaters, pumpkin spice, apple cider, and lots of festive fun!",
     },
     {
       tone: "funny",
       tag: "Playful",
-      printed: "Eat, drink, and be scary.",
-      handwritten: "Happy Halloween! If you need me, I will be hiding under a blanket eating 85% of the candy I bought for trick-or-treaters.",
+      handwritten: "Happy Halloween! If you need me, I will be hiding under a blanket eating 85% of the candy I bought for trick-or-treaters. Eat, drink, and be scary!",
     },
   ],
   "Easter & Spring": [
     {
       tone: "warm",
       tag: "Heartfelt",
-      printed: "Wishing you the renewed joy and blessings of Easter.",
-      handwritten: "May this spring season bring fresh hope, warm sunshine, and beautiful beginnings to you and your loved ones. Happy Easter!",
+      handwritten: "Wishing you the renewed joy and blessings of Easter! May this spring season bring fresh hope, warm sunshine, and beautiful beginnings to you and your loved ones.",
     },
     {
       tone: "short",
       tag: "Brief",
-      printed: "Happy Spring & Easter Blessings.",
-      handwritten: "Wishing you a joyful Easter filled with family, sunshine, and sweet treats!",
+      handwritten: "Wishing you a joyful Easter filled with family, sunshine, and sweet treats! Happy Spring!",
     },
   ],
 };
@@ -285,8 +303,8 @@ export const CARD_PRESETS: CardPreset[] = [
     title: "Golden Hour Balloons",
     prompt: "Whimsical watercolor birthday balloons floating into soft pastel sunset sky with shimmering gold foil flecks",
     imageUrl: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=1250&h=1750&q=80",
-    defaultPrintedMessage: "Wishing you a year filled with magic and joy.",
-    defaultHandwrittenNote: "Happy Birthday! So proud of everything you have accomplished this year. Here is to celebrating many more milestones together!",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Happy Birthday! Wishing you a year filled with magic, laughter, and milestones together. So proud of everything you have accomplished this year!",
   },
   {
     id: "preset-thankyou-botanical",
@@ -294,8 +312,8 @@ export const CARD_PRESETS: CardPreset[] = [
     title: "Wildflower Meadow",
     prompt: "Warm botanical gouache painting of blooming lavender and chamomile wildflowers in a sunlit meadow",
     imageUrl: "https://images.unsplash.com/photo-1490750967868-88aa4486c946?auto=format&fit=crop&w=1250&h=1750&q=80",
-    defaultPrintedMessage: "With heartfelt gratitude.",
-    defaultHandwrittenNote: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I will never forget it!",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I am so grateful to have you in my corner!",
   },
   {
     id: "preset-thinking-coffee",
@@ -303,8 +321,8 @@ export const CARD_PRESETS: CardPreset[] = [
     title: "Quiet Morning Breeze",
     prompt: "Cozy minimalist illustration of a warm ceramic cup with steam swirling into gentle clouds, soft earth tones",
     imageUrl: "https://images.unsplash.com/photo-1509042239860-f550ce710b93?auto=format&fit=crop&w=1250&h=1750&q=80",
-    defaultPrintedMessage: "Thinking of you today and always.",
-    defaultHandwrittenNote: "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Can't wait to catch up soon!",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!",
   },
   {
     id: "preset-congrats-champagne",
@@ -312,8 +330,8 @@ export const CARD_PRESETS: CardPreset[] = [
     title: "Celebration Starlight",
     prompt: "Sparkling vintage champagne coupe with golden effervescence, starry night background, celebratory starlight",
     imageUrl: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?auto=format&fit=crop&w=1250&h=1750&q=80",
-    defaultPrintedMessage: "Cheers to your incredible achievement!",
-    defaultHandwrittenNote: "Huge congratulations! Your hard work and relentless dedication have paid off in the most wonderful way. Pop the bubbly!",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Huge congratulations! Your hard work and relentless dedication have paid off in the most wonderful way. So proud of you—pop the bubbly!",
   },
   {
     id: "preset-anniv-monstera",
@@ -321,8 +339,8 @@ export const CARD_PRESETS: CardPreset[] = [
     title: "Evergreen Botanicals",
     prompt: "Lush deep emerald monstera and eucalyptus leaves with delicate golden geometry, intimate botanical art",
     imageUrl: "https://images.unsplash.com/photo-1518531933037-91b2f5f229cc?auto=format&fit=crop&w=1250&h=1750&q=80",
-    defaultPrintedMessage: "Another year of love and laughter.",
-    defaultHandwrittenNote: "Happy Anniversary my love! Every single day with you is a gift. Thank you for being my rock and my best friend.",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Happy Anniversary my love! Every single day with you is a gift. Thank you for being my rock, my best friend, and my favorite adventure.",
   },
   {
     id: "preset-love-roses",
@@ -330,8 +348,8 @@ export const CARD_PRESETS: CardPreset[] = [
     title: "Velvet Blossoms",
     prompt: "Moody renaissance oil painting style of vintage blush garden roses on dark linen background, timeless floral portrait",
     imageUrl: "https://images.unsplash.com/photo-1518895949257-7621c3c786d7?auto=format&fit=crop&w=1250&h=1750&q=80",
-    defaultPrintedMessage: "Forever grateful for you.",
-    defaultHandwrittenNote: "Just a reminder of how deeply you are loved. You make life so much more beautiful every single day.",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Just a little reminder of how deeply you are loved. You make life so much brighter, richer, and sweeter every single day. Forever grateful for you.",
   },
 ];
 
