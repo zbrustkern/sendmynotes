@@ -407,6 +407,17 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     console.warn("[Metrics Rollup] Error reading ad spend config:", err);
   }
 
+  // Fetch saved valuation heuristic assumptions if present
+  let valuationAssumptions: any = undefined;
+  try {
+    const valDoc = await getSystemConfig("admin_valuation_assumptions");
+    if (valDoc) {
+      valuationAssumptions = valDoc;
+    }
+  } catch (err) {
+    console.warn("[Metrics Rollup] Error reading valuation assumptions:", err);
+  }
+
   // 4. Load pre-aggregated telemetry funnel
   const telemetry = await getTelemetrySummary();
 
@@ -433,6 +444,7 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     margins,
     campaignAttributions,
     adSpendCents,
+    valuationAssumptions,
     recentOrders,
   };
 }

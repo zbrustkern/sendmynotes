@@ -267,6 +267,36 @@ export interface CampaignAttributionMetric {
   lastOrderAt?: number;
 }
 
+export interface ValuationHeuristicAssumptions {
+  annualCardsPerCustomer: number; // default: 3.0
+  customerLifespanYears: number; // default: 2.5
+  addressBookAdoptionRate: number; // default: 0.40 (40%)
+  addressBookOrderMultiplier: number; // default: 1.8 (1.8x boost)
+  valuationMultipleSde: number; // default: 3.5x
+  valuationMultipleRevenue: number; // default: 1.5x
+  monthlyFixedOverheadDollars: number; // default: 25.0
+  targetActiveCustomers: number; // default: 500
+}
+
+export interface ValuationHeuristicOutputs {
+  modeledLifetimeOrders: number;
+  modeledLifetimeRevenue: number;
+  modeledLtvGrossMargin: number; // Customer LTV
+  blendedCac: number;
+  ltvToCacRatio: number;
+  cacPaybackCards: number;
+  cacPaybackMonths: number;
+  annualizedCustomerValue: number;
+  annualRunRateRevenue: number;
+  annualRunRateContribution: number;
+  annualFixedOverhead: number;
+  annualNetProfitSde: number;
+  estimatedValuationSde: number;
+  estimatedValuationRevenue: number;
+  estimatedCustomerEquity: number;
+  blendedValuationEstimate: number;
+}
+
 // Admin Dashboard Analytics
 export interface AdminMetrics {
   totalRevenueCents: number;
@@ -289,5 +319,6 @@ export interface AdminMetrics {
   margins?: FinancialMargins;
   campaignAttributions?: CampaignAttributionMetric[];
   adSpendCents?: number;
+  valuationAssumptions?: ValuationHeuristicAssumptions;
   recentOrders: Order[];
 }

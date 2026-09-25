@@ -115,8 +115,56 @@ async function runUnitEconomicsTests() {
     console.log("✅ PASS: Operator ad spend accurately loaded from system config ($50.00)");
   }
 
+  // 3. Testing Valuation & LTV Heuristics Engine
+  console.log("\n--- 3. Testing Valuation & LTV Heuristics Engine ---");
+  const {
+    calculateValuationHeuristics,
+    calculateScaleSensitivityMatrix,
+    DEFAULT_VALUATION_ASSUMPTIONS,
+    VALUATION_PRESETS,
+  } = await import("../lib/valuation-heuristics");
+
+  const baseOutputs = calculateValuationHeuristics(DEFAULT_VALUATION_ASSUMPTIONS, 5.00);
+
+  // Check modeled lifetime cards
+  if (baseOutputs.modeledLifetimeOrders > 0) {
+    console.log(`✅ PASS: Base case modeled lifetime orders: ${baseOutputs.modeledLifetimeOrders} cards`);
+  } else {
+    throw new Error("Invalid modeled lifetime orders");
+  }
+
+  // Check LTV ($)
+  if (baseOutputs.modeledLtvGrossMargin > 0) {
+    console.log(`✅ PASS: Modeled Customer LTV: $${baseOutputs.modeledLtvGrossMargin.toFixed(2)}`);
+  } else {
+    throw new Error("Invalid modeled LTV");
+  }
+
+  // Check LTV:CAC
+  if (baseOutputs.ltvToCacRatio > 0) {
+    console.log(`✅ PASS: LTV : CAC multiple: ${baseOutputs.ltvToCacRatio}x (CAC: $5.00)`);
+  } else {
+    throw new Error("Invalid LTV:CAC multiple");
+  }
+
+  // Check Enterprise Valuation Multiples
+  if (baseOutputs.estimatedValuationSde > 0 && baseOutputs.blendedValuationEstimate > 0) {
+    console.log(`✅ PASS: SDE Multiple Valuation (3.5x): $${Math.round(baseOutputs.estimatedValuationSde).toLocaleString()}`);
+    console.log(`✅ PASS: Composite Fair Market Valuation: $${Math.round(baseOutputs.blendedValuationEstimate).toLocaleString()}`);
+  } else {
+    throw new Error("Invalid valuation calculation");
+  }
+
+  // Check Sensitivity Matrix
+  const sensitivity = calculateScaleSensitivityMatrix(DEFAULT_VALUATION_ASSUMPTIONS, [100, 500, 1000]);
+  if (sensitivity.length === 3 && sensitivity[1].customers === 500) {
+    console.log(`✅ PASS: Scale sensitivity matrix generated (500 customers = $${sensitivity[1].annualRevenue.toLocaleString()} ARR, $${sensitivity[1].estimatedValuation.toLocaleString()} SDE Val)`);
+  } else {
+    throw new Error("Sensitivity matrix failed");
+  }
+
   console.log("\n=================================================");
-  console.log("All Unit Economics & Attribution Tests Passed! 🎉");
+  console.log("All Unit Economics, Valuation & Attribution Tests Passed! 🎉");
   console.log("=================================================");
 }
 

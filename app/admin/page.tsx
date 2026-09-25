@@ -55,6 +55,7 @@ import { ProofInspectorModal } from "@/components/admin/ProofInspectorModal";
 import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
 import { StudioCompModal } from "@/components/admin/StudioCompModal";
 import { CohortAnalytics } from "@/components/admin/CohortAnalytics";
+import { ValuationHeuristicsWidget } from "@/components/admin/ValuationHeuristicsWidget";
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1609,6 +1610,26 @@ export default function AdminDashboardPage() {
                     </div>
                   </div>
                 </div>
+              );
+            })()}
+
+            {/* LTV, CAC & VALUATION HEURISTICS ENGINE */}
+            {(() => {
+              const parsedAdSpend = parseFloat(adSpendInput) || 0;
+              const currentPaidCount = metrics?.margins?.paidCardsCount || 0;
+              const currentCac =
+                currentPaidCount > 0
+                  ? parsedAdSpend / currentPaidCount
+                  : parsedAdSpend > 0
+                  ? parsedAdSpend
+                  : 3.56;
+
+              return (
+                <ValuationHeuristicsWidget
+                  initialAssumptions={metrics?.valuationAssumptions}
+                  actualCacDollars={currentCac}
+                  paidOrdersCount={currentPaidCount}
+                />
               );
             })()}
 
