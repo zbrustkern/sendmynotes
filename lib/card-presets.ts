@@ -346,46 +346,76 @@ export interface FontOption {
   handwryttenFontLabel: string;
 }
 
-export const FONT_OPTIONS: FontOption[] = [
+export const ALL_FONT_CANDIDATES: FontOption[] = [
   {
-    id: "hwAdam",
-    name: "Executive Adam",
-    sample: "Warm, flowing handwritten cursive with graceful loops",
-    fontClass: "font-hwAdam",
-    fontFamily: "var(--font-hw-adam), 'HandwryttenAdam', Caveat, cursive",
-    description: "Classic cursive pen strokes, perfect for warm personal letters and sentiments.",
-    handwryttenFontId: "1",
-    handwryttenFontLabel: "Executive Adam",
-  },
-  {
-    id: "hwCharity",
-    name: "Chill Charity",
-    sample: "Friendly, natural everyday print with organic pen weight",
-    fontClass: "font-hwCharity",
-    fontFamily: "var(--font-hw-charity), 'HandwryttenCharity', 'Patrick Hand', cursive",
-    description: "Friendly everyday penmanship with clean readability and human rhythm.",
-    handwryttenFontId: "2",
-    handwryttenFontLabel: "Chill Charity",
+    id: "hwDavid",
+    name: "Casual David",
+    sample: "Natural, everyday ballpoint penmanship with authentic cadence",
+    fontClass: "font-hwDavid",
+    fontFamily: "var(--font-hw-david), 'HandwryttenDavid', cursive",
+    description: "Clean, natural everyday print with effortless charm. Recommended.",
+    handwryttenFontId: "hwDavid",
+    handwryttenFontLabel: "Casual David",
   },
   {
     id: "hwChase",
     name: "Charming Chase",
-    sample: "Expressive, stylish modern handwriting with artistic flair",
+    sample: "Expressive, stylish modern handwriting with slight slant",
     fontClass: "font-hwChase",
-    fontFamily: "var(--font-hw-chase), 'HandwryttenChase', 'Dancing Script', cursive",
-    description: "Artistic, expressive lettering ideal for milestone celebrations.",
-    handwryttenFontId: "3",
+    fontFamily: "var(--font-hw-chase), 'HandwryttenChase', cursive",
+    description: "Artistic, expressive lettering ideal for personal notes and celebrations.",
+    handwryttenFontId: "hwChase",
     handwryttenFontLabel: "Charming Chase",
   },
   {
-    id: "hwDavid",
-    name: "Casual David",
-    sample: "Upright, effortless print with clean human cadence",
-    fontClass: "font-hwDavid",
-    fontFamily: "var(--font-hw-david), 'HandwryttenDavid', 'Architects Daughter', cursive",
-    description: "Clean, upright everyday print with effortless charm.",
-    handwryttenFontId: "4",
-    handwryttenFontLabel: "Casual David",
+    id: "hwKate",
+    name: "Carefree Kate",
+    sample: "Graceful, rounded cursive with elegant flowing connections",
+    fontClass: "font-hwKate",
+    fontFamily: "var(--font-hw-kate), 'HandwryttenKate', cursive",
+    description: "Flowing cursive handwriting with warmth and grace.",
+    handwryttenFontId: "hwKate",
+    handwryttenFontLabel: "Carefree Kate",
+  },
+  {
+    id: "hwAdam",
+    name: "Executive Adam",
+    sample: "Confident, upright architectural all-caps lettering",
+    fontClass: "font-hwAdam",
+    fontFamily: "var(--font-hw-adam), 'HandwryttenAdam', cursive",
+    description: "Strong architectural all-caps lettering, ideal for business and notes.",
+    handwryttenFontId: "hwAdam",
+    handwryttenFontLabel: "Executive Adam",
+  },
+  {
+    id: "hwWill",
+    name: "Dapper Will",
+    sample: "Clean, measured drafting-pen all-caps print",
+    fontClass: "font-hwWill",
+    fontFamily: "var(--font-hw-will), 'HandwryttenWill', monospace",
+    description: "Architectural upright drafting print with crisp geometric rhythm.",
+    handwryttenFontId: "hwWill",
+    handwryttenFontLabel: "Dapper Will",
   },
 ];
+
+export function getCohortFontOptions(cohort: "A" | "B" = "A"): FontOption[] {
+  if (cohort === "B") {
+    return [
+      ALL_FONT_CANDIDATES[0], // Casual David
+      ALL_FONT_CANDIDATES[1], // Charming Chase
+      ALL_FONT_CANDIDATES[2], // Carefree Kate
+      ALL_FONT_CANDIDATES[4], // Dapper Will (Cohort B candidate)
+    ];
+  }
+  return [
+    ALL_FONT_CANDIDATES[0], // Casual David
+    ALL_FONT_CANDIDATES[1], // Charming Chase
+    ALL_FONT_CANDIDATES[2], // Carefree Kate
+    ALL_FONT_CANDIDATES[3], // Executive Adam (Cohort A candidate)
+  ];
+}
+
+export const FONT_OPTIONS: FontOption[] = getCohortFontOptions("A");
+
 

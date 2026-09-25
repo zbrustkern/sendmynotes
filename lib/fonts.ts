@@ -23,3 +23,16 @@ export const fontHwDavid = localFont({
   variable: "--font-hw-david",
   display: "swap",
 });
+
+export const fontHwKate = localFont({
+  src: "../public/fonts/hwKate.ttf",
+  variable: "--font-hw-kate",
+  display: "swap",
+});
+
+export const fontHwWill = localFont({
+  src: "../public/fonts/hwWill.ttf",
+  variable: "--font-hw-will",
+  display: "swap",
+});
+

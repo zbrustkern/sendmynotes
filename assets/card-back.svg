@@ -15,9 +15,11 @@
   </defs>
 
   <!-- ============================================================ -->
-  <!-- 1. ARCHITECTURAL VIGNETTE                                    -->
+  <!-- SCALED ELEGANT COLOPHON (Scaled to 70% for boutique mark)     -->
   <!-- ============================================================ -->
-  <g id="estate-illustration" transform="translate(125, 210)">
+  <g id="brand-colophon-mark" transform="translate(425, 520) scale(0.70) translate(-425, -450)">
+    <!-- 1. ARCHITECTURAL VIGNETTE -->
+    <g id="estate-illustration" transform="translate(125, 210)">
     <!-- Oak Bough Accent -->
     <path class="arch-med" d="M 0 35 C 50 38 98 26 148 48 C 178 61 198 56 222 68" />
     <path class="arch-fine" d="M 64 34 C 78 20 102 18 118 24 M 128 42 C 146 30 168 32 182 41" />
@@ -152,6 +154,7 @@
       fill="#2E2B26">
       LAKE FOREST, IL
     </text>
+  </g>
   </g>
 </svg>
 

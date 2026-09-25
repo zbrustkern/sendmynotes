@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
-import { fontHwAdam, fontHwCharity, fontHwChase, fontHwDavid } from "@/lib/fonts";
+import { fontHwAdam, fontHwCharity, fontHwChase, fontHwDavid, fontHwKate, fontHwWill } from "@/lib/fonts";
 import { GOOGLE_ADS_ID } from "@/lib/google-ads";
 
 export const metadata: Metadata = {
@@ -148,7 +148,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${fontHwAdam.variable} ${fontHwCharity.variable} ${fontHwChase.variable} ${fontHwDavid.variable} min-h-screen bg-[#FAF8F5] text-stone-900 antialiased selection:bg-amber-100 selection:text-amber-900`}
+        className={`${fontHwAdam.variable} ${fontHwCharity.variable} ${fontHwChase.variable} ${fontHwDavid.variable} ${fontHwKate.variable} ${fontHwWill.variable} min-h-screen bg-[#FAF8F5] text-stone-900 antialiased selection:bg-amber-100 selection:text-amber-900`}
       >
         <AuthProvider>{children}</AuthProvider>
       </body>

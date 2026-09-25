@@ -4,17 +4,20 @@ import { HandwryttenOrderParams, HandwryttenOrderResult } from "./types";
 import { getSystemConfig, setSystemConfig } from "./firebase-admin";
 
 const FONT_MAP: Record<string, string> = {
-  "1": "Executive Adam",
-  "2": "Chill Charity",
-  "3": "Charming Chase",
-  "4": "Casual David",
-  "font-classic": "Executive Adam",
-  "font-casual": "Chill Charity",
-  "font-calligraphy": "Charming Chase",
-  "hwAdam": "Executive Adam",
-  "hwCharity": "Chill Charity",
-  "hwChase": "Charming Chase",
+  "1": "Casual David",
+  "2": "Charming Chase",
+  "3": "Carefree Kate",
+  "4": "Executive Adam",
+  "5": "Dapper Will",
   "hwDavid": "Casual David",
+  "hwChase": "Charming Chase",
+  "hwKate": "Carefree Kate",
+  "hwAdam": "Executive Adam",
+  "hwWill": "Dapper Will",
+  "hwCharity": "Casual David",
+  "font-casual": "Casual David",
+  "font-calligraphy": "Charming Chase",
+  "font-classic": "Executive Adam",
 };
 
 /**

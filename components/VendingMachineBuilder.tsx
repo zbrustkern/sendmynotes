@@ -71,7 +71,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const [coverUrl, setCoverUrl] = useState<string>(props?.initialCoverUrl || CARD_PRESETS[0].imageUrl);
   const [printedGreeting, setPrintedGreeting] = useState<string>(props?.initialPrintedGreeting || CARD_PRESETS[0].defaultPrintedMessage);
   const [handwrittenNote, setHandwrittenNote] = useState<string>(props?.initialHandwrittenNote || CARD_PRESETS[0].defaultHandwrittenNote);
-  const [fontStyleId, setFontStyleId] = useState<string>(props?.initialFontStyleId || "1");
+  const [fontStyleId, setFontStyleId] = useState<string>(props?.initialFontStyleId || "hwDavid");
 
   // Address State & Scheduling
   const [scheduledSendDate, setScheduledSendDate] = useState<string>("");

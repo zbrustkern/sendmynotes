@@ -1,8 +1,9 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { PenTool, Type, Sparkles, Check, BookOpen, Quote, Sparkle, Heart, Smile, Feather, Compass } from "lucide-react";
-import { FONT_OPTIONS, OCCASION_MESSAGE_BANK, OCCASIONS, MessageInspiration, MessageTone } from "@/lib/card-presets";
+import { FONT_OPTIONS, OCCASION_MESSAGE_BANK, OCCASIONS, MessageInspiration, MessageTone, getCohortFontOptions } from "@/lib/card-presets";
+import { trackEvent } from "@/lib/telemetry";
 
 interface InsideNoteStepProps {
   printedGreeting: string;
@@ -35,6 +36,20 @@ export function InsideNoteStep({
 }: InsideNoteStepProps) {
   const [selectedTone, setSelectedTone] = useState<"all" | MessageTone>("all");
   const [isBrowserExpanded, setIsBrowserExpanded] = useState<boolean>(true);
+  const [cohort, setCohort] = useState<"A" | "B">("A");
+
+  useEffect(() => {
+    try {
+      let stored = localStorage.getItem("smn_font_cohort") as "A" | "B" | null;
+      if (!stored) {
+        stored = Math.random() < 0.5 ? "A" : "B";
+        localStorage.setItem("smn_font_cohort", stored);
+      }
+      setCohort(stored);
+    } catch {}
+  }, []);
+
+  const availableFonts = getCohortFontOptions(cohort);
 
   // Retrieve message bank for current occasion, fallback to Birthday
   const messageBank: MessageInspiration[] =
@@ -50,9 +65,10 @@ export function InsideNoteStep({
     onChangeHandwrittenNote(item.handwritten);
   };
 
-  const selectedFont = FONT_OPTIONS.find(
-    (f) => f.handwryttenFontId === fontStyleId || f.id === fontStyleId
-  ) || FONT_OPTIONS[0];
+  const selectedFont =
+    availableFonts.find(
+      (f) => f.handwryttenFontId === fontStyleId || f.id === fontStyleId
+    ) || availableFonts[0];
 
   return (
     <div className="space-y-6">
@@ -221,22 +237,22 @@ export function InsideNoteStep({
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Type className="w-3.5 h-3.5 text-stone-500" />
-            Inside Right Page: Printed Sentiment (Commercial Serif)
+            Opening Greeting or Sentiment (Optional)
           </label>
-          <span className="text-[11px] text-stone-400">Centered press font</span>
+          <span className="text-[11px] text-stone-400">Optional • Leave blank for 100% handwriting</span>
         </div>
 
         <input
           type="text"
           value={printedGreeting}
           onChange={(e) => onChangePrintedGreeting(e.target.value)}
-          placeholder="e.g. Wishing you the happiest of birthdays!"
+          placeholder="Optional: e.g. Wishing you a wonderful celebration! (or leave blank)"
           maxLength={120}
           className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-serif font-medium text-stone-800 transition"
         />
 
         <div className="flex items-center justify-between text-[11px] text-stone-400">
-          <span>Appears centered in the upper third of inside right page</span>
+          <span>Penned at the top of the inside right page</span>
           <span>{printedGreeting.length}/120 characters</span>
         </div>
       </div>
@@ -254,13 +270,20 @@ export function InsideNoteStep({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5">
-          {FONT_OPTIONS.map((font) => {
+          {availableFonts.map((font) => {
             const isSelected = fontStyleId === font.handwryttenFontId || fontStyleId === font.id;
             return (
               <button
                 key={font.id}
                 type="button"
-                onClick={() => onChangeFontStyleId(font.handwryttenFontId)}
+                onClick={() => {
+                  onChangeFontStyleId(font.handwryttenFontId);
+                  trackEvent("font_style_selected", 2, {
+                    fontId: font.id,
+                    fontName: font.name,
+                    cohort,
+                  });
+                }}
                 className={`p-3 text-left rounded-xl border-2 transition-all flex flex-col justify-between cursor-pointer ${
                   isSelected
                     ? "border-indigo-600 bg-indigo-50/40 shadow-sm ring-1 ring-indigo-500/20"
