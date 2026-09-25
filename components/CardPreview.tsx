@@ -321,7 +321,7 @@ export function CardPreview({
                   Full Open Card Spread (10&quot; × 7&quot; Open Panoramic)
                 </h3>
                 <p className="text-xs text-stone-500">
-                  Exact 1:1 physical proportion of inside left page and robotic-inked inside right page.
+                  Exact 1:1 physical proportion of inside left page and handwritten inside right page.
                 </p>
               </div>
               <button

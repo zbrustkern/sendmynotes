@@ -19,7 +19,7 @@ export function AuthModal({
   defaultEmail = "",
   onSuccess,
   title = "Sign In to sendmynotes",
-  subtitle = "Save cards, access your address book, and track robotic pen mailings.",
+  subtitle = "Save cards, access your address book, and track your card delivery.",
 }: AuthModalProps) {
   const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
 

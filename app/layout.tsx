@@ -4,14 +4,65 @@ import { AuthProvider } from "@/context/AuthContext";
 import { fontHwAdam, fontHwCharity, fontHwChase, fontHwDavid } from "@/lib/fonts";
 
 export const metadata: Metadata = {
-  title: "sendmynotes.com | AI-Designed, Real-Pen Handwritten Greeting Cards",
+  metadataBase: new URL("https://sendmynotes.com"),
+  title: {
+    default: "sendmynotes.com | Real Handwritten Cards, Mailed for You",
+    template: "%s | sendmynotes.com",
+  },
   description:
-    "Custom 5x7 folded greeting cards written with real robotic pen inking on heavy cardstock. No account required. Mailed anywhere in the US for $9.00 flat.",
+    "Send real pen-on-paper handwritten greeting cards in minutes. Written with real ballpoint ink on 120 lb archival cardstock, stamped, and mailed anywhere in the US for $9.00 flat.",
+  applicationName: "sendmynotes",
+  authors: [{ name: "Aster & Blanche Press" }],
+  creator: "Aster & Blanche Press",
+  publisher: "sendmynotes",
+  keywords: [
+    "handwritten greeting cards",
+    "send handwritten card online",
+    "real pen handwritten note",
+    "handwritten cards mailed for you",
+    "custom 5x7 folded cards",
+    "handwritten letter service",
+  ],
+  alternates: {
+    canonical: "https://sendmynotes.com",
+  },
   openGraph: {
-    title: "sendmynotes.com - Handwritten Cards by Robot Pen",
-    description: "Physical 5x7 folded greeting cards with real ballpoint ink. Mailed via USPS First Class.",
+    title: "Real Handwritten Cards, Mailed for You | sendmynotes.com",
+    description:
+      "Send a real handwritten card in minutes. Written in real pen and ink on 120 lb archival cardstock, stamped, and mailed directly to their door for $9 flat.",
+    url: "https://sendmynotes.com",
+    siteName: "sendmynotes.com",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "sendmynotes.com - Real Handwritten Cards, Mailed for You",
+        type: "image/png",
+      },
+    ],
+    locale: "en_US",
     type: "website",
   },
+  twitter: {
+    card: "summary_large_image",
+    title: "Real Handwritten Cards, Mailed for You | sendmynotes.com",
+    description:
+      "Send a real handwritten card in minutes. Written in real pen and ink on 120 lb archival cardstock, stamped, and mailed directly to their door for $9 flat.",
+    images: ["/og-image.png"],
+  },
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "32x32" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [
+      { url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  manifest: "/site.webmanifest",
 };
 
 export default function RootLayout({
@@ -38,7 +89,7 @@ export default function RootLayout({
               name: "Custom Handwritten 5x7 Greeting Card",
               image: "https://sendmynotes.com/aster-blanche-backplate.png",
               description:
-                "Physical 5x7 greeting cards penned with real ballpoint ink by robotic plotters on 120 lb archival cardstock. Mailed via USPS First Class.",
+                "Physical 5x7 greeting cards written with real ballpoint pen inking on 120 lb archival cardstock. Stamped and mailed via USPS First Class.",
               brand: {
                 "@type": "Brand",
                 name: "Aster & Blanche Press",

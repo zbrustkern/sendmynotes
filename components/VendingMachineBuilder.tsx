@@ -32,6 +32,7 @@ import { MailingAddress } from "@/lib/types";
 import { trackEvent } from "@/lib/telemetry";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "./AuthModal";
+import { useDeviceWallet } from "@/lib/device-wallet";
 import Link from "next/link";
 
 export interface VendingMachineBuilderProps {
@@ -49,6 +50,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user, account, saveAddress } = useAuth();
+  const deviceWallet = useDeviceWallet();
 
   // Builder Steps: 1 = Cover, 2 = Inside Note, 3 = Address, 4 = Checkout
   const [currentStep, setCurrentStep] = useState<number>(props?.initialStep || 1);
@@ -454,6 +456,12 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
           {/* Right Header Navigation & Actions */}
           <div className="flex items-center gap-2 sm:gap-3">
+            {/* Device-tailored impulse pill */}
+            <div className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-stone-100/90 text-stone-700 border border-stone-200/80 text-[11px] font-medium shadow-2xs">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>{deviceWallet.badgeText}</span>
+            </div>
+
             {/* Clean Price Pill */}
             <div className="px-2.5 py-1 rounded-full bg-amber-50/80 border border-amber-200/80 flex items-center gap-1.5 text-xs">
               <span className="font-serif font-bold text-amber-950">
@@ -492,10 +500,10 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
               <button
                 type="button"
                 onClick={() => setIsAuthModalOpen(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-stone-900 hover:bg-black text-white rounded-xl text-xs font-semibold tracking-wide transition cursor-pointer shadow-xs"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-stone-500 hover:text-stone-900 hover:bg-stone-100 rounded-xl transition text-xs font-medium cursor-pointer"
               >
-                <LogIn className="w-3.5 h-3.5" />
-                <span>Sign In</span>
+                <LogIn className="w-3.5 h-3.5 text-stone-400" />
+                <span className="hidden sm:inline">Sign In</span>
               </button>
             )}
           </div>
@@ -536,28 +544,32 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         </div>
 
         <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-stone-900 mb-2 leading-tight">
-          Real Ink. Real Paper. Real Mail.
+          The thoughtful gesture you meant to make today—done in 60 seconds.
         </h1>
 
         <p className="text-xs sm:text-sm text-stone-600 max-w-xl mx-auto leading-relaxed mb-4">
-          Type your message online in seconds. Our robotic pen plotters physically write it with real ballpoint ink on 120&nbsp;lb archival cardstock, stamped and posted via USPS First Class for a flat <strong>$9.00</strong>.
+          Send a real handwritten card right now—without buying stationery, finding a pen, or looking for a mailbox. We write your note in real pen ink on 120&nbsp;lb archival cardstock, stamp it, and mail it via USPS today for a flat <strong>$9.00</strong>. {deviceWallet.heroCallout}
         </p>
 
         {/* 3-Step Horizon Micro-Bar */}
         <div className="inline-flex items-center justify-center gap-2 sm:gap-4 text-[11px] text-stone-500 bg-white/70 backdrop-blur-xs py-1.5 px-4 rounded-full border border-stone-200/60 shadow-xs flex-wrap">
           <span className="font-medium text-stone-800 flex items-center gap-1">
             <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">1</span>
-            Select or AI-Paint Cover
+            Pick or Paint Design
           </span>
           <span className="text-stone-300">→</span>
           <span className="font-medium text-stone-800 flex items-center gap-1">
             <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">2</span>
-            Type Note &amp; Pick Handwriting
+            Type Note &amp; Pick Ink Style
           </span>
           <span className="text-stone-300">→</span>
           <span className="font-medium text-stone-800 flex items-center gap-1">
             <span className="w-4 h-4 rounded-full bg-amber-500 text-white text-[9px] font-bold flex items-center justify-center">3</span>
-            We Ink &amp; Mail via USPS
+            {deviceWallet.type === "apple"
+              ? "Mailed in 1-Tap with Apple Pay"
+              : deviceWallet.type === "google"
+              ? "Mailed in 1-Tap with Google Pay"
+              : "Mailed via USPS ($9.00 Flat)"}
           </span>
         </div>
       </section>
@@ -591,7 +603,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
             { step: 1, label: "1. Cover Art", icon: Sparkles },
             { step: 2, label: "2. Inside Note", icon: PenTool },
             { step: 3, label: "3. Address", icon: Mail },
-            { step: 4, label: "4. Checkout", icon: CreditCard },
+            { step: 4, label: deviceWallet.stepLabel, icon: CreditCard },
           ].map((item) => {
             const Icon = item.icon;
             const isActive = currentStep === item.step;
@@ -921,7 +933,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         <p className="flex items-center justify-center gap-2">
           <span>No Account Required</span>
           <span>•</span>
-          <span>Inked by Robotic Plotters in the USA</span>
+          <span>Real Pen &amp; Ink on Heavy Cardstock</span>
           <span>•</span>
           <span>USPS First Class Delivery</span>
         </p>

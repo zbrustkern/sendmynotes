@@ -53,7 +53,7 @@ export async function createCardPaymentIntent(params: CreateIntentParams): Promi
     receipt_email: params.customerEmail,
     metadata: {
       orderId: params.orderId,
-      product: "5x7 Physical Folded Greeting Card with Robot Pen Inking",
+      product: "5x7 Physical Folded Greeting Card with Real Pen Inking",
       ...(params.metadata || {}),
     },
     automatic_payment_methods: {

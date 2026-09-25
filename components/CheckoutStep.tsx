@@ -21,6 +21,7 @@ import {
   X,
 } from "lucide-react";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
+import { useDeviceWallet } from "@/lib/device-wallet";
 
 export interface AppliedDiscountInfo {
   code: string;
@@ -61,6 +62,7 @@ function InnerPaymentForm({
 }: CheckoutStepProps) {
   const stripe = useStripe();
   const elements = useElements();
+  const deviceWallet = useDeviceWallet();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isPaymentElementReady, setIsPaymentElementReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -323,12 +325,12 @@ function InnerPaymentForm({
             <span>100% Free Order Covered by Promo Code</span>
           </div>
           <p className="text-xs text-emerald-800 leading-relaxed">
-            Your card and robotic pen postage are completely covered by voucher{" "}
+            Your card, real pen handwriting, and USPS postage are completely covered by voucher{" "}
             <strong className="font-mono">{appliedDiscount?.code}</strong>. No payment card or billing information is required.
           </p>
           <div className="pt-2 flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium">
             <ShieldCheck className="w-3.5 h-3.5" />
-            <span>Mailed via USPS First Class with archival ink robotic plotting.</span>
+            <span>Written in real ballpoint ink and mailed via USPS First Class.</span>
           </div>
         </div>
       ) : (
@@ -337,10 +339,17 @@ function InnerPaymentForm({
           <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-2.5 flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <Lock className="w-3 h-3 text-emerald-600" />
-              Secure Card Payment
+              <span>{deviceWallet.walletName} &amp; Card</span>
             </span>
             <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
           </label>
+
+          <div className="mb-3 px-3 py-2 rounded-lg bg-white border border-stone-200/90 text-stone-600 text-xs flex items-center gap-2">
+            <span className="text-sm">
+              {deviceWallet.type === "apple" ? "🍎" : deviceWallet.type === "google" ? "⚡" : "🔒"}
+            </span>
+            <span className="leading-tight">{deviceWallet.paymentNotice}</span>
+          </div>
 
           {isMock || !elements ? (
             <div className="p-3 bg-white border border-stone-200 rounded-lg text-xs space-y-1.5 text-stone-600">
@@ -395,7 +404,7 @@ function InnerPaymentForm({
       {/* Flat Rate Total Box with Delivery Window & Discount Line */}
       <div className="p-4 bg-amber-50/60 rounded-xl border border-amber-200/80 space-y-2">
         <div className="flex justify-between text-xs text-stone-600">
-          <span>5×7 Heavy Cardstock &amp; Robot Pen</span>
+          <span>5×7 Heavy Cardstock &amp; Real Pen Handwriting</span>
           <span>$8.00</span>
         </div>
         <div className="flex justify-between text-xs text-stone-600">
@@ -456,6 +465,10 @@ function InnerPaymentForm({
             <span>
               {isZeroCost
                 ? "Send Free Handwritten Card"
+                : deviceWallet.type === "apple"
+                ? `Pay with Apple Pay — $${(finalPriceCents / 100).toFixed(2)}`
+                : deviceWallet.type === "google"
+                ? `Pay with Google Pay — $${(finalPriceCents / 100).toFixed(2)}`
                 : `Send Handwritten Card — $${(finalPriceCents / 100).toFixed(2)} Flat`}
             </span>
             <ArrowRight className="w-4 h-4 ml-1" />
@@ -500,6 +513,8 @@ export function CheckoutStep(props: CheckoutStepProps) {
     return loadStripe(activePublishableKey);
   }, [activePublishableKey, props.isFree]);
 
+  const deviceWallet = useDeviceWallet();
+
   return (
     <div className="space-y-6">
       <div>
@@ -512,7 +527,7 @@ export function CheckoutStep(props: CheckoutStepProps) {
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          Zero accounts or onboarding required. Flat \$9.00 all-inclusive with real pen inking and USPS postage.
+          Zero accounts or onboarding required. Flat $9.00 all-inclusive with real pen inking and USPS postage. {deviceWallet.heroCallout}
         </p>
       </div>
 

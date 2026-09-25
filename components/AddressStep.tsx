@@ -414,7 +414,7 @@ export function AddressStep({
               className="w-full sm:w-64 px-3 py-2 text-sm bg-white border border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 font-mono text-stone-800"
             />
             <p className="text-[10px] text-indigo-700/80">
-              We hold this order in our studio queue and dispatch it to Handwrytten robotic pen plotters on this date.
+              We hold this order in our studio queue and begin inking and mailing on this date.
             </p>
           </div>
         )}

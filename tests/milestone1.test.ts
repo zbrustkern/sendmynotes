@@ -7,7 +7,7 @@ import {
   claimImageCacheItem,
   getImageCachePoolCollection,
 } from "../lib/firebase-admin";
-import { generateCoverArt } from "../lib/nano-banana";
+import { generateCoverArt, sanitizeArtPrompt, buildRefinedPrompt } from "../lib/nano-banana";
 import { fulfillHandwryttenOrder } from "../lib/handwrytten";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "../lib/stripe";
 
@@ -104,7 +104,7 @@ async function runMilestone1Tests() {
   assert(cacheData.status === "CLAIMED", "Cache item status successfully transitioned to CLAIMED");
 
   // 3. Nano Banana Art Client Test
-  console.log("\n--- 3. Testing Nano Banana Client Fallback ---");
+  console.log("\n--- 3. Testing Nano Banana Client Fallback & Anti-Mockup Prompts ---");
   const artResult = await generateCoverArt({
     prompt: "Whimsical watercolor birthday balloons",
     occasion: "Birthday",
@@ -112,6 +112,15 @@ async function runMilestone1Tests() {
   assert(typeof artResult.imageUrl === "string" && artResult.imageUrl.length > 0, "Returned valid image URL");
   assert(artResult.aspectRatio === "5:7", "Maintains 5:7 greeting card portrait aspect ratio");
   assert(artResult.isMock === true, "Identifies fallback mock mode when no external key");
+
+  // Prompt sanitization & anti-mockup instruction tests
+  const sanitized = sanitizeArtPrompt("Vintage roses, elegant 5:7 greeting card cover art");
+  assert(!sanitized.includes("greeting card") && !sanitized.includes("cover art"), "Sanitizes meta card phrases from prompt");
+
+  const refined = buildRefinedPrompt("Two heart shaped popsicles with flowers", "Love & Romance");
+  assert(refined.includes("Do NOT render an image OF a card"), "Refined prompt explicitly prohibits images OF a card");
+  assert(refined.includes("Do NOT render any human hands"), "Refined prompt explicitly prohibits hands/fingers holding card");
+  assert(refined.includes("zero borders"), "Refined prompt requests edge-to-edge illustration");
 
   // 4. Handwrytten Fulfillment Client Test
   console.log("\n--- 4. Testing Handwrytten Fulfillment Client ---");

@@ -238,7 +238,7 @@ export default async function ScenarioPage({ params }: PageProps) {
           <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs font-medium text-stone-600">
             <span className="flex items-center gap-1 px-3 py-1 rounded-xl bg-white border border-stone-200 shadow-xs">
               <PenTool className="w-3.5 h-3.5 text-amber-600" />
-              Real Pen Inking by Robot
+              Real Pen-and-Ink Handwriting
             </span>
             <span className="flex items-center gap-1 px-3 py-1 rounded-xl bg-white border border-stone-200 shadow-xs">
               <Mail className="w-3.5 h-3.5 text-indigo-600" />
@@ -327,7 +327,7 @@ export default async function ScenarioPage({ params }: PageProps) {
               Why Real Pen-on-Paper Outperforms Digital Messages
             </h2>
             <p className="text-stone-300 text-sm leading-relaxed">
-              In a world where everyone sends fleeting text messages, emails, and LinkedIn DMs, physical mail commands 100% of the recipient&apos;s attention. Our robotic handwriting machines hold genuine ballpoint pens with natural variable stroke pressure and ink shading on 120lb premium textured cardstock.
+              In a world where everyone sends fleeting text messages, emails, and LinkedIn DMs, physical mail commands 100% of the recipient&apos;s attention. Every card is written with real ballpoint pens featuring natural variable stroke pressure and ink shading on 120lb premium textured cardstock—giving them the warmth of a real handwritten note without you needing to find stamps or visit the post office.
             </p>
             <div className="pt-2 flex flex-wrap gap-4 text-xs text-stone-400">
               <span>✓ Never marked as spam or archived</span>

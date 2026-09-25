@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "build:assets": "tsx scripts/generate-backplate.ts",
+    "build:previews": "tsx scripts/generate-previews.ts",
     "start": "next start",
     "lint": "next lint",
     "test:m1": "tsx tests/milestone1.test.ts",

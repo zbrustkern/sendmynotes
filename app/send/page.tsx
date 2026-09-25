@@ -19,9 +19,32 @@ import {
 export const metadata: Metadata = {
   title: "Send a Real Handwritten Card for Any Occasion | sendmynotes",
   description:
-    "Browse curated greeting card scenarios penned in real ink by robotic pens and delivered via USPS First Class mail. Pre-seeded with professional etiquette and heartfelt sentiments.",
+    "Browse curated greeting card scenarios written in real pen and ink on heavy cardstock and delivered via USPS First Class mail. No trips to the store, no stamps, no hassle.",
   alternates: {
     canonical: "https://sendmynotes.com/send",
+  },
+  openGraph: {
+    title: "Send a Real Handwritten Card for Any Occasion | sendmynotes",
+    description:
+      "Send a real handwritten card in minutes. Written in real pen and ink on heavy cardstock, stamped, and mailed directly to their door.",
+    url: "https://sendmynotes.com/send",
+    siteName: "sendmynotes",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "sendmynotes - Send a Real Handwritten Card for Any Occasion",
+      },
+    ],
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Send a Real Handwritten Card for Any Occasion | sendmynotes",
+    description:
+      "Send a real handwritten card in minutes. Written in real pen and ink on heavy cardstock, stamped, and mailed directly to their door.",
+    images: ["/og-image.png"],
   },
 };
 
@@ -106,7 +129,7 @@ export default function SendCatalogPage() {
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs font-medium text-stone-600">
           <span className="flex items-center gap-1 px-3 py-1 rounded-xl bg-white border border-stone-200 shadow-xs">
             <PenTool className="w-3.5 h-3.5 text-amber-600" />
-            Penned by Robotic Inking Pen
+            Written with Real Pen &amp; Ink
           </span>
           <span className="flex items-center gap-1 px-3 py-1 rounded-xl bg-white border border-stone-200 shadow-xs">
             <Mail className="w-3.5 h-3.5 text-indigo-600" />
