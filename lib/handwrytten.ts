@@ -180,20 +180,14 @@ export async function fulfillHandwryttenOrder(
     console.log(`[Handwrytten] Using backplate ID: ${backId || "(none)"}`);
 
     // 3. Create Custom Folded Portrait Card (dimension_id: 4, A2 Folded Portrait)
+    // Note: Handwrytten expects back_type: "logo" and back_logo_id for backplates
     console.log("[Handwrytten] Creating custom card via /v2/cards/createCustomCard...");
     const cardPayload: Record<string, unknown> = {
       dimension_id: 4, // A2 Folded Portrait (4.25 x 5.5)
       name: `SendMyNotes-${Date.now()}`,
-      back_type: "cover",
+      back_type: "logo",
       cover_id: coverId,
-      ...(backId ? { back_id: backId } : {}),
-      ...(params.printedGreeting
-        ? {
-            header_text: params.printedGreeting,
-            header_align: "center",
-            header_font_id: 1, // Executive Adam handwriting font for interior printed sentiment
-          }
-        : {}),
+      ...(backId ? { back_logo_id: backId } : {}),
     };
 
     const cardRes = await fetch("https://api.handwrytten.com/v2/cards/createCustomCard", {
@@ -223,6 +217,14 @@ export async function fulfillHandwryttenOrder(
     const fontLabel = FONT_MAP[params.fontId || "1"] || "Executive Adam";
     console.log(`[Handwrytten] Dispatching singleStepOrder with font "${fontLabel}"...`);
 
+    // Combine printed greeting and handwritten message so everything is written in genuine pen ink
+    // This avoids Handwrytten's rigid 0.75" single-line Arial header clipping
+    const fullMessage = params.printedGreeting?.trim()
+      ? `${params.printedGreeting.trim()}\n\n${params.handwrittenMessage.trim()}`
+      : params.handwrittenMessage.trim();
+
+    const isTestMode = process.env.HANDWRYTTEN_TEST_MODE === "true";
+
     const orderRes = await fetch("https://api.handwrytten.com/v2/orders/singleStepOrder", {
       method: "POST",
       headers: {
@@ -233,7 +235,8 @@ export async function fulfillHandwryttenOrder(
       body: JSON.stringify({
         card_id: customCardId,
         font_label: fontLabel,
-        message: params.handwrittenMessage,
+        message: fullMessage,
+        ...(isTestMode ? { test_mode: 1 } : {}),
         ...(params.scheduledSendDate ? { date_send: params.scheduledSendDate } : {}),
         recipient_first_name: (params.recipient.firstName || "Friend").trim(),
         recipient_last_name: (params.recipient.lastName || "").trim(),
