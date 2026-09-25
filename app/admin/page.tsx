@@ -42,6 +42,12 @@ import {
   Layers,
   CreditCard,
   MapPin,
+  Calculator,
+  Target,
+  PieChart,
+  Receipt,
+  Coins,
+  Info,
 } from "lucide-react";
 import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType, ScenarioPerformanceMetric } from "@/lib/types";
 import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWidget";
@@ -60,7 +66,15 @@ export default function AdminDashboardPage() {
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
   // Tab Navigation State
-  const [activeTab, setActiveTab] = useState<"orders" | "discounts" | "scenarios" | "incidents">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "margins" | "discounts" | "scenarios" | "incidents">("orders");
+
+  // Margins, Ad Spend & Campaign Attribution State
+  const [adSpendInput, setAdSpendInput] = useState<string>("0.00");
+  const [adSpendSynced, setAdSpendSynced] = useState<boolean>(false);
+  const [savingAdSpend, setSavingAdSpend] = useState<boolean>(false);
+  const [adSpendSuccess, setAdSpendSuccess] = useState<string>("");
+  const [copiedTrackingTemplate, setCopiedTrackingTemplate] = useState<boolean>(false);
+  const [campaignSearchQuery, setCampaignSearchQuery] = useState<string>("");
 
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [loading, setLoading] = useState(false);
@@ -178,12 +192,42 @@ export default function AdminDashboardPage() {
         return;
       }
       if (!res.ok) throw new Error("Failed to load metrics");
-      const data = await res.json();
+      const data: AdminMetrics = await res.json();
       setMetrics(data);
+      if (!adSpendSynced && data.adSpendCents !== undefined) {
+        setAdSpendInput(((data.adSpendCents || 0) / 100).toFixed(2));
+        setAdSpendSynced(true);
+      }
     } catch (err) {
       console.error("Error loading admin metrics:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveAdSpend = async () => {
+    setSavingAdSpend(true);
+    setAdSpendSuccess("");
+    try {
+      const val = parseFloat(adSpendInput) || 0;
+      const amountCents = Math.round(val * 100);
+      const res = await fetch("/api/admin/ad-spend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ adSpendCents: amountCents }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAdSpendSuccess("Ad spend updated & saved to cloud.");
+        fetchMetrics();
+        setTimeout(() => setAdSpendSuccess(""), 4000);
+      } else {
+        alert(data.error || "Failed to save ad spend.");
+      }
+    } catch (e) {
+      alert("Error saving ad spend.");
+    } finally {
+      setSavingAdSpend(false);
     }
   };
 
@@ -823,6 +867,24 @@ export default function AdminDashboardPage() {
 
             <button
               type="button"
+              onClick={() => setActiveTab("margins")}
+              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                activeTab === "margins"
+                  ? "border-emerald-600 text-emerald-900 font-semibold"
+                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+              }`}
+            >
+              <DollarSign className="w-4 h-4 text-emerald-600" />
+              <span>Unit Economics &amp; Ads</span>
+              {metrics?.margins?.netContributionMarginPercent !== undefined && (
+                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-emerald-100 text-emerald-800 font-bold">
+                  {metrics.margins.netContributionMarginPercent}% Margin
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab("discounts")}
               className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "discounts"
@@ -928,6 +990,71 @@ export default function AdminDashboardPage() {
                 <p className="text-[11px] text-stone-400">
                   {metrics?.funnel.paid || 0} paid / {metrics?.funnel.totalSessions || 0} visits
                 </p>
+              </div>
+            </div>
+
+            {/* UNIT ECONOMICS & MARGINS QUICK BANNER */}
+            <div className="bg-gradient-to-br from-stone-900 via-stone-850 to-stone-900 text-white rounded-3xl p-6 sm:p-7 shadow-lg border border-stone-800 space-y-5">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-800">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      Unit Margin Intelligence
+                    </span>
+                    <span className="text-xs text-stone-400">Retail: $9.00 Flat Delivery</span>
+                  </div>
+                  <h3 className="font-serif text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
+                    $3.56 Contribution Margin (39.6%)
+                  </h3>
+                  <p className="text-xs text-stone-300">
+                    Net cash generated per delivered card after Stripe processing fee (-$0.56) and Handwrytten robotic inking &amp; First Class postage (-$4.88).
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("margins")}
+                    className="text-xs font-semibold text-stone-900 bg-amber-400 hover:bg-amber-300 px-4 py-2.5 rounded-xl transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer whitespace-nowrap"
+                  >
+                    <Calculator className="w-4 h-4" />
+                    <span>Ad Spend &amp; Campaign Intel →</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4 Waterfall Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                <div className="bg-white/5 rounded-2xl p-3.5 border border-white/10 space-y-1">
+                  <span className="text-stone-400 uppercase tracking-wider text-[10px] font-semibold">1. Gross Revenue</span>
+                  <p className="text-base font-bold text-white font-mono">
+                    ${((metrics?.margins?.grossRevenueCents || 0) / 100).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-stone-400">$9.00 flat per delivered card</p>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-3.5 border border-white/10 space-y-1">
+                  <span className="text-rose-300 uppercase tracking-wider text-[10px] font-semibold">2. Stripe Fees (2.9%+30¢)</span>
+                  <p className="text-base font-bold text-rose-300 font-mono">
+                    -${((metrics?.margins?.stripeFeesCents || 0) / 100).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-stone-400">~$0.56 per standard card</p>
+                </div>
+
+                <div className="bg-white/5 rounded-2xl p-3.5 border border-white/10 space-y-1">
+                  <span className="text-indigo-300 uppercase tracking-wider text-[10px] font-semibold">3. Fulfillment COGS</span>
+                  <p className="text-base font-bold text-indigo-300 font-mono">
+                    -${((metrics?.margins?.fulfillmentCogsCents || 0) / 100).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-stone-400">$4.88 ink + card + stamp</p>
+                </div>
+
+                <div className="bg-emerald-950/40 rounded-2xl p-3.5 border border-emerald-500/30 space-y-1">
+                  <span className="text-emerald-300 uppercase tracking-wider text-[10px] font-semibold">4. Net Profit Pool</span>
+                  <p className="text-base font-bold text-emerald-400 font-mono">
+                    +${((metrics?.margins?.netContributionMarginCents || 0) / 100).toFixed(2)}
+                  </p>
+                  <p className="text-[10px] text-emerald-300/80">Target Break-even CPA: $3.56</p>
+                </div>
               </div>
             </div>
 
@@ -1244,6 +1371,493 @@ export default function AdminDashboardPage() {
                   </table>
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ===================== TAB: UNIT ECONOMICS & MARGINS ===================== */}
+        {activeTab === "margins" && (
+          <div className="space-y-8">
+            {/* UNIT ECONOMICS KPI SUMMARY */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Gross Retail Revenue</span>
+                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-stone-900">
+                  ${((metrics?.margins?.grossRevenueCents || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-[11px] text-stone-400">
+                  {metrics?.margins?.paidCardsCount || 0} delivered cards @ $9.00 flat
+                </p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Stripe Gateway Fees</span>
+                  <Receipt className="w-4 h-4 text-rose-500" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-rose-700">
+                  -${((metrics?.margins?.stripeFeesCents || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-[11px] text-stone-400">2.9% + 30¢ (~$0.56 per standard card)</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+                  <span>Fulfillment COGS</span>
+                  <Package className="w-4 h-4 text-indigo-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-indigo-900">
+                  -${((metrics?.margins?.fulfillmentCogsCents || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-[11px] text-stone-400">$4.88 ink + cardstock + First Class</p>
+              </div>
+
+              <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-sm space-y-1 bg-emerald-50/30">
+                <div className="flex items-center justify-between text-emerald-800 text-xs font-semibold uppercase tracking-wider">
+                  <span>Net Contribution Margin</span>
+                  <Coins className="w-4 h-4 text-emerald-600" />
+                </div>
+                <p className="font-serif text-2xl font-bold text-emerald-700">
+                  +${((metrics?.margins?.netContributionMarginCents || 0) / 100).toFixed(2)}
+                </p>
+                <p className="text-[11px] text-emerald-800 font-medium">
+                  {metrics?.margins?.netContributionMarginPercent || 39.6}% margin ($3.56/card)
+                </p>
+              </div>
+            </div>
+
+            {/* INTERACTIVE AD SPEND & CPA SIMULATOR */}
+            {(() => {
+              const enteredAdSpend = parseFloat(adSpendInput) || 0;
+              const paidCount = metrics?.margins?.paidCardsCount || 0;
+              const netContribDollars = (metrics?.margins?.netContributionMarginCents || 0) / 100;
+              const grossRevDollars = (metrics?.margins?.grossRevenueCents || 0) / 100;
+              const cpaDollars = paidCount > 0 ? enteredAdSpend / paidCount : (enteredAdSpend > 0 ? enteredAdSpend : 0);
+              const netProfitAfterAds = netContribDollars - enteredAdSpend;
+              const roasRatio = enteredAdSpend > 0 ? (grossRevDollars / enteredAdSpend).toFixed(2) : "—";
+              const isProfitable = paidCount > 0 ? cpaDollars <= 3.56 : netProfitAfterAds >= 0;
+
+              return (
+                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                          Interactive Calculator
+                        </span>
+                        <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                          <Calculator className="w-4 h-4 text-amber-600" />
+                          Ad Spend, CAC &amp; Profitability Simulator
+                        </h2>
+                      </div>
+                      <p className="text-xs text-stone-500">
+                        Input your Google Ads expenditure to evaluate live Customer Acquisition Cost (CAC), Return on Ad Spend (ROAS), and net studio profit.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleSaveAdSpend}
+                        disabled={savingAdSpend}
+                        className="text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${savingAdSpend ? "animate-spin" : ""}`} />
+                        <span>{savingAdSpend ? "Saving..." : "Save Ad Spend"}</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {adSpendSuccess && (
+                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span>{adSpendSuccess}</span>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+                    {/* LEFT: Ad Spend Input Controls */}
+                    <div className="lg:col-span-5 space-y-4 bg-stone-50 p-5 rounded-2xl border border-stone-200">
+                      <div>
+                        <label className="block text-xs font-semibold text-stone-700 mb-1.5">
+                          Total Ad Spend (USD)
+                        </label>
+                        <div className="relative">
+                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-400">
+                            $
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={adSpendInput}
+                            onChange={(e) => setAdSpendInput(e.target.value)}
+                            placeholder="0.00"
+                            className="w-full pl-8 pr-4 py-2.5 bg-white border border-stone-300 rounded-xl text-stone-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Quick Increments */}
+                      <div className="space-y-1.5">
+                        <span className="text-[11px] font-medium text-stone-500">Quick Simulation Presets:</span>
+                        <div className="flex flex-wrap gap-2">
+                          {[
+                            { label: "+$10", val: 10 },
+                            { label: "+$25", val: 25 },
+                            { label: "+$50", val: 50 },
+                            { label: "+$100", val: 100 },
+                          ].map((preset) => (
+                            <button
+                              key={preset.label}
+                              type="button"
+                              onClick={() => {
+                                const curr = parseFloat(adSpendInput) || 0;
+                                setAdSpendInput((curr + preset.val).toFixed(2));
+                              }}
+                              className="text-xs font-medium px-2.5 py-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 rounded-lg transition cursor-pointer"
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => setAdSpendInput("0.00")}
+                            className="text-xs font-medium px-2.5 py-1 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg transition cursor-pointer"
+                          >
+                            Reset
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-stone-200/80 text-[11px] text-stone-500 space-y-1">
+                        <p className="flex items-center gap-1.5 font-medium text-stone-700">
+                          <Target className="w-3.5 h-3.5 text-amber-600" />
+                          <span>Break-even Target CPA: <strong>$3.56</strong></span>
+                        </p>
+                        <p>
+                          Any Google Ads click-to-order cost under $3.56 is instantly profitable on the first card mailed.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* RIGHT: Live Simulated Metrics */}
+                    <div className="lg:col-span-7 space-y-4">
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div className="p-4 rounded-2xl border bg-stone-50 border-stone-200 space-y-1">
+                          <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+                            Blended CPA / CAC
+                          </span>
+                          <p className={`font-serif text-xl font-bold ${cpaDollars <= 3.56 ? "text-emerald-700" : "text-amber-700"}`}>
+                            ${cpaDollars.toFixed(2)}
+                          </p>
+                          <p className="text-[10px] text-stone-400">
+                            {paidCount > 0 ? `Across ${paidCount} paid orders` : "Based on ad spend"}
+                          </p>
+                        </div>
+
+                        <div className="p-4 rounded-2xl border bg-stone-50 border-stone-200 space-y-1">
+                          <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+                            ROAS Multiple
+                          </span>
+                          <p className="font-serif text-xl font-bold text-stone-900">
+                            {roasRatio !== "—" ? `${roasRatio}x` : "—"}
+                          </p>
+                          <p className="text-[10px] text-stone-400">Gross Rev / Ad Spend</p>
+                        </div>
+
+                        <div className={`p-4 rounded-2xl border space-y-1 ${netProfitAfterAds >= 0 ? "bg-emerald-50/50 border-emerald-200" : "bg-rose-50/50 border-rose-200"}`}>
+                          <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
+                            Net Studio Profit
+                          </span>
+                          <p className={`font-serif text-xl font-bold ${netProfitAfterAds >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                            {netProfitAfterAds >= 0 ? `+$${netProfitAfterAds.toFixed(2)}` : `-$${Math.abs(netProfitAfterAds).toFixed(2)}`}
+                          </p>
+                          <p className="text-[10px] text-stone-400">After COGS, fees &amp; ads</p>
+                        </div>
+                      </div>
+
+                      {/* Profitability Status Callout */}
+                      <div
+                        className={`p-4 rounded-2xl border flex items-start gap-3 ${
+                          isProfitable
+                            ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                            : "bg-amber-50 border-amber-200 text-amber-900"
+                        }`}
+                      >
+                        {isProfitable ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                        ) : (
+                          <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                        )}
+                        <div className="space-y-1 text-xs">
+                          <p className="font-bold">
+                            {isProfitable
+                              ? "Profitable First-Order Acquisition (CPA ≤ $3.56)"
+                              : "Growth & Customer Acquisition Investment (CPA > $3.56)"}
+                          </p>
+                          <p className="text-stone-600 leading-relaxed">
+                            {isProfitable
+                              ? `At a CPA of $${cpaDollars.toFixed(2)}, you are clearing positive cash flow on card #1. Repeat sends generated from recipient address book reminders are 100% organic profit.`
+                              : `At a CPA of $${cpaDollars.toFixed(2)}, the first card operates as customer acquisition. Customers who save recipients average 3+ card orders per year, achieving full breakeven on repeat sends.`}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* THE $9.00 UNIT WATERFALL EXPLAINER */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
+              <div className="space-y-1">
+                <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                  <PieChart className="w-4 h-4 text-stone-700" />
+                  Unit Economics Anatomy: The $9.00 Card Waterfall
+                </h3>
+                <p className="text-xs text-stone-500">
+                  Every standard card sent on sendmynotes is structured around deterministic, ultra-predictable unit economics.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
+                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-stone-700">Retail Price</span>
+                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      +$9.00
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    Customer pays $9.00 flat with free First Class shipping, envelope addressing, and physical stamp included.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-stone-700">Stripe Processing</span>
+                    <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
+                      -$0.56
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    Standard credit card interchange fee of 2.9% + $0.30 ($0.26 + $0.30 = $0.56 on $9.00). $0 for comp promo codes.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-stone-700">Fulfillment COGS</span>
+                    <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
+                      -$4.88
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500 leading-relaxed">
+                    Handwrytten robotic pen drawing, custom 120 lb cardstock, envelope inking, and USPS First Class postage.
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-900">Net Gross Margin</span>
+                    <span className="text-xs font-bold text-white bg-emerald-600 px-2 py-0.5 rounded-full">
+                      +$3.56
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-800 leading-relaxed">
+                    <strong>39.6% net contribution margin.</strong> This is your exact break-even budget for Google Ads CAC.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* CAMPAIGN ATTRIBUTION & GOOGLE ADS INTEL */}
+            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
+                    <Target className="w-4 h-4 text-indigo-600" />
+                    Campaign Attribution &amp; Traffic Intelligence
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    Live attribution grouped by UTM parameters and Google Ads Click Identifiers (GCLID).
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search campaigns..."
+                      value={campaignSearchQuery}
+                      onChange={(e) => setCampaignSearchQuery(e.target.value)}
+                      className="pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Attribution Table */}
+              {(() => {
+                const attributions = (metrics?.campaignAttributions || []).filter((c) => {
+                  const q = campaignSearchQuery.toLowerCase();
+                  return (
+                    c.campaignKey.toLowerCase().includes(q) ||
+                    c.utmSource.toLowerCase().includes(q) ||
+                    c.utmMedium.toLowerCase().includes(q)
+                  );
+                });
+
+                if (attributions.length === 0) {
+                  return (
+                    <div className="py-12 text-center space-y-3 bg-stone-50/50 rounded-2xl border border-stone-200/60 p-6">
+                      <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
+                        <Compass className="w-6 h-6" />
+                      </div>
+                      <div className="space-y-1 max-w-md mx-auto">
+                        <p className="text-sm font-semibold text-stone-800">
+                          {campaignSearchQuery ? "No matching campaigns found" : "Ready for Incoming Campaign Traffic"}
+                        </p>
+                        <p className="text-xs text-stone-500">
+                          {campaignSearchQuery
+                            ? "Try broadening your search term."
+                            : "As visitors arrive with Google Ads parameters (gclid) or UTM tags, their order revenue and net margins will automatically display here."}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="overflow-x-auto rounded-2xl border border-stone-200">
+                    <table className="w-full text-left text-xs text-stone-600">
+                      <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider font-semibold border-b border-stone-200 text-[10px]">
+                        <tr>
+                          <th className="py-3 px-4">Campaign Name</th>
+                          <th className="py-3 px-4">Source / Medium</th>
+                          <th className="py-3 px-4">Google Tag</th>
+                          <th className="py-3 px-4 text-center">Paid Orders</th>
+                          <th className="py-3 px-4 text-right">Gross Rev</th>
+                          <th className="py-3 px-4 text-right">Net Margin</th>
+                          <th className="py-3 px-4 text-right">Margin %</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100">
+                        {attributions.map((c) => {
+                          const marginPct =
+                            c.grossRevenueCents > 0
+                              ? Math.round((c.netContributionMarginCents / c.grossRevenueCents) * 100)
+                              : 0;
+
+                          return (
+                            <tr key={c.campaignKey} className="hover:bg-stone-50/80 transition">
+                              <td className="py-3.5 px-4">
+                                <div className="font-semibold text-stone-900">{c.campaignKey}</div>
+                                {c.utmCampaign && c.utmCampaign !== "(not set)" && (
+                                  <div className="text-[10px] text-stone-400 font-mono">
+                                    utm_campaign={c.utmCampaign}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4 font-mono text-[11px] text-stone-700">
+                                {c.utmSource} / {c.utmMedium}
+                              </td>
+                              <td className="py-3.5 px-4">
+                                {c.hasGclid ? (
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
+                                    <Check className="w-3 h-3" /> GCLID
+                                  </span>
+                                ) : (
+                                  <span className="text-[10px] text-stone-400">—</span>
+                                )}
+                              </td>
+                              <td className="py-3.5 px-4 text-center font-bold text-stone-900">
+                                {c.orderCount}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-medium text-stone-900">
+                                ${(c.grossRevenueCents / 100).toFixed(2)}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
+                                +${(c.netContributionMarginCents / 100).toFixed(2)}
+                              </td>
+                              <td className="py-3.5 px-4 text-right font-bold text-stone-700">
+                                {marginPct}%
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* GOOGLE ADS TRACKING TEMPLATE & SETUP ASSISTANT */}
+            <div className="bg-stone-900 text-white rounded-3xl p-6 sm:p-8 border border-stone-800 space-y-6">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                    Google Ads Setup Assistant
+                  </span>
+                </div>
+                <h3 className="font-serif text-xl font-bold text-white flex items-center gap-2">
+                  Auto-Tagging &amp; UTM Tracking Template
+                </h3>
+                <p className="text-xs text-stone-300">
+                  Paste this tracking template into your Google Ads Campaign or Account settings. sendmynotes will automatically detect every ad click, keyword, and creative variant.
+                </p>
+              </div>
+
+              {/* Template Code Box */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-xs text-stone-400">
+                  <span className="font-semibold text-stone-300">Google Ads Tracking Template URL:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const template = "{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={creative}&utm_term={keyword}";
+                      navigator.clipboard.writeText(template);
+                      setCopiedTrackingTemplate(true);
+                      setTimeout(() => setCopiedTrackingTemplate(false), 2500);
+                    }}
+                    className="text-xs font-semibold text-stone-900 bg-amber-400 hover:bg-amber-300 px-3 py-1.5 rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    {copiedTrackingTemplate ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedTrackingTemplate ? "Copied!" : "Copy Tracking Template"}</span>
+                  </button>
+                </div>
+                <div className="p-3.5 bg-black/60 rounded-xl border border-stone-700 font-mono text-xs text-amber-300 break-all select-all">
+                  {"{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={creative}&utm_term={keyword}"}
+                </div>
+              </div>
+
+              {/* Step by step guide */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs border-t border-stone-800">
+                <div className="space-y-1 text-stone-300">
+                  <span className="text-amber-400 font-bold">Step 1: In Google Ads</span>
+                  <p className="text-stone-400 text-[11px] leading-relaxed">
+                    Navigate to <em>Campaign Settings → Campaign URL Options</em> (or Account Settings).
+                  </p>
+                </div>
+                <div className="space-y-1 text-stone-300">
+                  <span className="text-amber-400 font-bold">Step 2: Paste Template</span>
+                  <p className="text-stone-400 text-[11px] leading-relaxed">
+                    Paste the template above into the <strong>Tracking template</strong> input box.
+                  </p>
+                </div>
+                <div className="space-y-1 text-stone-300">
+                  <span className="text-amber-400 font-bold">Step 3: Enable Auto-Tagging</span>
+                  <p className="text-stone-400 text-[11px] leading-relaxed">
+                    Ensure Google Ads <strong>Auto-tagging (GCLID)</strong> is turned ON for high-fidelity conversion tracking.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         )}

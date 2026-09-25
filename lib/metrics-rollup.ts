@@ -1,7 +1,23 @@
 import { firestoreDb, getSystemConfig, setSystemConfig, getOrdersCollection, sanitizeFirestoreData } from "./firebase-admin";
 import { TELEMETRY_COLLECTION } from "./telemetry";
-import { TelemetryEvent, Order, AdminMetrics, ScenarioPerformanceMetric } from "./types";
+import {
+  TelemetryEvent,
+  Order,
+  AdminMetrics,
+  ScenarioPerformanceMetric,
+  FinancialMargins,
+  CampaignAttributionMetric,
+} from "./types";
 import { getAllScenarios } from "./seo-scenarios";
+
+export const HANDWRYTTEN_COGS_PER_CARD_CENTS = 488; // $4.88 (Cardstock + Real Pen Inking + USPS First Class postage)
+
+export function calculateStripeFeeCents(amountInCents: number, paymentMethod?: string): number {
+  if (paymentMethod === "PROMO_CODE" || paymentMethod === "STUDIO_COMP" || amountInCents === 0) {
+    return 0;
+  }
+  return Math.round(amountInCents * 0.029) + 30; // 2.9% + $0.30 (56¢ on $9.00)
+}
 
 export interface TelemetrySummary {
   totalSessions: number;
@@ -249,15 +265,64 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     "hwWill": "Dapper Will",
   };
 
+  let stripeFeesCents = 0;
+  let fulfillmentCogsCents = 0;
+  const campaignAgg: Record<string, CampaignAttributionMetric> = {};
+
   allOrdersSnap.forEach((doc) => {
     const o = doc.data() as Order;
-    if (
+    const isPaid =
       o.status === "PROCESSING_HANDWRYTTEN" ||
       o.status === "PAYMENT_RECEIVED" ||
-      o.status === "MAILED"
-    ) {
-      totalRevenueCents += o.amountInCents || 900;
+      o.status === "MAILED";
+
+    if (isPaid) {
+      const orderRev = o.amountInCents !== undefined ? o.amountInCents : 900;
+      totalRevenueCents += orderRev;
       processingCount++;
+
+      const orderStripeFee = calculateStripeFeeCents(orderRev, o.paymentMethod);
+      const orderCogs = HANDWRYTTEN_COGS_PER_CARD_CENTS;
+      const orderNetMargin = orderRev - orderStripeFee - orderCogs;
+
+      stripeFeesCents += orderStripeFee;
+      fulfillmentCogsCents += orderCogs;
+
+      // Group attribution by Campaign / Source
+      const utmCampaign = o.attribution?.utmCampaign?.trim() || "";
+      const utmSource = o.attribution?.utmSource?.trim() || "";
+      const utmMedium = o.attribution?.utmMedium?.trim() || "";
+      const hasGclid = Boolean(o.attribution?.gclid);
+
+      let key = "Direct / Organic";
+      if (utmCampaign) {
+        key = utmCampaign;
+      } else if (utmSource || utmMedium) {
+        key = `${utmSource || "direct"} / ${utmMedium || "none"}`;
+      } else if (hasGclid) {
+        key = "Google Ads (Auto-tagged)";
+      }
+
+      if (!campaignAgg[key]) {
+        campaignAgg[key] = {
+          campaignKey: key,
+          utmSource: utmSource || (hasGclid ? "google" : "direct"),
+          utmMedium: utmMedium || (hasGclid ? "cpc" : "none"),
+          utmCampaign: utmCampaign || (hasGclid ? "Google Ads" : "(not set)"),
+          hasGclid,
+          orderCount: 0,
+          grossRevenueCents: 0,
+          netContributionMarginCents: 0,
+          lastOrderAt: o.createdAt,
+        };
+      }
+
+      campaignAgg[key].orderCount++;
+      campaignAgg[key].grossRevenueCents += orderRev;
+      campaignAgg[key].netContributionMarginCents += orderNetMargin;
+      if (o.createdAt && (!campaignAgg[key].lastOrderAt || o.createdAt > campaignAgg[key].lastOrderAt!)) {
+        campaignAgg[key].lastOrderAt = o.createdAt;
+      }
     } else if (o.status === "PENDING_PAYMENT") {
       pendingCount++;
     } else if (o.status === "FAILED") {
@@ -299,7 +364,50 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     }))
     .sort((a, b) => b.count - a.count);
 
-  // 3. Load pre-aggregated telemetry funnel
+  // 3. Margin & Unit Economics Summaries
+  const paidCardsCount = processingCount;
+  const netContributionMarginCents = totalRevenueCents - stripeFeesCents - fulfillmentCogsCents;
+  const netContributionMarginPercent =
+    totalRevenueCents > 0
+      ? Math.round((netContributionMarginCents / totalRevenueCents) * 1000) / 10
+      : 39.6;
+
+  const averageOrderRevenueCents = paidCardsCount > 0 ? Math.round(totalRevenueCents / paidCardsCount) : 900;
+  const averageStripeFeeCents = paidCardsCount > 0 ? Math.round(stripeFeesCents / paidCardsCount) : 56;
+  const averageFulfillmentCogsCents = paidCardsCount > 0 ? Math.round(fulfillmentCogsCents / paidCardsCount) : HANDWRYTTEN_COGS_PER_CARD_CENTS;
+  const averageNetContributionCents = paidCardsCount > 0 ? Math.round(netContributionMarginCents / paidCardsCount) : (900 - 56 - HANDWRYTTEN_COGS_PER_CARD_CENTS);
+  const targetBreakevenCpaDollars = Number((averageNetContributionCents / 100).toFixed(2));
+
+  const margins: FinancialMargins = {
+    grossRevenueCents: totalRevenueCents,
+    stripeFeesCents,
+    fulfillmentCogsCents,
+    netContributionMarginCents,
+    netContributionMarginPercent,
+    paidCardsCount,
+    averageOrderRevenueCents,
+    averageStripeFeeCents,
+    averageFulfillmentCogsCents,
+    averageNetContributionCents,
+    targetBreakevenCpaDollars,
+  };
+
+  const campaignAttributions = Object.values(campaignAgg).sort(
+    (a, b) => b.netContributionMarginCents - a.netContributionMarginCents
+  );
+
+  // Fetch operator tracked ad spend from system config
+  let adSpendCents = 0;
+  try {
+    const adSpendDoc = await getSystemConfig<{ amountCents: number }>("admin_ad_spend");
+    if (adSpendDoc?.amountCents) {
+      adSpendCents = adSpendDoc.amountCents;
+    }
+  } catch (err) {
+    console.warn("[Metrics Rollup] Error reading ad spend config:", err);
+  }
+
+  // 4. Load pre-aggregated telemetry funnel
   const telemetry = await getTelemetrySummary();
 
   const totalSessions = Math.max(telemetry.totalSessions, allOrdersSnap.size, 1);
@@ -322,6 +430,9 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     },
     fontPopularity,
     occasionPopularity,
+    margins,
+    campaignAttributions,
+    adSpendCents,
     recentOrders,
   };
 }

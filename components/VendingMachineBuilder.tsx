@@ -33,6 +33,7 @@ import { trackEvent } from "@/lib/telemetry";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "./AuthModal";
 import { useDeviceWallet } from "@/lib/device-wallet";
+import { getStoredAttribution } from "./AttributionTracker";
 import Link from "next/link";
 
 export interface VendingMachineBuilderProps {
@@ -370,6 +371,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
           userId: user?.uid,
           scheduledSendDate: scheduledSendDate || undefined,
           discountCode: discountCodeToUse,
+          attribution: getStoredAttribution() || undefined,
         }),
       });
 

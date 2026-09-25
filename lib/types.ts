@@ -23,6 +23,18 @@ export interface SavedAddress extends MailingAddress {
   occasionReminderDate?: string; // YYYY-MM-DD for birthdays/anniversaries
 }
 
+export interface OrderAttribution {
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  gclid?: string;
+  referrer?: string;
+  landingPath?: string;
+  capturedAt?: number;
+}
+
 export interface Order {
   id: string;
   stripePaymentId?: string;
@@ -47,6 +59,7 @@ export interface Order {
   discountCode?: string;
   discountAmountInCents?: number;
   paymentMethod?: "STRIPE" | "PROMO_CODE" | "STUDIO_COMP";
+  attribution?: OrderAttribution;
   viewToken?: string;
   isRedacted?: boolean;
   createdAt: number;
@@ -228,6 +241,32 @@ export interface ScenarioPerformanceMetric {
   actionableInsight: string;
 }
 
+export interface FinancialMargins {
+  grossRevenueCents: number;
+  stripeFeesCents: number;
+  fulfillmentCogsCents: number;
+  netContributionMarginCents: number;
+  netContributionMarginPercent: number;
+  paidCardsCount: number;
+  averageOrderRevenueCents: number;
+  averageStripeFeeCents: number;
+  averageFulfillmentCogsCents: number;
+  averageNetContributionCents: number; // break-even target CPA
+  targetBreakevenCpaDollars: number;
+}
+
+export interface CampaignAttributionMetric {
+  campaignKey: string;
+  utmSource: string;
+  utmMedium: string;
+  utmCampaign: string;
+  hasGclid: boolean;
+  orderCount: number;
+  grossRevenueCents: number;
+  netContributionMarginCents: number;
+  lastOrderAt?: number;
+}
+
 // Admin Dashboard Analytics
 export interface AdminMetrics {
   totalRevenueCents: number;
@@ -247,5 +286,8 @@ export interface AdminMetrics {
   };
   fontPopularity?: { fontId: string; fontName: string; count: number; percentage: number }[];
   occasionPopularity?: { occasion: string; count: number; percentage: number }[];
+  margins?: FinancialMargins;
+  campaignAttributions?: CampaignAttributionMetric[];
+  adSpendCents?: number;
   recentOrders: Order[];
 }

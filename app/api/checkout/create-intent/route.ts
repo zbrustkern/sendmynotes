@@ -21,6 +21,7 @@ export async function POST(req: NextRequest) {
       userId,
       scheduledSendDate,
       discountCode: rawDiscountCode,
+      attribution,
     } = body;
 
     if (!frontImageUrl) {
@@ -80,6 +81,7 @@ export async function POST(req: NextRequest) {
         ...(appliedCode ? { discountCode: appliedCode } : {}),
         discountAmountInCents,
         paymentMethod: "PROMO_CODE",
+        ...(attribution ? { attribution } : {}),
         viewToken,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -134,6 +136,7 @@ export async function POST(req: NextRequest) {
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
       paymentMethod: "STRIPE",
+      ...(attribution ? { attribution } : {}),
       viewToken,
       createdAt: Date.now(),
       updatedAt: Date.now(),
