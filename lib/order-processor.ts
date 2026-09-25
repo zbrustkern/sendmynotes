@@ -3,6 +3,7 @@ import {
   updateOrderStatus,
   getImageCachePoolCollection,
   recordDiscountUsage,
+  resolveIncidentsForOrder,
 } from "./firebase-admin";
 import { fulfillHandwryttenOrder } from "./handwrytten";
 import { logIncident } from "./incident-logger";
@@ -77,24 +78,41 @@ export async function processPaidOrder(
   });
 
   if (!fulfillment.success) {
-    console.error(`[OrderProcessor] Handwrytten dispatch queued/failed for Order ${orderId}:`, fulfillment.error);
+    const rawError = fulfillment.error || "";
+    console.error(`[OrderProcessor] Handwrytten dispatch queued/failed for Order ${orderId}:`, rawError);
     await updateOrderStatus(orderId, {
       status: "QUEUED_FOR_FULFILLMENT",
-      fulfillmentError: fulfillment.error || "Awaiting studio fulfillment queue",
+      fulfillmentError: rawError || "Awaiting studio fulfillment queue",
     });
+
+    const isBillingError = /payment|card|balance|credit|funds/i.test(rawError);
+    const isAddressError = /address|zip|postal|city|state|street/i.test(rawError);
+
+    const category = isBillingError
+      ? "STUDIO_BILLING"
+      : isAddressError
+      ? "OPERATOR_ACTION"
+      : "TRANSIENT";
+
+    const summaryPrefix = isBillingError
+      ? "[Studio Wholesale Billing] Handwrytten wholesale charge declined"
+      : isAddressError
+      ? "[Recipient Address Error] Recipient address rejected"
+      : "Handwrytten robotic pen dispatch failed";
 
     await logIncident({
       type: "HANDWRYTTEN",
-      severity: "error",
-      summary: `Handwrytten robotic pen dispatch failed for Order ${orderId}`,
-      technicalDetails: fulfillment.error || "Handwrytten singleStepOrder API error",
+      category,
+      severity: isBillingError ? "error" : "warning",
+      summary: `${summaryPrefix} for Order ${orderId}: ${rawError || "Fulfillment API error"}`,
+      technicalDetails: rawError || "Handwrytten singleStepOrder API error",
       metadata: { orderId, details: fulfillment.details },
     });
 
     return {
       success: false,
       status: "QUEUED_FOR_FULFILLMENT",
-      error: fulfillment.error,
+      error: rawError,
     };
   }
 
@@ -105,7 +123,17 @@ export async function processPaidOrder(
     fulfillmentError: undefined,
   });
 
-  // 7. Mark image as CLAIMED in image_cache_pool if matched
+  // 7. Auto-resolve any prior incidents for this order
+  try {
+    await resolveIncidentsForOrder(
+      orderId,
+      `Self-resolved via successful robotic pen dispatch (HW ID: ${fulfillment.order_id})`
+    );
+  } catch (resolveErr) {
+    console.warn("[OrderProcessor] Notice auto-resolving prior incidents:", resolveErr);
+  }
+
+  // 8. Mark image as CLAIMED in image_cache_pool if matched
   try {
     const cacheSnapshot = await getImageCachePoolCollection()
       .where("imageUrl", "==", order.frontImageUrl)

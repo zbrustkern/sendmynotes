@@ -9,12 +9,15 @@ const DATA_FILE = path.join(DATA_DIR, "mock-firestore.json");
 
 // Mock Document and Query Snapshots
 class MockDocumentSnapshot<T = unknown> {
-  constructor(private _id: string, private _data: T | undefined) {}
+  constructor(private _id: string, private _data: T | undefined, private _ref?: MockDocRef<T>) {}
   get id() {
     return this._id;
   }
   get exists() {
     return this._data !== undefined;
+  }
+  get ref() {
+    return this._ref;
   }
   data(): T | undefined {
     return this._data ? JSON.parse(JSON.stringify(this._data)) : undefined;
@@ -44,7 +47,7 @@ class MockDocRef<T = unknown> {
   }
   async get(): Promise<MockDocumentSnapshot<T>> {
     const data = this._collection.store.get(this._id);
-    return new MockDocumentSnapshot<T>(this._id, data);
+    return new MockDocumentSnapshot<T>(this._id, data, this);
   }
   async set(data: T, options?: { merge?: boolean }): Promise<void> {
     if (options?.merge && this._collection.store.has(this._id)) {
@@ -90,7 +93,7 @@ class MockCollection<T = Record<string, unknown>> {
       get: async (): Promise<MockQuerySnapshot<T>> => {
         const results: MockDocumentSnapshot<T>[] = [];
         for (const [id, data] of this.store.entries()) {
-          results.push(new MockDocumentSnapshot<T>(id, data));
+          results.push(new MockDocumentSnapshot<T>(id, data, this.doc(id)));
           if (results.length >= n) break;
         }
         return new MockQuerySnapshot<T>(results);
@@ -99,14 +102,33 @@ class MockCollection<T = Record<string, unknown>> {
   }
 
   where(field: string, op: string, value: unknown) {
+    const getVal = (item: Record<string, unknown>, path: string) => {
+      const parts = path.split(".");
+      let curr: any = item;
+      for (const p of parts) {
+        if (curr === undefined || curr === null) return undefined;
+        curr = curr[p];
+      }
+      return curr;
+    };
+
+    const filterItem = (data: Record<string, unknown>) => {
+      const val = getVal(data, field);
+      if (op === "==") return val === value;
+      if (op === "!=") return val !== value;
+      return false;
+    };
+
     return {
+      where: (nextField: string, nextOp: string, nextValue: unknown) => {
+        return this.where(nextField, nextOp, nextValue);
+      },
       limit: (n: number) => ({
         get: async (): Promise<MockQuerySnapshot<T>> => {
           const results: MockDocumentSnapshot<T>[] = [];
           for (const [id, data] of this.store.entries()) {
-            const val = (data as Record<string, unknown>)[field];
-            if (op === "==" && val === value) {
-              results.push(new MockDocumentSnapshot<T>(id, data));
+            if (filterItem(data as Record<string, unknown>)) {
+              results.push(new MockDocumentSnapshot<T>(id, data, this.doc(id)));
             }
             if (results.length >= n) break;
           }
@@ -116,9 +138,8 @@ class MockCollection<T = Record<string, unknown>> {
       get: async (): Promise<MockQuerySnapshot<T>> => {
         const results: MockDocumentSnapshot<T>[] = [];
         for (const [id, data] of this.store.entries()) {
-          const val = (data as Record<string, unknown>)[field];
-          if (op === "==" && val === value) {
-            results.push(new MockDocumentSnapshot<T>(id, data));
+          if (filterItem(data as Record<string, unknown>)) {
+            results.push(new MockDocumentSnapshot<T>(id, data, this.doc(id)));
           }
         }
         return new MockQuerySnapshot<T>(results);
@@ -137,7 +158,7 @@ class MockCollection<T = Record<string, unknown>> {
             if (valB === undefined) return -1;
             return direction === "desc" ? (valB > valA ? 1 : -1) : (valA > valB ? 1 : -1);
           });
-          const results = sorted.slice(0, n).map(([id, data]) => new MockDocumentSnapshot<T>(id, data));
+          const results = sorted.slice(0, n).map(([id, data]) => new MockDocumentSnapshot<T>(id, data, this.doc(id)));
           return new MockQuerySnapshot<T>(results);
         },
       }),
@@ -149,7 +170,7 @@ class MockCollection<T = Record<string, unknown>> {
           if (valB === undefined) return -1;
           return direction === "desc" ? (valB > valA ? 1 : -1) : (valA > valB ? 1 : -1);
         });
-        const results = sorted.map(([id, data]) => new MockDocumentSnapshot<T>(id, data));
+        const results = sorted.map(([id, data]) => new MockDocumentSnapshot<T>(id, data, this.doc(id)));
         return new MockQuerySnapshot<T>(results);
       },
     };
@@ -158,7 +179,7 @@ class MockCollection<T = Record<string, unknown>> {
   async get(): Promise<MockQuerySnapshot<T>> {
     const results: MockDocumentSnapshot<T>[] = [];
     for (const [id, data] of this.store.entries()) {
-      results.push(new MockDocumentSnapshot<T>(id, data));
+      results.push(new MockDocumentSnapshot<T>(id, data, this.doc(id)));
     }
     return new MockQuerySnapshot<T>(results);
   }
@@ -451,6 +472,35 @@ export async function recordDiscountUsage(code: string, discountAmountCents: num
     totalDiscountGivenCents: (current.totalDiscountGivenCents || 0) + discountAmountCents,
     updatedAt: Date.now(),
   });
+}
+
+/**
+ * Auto-resolves any open incidents associated with a specific orderId.
+ */
+export async function resolveIncidentsForOrder(
+  orderId: string,
+  resolutionNote: string
+): Promise<number> {
+  try {
+    const col = getSystemIncidentsCollection();
+    const snapshot = await col.where("resolved", "==", false).get();
+    let count = 0;
+    for (const doc of snapshot.docs) {
+      const data = doc.data() as SystemIncident;
+      if (data?.metadata?.orderId === orderId) {
+        await col.doc(doc.id).update({
+          resolved: true,
+          resolvedAt: Date.now(),
+          resolutionNote,
+        });
+        count++;
+      }
+    }
+    return count;
+  } catch (err) {
+    console.warn("[resolveIncidentsForOrder] Notice:", err);
+    return 0;
+  }
 }
 
 

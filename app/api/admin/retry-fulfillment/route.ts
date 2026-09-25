@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrderById, updateOrderStatus, getSystemIncidentsCollection } from "@/lib/firebase-admin";
+import { getOrderById, updateOrderStatus, getSystemIncidentsCollection, resolveIncidentsForOrder } from "@/lib/firebase-admin";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { MailingAddress } from "@/lib/types";
@@ -71,16 +71,21 @@ export async function POST(req: NextRequest) {
       fulfillmentError: "",
     });
 
-    // If an associated incident was provided, mark it resolved
-    if (incidentId) {
-      try {
+    // Auto-resolve any associated incidents
+    try {
+      if (incidentId) {
         await getSystemIncidentsCollection().doc(incidentId).update({
           resolved: true,
           resolvedAt: Date.now(),
+          resolutionNote: `Resolved via admin retry (HW ID: ${fulfillment.order_id})`,
         });
-      } catch (incErr) {
-        console.warn("[Admin] Notice resolving incident during retry:", incErr);
       }
+      await resolveIncidentsForOrder(
+        orderId,
+        `Resolved via admin fulfillment retry (HW ID: ${fulfillment.order_id})`
+      );
+    } catch (incErr) {
+      console.warn("[Admin] Notice resolving incident during retry:", incErr);
     }
 
     console.log(`[Admin] Order ${orderId} successfully fulfilled! HW ID: ${fulfillment.order_id}`);

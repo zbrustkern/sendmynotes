@@ -102,6 +102,7 @@ export async function POST(req: NextRequest) {
       await getSystemIncidentsCollection().doc(incidentId).update({
         resolved: true,
         resolvedAt: Date.now(),
+        resolutionNote: body.resolutionNote ? String(body.resolutionNote) : "Marked resolved by operator",
       });
       return NextResponse.json({ success: true, incidentId });
     }

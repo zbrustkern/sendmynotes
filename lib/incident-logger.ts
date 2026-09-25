@@ -3,6 +3,7 @@ import { SystemIncident } from "./types";
 
 export interface LogIncidentParams {
   type: "STRIPE" | "IMAGE_GEN" | "HANDWRYTTEN" | "WEBHOOK" | "SYSTEM";
+  category?: "OPERATOR_ACTION" | "STUDIO_BILLING" | "CUSTOMER_RECOVERED" | "TRANSIENT";
   severity?: "error" | "warning" | "info";
   summary: string;
   technicalDetails?: string | unknown;
@@ -32,6 +33,7 @@ export async function logIncident(params: LogIncidentParams): Promise<string> {
   const incident: SystemIncident = {
     id,
     type: params.type,
+    ...(params.category ? { category: params.category } : {}),
     severity: params.severity || "error",
     summary: params.summary,
     ...(sanitizedDetails ? { technicalDetails: sanitizedDetails } : {}),

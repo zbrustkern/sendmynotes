@@ -73,11 +73,14 @@ export interface DiscountCode {
 export interface SystemIncident {
   id: string;
   type: "STRIPE" | "IMAGE_GEN" | "HANDWRYTTEN" | "WEBHOOK" | "SYSTEM" | "SECURITY";
+  category?: "OPERATOR_ACTION" | "STUDIO_BILLING" | "CUSTOMER_RECOVERED" | "TRANSIENT";
   severity: "error" | "warning" | "info";
   summary: string;
   technicalDetails?: string;
   metadata?: Record<string, unknown>;
   resolved: boolean;
+  resolvedAt?: number;
+  resolutionNote?: string;
   createdAt: number;
 }
 
