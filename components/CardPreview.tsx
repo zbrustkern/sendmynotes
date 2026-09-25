@@ -33,6 +33,10 @@ function InsideRightLeaf({
   currentFont: FontOption;
   showSpineShadow?: boolean;
 }) {
+  const fullMessage = printedGreeting?.trim()
+    ? `${printedGreeting.trim()}\n\n${handwrittenNote.trim()}`
+    : (handwrittenNote?.trim() || "Dear friend,\n\nSending you warmth and joy on this special day!");
+
   return (
     <div
       style={{ containerType: "inline-size" }}
@@ -44,7 +48,7 @@ function InsideRightLeaf({
           position: "absolute",
           inset: "3.5cqw",
           borderRadius: "2.5cqw",
-          border: "1px solid rgba(120, 113, 108, 0.25)",
+          border: "1px solid rgba(120, 113, 108, 0.22)",
           pointerEvents: "none",
         }}
       />
@@ -54,53 +58,26 @@ function InsideRightLeaf({
         <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/30 via-stone-300/10 to-transparent pointer-events-none z-10" />
       )}
 
-      {/* Physical Print Content Layout */}
-      <div className="relative z-10 w-full h-full flex flex-col justify-start">
-        {/* Upper Third: Centered Printed Sentiment (Classic Hallmark/Crane Stationery Golden Ratio) */}
-        {printedGreeting ? (
-          <div
-            style={{
-              paddingTop: "33cqw", // ~23.5% of card height (140cqw total height in 5:7)
-              paddingBottom: "6cqw",
-              paddingLeft: "8cqw",
-              paddingRight: "8cqw",
-            }}
-            className="text-center"
-          >
-            <p
-              style={{
-                fontSize: "4.3cqw",
-                lineHeight: 1.45,
-              }}
-              className="font-serif text-stone-800 font-semibold tracking-normal"
-            >
-              {printedGreeting}
-            </p>
-          </div>
-        ) : (
-          <div style={{ paddingTop: "26cqw" }} /> // ~18.5% top margin if no pre-printed greeting
-        )}
-
-        {/* Lower Portion: Real Pen Inking anchored right below the printed sentiment */}
-        <div
+      {/* Physical Robotic Pen Inking Layout */}
+      <div
+        style={{
+          paddingTop: printedGreeting?.trim() ? "14cqw" : "16cqw",
+          paddingLeft: "8.5cqw",
+          paddingRight: "8.5cqw",
+          paddingBottom: "10cqw",
+        }}
+        className="relative z-10 w-full h-full flex flex-col justify-start"
+      >
+        <p
           style={{
-            paddingLeft: "8cqw",
-            paddingRight: "8cqw",
-            paddingBottom: "8cqw",
+            fontFamily: currentFont.fontFamily,
+            fontSize: "4.5cqw",
+            lineHeight: 1.55,
           }}
-          className="flex-1 flex flex-col justify-start"
+          className={`text-[#1B3B6F] whitespace-pre-line ${currentFont.fontClass}`}
         >
-          <p
-            style={{
-              fontFamily: currentFont.fontFamily,
-              fontSize: "4.8cqw",
-              lineHeight: 1.5,
-            }}
-            className={`text-[#1B3B6F] whitespace-pre-line ${currentFont.fontClass}`}
-          >
-            {handwrittenNote || "Dear friend,\nSending you warmth and joy on this special day!"}
-          </p>
-        </div>
+          {fullMessage}
+        </p>
       </div>
     </div>
   );

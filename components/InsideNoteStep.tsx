@@ -79,11 +79,11 @@ export function InsideNoteStep({
             2
           </span>
           <h2 className="text-xl font-bold tracking-tight text-stone-900 flex items-center gap-2">
-            Inside Card Note (Traditional Layout)
+            Inside Card Note (Robotic Penmanship)
           </h2>
         </div>
         <p className="text-sm text-stone-500">
-          Following classic greeting card tradition, your printed sentiment is centered in the upper third of the inside right page, followed naturally by your robotic pen message.
+          Our robotic plotter pens your note in authentic ballpoint ink directly onto heavyweight 120 lb archival cardstock.
         </p>
       </div>
 
@@ -96,13 +96,13 @@ export function InsideNoteStep({
             </div>
             <div>
               <h3 className="text-sm font-bold text-stone-900 flex items-center gap-2">
-                Browse Card Sentiments & Notes
+                Browse Message Inspirations
                 <span className="text-[10px] font-medium tracking-wide uppercase px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
-                  Curated Pairs
+                  Ready to Send
                 </span>
               </h3>
               <p className="text-xs text-stone-500">
-                Browse paired greetings & personal notes like reading real cards in a boutique atelier.
+                Thoughtfully crafted personal notes for every occasion. Click any note to apply.
               </p>
             </div>
           </div>
@@ -192,31 +192,23 @@ export function InsideNoteStep({
                           )}
                         </div>
 
-                        {/* Printed Greeting Preview */}
-                        <div className="border-l-2 border-stone-300 pl-2.5 py-0.5">
-                          <div className="text-[10px] text-stone-400 font-sans uppercase tracking-wider">
-                            Printed Greeting
-                          </div>
-                          <p className="text-xs font-serif font-semibold text-stone-900 leading-snug">
-                            "{item.printed}"
-                          </p>
-                        </div>
-
-                        {/* Handwritten Note Preview */}
-                        <div className="border-l-2 border-indigo-200 pl-2.5 py-0.5">
-                          <div className="text-[10px] text-indigo-500/90 font-sans uppercase tracking-wider">
-                            Handwritten Inking
-                          </div>
+                        {/* Note Preview */}
+                        <div className="border-l-2 border-amber-300/80 bg-stone-50/60 rounded-r-lg p-2.5 space-y-1.5">
+                          {item.printed && (
+                            <p className="text-xs font-semibold text-stone-900 leading-snug">
+                              &ldquo;{item.printed}&rdquo;
+                            </p>
+                          )}
                           <p className="text-xs text-stone-700 font-serif italic leading-relaxed line-clamp-3">
-                            "{item.handwritten}"
+                            &ldquo;{item.handwritten}&rdquo;
                           </p>
                         </div>
                       </div>
 
                       <div className="mt-3 pt-2 border-t border-stone-100 flex items-center justify-between text-[11px]">
-                        <span className="text-stone-400">Fills both messages</span>
+                        <span className="text-stone-400">Penned in real ink</span>
                         <span className="font-semibold text-amber-800 group-hover:underline">
-                          {isCurrentPair ? "Currently selected" : "Use this sentiment →"}
+                          {isCurrentPair ? "Currently selected" : "Use this note →"}
                         </span>
                       </div>
                     </div>
@@ -232,14 +224,14 @@ export function InsideNoteStep({
         )}
       </div>
 
-      {/* Top of Right Page: Printed Greeting Input */}
+      {/* Top of Right Page: Opening Line Input */}
       <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Type className="w-3.5 h-3.5 text-stone-500" />
-            Opening Greeting or Sentiment (Optional)
+            Opening Line or Sentiment (Optional)
           </label>
-          <span className="text-[11px] text-stone-400">Optional • Leave blank for 100% handwriting</span>
+          <span className="text-[11px] text-stone-400">Optional • Leave blank to start straight into your note</span>
         </div>
 
         <input
@@ -248,11 +240,11 @@ export function InsideNoteStep({
           onChange={(e) => onChangePrintedGreeting(e.target.value)}
           placeholder="Optional: e.g. Wishing you a wonderful celebration! (or leave blank)"
           maxLength={120}
-          className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-serif font-medium text-stone-800 transition"
+          className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white font-medium text-stone-800 transition"
         />
 
         <div className="flex items-center justify-between text-[11px] text-stone-400">
-          <span>Penned at the top of the inside right page</span>
+          <span>Penned at the top in ballpoint ink with your selected handwriting</span>
           <span>{printedGreeting.length}/120 characters</span>
         </div>
       </div>
@@ -314,7 +306,7 @@ export function InsideNoteStep({
         <div className="flex items-center justify-between">
           <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
             <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Lower Right Page: Personal Message (Handwritten in Real Ink)
+            Personal Note (Handwritten in Real Ink)
           </label>
           <span className="text-[11px] text-stone-400">Up to 500 characters</span>
         </div>
