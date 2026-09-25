@@ -35,3 +35,6 @@ next-env.d.ts
 # Local mock persistence
 .data/
 
+# Standalone Aster & Blanche site (independent repo)
+asterandblanche-site/
+
