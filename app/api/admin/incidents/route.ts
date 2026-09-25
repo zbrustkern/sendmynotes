@@ -70,7 +70,30 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Action B: Mark Incident as Resolved
+    // Action B: Test Alert Notification
+    if (action === "test_alert_email") {
+      const email = (body.email || "").trim();
+      if (!email) {
+        return NextResponse.json({ error: "No email address provided" }, { status: 400 });
+      }
+      const { sendIncidentAlertEmail } = await import("@/lib/email-alerts");
+      const testIncident: SystemIncident = {
+        id: `inc_test_${Date.now()}`,
+        type: "SYSTEM",
+        severity: "error",
+        summary: "Studio Test Alert — Verified System Notification",
+        technicalDetails: "This is a simulated high-priority diagnostic alert dispatched from the Aster & Blanche Admin Panel to verify real-time email notifications.",
+        resolved: false,
+        createdAt: Date.now(),
+      };
+      const result = await sendIncidentAlertEmail({ incident: testIncident, toEmail: email });
+      return NextResponse.json({
+        success: result.success,
+        message: result.error ? `Alert notice: ${result.error}` : `Test alert dispatched to ${email}`,
+      });
+    }
+
+    // Action C: Mark Incident as Resolved
     if (action === "resolve_incident") {
       const incidentId = body.incidentId;
       if (!incidentId) {

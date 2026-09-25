@@ -234,6 +234,21 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
   let processingCount = 0;
   let failedCount = 0;
 
+  const fontCounts: Record<string, number> = {};
+  const occasionCounts: Record<string, number> = {};
+  const FONT_NAME_MAP: Record<string, string> = {
+    "1": "Casual David",
+    "hwDavid": "Casual David",
+    "2": "Charming Chase",
+    "hwChase": "Charming Chase",
+    "3": "Carefree Kate",
+    "hwKate": "Carefree Kate",
+    "4": "Executive Adam",
+    "hwAdam": "Executive Adam",
+    "5": "Dapper Will",
+    "hwWill": "Dapper Will",
+  };
+
   allOrdersSnap.forEach((doc) => {
     const o = doc.data() as Order;
     if (
@@ -248,7 +263,41 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     } else if (o.status === "FAILED") {
       failedCount++;
     }
+
+    // Font tally
+    const fontId = o.fontStyleId || "hwDavid";
+    const fontName = FONT_NAME_MAP[fontId] || fontId;
+    fontCounts[fontName] = (fontCounts[fontName] || 0) + 1;
+
+    // Occasion tally
+    const noteText = `${o.printedMessage || ""} ${o.handwrittenNote || ""}`.toLowerCase();
+    let occasion = "Personal Note";
+    if (noteText.includes("birthday") || noteText.includes("bday")) occasion = "Birthday";
+    else if (noteText.includes("thank") || noteText.includes("grateful") || noteText.includes("gratitude")) occasion = "Thank You";
+    else if (noteText.includes("anniversary")) occasion = "Anniversary";
+    else if (noteText.includes("congrat") || noteText.includes("milestone") || noteText.includes("proud")) occasion = "Congratulations";
+    else if (noteText.includes("sympathy") || noteText.includes("condolence") || noteText.includes("thinking of you")) occasion = "Sympathy";
+    else if (noteText.includes("love") || noteText.includes("miss you")) occasion = "Love / Romance";
+    occasionCounts[occasion] = (occasionCounts[occasion] || 0) + 1;
   });
+
+  const totalCountForBreakdowns = Math.max(allOrdersSnap.size, 1);
+  const fontPopularity = Object.entries(fontCounts)
+    .map(([fontName, count]) => ({
+      fontId: fontName,
+      fontName,
+      count,
+      percentage: Math.round((count / totalCountForBreakdowns) * 100),
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  const occasionPopularity = Object.entries(occasionCounts)
+    .map(([occasion, count]) => ({
+      occasion,
+      count,
+      percentage: Math.round((count / totalCountForBreakdowns) * 100),
+    }))
+    .sort((a, b) => b.count - a.count);
 
   // 3. Load pre-aggregated telemetry funnel
   const telemetry = await getTelemetrySummary();
@@ -271,6 +320,8 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
       checkoutInitiated: Math.max(telemetry.checkoutInitiated, allOrdersSnap.size),
       paid: Math.max(telemetry.paid, processingCount),
     },
+    fontPopularity,
+    occasionPopularity,
     recentOrders,
   };
 }

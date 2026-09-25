@@ -46,10 +46,16 @@ export async function logIncident(params: LogIncidentParams): Promise<string> {
 
     // Check if an alert subscriber email is registered
     const alertConfig = await getSystemConfig<{ alertEmail?: string }>("alerts");
-    if (alertConfig?.alertEmail) {
-      console.log(
-        `[Alert Notification Ready] Subscriber: ${alertConfig.alertEmail} | Incident: ${id}`
-      );
+    if (alertConfig?.alertEmail && incident.severity === "error") {
+      try {
+        const { sendIncidentAlertEmail } = await import("./email-alerts");
+        await sendIncidentAlertEmail({
+          incident,
+          toEmail: alertConfig.alertEmail,
+        });
+      } catch (emailErr) {
+        console.warn("[Incident Logger] Notice sending alert email:", emailErr);
+      }
     }
   } catch (err) {
     console.error("[Incident Logger] Failed to save incident to Firestore:", err);

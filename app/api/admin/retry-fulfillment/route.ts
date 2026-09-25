@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
+import { getOrderById, updateOrderStatus, getSystemIncidentsCollection } from "@/lib/firebase-admin";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { verifyAdminAuth } from "@/lib/admin-auth";
+import { MailingAddress } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,7 +10,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized access to fulfillment retry" }, { status: 401 });
     }
 
-    const { orderId } = await req.json();
+    const { orderId, updatedRecipientAddress, incidentId } = await req.json();
 
     if (!orderId) {
       return NextResponse.json({ error: "Missing orderId parameter" }, { status: 400 });
@@ -20,6 +21,23 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    let recipientToUse = order.recipientAddress;
+
+    // If operator provided an updated or corrected address
+    if (updatedRecipientAddress && typeof updatedRecipientAddress === "object") {
+      const addressUpdate: MailingAddress = {
+        firstName: String(updatedRecipientAddress.firstName || "").trim(),
+        lastName: String(updatedRecipientAddress.lastName || "").trim(),
+        street1: String(updatedRecipientAddress.street1 || "").trim(),
+        street2: String(updatedRecipientAddress.street2 || "").trim(),
+        city: String(updatedRecipientAddress.city || "").trim(),
+        state: String(updatedRecipientAddress.state || "").trim().toUpperCase(),
+        zip: String(updatedRecipientAddress.zip || "").trim(),
+      };
+      await updateOrderStatus(orderId, { recipientAddress: addressUpdate });
+      recipientToUse = addressUpdate;
+    }
+
     console.log(`[Admin] Retrying Handwrytten fulfillment for order: ${orderId}...`);
 
     const fulfillment = await fulfillHandwryttenOrder({
@@ -27,7 +45,7 @@ export async function POST(req: NextRequest) {
       printedGreeting: order.printedMessage,
       handwrittenMessage: order.handwrittenNote,
       fontId: order.fontStyleId || "1",
-      recipient: order.recipientAddress,
+      recipient: recipientToUse,
       returnAddress: order.returnAddress,
       scheduledSendDate: order.scheduledSendDate,
     });
@@ -50,8 +68,20 @@ export async function POST(req: NextRequest) {
     await updateOrderStatus(orderId, {
       status: "PROCESSING_HANDWRYTTEN",
       handwryttenOrderId: fulfillment.order_id,
-      fulfillmentError: undefined,
+      fulfillmentError: "",
     });
+
+    // If an associated incident was provided, mark it resolved
+    if (incidentId) {
+      try {
+        await getSystemIncidentsCollection().doc(incidentId).update({
+          resolved: true,
+          resolvedAt: Date.now(),
+        });
+      } catch (incErr) {
+        console.warn("[Admin] Notice resolving incident during retry:", incErr);
+      }
+    }
 
     console.log(`[Admin] Order ${orderId} successfully fulfilled! HW ID: ${fulfillment.order_id}`);
     return NextResponse.json({

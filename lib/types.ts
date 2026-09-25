@@ -46,7 +46,7 @@ export interface Order {
   originalAmountInCents?: number;
   discountCode?: string;
   discountAmountInCents?: number;
-  paymentMethod?: "STRIPE" | "PROMO_CODE";
+  paymentMethod?: "STRIPE" | "PROMO_CODE" | "STUDIO_COMP";
   viewToken?: string;
   isRedacted?: boolean;
   createdAt: number;
@@ -242,5 +242,7 @@ export interface AdminMetrics {
     checkoutInitiated: number;
     paid: number;
   };
+  fontPopularity?: { fontId: string; fontName: string; count: number; percentage: number }[];
+  occasionPopularity?: { occasion: string; count: number; percentage: number }[];
   recentOrders: Order[];
 }

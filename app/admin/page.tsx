@@ -41,8 +41,14 @@ import {
   BookOpen,
   Layers,
   CreditCard,
+  MapPin,
 } from "lucide-react";
 import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType, ScenarioPerformanceMetric } from "@/lib/types";
+import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWidget";
+import { ProofInspectorModal } from "@/components/admin/ProofInspectorModal";
+import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
+import { StudioCompModal } from "@/components/admin/StudioCompModal";
+import { CohortAnalytics } from "@/components/admin/CohortAnalytics";
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -63,6 +69,13 @@ export default function AdminDashboardPage() {
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingStripeId, setSyncingStripeId] = useState<string | null>(null);
+
+  // Studio & Operator Modals State
+  const [selectedProofOrderId, setSelectedProofOrderId] = useState<string | null>(null);
+  const [addressRetryOrder, setAddressRetryOrder] = useState<Order | null>(null);
+  const [addressRetryIncidentId, setAddressRetryIncidentId] = useState<string | null>(null);
+  const [showCompModal, setShowCompModal] = useState(false);
+  const [testingAlertEmail, setTestingAlertEmail] = useState(false);
 
   // Incidents & Alerts State
   const [incidents, setIncidents] = useState<SystemIncident[]>([]);
@@ -282,6 +295,32 @@ export default function AdminDashboardPage() {
       alert("Network error saving alert email");
     } finally {
       setSavingEmail(false);
+    }
+  };
+
+  const handleTestAlertEmail = async () => {
+    const targetEmail = newAlertEmail.trim() || alertEmail.trim();
+    if (!targetEmail) {
+      alert("Please enter an alert email address first.");
+      return;
+    }
+    setTestingAlertEmail(true);
+    try {
+      const res = await fetch("/api/admin/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test_alert_email", email: targetEmail }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(data.message || `Test alert successfully dispatched to ${targetEmail}! Check your inbox.`);
+      } else {
+        alert(data.error || "Failed to dispatch test alert");
+      }
+    } catch {
+      alert("Network error dispatching test alert.");
+    } finally {
+      setTestingAlertEmail(false);
     }
   };
 
@@ -709,6 +748,14 @@ export default function AdminDashboardPage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
+              onClick={() => setShowCompModal(true)}
+              className="text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Dispatch Comp Card</span>
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 fetchMetrics();
                 fetchIncidents();
@@ -823,6 +870,8 @@ export default function AdminDashboardPage() {
       </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+        {/* LIVE HANDWRYTTEN STATUS & BALANCE WIDGET */}
+        <HandwryttenStatusWidget />
         {/* ===================== TAB: ORDERS & OPERATIONS ===================== */}
         {activeTab === "orders" && (
           <div className="space-y-8">
@@ -936,6 +985,9 @@ export default function AdminDashboardPage() {
                 ))}
               </div>
             </div>
+
+            {/* COHORT & HANDWRITING STYLE ANALYTICS */}
+            <CohortAnalytics metrics={metrics} />
 
             {/* RECENT ORDERS TABLE */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
@@ -1101,26 +1153,46 @@ export default function AdminDashboardPage() {
                             </td>
                             <td className="py-3 px-4 text-center">
                               <div className="flex flex-col items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedProofOrderId(order.id)}
+                                  className="px-2 py-0.5 text-[10px] font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded border border-stone-200 transition inline-flex items-center gap-1 cursor-pointer"
+                                  title="Inspect 1:1 card proof and live handwriting"
+                                >
+                                  <Eye className="w-3 h-3 text-stone-500" />
+                                  <span>Proof</span>
+                                </button>
                                 {canRetry && (
-                                  <button
-                                    onClick={() => handleRetryFulfillment(order.id)}
-                                    disabled={retryingId === order.id}
-                                    className="px-2.5 py-1 text-[11px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-lg border border-amber-300 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
-                                  >
-                                    <RefreshCw
-                                      className={`w-3 h-3 ${
-                                        retryingId === order.id ? "animate-spin" : ""
-                                      }`}
-                                    />
-                                    {retryingId === order.id ? "Inking..." : "Retry Dispatch"}
-                                  </button>
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => handleRetryFulfillment(order.id)}
+                                      disabled={retryingId === order.id}
+                                      className="px-2 py-0.5 text-[10px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded border border-amber-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                    >
+                                      <RefreshCw
+                                        className={`w-2.5 h-2.5 ${
+                                          retryingId === order.id ? "animate-spin" : ""
+                                        }`}
+                                      />
+                                      {retryingId === order.id ? "Inking..." : "Retry"}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => setAddressRetryOrder(order)}
+                                      className="px-2 py-0.5 text-[10px] font-medium text-stone-700 bg-white hover:bg-stone-100 rounded border border-stone-300 transition inline-flex items-center gap-1 cursor-pointer"
+                                      title="Edit recipient address before retry"
+                                    >
+                                      <MapPin className="w-2.5 h-2.5 text-stone-500" />
+                                      <span>Edit</span>
+                                    </button>
+                                  </div>
                                 )}
                                 {order.handwryttenOrderId && (
                                   <button
                                     onClick={() => handleSyncHandwrytten(order.id)}
                                     disabled={syncingId === order.id}
                                     title="Check latest order and postal status directly from Handwrytten API"
-                                    className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-sm disabled:opacity-50"
+                                    className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
                                   >
                                     <RefreshCw
                                       className={`w-2.5 h-2.5 ${
@@ -1941,6 +2013,16 @@ export default function AdminDashboardPage() {
                   >
                     {savingEmail ? "Saving..." : alertEmail ? "Update Alert Email" : "Subscribe"}
                   </button>
+                  <button
+                    type="button"
+                    onClick={handleTestAlertEmail}
+                    disabled={testingAlertEmail}
+                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition disabled:opacity-50 shrink-0 cursor-pointer inline-flex items-center gap-1"
+                    title="Send a sample diagnostic alert email to verify notifications work"
+                  >
+                    <Send className="w-3 h-3" />
+                    <span>{testingAlertEmail ? "Testing..." : "Test Alert"}</span>
+                  </button>
                 </div>
               </div>
 
@@ -2016,6 +2098,32 @@ export default function AdminDashboardPage() {
                                 {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                               </button>
                             )}
+                            {Boolean(incident.metadata?.orderId) && !incident.resolved && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const orderId = String(incident.metadata?.orderId);
+                                  const found = metrics?.recentOrders.find((o) => o.id === orderId);
+                                  if (found) {
+                                    setAddressRetryOrder(found);
+                                    setAddressRetryIncidentId(incident.id);
+                                  } else {
+                                    fetch(`/api/admin/order-proof?orderId=${encodeURIComponent(orderId)}`)
+                                      .then((r) => r.json())
+                                      .then((d) => {
+                                        if (d.order) {
+                                          setAddressRetryOrder(d.order);
+                                          setAddressRetryIncidentId(incident.id);
+                                        }
+                                      });
+                                  }
+                                }}
+                                className="text-[11px] font-medium text-amber-900 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <MapPin className="w-3 h-3 text-amber-600" />
+                                <span>Fix Address</span>
+                              </button>
+                            )}
                             {!incident.resolved && (
                               <button
                                 type="button"
@@ -2044,6 +2152,38 @@ export default function AdminDashboardPage() {
           </div>
         )}
       </main>
+
+      {/* ===================== STUDIO & OPERATOR MODALS ===================== */}
+      {selectedProofOrderId && (
+        <ProofInspectorModal
+          orderId={selectedProofOrderId}
+          onClose={() => setSelectedProofOrderId(null)}
+        />
+      )}
+
+      {addressRetryOrder && (
+        <AddressRetryModal
+          order={addressRetryOrder}
+          incidentId={addressRetryIncidentId}
+          onClose={() => {
+            setAddressRetryOrder(null);
+            setAddressRetryIncidentId(null);
+          }}
+          onSuccess={() => {
+            fetchMetrics();
+            fetchIncidents();
+          }}
+        />
+      )}
+
+      {showCompModal && (
+        <StudioCompModal
+          onClose={() => setShowCompModal(false)}
+          onSuccess={() => {
+            fetchMetrics();
+          }}
+        />
+      )}
     </div>
   );
 }
