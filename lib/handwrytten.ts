@@ -142,6 +142,25 @@ export async function fulfillHandwryttenOrder(
       } else {
         throw new Error("Invalid base64 data URI for card cover art");
       }
+    } else if (params.imageUrl.startsWith("/") && !params.imageUrl.startsWith("//")) {
+      // Local public asset (e.g. /presets/birthday-balloons.jpg)
+      const localFilePath = path.join(process.cwd(), "public", params.imageUrl);
+      if (fs.existsSync(localFilePath)) {
+        console.log("[Handwrytten] Reading cover image from local public directory:", localFilePath);
+        const fileBuffer = fs.readFileSync(localFilePath);
+        imgBuffer = fileBuffer.buffer.slice(fileBuffer.byteOffset, fileBuffer.byteOffset + fileBuffer.byteLength);
+        mimeType = localFilePath.endsWith(".png") ? "image/png" : "image/jpeg";
+        fileName = path.basename(localFilePath);
+      } else {
+        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sendmynotes.com";
+        const fullUrl = `${baseUrl.replace(/\/$/, "")}${params.imageUrl}`;
+        console.log("[Handwrytten] Fetching cover image from reconstructed URL:", fullUrl);
+        const imgRes = await fetch(fullUrl);
+        if (!imgRes.ok) {
+          throw new Error(`Failed to download cover image (${imgRes.status}): ${imgRes.statusText}`);
+        }
+        imgBuffer = await imgRes.arrayBuffer();
+      }
     } else {
       console.log("[Handwrytten] Fetching cover image from URL:", params.imageUrl);
       const imgRes = await fetch(params.imageUrl);

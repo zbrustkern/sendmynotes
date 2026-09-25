@@ -13,19 +13,27 @@ interface StudioCompModalProps {
 const PRESET_COVERS = [
   {
     title: "Golden Hour Balloons",
-    url: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?w=800&auto=format&fit=crop&q=80",
+    url: "/presets/birthday-balloons.jpg",
   },
   {
-    title: "Vintage Botanical",
-    url: "https://images.unsplash.com/photo-1507290439931-a861b5a38200?w=800&auto=format&fit=crop&q=80",
+    title: "Wildflower Meadow",
+    url: "/presets/thank-you-botanical.jpg",
   },
   {
-    title: "Lake Forest Estate",
-    url: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&auto=format&fit=crop&q=80",
+    title: "Quiet Morning Breeze",
+    url: "/presets/thinking-of-you-coffee.jpg",
   },
   {
-    title: "Celebration Champagne",
-    url: "https://images.unsplash.com/photo-1510812431401-41d2bd2722f3?w=800&auto=format&fit=crop&q=80",
+    title: "Celebration Starlight",
+    url: "/presets/congrats-champagne.jpg",
+  },
+  {
+    title: "Evergreen Botanicals",
+    url: "/presets/anniversary-monstera.jpg",
+  },
+  {
+    title: "Velvet Blossoms",
+    url: "/presets/love-roses.jpg",
   },
 ];
 
