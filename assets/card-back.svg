@@ -1,108 +1,194 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 1100" width="100%" height="100%">
-  <!-- A2 Card Back Canvas (4.25" x 5.5" at 200 DPI scale) -->
+  <!-- Card Canvas: A2 Folded (4.25" x 5.5" at 200 DPI scale) -->
   <rect width="850" height="1100" fill="#FCFAF7" />
 
   <defs>
     <style>
-      .arch-bold   { fill: none; stroke: #26231F; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-      .arch-med    { fill: none; stroke: #26231F; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
-      .arch-fine   { fill: none; stroke: #59544D; stroke-width: 0.75; stroke-linecap: round; stroke-linejoin: round; }
+      .arch-bold   { fill: none; stroke: #23201D; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+      .arch-med    { fill: none; stroke: #23201D; stroke-width: 1.2; stroke-linecap: round; stroke-linejoin: round; }
+      .arch-fine   { fill: none; stroke: #544F48; stroke-width: 0.75; stroke-linecap: round; stroke-linejoin: round; }
       .arch-hair   { fill: none; stroke: #878177; stroke-width: 0.5; stroke-linecap: round; stroke-linejoin: round; }
       .paper-fill  { fill: #FCFAF7; }
-      .brand-serif { font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif; }
-      .brand-sans  { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
+      .font-serif  { font-family: 'Cormorant Garamond', 'Cinzel', Georgia, 'Times New Roman', serif; }
+      .font-sans   { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
     </style>
   </defs>
 
   <!-- ============================================================ -->
-  <!-- SCALED ELEGANT COLOPHON (Scaled to 70% for boutique mark)     -->
+  <!-- ARCHITECTURAL COLOPHON (House Vignette)                       -->
   <!-- ============================================================ -->
-  <g id="brand-colophon-mark" transform="translate(425, 520) scale(0.70) translate(-425, -450)">
-    <!-- 1. ARCHITECTURAL VIGNETTE -->
-    <g id="estate-illustration" transform="translate(125, 210)">
-    <!-- Oak Bough Accent -->
-    <path class="arch-med" d="M 0 35 C 50 38 98 26 148 48 C 178 61 198 56 222 68" />
-    <path class="arch-fine" d="M 64 34 C 78 20 102 18 118 24 M 128 42 C 146 30 168 32 182 41" />
-    <path class="arch-hair" d="
-      M 78 22 C 73 14 85 10 91 18 C 97 10 107 14 103 22 C 111 24 109 34 101 32
-      M 138 30 C 133 20 145 16 151 24 C 159 18 169 24 165 32 C 173 36 169 46 159 42" />
+  <g id="colophon-art" transform="translate(130, 205)">
 
-    <!-- Chimneys & Main Roofline -->
-    <rect class="paper-fill arch-med" x="166" y="52" width="18" height="32" />
-    <rect class="paper-fill arch-bold" x="163" y="48" width="24" height="4" />
-    <line class="arch-hair" x1="166" y1="60" x2="184" y2="60" />
-    <rect class="paper-fill arch-med" x="470" y="60" width="18" height="34" />
-    <rect class="paper-fill arch-bold" x="467" y="56" width="24" height="4" />
-    <line class="arch-hair" x1="470" y1="68" x2="488" y2="68" />
+    <!-- 1. ROOF MASSING & CHIMNEYS -->
+    <g id="roof-structure">
+      <!-- Left Rear Brick Chimney -->
+      <rect class="paper-fill arch-med" x="154" y="56" width="18" height="34" />
+      <rect class="paper-fill arch-bold" x="151" y="52" width="24" height="4" />
+      <rect class="arch-fine" x="158" y="46" width="10" height="6" />
+      <line class="arch-hair" x1="154" y1="64" x2="172" y2="64" />
+      <line class="arch-hair" x1="154" y1="72" x2="172" y2="72" />
 
-    <line class="arch-med" x1="184" y1="82" x2="470" y2="82" />
-    <line class="arch-fine" x1="470" y1="82" x2="518" y2="142" />
-    <line class="arch-med" x1="518" y1="142" x2="518" y2="202" />
+      <!-- Right Main Chimney -->
+      <rect class="paper-fill arch-med" x="466" y="56" width="18" height="36" />
+      <rect class="paper-fill arch-bold" x="463" y="52" width="24" height="4" />
+      <rect class="arch-fine" x="470" y="46" width="10" height="6" />
+      <line class="arch-hair" x1="466" y1="64" x2="484" y2="64" />
+      <line class="arch-hair" x1="466" y1="72" x2="484" y2="72" />
 
-    <!-- Skylights -->
-    <line class="arch-fine" x1="400" y1="82" x2="470" y2="128" />
-    <polygon class="paper-fill arch-fine" points="436,104 446,110 441,120 431,114" />
-    <polygon class="paper-fill arch-fine" points="422,118 432,124 427,134 417,128" />
-    <polygon class="paper-fill arch-fine" points="408,132 418,138 413,148 403,142" />
+      <!-- Main Transverse Roof Ridge (Continuous Left-to-Right) -->
+      <line class="arch-med" x1="140" y1="84" x2="470" y2="84" />
+      <!-- Left Roof Hip Return -->
+      <line class="arch-bold" x1="140" y1="84" x2="98" y2="152" />
+      <!-- Right Roof Hip & Flare Return -->
+      <path class="arch-bold" d="M 470 84 L 518 145 C 522 155 528 162 534 168" />
+      <line class="arch-med" x1="518" y1="145" x2="518" y2="250" />
 
-    <!-- Left Wing: Gable, Siding, Eyebrow Arch Window -->
-    <path class="paper-fill arch-bold" d="M 170 100 L 106 156 L 112 160 L 170 108 L 230 160 L 236 156 Z" />
-    <line class="arch-bold" x1="116" y1="158" x2="116" y2="250" />
-    <line class="arch-med" x1="226" y1="158" x2="226" y2="186" />
-    <line class="arch-hair" x1="132" y1="120" x2="208" y2="120" />
-    <line class="arch-hair" x1="124" y1="128" x2="216" y2="128" />
-    <line class="arch-hair" x1="120" y1="136" x2="220" y2="136" />
-    <line class="arch-hair" x1="118" y1="144" x2="222" y2="144" />
-    <line class="arch-hair" x1="117" y1="152" x2="224" y2="152" />
-    <rect class="paper-fill arch-med" x="114" y="173" width="114" height="4" />
+      <!-- Shingle Course Lines on Main Roof Plane -->
+      <line class="arch-hair" x1="172" y1="94" x2="460" y2="94" />
+      <line class="arch-hair" x1="184" y1="104" x2="445" y2="104" />
+      <line class="arch-hair" x1="200" y1="114" x2="425" y2="114" />
+    </g>
 
-    <path class="paper-fill arch-med" d="M 144 133 C 157 126 181 126 194 133 L 194 164 L 144 164 Z" />
-    <path class="arch-fine" d="M 141 132 C 156 123 182 123 197 132" />
-    <rect class="paper-fill arch-fine" x="148" y="134" width="42" height="28" />
-    <line class="arch-fine" x1="162" y1="134" x2="162" y2="162" />
-    <line class="arch-fine" x1="176" y1="134" x2="176" y2="162" />
-    <rect class="arch-fine" x="143" y="164" width="52" height="3" />
+    <!-- 2. LEFT WING (Gable, Siding, Eyebrow Arch Window) -->
+    <g id="left-wing">
+      <!-- Front Gable Rake Overhang -->
+      <path class="paper-fill arch-bold" d="M 166 94 L 98 152 L 104 156 L 166 102 L 228 156 L 234 152 Z" />
+      <!-- Left & Right Wing Wall Enclosures -->
+      <line class="arch-bold" x1="104" y1="156" x2="104" y2="250" />
+      <line class="arch-bold" x1="228" y1="156" x2="228" y2="250" />
 
-    <rect class="paper-fill arch-med" x="145" y="190" width="48" height="36" />
-    <line class="arch-fine" x1="161" y1="190" x2="161" y2="226" />
-    <line class="arch-fine" x1="177" y1="190" x2="177" y2="226" />
-    <rect class="arch-fine" x="142" y="226" width="54" height="3" />
+      <!-- Horizontal Board Siding on 2nd Floor Peak -->
+      <line class="arch-hair" x1="126" y1="116" x2="206" y2="116" />
+      <line class="arch-hair" x1="118" y1="124" x2="214" y2="124" />
+      <line class="arch-hair" x1="112" y1="132" x2="220" y2="132" />
+      <line class="arch-hair" x1="108" y1="140" x2="224" y2="140" />
+      <line class="arch-hair" x1="106" y1="148" x2="226" y2="148" />
+      <line class="arch-hair" x1="105" y1="156" x2="227" y2="156" />
+      <line class="arch-hair" x1="105" y1="164" x2="227" y2="164" />
 
-    <!-- Center Entry Arch & Dormer -->
-    <path class="paper-fill arch-med" d="M 268 128 L 250 146 L 286 146 Z" />
-    <rect class="paper-fill arch-med" x="253" y="146" width="30" height="18" />
-    <path class="paper-fill arch-bold" d="M 254 250 V 204 A 17 17 0 0 1 288 204 V 250" />
-    <path class="arch-fine" d="M 250 250 V 202 A 21 21 0 0 1 292 202 V 250" />
-    <rect class="paper-fill arch-med" x="259" y="206" width="24" height="44" />
-    <path class="arch-fine" d="M 259 206 A 12 12 0 0 1 283 206" />
+      <!-- Horizontal Belly Band (Transition to Ground Floor Brick) -->
+      <rect class="paper-fill arch-med" x="103" y="170" width="126" height="4" />
 
-    <!-- Right Wing: Timber Gable & Flared Copper Hood -->
-    <path class="paper-fill arch-bold" d="M 410 80 L 302 186 L 308 190 L 410 88 L 512 190 L 518 186 Z" />
-    <line class="arch-bold" x1="410" y1="88" x2="410" y2="116" />
-    <line class="arch-bold" x1="388" y1="116" x2="432" y2="116" />
-    <line class="arch-bold" x1="308" y1="190" x2="308" y2="250" />
-    <line class="arch-bold" x1="508" y1="190" x2="508" y2="250" />
+      <!-- 2nd Floor Segmental Eyebrow Arch Window -->
+      <path class="paper-fill arch-med" d="M 136 130 C 150 122 182 122 196 130 L 196 162 L 136 162 Z" />
+      <path class="arch-fine" d="M 133 129 C 149 120 183 120 199 129" />
+      <rect class="paper-fill arch-fine" x="140" y="132" width="52" height="28" />
+      <line class="arch-fine" x1="157" y1="132" x2="157" y2="160" />
+      <line class="arch-fine" x1="175" y1="132" x2="175" y2="160" />
+      <line class="arch-hair" x1="140" y1="140" x2="192" y2="140" />
+      <rect class="arch-fine" x="134" y="162" width="64" height="3" />
 
-    <rect class="paper-fill arch-med" x="389" y="156" width="42" height="4" />
-    <path class="paper-fill arch-bold" d="M 392 160 C 388 180 374 196 358 204 H 462 C 446 196 432 180 428 160 Z" />
-    <path class="arch-fine" d="M 399 160 C 396 178 388 194 378 204" />
-    <path class="arch-fine" d="M 406 160 C 405 178 402 194 399 204" />
-    <path class="arch-fine" d="M 410 160 V 204" />
-    <path class="arch-fine" d="M 414 160 C 415 178 418 194 421 204" />
-    <path class="arch-fine" d="M 421 160 C 424 178 432 194 442 204" />
-    <line class="arch-med" x1="356" y1="204" x2="464" y2="204" />
+      <!-- Ground Floor Triple Casement Window -->
+      <rect class="paper-fill arch-med" x="138" y="190" width="56" height="36" />
+      <line class="arch-fine" x1="156" y1="190" x2="156" y2="226" />
+      <line class="arch-fine" x1="176" y1="190" x2="176" y2="226" />
+      <line class="arch-hair" x1="138" y1="198" x2="194" y2="198" />
+      <rect class="arch-fine" x="135" y="226" width="62" height="3" />
+    </g>
 
-    <rect class="paper-fill arch-med" x="364" y="206" width="92" height="38" />
-    <line class="arch-fine" x1="387" y1="206" x2="387" y2="244" />
-    <line class="arch-fine" x1="410" y1="206" x2="410" y2="244" />
-    <line class="arch-fine" x1="433" y1="206" x2="433" y2="244" />
-    <rect class="arch-med" x="361" y="244" width="98" height="4" />
+    <!-- 3. CENTER RECESSED SECTION & DORMER -->
+    <g id="center-recess">
+      <line class="arch-med" x1="228" y1="156" x2="304" y2="156" />
+      
+      <!-- Fully Adorned Roof Dormer -->
+      <path class="paper-fill arch-bold" d="M 266 122 L 244 142 L 288 142 Z" />
+      <rect class="paper-fill arch-med" x="248" y="142" width="36" height="20" />
+      <!-- Double-pane window inside dormer -->
+      <rect class="arch-fine" x="252" y="144" width="28" height="16" />
+      <line class="arch-fine" x1="266" y1="144" x2="266" y2="160" />
+      <line class="arch-hair" x1="252" y1="152" x2="280" y2="152" />
+      <rect class="arch-fine" x="246" y="162" width="40" height="2" />
 
-    <!-- Foundation, Wall & Curved Walkway -->
-    <line class="arch-bold" x1="106" y1="250" x2="516" y2="250" />
-    <path class="arch-med" d="M 318 258 C 369 260 429 256 489 251" />
-    <path class="arch-fine" d="M 256 250 C 252 266 274 276 319 280 C 389 284 469 278 544 293" />
-    <path class="arch-fine" d="M 284 250 C 290 264 316 270 359 272 C 429 274 499 270 559 283" />
+      <!-- Arched Brick Portal & Entry Door -->
+      <path class="paper-fill arch-bold" d="M 252 250 V 198 A 19 19 0 0 1 290 198 V 250" />
+      <path class="arch-fine" d="M 248 250 V 196 A 23 23 0 0 1 294 196 V 250" />
+      <!-- Keystone voussoirs on arch -->
+      <path class="arch-hair" d="
+        M 248 206 L 252 206 M 250 196 L 254 198 M 256 187 L 260 190 
+        M 265 180 L 268 185 M 277 180 L 274 185 M 286 187 L 282 190 
+        M 292 196 L 288 198 M 294 206 L 290 206" />
+
+      <!-- Paneled Door & Sidelight Framing -->
+      <rect class="paper-fill arch-med" x="256" y="202" width="30" height="48" />
+      <path class="arch-fine" d="M 256 202 A 15 15 0 0 1 286 202" />
+      <line class="arch-fine" x1="271" y1="187" x2="271" y2="202" />
+      <line class="arch-fine" x1="262" y1="202" x2="262" y2="250" />
+      <line class="arch-fine" x1="280" y1="202" x2="280" y2="250" />
+      <circle cx="277" cy="228" r="1" fill="#23201D" />
+
+      <!-- Flanking Carriage Coach Lanterns -->
+      <rect class="arch-fine" x="238" y="206" width="4" height="8" />
+      <line class="arch-fine" x1="240" y1="214" x2="240" y2="218" />
+      <rect class="arch-fine" x="300" y="206" width="4" height="8" />
+      <line class="arch-fine" x1="302" y1="214" x2="302" y2="218" />
+    </g>
+
+    <!-- 4. RIGHT WING (Prominent Peak, Timber Truss, Copper Awning) -->
+    <g id="right-wing">
+      <!-- Main High Gable Rake -->
+      <path class="paper-fill arch-bold" d="M 408 76 L 298 184 L 304 188 L 408 84 L 512 188 L 518 184 Z" />
+      
+      <!-- Timber Truss Collar Bracket in Peak -->
+      <line class="arch-bold" x1="408" y1="84" x2="408" y2="114" />
+      <line class="arch-bold" x1="384" y1="114" x2="432" y2="114" />
+      <line class="arch-med" x1="392" y1="114" x2="408" y2="98" />
+      <line class="arch-med" x1="424" y1="114" x2="408" y2="98" />
+
+      <!-- Side Wall Pilasters -->
+      <line class="arch-bold" x1="304" y1="188" x2="304" y2="250" />
+      <line class="arch-bold" x1="512" y1="188" x2="512" y2="250" />
+
+      <!-- Standing Seam Copper Hood Awning -->
+      <rect class="paper-fill arch-med" x="388" y="152" width="40" height="4" />
+      <path class="paper-fill arch-bold" d="M 390 156 C 386 176 372 192 354 200 H 462 C 444 192 430 176 426 156 Z" />
+      
+      <!-- Standing Seams along Bell Curve -->
+      <path class="arch-fine" d="M 390 156 C 386 176 372 192 354 200" />
+      <path class="arch-fine" d="M 398 156 C 395 174 386 190 374 200" />
+      <path class="arch-fine" d="M 404 156 C 403 174 398 190 394 200" />
+      <path class="arch-fine" d="M 408 156 V 200" />
+      <path class="arch-fine" d="M 412 156 C 413 174 418 190 422 200" />
+      <path class="arch-fine" d="M 418 156 C 421 174 430 190 442 200" />
+      <path class="arch-fine" d="M 426 156 C 430 176 444 192 462 200" />
+      <line class="arch-med" x1="352" y1="200" x2="464" y2="200" />
+
+      <!-- 4-Pane Picture Window under Awning -->
+      <rect class="paper-fill arch-med" x="360" y="202" width="96" height="40" />
+      <line class="arch-fine" x1="384" y1="202" x2="384" y2="242" />
+      <line class="arch-fine" x1="408" y1="202" x2="408" y2="242" />
+      <line class="arch-fine" x1="432" y1="202" x2="432" y2="242" />
+      <line class="arch-hair" x1="360" y1="210" x2="456" y2="210" />
+      <rect class="arch-med" x="357" y="242" width="102" height="4" />
+    </g>
+
+    <!-- 5. FOUNDATION, RETAINING WALL & APPROACH -->
+    <g id="ground-and-walkway">
+      <line class="arch-bold" x1="96" y1="250" x2="526" y2="250" />
+      
+      <!-- Tiered Stone Retaining Wall on Right -->
+      <path class="arch-med" d="M 314 258 C 365 260 425 256 495 251" />
+      <path class="arch-fine" d="M 314 262 C 365 264 425 260 495 255" />
+      <path class="arch-hair" d="
+        M 335 258 V 262 M 365 259 V 263 M 395 259 V 263 
+        M 425 258 V 262 M 455 256 V 260 M 480 253 V 257" />
+
+      <!-- Flagstone Walkway curving from door into foreground -->
+      <path class="arch-fine" d="M 256 250 C 252 266 274 276 319 280 C 389 284 469 278 544 293" />
+      <path class="arch-fine" d="M 286 250 C 292 264 318 270 361 272 C 431 274 501 270 561 283" />
+      <path class="arch-hair" d="
+        M 260 255 C 269 254 278 254 284 256 
+        M 264 262 C 279 261 296 262 312 265
+        M 289 269 C 319 268 349 269 379 272
+        M 339 275 C 379 274 424 274 469 276
+        M 414 279 C 459 278 504 278 549 285" />
+
+      <!-- Foundation Landscaping Shrubbery -->
+      <path class="arch-fine" d="
+        M 104 250 C 102 242 110 238 118 240 C 124 236 132 238 134 244 C 138 240 146 242 148 250
+        M 196 250 C 198 243 206 241 212 245 C 218 241 226 243 228 250
+        M 298 250 C 300 240 312 238 320 246 C 328 240 340 243 342 250
+        M 466 250 C 470 238 486 236 496 246 C 504 240 514 243 516 250" />
+    </g>
   </g>
 
   <!-- ============================================================ -->
@@ -110,15 +196,15 @@
   <!-- ============================================================ -->
   <g text-anchor="middle" transform="translate(425, 595)">
     <!-- Ornamental Stamp Flourish -->
-    <circle cx="0" cy="0" r="2.5" fill="#26231F" />
-    <line x1="-42" y1="0" x2="-10" y2="0" stroke="#26231F" stroke-width="0.9" />
-    <line x1="10" y1="0" x2="42" y2="0" stroke="#26231F" stroke-width="0.9" />
-    <path d="M -10 0 C -18 -5 -26 -5 -34 0" fill="none" stroke="#59544D" stroke-width="0.7" />
-    <path d="M 10 0 C 18 -5 26 -5 34 0" fill="none" stroke="#59544D" stroke-width="0.7" />
+    <circle cx="0" cy="0" r="2.5" fill="#23201D" />
+    <line x1="-42" y1="0" x2="-10" y2="0" stroke="#23201D" stroke-width="0.9" />
+    <line x1="10" y1="0" x2="42" y2="0" stroke="#23201D" stroke-width="0.9" />
+    <path d="M -10 0 C -18 -5 -26 -5 -34 0" fill="none" stroke="#544F48" stroke-width="0.7" />
+    <path d="M 10 0 C 18 -5 26 -5 34 0" fill="none" stroke="#544F48" stroke-width="0.7" />
 
     <!-- PRIMARY IMPRINT -->
     <text 
-      class="brand-serif" 
+      class="font-serif" 
       x="0" 
       y="38" 
       font-size="28" 
@@ -130,7 +216,7 @@
 
     <!-- SUB-HEADING -->
     <text 
-      class="brand-sans" 
+      class="font-sans" 
       x="0" 
       y="66" 
       font-size="11" 
@@ -145,16 +231,14 @@
 
     <!-- HERITAGE LOCATION -->
     <text 
-      class="brand-serif" 
+      class="font-serif" 
       x="0" 
       y="114" 
       font-size="15" 
       font-weight="500" 
       letter-spacing="5" 
       fill="#2E2B26">
-      LAKE FOREST, IL
+      LAKE FOREST, ILLINOIS
     </text>
   </g>
-  </g>
 </svg>
-
