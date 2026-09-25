@@ -96,6 +96,7 @@ export default function OrderStatusPage() {
             trackGoogleAdsPurchase({
               orderId: data.order.id,
               amountInCents: data.order.amountInCents || 900,
+              customerEmail: data.order.customerEmail,
             });
           }
         }

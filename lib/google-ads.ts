@@ -7,6 +7,7 @@ export const GOOGLE_ADS_ID =
 export function trackGoogleAdsPurchase(params: {
   orderId: string;
   amountInCents?: number;
+  customerEmail?: string;
 }): void {
   if (typeof window === "undefined") return;
 
@@ -23,6 +24,13 @@ export function trackGoogleAdsPurchase(params: {
     const sendTo = conversionLabel
       ? `${GOOGLE_ADS_ID}/${conversionLabel}`
       : GOOGLE_ADS_ID;
+
+    // Set user data for Google Enhanced Conversions if customer email is available
+    if (params.customerEmail && params.customerEmail.includes("@")) {
+      win.gtag("set", "user_data", {
+        email: params.customerEmail.trim().toLowerCase(),
+      });
+    }
 
     win.gtag("event", "conversion", {
       send_to: sendTo,
