@@ -38,9 +38,9 @@ async function runTest() {
   console.log("\n2. Testing fulfillHandwryttenOrder pipeline with backplate & header_text...");
   const result = await fulfillHandwryttenOrder({
     imageUrl: "https://images.unsplash.com/photo-1530103862676-de8c9debad1d?auto=format&fit=crop&w=1250&h=1750&q=80",
-    printedGreeting: "Wishing you a wonderful celebration.",
-    handwrittenMessage: "Dear Ezekiel,\nThis is a test verification of the Aster & Blanche Press backplate and custom interior header.\nWarmly,\nSendMyNotes Studio",
-    fontId: "hwAdam",
+    printedGreeting: "",
+    handwrittenMessage: "Happy Birthday Ezekiel!\n\nWishing you a year filled with magic, laughter, and new milestones. So proud of everything you have accomplished this year—here is to celebrating many more together!\n\nWarmly,\nZeke",
+    fontId: "hwDavid",
     recipient: {
       firstName: "Ezekiel",
       lastName: "Brustkern",
