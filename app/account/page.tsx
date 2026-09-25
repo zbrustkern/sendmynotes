@@ -22,6 +22,7 @@ import {
   Edit2,
   BookmarkCheck,
   Feather,
+  RefreshCw,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Order, SavedAddress, MailingAddress } from "@/lib/types";
@@ -34,6 +35,7 @@ export default function AccountDashboardPage() {
     account,
     loading: authLoading,
     signOut,
+    refreshAccount,
     saveAddress,
     deleteAddress,
     updateDefaultReturnAddress,
@@ -83,6 +85,7 @@ export default function AccountDashboardPage() {
         if (res.ok) {
           const data = await res.json();
           setOrders(data.orders || []);
+          await refreshAccount();
         }
       } catch (err) {
         console.error("Failed to load customer orders:", err);
@@ -360,16 +363,31 @@ export default function AccountDashboardPage() {
                   </p>
                 </div>
 
-                <button
-                  onClick={() => {
-                    setEditingAddress(null);
-                    setIsAddressModalOpen(true);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-sm transition cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Add Contact</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {orders.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await refreshAccount();
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-semibold rounded-xl border border-stone-200 transition cursor-pointer"
+                      title="Sync recipients from all past card orders"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Sync from Orders ({orders.length})</span>
+                    </button>
+                  )}
+                  <button
+                    onClick={() => {
+                      setEditingAddress(null);
+                      setIsAddressModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-sm transition cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Add Contact</span>
+                  </button>
+                </div>
               </div>
 
               {!account?.savedAddresses || account.savedAddresses.length === 0 ? (
@@ -379,16 +397,29 @@ export default function AccountDashboardPage() {
                   <p className="text-xs text-stone-500">
                     Save friends, family, or clients to autofill their addresses when writing cards.
                   </p>
-                  <button
-                    onClick={() => {
-                      setEditingAddress(null);
-                      setIsAddressModalOpen(true);
-                    }}
-                    className="inline-flex items-center gap-1 px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 transition"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>Add First Contact</span>
-                  </button>
+                  <div className="flex items-center justify-center gap-2 pt-1">
+                    {orders.length > 0 && (
+                      <button
+                        onClick={async () => {
+                          await refreshAccount();
+                        }}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-stone-900 text-white text-xs font-semibold rounded-xl hover:bg-black transition cursor-pointer shadow-sm"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>Sync from Orders ({orders.length})</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        setEditingAddress(null);
+                        setIsAddressModalOpen(true);
+                      }}
+                      className="inline-flex items-center gap-1 px-4 py-2 bg-amber-600 text-white text-xs font-semibold rounded-xl hover:bg-amber-700 transition cursor-pointer shadow-sm"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add First Contact</span>
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

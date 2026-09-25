@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const saveAddress = async (address: Omit<SavedAddress, "id"> & { id?: string }) => {
-    if (!user || !account) return;
+    if (!user) return;
 
     const addressId = address.id || `addr_${Date.now()}`;
     const newAddress: SavedAddress = {
@@ -121,14 +121,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       id: addressId,
     };
 
-    const existingIndex = account.savedAddresses.findIndex((a) => a.id === addressId);
+    const currentAddresses = account?.savedAddresses || [];
+    const existingIndex = currentAddresses.findIndex((a) => a.id === addressId);
     let updatedAddresses: SavedAddress[];
 
     if (existingIndex >= 0) {
-      updatedAddresses = [...account.savedAddresses];
+      updatedAddresses = [...currentAddresses];
       updatedAddresses[existingIndex] = newAddress;
     } else {
-      updatedAddresses = [...account.savedAddresses, newAddress];
+      updatedAddresses = [...currentAddresses, newAddress];
     }
 
     const res = await fetch("/api/account", {
@@ -136,59 +137,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid: user.uid,
-        email: user.email || account.email,
-        displayName: account.displayName,
+        email: user.email || account?.email || "",
+        displayName: account?.displayName || user.displayName || "",
+        addressToAdd: newAddress,
         savedAddresses: updatedAddresses,
-        defaultReturnAddress: account.defaultReturnAddress,
+        defaultReturnAddress: account?.defaultReturnAddress,
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-      setAccount(data.user);
+      if (data.user) {
+        setAccount(data.user);
+      }
     }
   };
 
   const deleteAddress = async (addressId: string) => {
-    if (!user || !account) return;
+    if (!user) return;
 
-    const updatedAddresses = account.savedAddresses.filter((a) => a.id !== addressId);
+    const currentAddresses = account?.savedAddresses || [];
+    const updatedAddresses = currentAddresses.filter((a) => a.id !== addressId);
     const res = await fetch("/api/account", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid: user.uid,
-        email: user.email || account.email,
-        displayName: account.displayName,
+        email: user.email || account?.email || "",
+        displayName: account?.displayName || user.displayName || "",
         savedAddresses: updatedAddresses,
-        defaultReturnAddress: account.defaultReturnAddress,
+        defaultReturnAddress: account?.defaultReturnAddress,
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-      setAccount(data.user);
+      if (data.user) {
+        setAccount(data.user);
+      }
     }
   };
 
   const updateDefaultReturnAddress = async (address: MailingAddress) => {
-    if (!user || !account) return;
+    if (!user) return;
 
     const res = await fetch("/api/account", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         uid: user.uid,
-        email: user.email || account.email,
-        displayName: account.displayName,
-        savedAddresses: account.savedAddresses,
+        email: user.email || account?.email || "",
+        displayName: account?.displayName || user.displayName || "",
+        savedAddresses: account?.savedAddresses || [],
         defaultReturnAddress: address,
       }),
     });
 
     if (res.ok) {
       const data = await res.json();
-      setAccount(data.user);
+      if (data.user) {
+        setAccount(data.user);
+      }
     }
   };
 

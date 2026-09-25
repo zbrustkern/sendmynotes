@@ -31,7 +31,7 @@ import { trackGoogleAdsPurchase } from "@/lib/google-ads";
 export default function OrderStatusPage() {
   const params = useParams();
   const orderId = params?.id as string;
-  const { user } = useAuth();
+  const { user, saveAddress } = useAuth();
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +42,23 @@ export default function OrderStatusPage() {
   const [verifyInput, setVerifyInput] = useState("");
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
+
+  // Auto-sync recipient address to user's address book if logged in or after claiming account
+  useEffect(() => {
+    if (user && order?.recipientAddress && order.recipientAddress.street1) {
+      saveAddress({
+        firstName: order.recipientAddress.firstName,
+        lastName: order.recipientAddress.lastName,
+        street1: order.recipientAddress.street1,
+        street2: order.recipientAddress.street2,
+        city: order.recipientAddress.city,
+        state: order.recipientAddress.state,
+        zip: order.recipientAddress.zip,
+        country: order.recipientAddress.country,
+        label: `${order.recipientAddress.firstName}'s Address`,
+      }).catch((err) => console.warn("Notice syncing address book on order page:", err));
+    }
+  }, [user, order?.id]);
 
   useEffect(() => {
     if (!orderId) return;

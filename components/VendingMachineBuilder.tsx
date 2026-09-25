@@ -380,7 +380,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
       // If user is logged in and opted to save recipient address to their address book
       if (user && saveRecipientToAddressBook) {
-        saveAddress({
+        await saveAddress({
           firstName: recipient.firstName,
           lastName: recipient.lastName,
           street1: recipient.street1,
