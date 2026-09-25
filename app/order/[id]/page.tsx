@@ -26,6 +26,7 @@ import {
 import { Order } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "@/components/AuthModal";
+import { trackGoogleAdsPurchase } from "@/lib/google-ads";
 
 export default function OrderStatusPage() {
   const params = useParams();
@@ -90,6 +91,13 @@ export default function OrderStatusPage() {
         if (isMounted) {
           setOrder(data.order);
           setLoading(false);
+
+          if (data.order && data.order.status !== "PENDING_PAYMENT") {
+            trackGoogleAdsPurchase({
+              orderId: data.order.id,
+              amountInCents: data.order.amountInCents || 900,
+            });
+          }
         }
       } catch (err: unknown) {
         if (isMounted) {

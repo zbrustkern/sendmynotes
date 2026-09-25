@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { fontHwAdam, fontHwCharity, fontHwChase, fontHwDavid } from "@/lib/fonts";
+import { GOOGLE_ADS_ID } from "@/lib/google-ads";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sendmynotes.com"),
@@ -125,6 +127,23 @@ export default function RootLayout({
                 },
               },
             }),
+          }}
+        />
+        {/* Google tag (gtag.js) for Google Ads */}
+        <Script
+          strategy="afterInteractive"
+          src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`}
+        />
+        <Script
+          id="google-ads-gtag-init"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `
+              window.dataLayer = window.dataLayer || [];
+              function gtag(){dataLayer.push(arguments);}
+              gtag('js', new Date());
+              gtag('config', '${GOOGLE_ADS_ID}');
+            `,
           }}
         />
       </head>
