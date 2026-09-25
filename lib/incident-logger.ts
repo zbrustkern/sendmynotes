@@ -34,7 +34,7 @@ export async function logIncident(params: LogIncidentParams): Promise<string> {
     type: params.type,
     severity: params.severity || "error",
     summary: params.summary,
-    technicalDetails: sanitizedDetails || undefined,
+    ...(sanitizedDetails ? { technicalDetails: sanitizedDetails } : {}),
     metadata: params.metadata || {},
     resolved: false,
     createdAt: Date.now(),

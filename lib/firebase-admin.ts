@@ -229,6 +229,36 @@ class MockFirestore {
 
 const mockFirestoreInstance = new MockFirestore();
 
+function configureDb(db: admin.firestore.Firestore): admin.firestore.Firestore {
+  try {
+    db.settings({ ignoreUndefinedProperties: true });
+  } catch (_e) {
+    // Ignore if settings have already been locked by an earlier call
+  }
+  return db;
+}
+
+// Recursively strips any properties with `undefined` values to satisfy Firestore
+export function sanitizeFirestoreData<T extends Record<string, any>>(data: T): T {
+  if (!data || typeof data !== "object") return data;
+  if (Array.isArray(data)) {
+    return data.map((item) =>
+      typeof item === "object" && item !== null ? sanitizeFirestoreData(item) : item
+    ) as unknown as T;
+  }
+  const cleaned: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== undefined) {
+      if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+        cleaned[key] = sanitizeFirestoreData(value);
+      } else {
+        cleaned[key] = value;
+      }
+    }
+  }
+  return cleaned as T;
+}
+
 // Singleton check for Real vs Mock Firebase Admin
 function initializeFirebase() {
   const projectId = process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
@@ -236,7 +266,7 @@ function initializeFirebase() {
   const privateKey = process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n");
 
   if (admin.apps.length > 0) {
-    return { db: admin.firestore(), isMock: false };
+    return { db: configureDb(admin.firestore()), isMock: false };
   }
 
   // 1. Explicit Service Account credentials
@@ -250,7 +280,7 @@ function initializeFirebase() {
         }),
       });
       console.log("[Firebase Admin] Connected to live Cloud Firestore via Service Account:", projectId);
-      return { db: admin.firestore(), isMock: false };
+      return { db: configureDb(admin.firestore()), isMock: false };
     } catch (err) {
       console.warn("[Firebase Admin] Error initializing live SDK with cert, falling back:", err);
     }
@@ -268,7 +298,7 @@ function initializeFirebase() {
         projectId: projectId || process.env.GOOGLE_CLOUD_PROJECT,
       });
       console.log("[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC:", projectId);
-      return { db: admin.firestore(), isMock: false };
+      return { db: configureDb(admin.firestore()), isMock: false };
     } catch (err) {
       console.warn("[Firebase Admin] Error initializing ADC Firestore:", err);
     }
@@ -298,12 +328,12 @@ export async function recordSystemIncident(
 ): Promise<void> {
   try {
     const id = `inc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const fullIncident: SystemIncident = {
+    const fullIncident: SystemIncident = sanitizeFirestoreData({
       ...incident,
       id,
       resolved: false,
       createdAt: Date.now(),
-    };
+    });
     await getSystemIncidentsCollection().doc(id).set(fullIncident);
   } catch (err) {
     console.error("[Record System Incident Error]", err);
@@ -311,7 +341,7 @@ export async function recordSystemIncident(
 }
 
 export async function saveOrder(order: Order): Promise<void> {
-  const sanitized = { ...order };
+  const sanitized = sanitizeFirestoreData({ ...order });
   if (sanitized.frontImageUrl && sanitized.frontImageUrl.length > 800000) {
     try {
       sanitized.frontImageUrl = await optimizeCoverImage(sanitized.frontImageUrl);
@@ -332,10 +362,11 @@ export async function updateOrderStatus(
   orderId: string,
   update: Partial<Order>
 ): Promise<void> {
-  await getOrdersCollection().doc(orderId).update({
+  const sanitized = sanitizeFirestoreData({
     ...update,
     updatedAt: Date.now(),
   });
+  await getOrdersCollection().doc(orderId).update(sanitized);
 }
 
 export async function saveImageCacheItem(item: ImageCachePoolItem): Promise<void> {
