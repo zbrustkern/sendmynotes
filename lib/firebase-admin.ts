@@ -370,7 +370,7 @@ export async function updateOrderStatus(
 }
 
 export async function saveImageCacheItem(item: ImageCachePoolItem): Promise<void> {
-  const sanitized = { ...item };
+  const sanitized = sanitizeFirestoreData({ ...item });
   if (sanitized.imageUrl && sanitized.imageUrl.length > 800000) {
     try {
       sanitized.imageUrl = await optimizeCoverImage(sanitized.imageUrl);
@@ -401,7 +401,8 @@ export async function getSystemConfig<T = Record<string, unknown>>(configId: str
 }
 
 export async function setSystemConfig(configId: string, data: Record<string, unknown>): Promise<void> {
-  await getSystemConfigCollection().doc(configId).set(data, { merge: true });
+  const sanitized = sanitizeFirestoreData(data);
+  await getSystemConfigCollection().doc(configId).set(sanitized, { merge: true });
 }
 
 // Discount Code Helpers

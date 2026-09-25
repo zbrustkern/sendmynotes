@@ -43,11 +43,17 @@ export async function trackEvent(
       path: window.location.pathname,
     };
 
-    // Use sendBeacon if available, otherwise fetch with keepalive
-    if (navigator.sendBeacon) {
-      const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-      navigator.sendBeacon("/api/telemetry", blob);
-    } else {
+    // Try sendBeacon first, fallback to fetch with keepalive
+    let sent = false;
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      try {
+        const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
+        sent = navigator.sendBeacon("/api/telemetry", blob);
+      } catch {
+        sent = false;
+      }
+    }
+    if (!sent) {
       fetch("/api/telemetry", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

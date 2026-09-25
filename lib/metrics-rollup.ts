@@ -1,4 +1,4 @@
-import { firestoreDb, getSystemConfig, setSystemConfig, getOrdersCollection } from "./firebase-admin";
+import { firestoreDb, getSystemConfig, setSystemConfig, getOrdersCollection, sanitizeFirestoreData } from "./firebase-admin";
 import { TELEMETRY_COLLECTION } from "./telemetry";
 import { TelemetryEvent, Order, AdminMetrics, ScenarioPerformanceMetric } from "./types";
 import { getAllScenarios } from "./seo-scenarios";
@@ -31,7 +31,8 @@ const SUMMARY_CONFIG_KEY = "telemetry_summary";
  */
 export async function ingestTelemetryEvent(event: TelemetryEvent): Promise<void> {
   // 1. Write the raw event document for audit trail
-  await firestoreDb.collection(TELEMETRY_COLLECTION).doc(event.id).set(event);
+  const sanitized = sanitizeFirestoreData(event);
+  await firestoreDb.collection(TELEMETRY_COLLECTION).doc(sanitized.id).set(sanitized);
 
   // 2. Fetch existing summary
   const summary = (await getSystemConfig<TelemetrySummary>(SUMMARY_CONFIG_KEY)) || {

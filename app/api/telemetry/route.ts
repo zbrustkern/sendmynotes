@@ -4,8 +4,15 @@ import { TelemetryEvent } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { eventName, sessionId, step, orderId, metadata, timestamp, path } = body;
+    let body: any;
+    try {
+      body = await req.json();
+    } catch {
+      const text = await req.text();
+      body = text ? JSON.parse(text) : {};
+    }
+
+    const { eventName, sessionId, step, orderId, metadata, timestamp, path } = body || {};
 
     if (!eventName || !sessionId) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
@@ -17,8 +24,8 @@ export async function POST(req: NextRequest) {
       id: eventId,
       eventName,
       sessionId,
-      step: typeof step === "number" ? step : undefined,
-      orderId: orderId || undefined,
+      ...(typeof step === "number" ? { step } : {}),
+      ...(orderId ? { orderId } : {}),
       metadata: metadata || {},
       path: path || "/",
       timestamp: timestamp || Date.now(),
@@ -31,7 +38,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, eventId });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error saving telemetry";
-    console.debug("[Telemetry Ingestion Error]", msg);
+    console.error("[Telemetry Ingestion Error]", msg);
     return NextResponse.json({ received: false, error: msg }, { status: 500 });
   }
 }
