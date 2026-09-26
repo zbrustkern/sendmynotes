@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { PenTool, Type, Sparkles, Check, BookOpen, Quote, Sparkle, Heart, Smile, Feather, Compass } from "lucide-react";
 import { FONT_OPTIONS, OCCASION_MESSAGE_BANK, OCCASIONS, MessageInspiration, MessageTone, getCohortFontOptions } from "@/lib/card-presets";
+import { ThematicSentiment } from "@/lib/thematic-sentiment";
 import { trackEvent } from "@/lib/telemetry";
 
 interface InsideNoteStepProps {
@@ -14,6 +15,9 @@ interface InsideNoteStepProps {
   onChangeFontStyleId: (id: string) => void;
   occasion?: string;
   onChangeOccasion?: (occ: string) => void;
+  thematicSentiments?: ThematicSentiment[];
+  themeTag?: string;
+  coverPrompt?: string;
 }
 
 const TONE_FILTERS: { id: "all" | MessageTone; label: string; icon: React.ElementType }[] = [
@@ -33,6 +37,9 @@ export function InsideNoteStep({
   onChangeFontStyleId,
   occasion = "Birthday",
   onChangeOccasion,
+  thematicSentiments,
+  themeTag,
+  coverPrompt,
 }: InsideNoteStepProps) {
   const [selectedTone, setSelectedTone] = useState<"all" | MessageTone>("all");
   const [isBrowserExpanded, setIsBrowserExpanded] = useState<boolean>(true);
@@ -99,6 +106,66 @@ export function InsideNoteStep({
           Written with a real ballpoint pen on heavy 120 lb archival cardstock. Mailed directly to their door.
         </p>
       </div>
+
+      {/* THEMATIC SENTIMENT PAIRINGS (Linked directly to custom front cover art) */}
+      {thematicSentiments && thematicSentiments.length > 0 && (
+        <div className="bg-gradient-to-r from-amber-50 via-orange-50/60 to-amber-50 border-2 border-amber-300/90 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3 animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-amber-600" />
+              <h3 className="text-xs font-bold uppercase tracking-wider text-amber-950 font-serif">
+                Paired to Your Artwork {coverPrompt ? `(“${coverPrompt}”)` : ""}
+              </h3>
+            </div>
+            <span className="text-[10px] uppercase font-bold px-2.5 py-0.5 rounded-full bg-amber-200/70 text-amber-900 border border-amber-300 w-fit">
+              Front-to-Inside Puns &amp; Sentiments
+            </span>
+          </div>
+          <p className="text-xs text-stone-600">
+            Commercial greeting cards connect the front art to the inside note. Click a paired theme below to automatically fill your inside top punchline and handwritten ballpoint note:
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            {thematicSentiments.map((item) => {
+              const isSelected =
+                printedGreeting === item.printedGreeting &&
+                handwrittenNote === item.handwrittenNote;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    onChangePrintedGreeting(item.printedGreeting);
+                    onChangeHandwrittenNote(item.handwrittenNote);
+                  }}
+                  className={`p-3 rounded-xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                    isSelected
+                      ? "bg-amber-100/90 border-amber-500 shadow-xs ring-2 ring-amber-400/50"
+                      : "bg-white/90 border-amber-200/80 hover:border-amber-400 hover:bg-white"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1 mb-1.5">
+                    <span className="text-xs font-bold text-stone-900">
+                      {item.themeTitle}
+                    </span>
+                    {isSelected && (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">
+                        <Check className="w-3 h-3" />
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs font-serif font-bold text-amber-950">
+                    &ldquo;{item.printedGreeting}&rdquo;
+                  </p>
+                  <p className="text-[11px] text-stone-600 italic line-clamp-2 mt-1 leading-snug">
+                    {item.handwrittenNote}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* BOUTIQUE MESSAGE BROWSER (Eliminates writer's block) */}
       <div className="bg-gradient-to-b from-[#FAF7F2] to-[#F5F0E8] rounded-2xl p-5 border border-stone-300/80 shadow-sm space-y-4">

@@ -28,6 +28,7 @@ import { AddressStep } from "./AddressStep";
 import { CheckoutStep } from "./CheckoutStep";
 import { FeedbackModal } from "./FeedbackModal";
 import { CARD_PRESETS, OCCASIONS, FONT_OPTIONS, CardPreset } from "@/lib/card-presets";
+import { ThematicSentiment } from "@/lib/thematic-sentiment";
 import { MailingAddress, RecipientOccasion } from "@/lib/types";
 import { trackEvent } from "@/lib/telemetry";
 import { useAuth } from "@/context/AuthContext";
@@ -73,6 +74,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const [printedGreeting, setPrintedGreeting] = useState<string>(props?.initialPrintedGreeting || "");
   const [handwrittenNote, setHandwrittenNote] = useState<string>(props?.initialHandwrittenNote || CARD_PRESETS[0].defaultHandwrittenNote);
   const [fontStyleId, setFontStyleId] = useState<string>(props?.initialFontStyleId || "hwDavid");
+  const [thematicSentiments, setThematicSentiments] = useState<ThematicSentiment[]>([]);
+  const [themeTag, setThemeTag] = useState<string>("");
 
   // Address State & Scheduling
   const [scheduledSendDate, setScheduledSendDate] = useState<string>("");
@@ -708,6 +711,15 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
                 customPrompt={customPrompt}
                 onChangePrompt={setCustomPrompt}
                 onContinue={() => navigateToStep(2)}
+                onArtGenerated={(art) => {
+                  if (art.matchedSentiments && art.matchedSentiments.length > 0) {
+                    setThematicSentiments(art.matchedSentiments);
+                    setThemeTag(art.themeTag || "");
+                    const topMatch = art.matchedSentiments[0];
+                    setPrintedGreeting(topMatch.printedGreeting);
+                    setHandwrittenNote(topMatch.handwrittenNote);
+                  }
+                }}
               />
             )}
 
@@ -721,6 +733,9 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
                 onChangeFontStyleId={setFontStyleId}
                 occasion={occasion}
                 onChangeOccasion={setOccasion}
+                thematicSentiments={thematicSentiments}
+                themeTag={themeTag}
+                coverPrompt={customPrompt}
               />
             )}
 

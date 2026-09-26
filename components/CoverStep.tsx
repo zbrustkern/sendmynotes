@@ -2,8 +2,22 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
-import { Sparkles, Wand2, RefreshCw, Check, ArrowRight, ChevronDown, ChevronUp } from "lucide-react";
+import {
+  Sparkles,
+  Wand2,
+  RefreshCw,
+  Check,
+  ArrowRight,
+  ChevronDown,
+  ChevronUp,
+  Maximize2,
+  ZoomIn,
+  Eye,
+  PenTool,
+  X,
+} from "lucide-react";
 import { CARD_PRESETS, OCCASIONS, CardPreset } from "@/lib/card-presets";
+import { ThematicSentiment } from "@/lib/thematic-sentiment";
 
 interface CoverStepProps {
   selectedCover: string;
@@ -13,6 +27,13 @@ interface CoverStepProps {
   customPrompt: string;
   onChangePrompt: (prompt: string) => void;
   onContinue?: () => void;
+  onArtGenerated?: (art: {
+    imageUrl: string;
+    prompt: string;
+    occasion: string;
+    matchedSentiments?: ThematicSentiment[];
+    themeTag?: string;
+  }) => void;
 }
 
 const OCCASION_PROMPT_INSPIRATIONS: Record<string, string[]> = {
@@ -81,16 +102,20 @@ export function CoverStep({
   customPrompt,
   onChangePrompt,
   onContinue,
+  onArtGenerated,
 }: CoverStepProps) {
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [remainingGenerations, setRemainingGenerations] = useState<number | null>(null);
   const [showCurated, setShowCurated] = useState(true);
+  const [showFullPreviewModal, setShowFullPreviewModal] = useState(false);
   const [generatedArt, setGeneratedArt] = useState<{
     imageUrl: string;
     prompt: string;
     occasion: string;
     provider?: string;
+    matchedSentiments?: ThematicSentiment[];
+    themeTag?: string;
   } | null>(null);
 
   const handleGenerate = async () => {
@@ -130,13 +155,17 @@ export function CoverStep({
       setError(null);
 
       if (data.imageUrl) {
-        setGeneratedArt({
+        const artPayload = {
           imageUrl: data.imageUrl,
           prompt: customPrompt,
           occasion,
           provider: data.provider,
-        });
+          matchedSentiments: data.matchedSentiments,
+          themeTag: data.themeTag,
+        };
+        setGeneratedArt(artPayload);
         onSelectCover(data.imageUrl);
+        onArtGenerated?.(artPayload);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error generating cover";
@@ -253,57 +282,110 @@ export function CoverStep({
         )}
       </div>
 
-      {/* NEW: Display Generated AI Art Immediately with Visual Confirmation & Direct Next Action */}
+      {/* DISPLAY GENERATED BESPOKE ART (Buff Aster & Blanche atelier brand, no Google Imagen ads) */}
       {generatedArt && (
         <div className="bg-gradient-to-r from-amber-50/90 via-orange-50/60 to-amber-50/90 border-2 border-amber-400 rounded-2xl p-4 sm:p-5 shadow-md animate-in fade-in zoom-in-95 duration-300">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5">
+            <span className="text-xs font-bold text-amber-950 uppercase tracking-wider flex items-center gap-1.5 font-serif">
               <Sparkles className="w-4 h-4 text-amber-600" />
-              {generatedArt.provider === "gemini_imagen"
-                ? "Google Imagen 3 Artwork"
-                : "Your Custom AI Painting"}
+              Aster &amp; Blanche Bespoke Atelier
             </span>
-            {selectedCover === generatedArt.imageUrl ? (
-              <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                <Check className="w-3 h-3 stroke-[3]" />
-                Active Cover
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold text-amber-900 bg-amber-100/90 border border-amber-300 px-2 py-0.5 rounded-full">
+                ✨ 1-of-1 Studio Original
               </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => onSelectCover(generatedArt.imageUrl)}
-                className="text-[11px] font-semibold text-amber-800 bg-white border border-amber-300 hover:bg-amber-100 px-2.5 py-0.5 rounded-full transition cursor-pointer"
-              >
-                Use this AI painting
-              </button>
-            )}
+              {selectedCover === generatedArt.imageUrl ? (
+                <span className="text-[11px] font-bold text-emerald-800 bg-emerald-100/90 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                  <Check className="w-3 h-3 stroke-[3]" />
+                  Active Cover
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onSelectCover(generatedArt.imageUrl)}
+                  className="text-[11px] font-semibold text-amber-800 bg-white border border-amber-300 hover:bg-amber-100 px-2.5 py-0.5 rounded-full transition cursor-pointer"
+                >
+                  Use this painting
+                </button>
+              )}
+            </div>
           </div>
 
-          <div
-            onClick={() => onSelectCover(generatedArt.imageUrl)}
-            className="flex items-center gap-3.5 bg-white/90 backdrop-blur-sm p-3 rounded-xl border border-amber-200/90 cursor-pointer hover:border-amber-400 transition"
-          >
-            <div className="relative w-16 sm:w-20 aspect-[5/7] rounded-lg overflow-hidden border border-stone-200 shadow-sm shrink-0 bg-stone-100">
+          {/* Clickable Card Container with Interactive High-Res Thumbnail */}
+          <div className="flex items-center gap-3.5 bg-white/95 backdrop-blur-sm p-3.5 rounded-2xl border border-amber-200/90 hover:border-amber-400 transition shadow-xs">
+            {/* Clickable High-Res Thumbnail with Zoom Badge */}
+            <button
+              type="button"
+              onClick={() => setShowFullPreviewModal(true)}
+              className="relative w-18 sm:w-22 aspect-[5/7] rounded-xl overflow-hidden border-2 border-amber-300 shadow-md shrink-0 bg-stone-100 cursor-pointer group text-left focus:outline-none focus:ring-2 focus:ring-amber-500"
+              title="Click to view full 5×7 card cover"
+            >
               <Image
                 src={generatedArt.imageUrl}
                 alt="AI Generated Cover Art"
                 fill
                 unoptimized
-                className="object-cover"
+                className="object-cover group-hover:scale-105 transition-transform duration-200"
               />
-            </div>
+              <div className="absolute inset-0 bg-black/25 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                <Maximize2 className="w-5 h-5 text-white drop-shadow" />
+              </div>
+              <div className="absolute bottom-1 right-1 bg-black/60 backdrop-blur-xs text-white p-1 rounded-md text-[9px] flex items-center gap-0.5">
+                <ZoomIn className="w-3 h-3" />
+              </div>
+            </button>
+
             <div className="min-w-0 flex-1">
-              <span className="block text-[10px] font-bold text-amber-600 uppercase tracking-wider mb-0.5">
-                {generatedArt.occasion} • Custom Prompt
-              </span>
-              <p className="text-xs sm:text-sm font-medium text-stone-800 italic line-clamp-2">
+              <div className="flex items-center justify-between gap-1 mb-0.5">
+                <span className="block text-[10px] font-bold text-amber-700 uppercase tracking-wider">
+                  {generatedArt.occasion} • Bespoke Prompt
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowFullPreviewModal(true)}
+                  className="text-[11px] font-semibold text-amber-800 hover:text-black flex items-center gap-1 cursor-pointer transition shrink-0"
+                >
+                  <Eye className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Enlarge Preview</span>
+                </button>
+              </div>
+
+              <p className="text-xs sm:text-sm font-medium text-stone-900 italic line-clamp-2">
                 &ldquo;{generatedArt.prompt}&rdquo;
               </p>
-              <p className="text-[11px] text-stone-500 mt-1 flex items-center gap-1">
-                Active on your 5×7 greeting card preview &rarr;
-              </p>
+
+              <button
+                type="button"
+                onClick={() => setShowFullPreviewModal(true)}
+                className="text-[11px] text-stone-500 hover:text-amber-900 mt-1 flex items-center gap-1 cursor-pointer underline underline-offset-2"
+              >
+                <span>Tap artwork to view full 5×7 greeting card preview &rarr;</span>
+              </button>
             </div>
           </div>
+
+          {/* THEMATIC INSIDE MESSAGE PREVIEW (Linked directly to cover prompt) */}
+          {generatedArt.matchedSentiments && generatedArt.matchedSentiments.length > 0 && (
+            <div className="mt-3.5 p-3.5 bg-white/90 rounded-2xl border border-amber-200/90 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-950 flex items-center gap-1.5 font-serif">
+                  <PenTool className="w-3.5 h-3.5 text-amber-700" />
+                  Suggested Inside Note Paired to Your Artwork
+                </span>
+                <span className="text-[10px] font-semibold text-stone-500 bg-stone-100 px-2 py-0.5 rounded-full border border-stone-200">
+                  Ready in Step 2
+                </span>
+              </div>
+              <div className="bg-amber-50/70 p-2.5 rounded-xl border border-amber-200/70 text-xs">
+                <p className="font-serif font-bold text-amber-950">
+                  &ldquo;{generatedArt.matchedSentiments[0].printedGreeting}&rdquo;
+                </p>
+                <p className="italic text-stone-600 text-[11px] mt-1 line-clamp-2">
+                  {generatedArt.matchedSentiments[0].handwrittenNote}
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Quick Continue Action Button: eliminates need to scroll past gallery */}
           {onContinue && (
@@ -321,6 +403,69 @@ export function CoverStep({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* FULL-SCREEN 5×7 LIGHTBOX PREVIEW MODAL */}
+      {showFullPreviewModal && generatedArt && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setShowFullPreviewModal(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-white rounded-3xl p-5 sm:p-6 max-w-lg w-full shadow-2xl border border-stone-200 flex flex-col items-center max-h-[92vh] overflow-y-auto space-y-4"
+          >
+            <div className="w-full flex items-center justify-between pb-2 border-b border-stone-100">
+              <div>
+                <span className="text-[10px] uppercase font-bold text-amber-700 tracking-wider block font-serif">
+                  Aster &amp; Blanche Studio Preview
+                </span>
+                <h3 className="text-sm font-bold text-stone-900 truncate max-w-[260px] sm:max-w-sm">
+                  &ldquo;{generatedArt.prompt}&rdquo;
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowFullPreviewModal(false)}
+                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* High-Res 5x7 Card Cover with authentic shadow */}
+            <div className="relative w-full aspect-[5/7] max-w-[340px] rounded-2xl overflow-hidden shadow-2xl border-4 border-white ring-1 ring-stone-200/80 bg-stone-100">
+              <Image
+                src={generatedArt.imageUrl}
+                alt={generatedArt.prompt}
+                fill
+                unoptimized
+                className="object-cover"
+              />
+            </div>
+
+            {/* Modal Actions */}
+            <div className="w-full pt-2 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <span className="text-xs text-stone-500">
+                Printed on 120 lb archival cardstock
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowFullPreviewModal(false);
+                  onSelectCover(generatedArt.imageUrl);
+                  if (onContinue) onContinue();
+                }}
+                className="w-full sm:w-auto px-5 py-2.5 bg-stone-900 hover:bg-black text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <span>Keep Cover &amp; Write Inside Note</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

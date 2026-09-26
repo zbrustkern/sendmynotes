@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateCoverArt } from "@/lib/nano-banana";
+import { generateThematicSentiments } from "@/lib/thematic-sentiment";
 import { saveImageCacheItem } from "@/lib/firebase-admin";
 import { checkRateLimit } from "@/lib/rate-limiter";
 import { logIncident } from "@/lib/incident-logger";
@@ -39,7 +40,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "A valid prompt is required." }, { status: 400 });
     }
 
-    const art = await generateCoverArt({ prompt, occasion });
+    const [art, thematic] = await Promise.all([
+      generateCoverArt({ prompt, occasion }),
+      generateThematicSentiments({ prompt, occasion }),
+    ]);
 
     // Cache the generated art item in Firestore image_cache_pool
     const cacheId = `cache_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -71,6 +75,8 @@ export async function POST(req: NextRequest) {
       isMock: art.isMock,
       aspectRatio: art.aspectRatio,
       provider: art.provider,
+      matchedSentiments: thematic.sentiments,
+      themeTag: thematic.themeTag,
       fallbackNotice: art.isMock ? "Selected from our Aster & Blanche signature cards." : null,
       remaining: rateLimit.remaining,
       limit: rateLimit.limit,

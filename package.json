@@ -14,7 +14,8 @@
     "test:margins": "tsx tests/unit-economics.test.ts",
     "test:reminders": "tsx tests/reminders.test.ts",
     "test:parser": "tsx tests/contact-parser.test.ts",
-    "test:intent": "tsx tests/card-intent.test.ts"
+    "test:intent": "tsx tests/card-intent.test.ts",
+    "test:thematic": "tsx tests/thematic-sentiment.test.ts"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.1.1",
