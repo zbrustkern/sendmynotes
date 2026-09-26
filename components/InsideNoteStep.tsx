@@ -349,26 +349,47 @@ export function InsideNoteStep({
         </div>
       </div>
 
-      {/* Unified Personal Note Text Area */}
-      <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-            Personal Note (Written in Real Ballpoint Ink)
-          </label>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={shuffleNote}
-              className="flex items-center gap-1 text-xs text-amber-800 hover:text-amber-900 font-semibold bg-amber-50 hover:bg-amber-100/80 px-2.5 py-1 rounded-full border border-amber-200/80 shadow-2xs transition cursor-pointer"
-              title="Suggest another pre-written note in this tone"
-            >
-              <Sparkles className="w-3 h-3 text-amber-600" />
-              <span>Suggest another note</span>
-            </button>
-            <span className="text-[11px] text-stone-400">Up to 500 characters</span>
+      {/* Inside Note Composition Area */}
+      <div className="bg-white rounded-2xl p-5 border border-stone-200/80 shadow-sm space-y-4">
+        {/* Part 1: Optional Inside Top Lead-in / Commercial Hook */}
+        <div className="space-y-1.5 pb-3 border-b border-stone-100">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+              <Type className="w-3.5 h-3.5 text-stone-400" />
+              Inside Top Greeting / Punchline (Optional)
+            </label>
+            <span className="text-[11px] text-stone-400">Pre-printed card hook or headline</span>
           </div>
+          <input
+            type="text"
+            value={printedGreeting}
+            onChange={(e) => onChangePrintedGreeting(e.target.value)}
+            placeholder="e.g. Hope your celebration is DINO-MITE! (or leave blank for pure personal letter)"
+            maxLength={120}
+            className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white text-stone-900 transition font-serif"
+          />
         </div>
+
+        {/* Part 2: Personal Note (Written in Real Ballpoint Ink) */}
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              Personal Note (Written in Real Ballpoint Ink)
+            </label>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={shuffleNote}
+                className="flex items-center gap-1 text-xs text-amber-800 hover:text-amber-900 font-semibold bg-amber-50 hover:bg-amber-100/80 px-2.5 py-1 rounded-full border border-amber-200/80 shadow-2xs transition cursor-pointer"
+                title="Suggest another pre-written note in this tone"
+              >
+                <Sparkles className="w-3 h-3 text-amber-600" />
+                <span>Suggest another note</span>
+              </button>
+              <span className="text-[11px] text-stone-400">Up to 500 characters</span>
+            </div>
+          </div>
 
         <textarea
           rows={6}
@@ -385,5 +406,6 @@ export function InsideNoteStep({
         </div>
       </div>
     </div>
+  </div>
   );
 }
