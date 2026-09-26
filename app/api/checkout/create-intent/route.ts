@@ -3,8 +3,9 @@ import crypto from "crypto";
 import { saveOrder, getDiscountCode } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { validateDiscount } from "@/lib/discount";
-import { Order, MailingAddress } from "@/lib/types";
+import { Order, MailingAddress, RecipientOccasion } from "@/lib/types";
 import { logIncident } from "@/lib/incident-logger";
+import { saveOccasionReminder } from "@/lib/reminders";
 
 export async function POST(req: NextRequest) {
   try {
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
       scheduledSendDate,
       discountCode: rawDiscountCode,
       attribution,
+      recipientOccasion,
     } = body;
 
     if (!frontImageUrl) {
@@ -62,6 +64,36 @@ export async function POST(req: NextRequest) {
       finalAmountInCents = validation.finalAmountInCents;
     }
 
+    const maybeSaveReminder = async () => {
+      if (
+        recipientOccasion &&
+        recipientOccasion.remindMe &&
+        customerEmail &&
+        recipientOccasion.month &&
+        recipientOccasion.day
+      ) {
+        const recName =
+          `${recipientAddress.firstName || ""} ${recipientAddress.lastName || ""}`.trim() ||
+          "Recipient";
+        await saveOccasionReminder({
+          recipientName: recName,
+          recipientAddress: recipientAddress as MailingAddress,
+          userEmail: customerEmail,
+          ...(userId ? { userId } : {}),
+          occasionType: recipientOccasion.occasionType || "birthday",
+          occasionTitle:
+            recipientOccasion.occasionTitle ||
+            `${recipientOccasion.occasionType ? recipientOccasion.occasionType.charAt(0).toUpperCase() + recipientOccasion.occasionType.slice(1) : "Occasion"} Reminder`,
+          month: Number(recipientOccasion.month),
+          day: Number(recipientOccasion.day),
+          ...(recipientOccasion.year ? { year: Number(recipientOccasion.year) } : {}),
+          remindDaysBefore: recipientOccasion.remindDaysBefore || 14,
+          optIn: true,
+          orderId,
+        }).catch((err) => console.warn("[Checkout] Non-critical error saving reminder:", err));
+      }
+    };
+
     // Handle 100% Free Order (e.g. VIP/Launch Voucher)
     if (finalAmountInCents === 0) {
       const orderRecord: Order = {
@@ -75,6 +107,7 @@ export async function POST(req: NextRequest) {
         recipientAddress: recipientAddress as MailingAddress,
         returnAddress: returnAddress as MailingAddress,
         ...(scheduledSendDate ? { scheduledSendDate } : {}),
+        ...(recipientOccasion ? { recipientOccasion: recipientOccasion as RecipientOccasion } : {}),
         status: "PENDING_PAYMENT",
         amountInCents: 0,
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
@@ -88,6 +121,7 @@ export async function POST(req: NextRequest) {
       };
 
       await saveOrder(orderRecord);
+      await maybeSaveReminder();
 
       return NextResponse.json({
         orderId,
@@ -130,6 +164,7 @@ export async function POST(req: NextRequest) {
       recipientAddress: recipientAddress as MailingAddress,
       returnAddress: returnAddress as MailingAddress,
       ...(scheduledSendDate ? { scheduledSendDate } : {}),
+      ...(recipientOccasion ? { recipientOccasion: recipientOccasion as RecipientOccasion } : {}),
       status: "PENDING_PAYMENT",
       amountInCents: finalAmountInCents,
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
@@ -143,6 +178,7 @@ export async function POST(req: NextRequest) {
     };
 
     await saveOrder(orderRecord);
+    await maybeSaveReminder();
 
     const publishableKey =
       process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||

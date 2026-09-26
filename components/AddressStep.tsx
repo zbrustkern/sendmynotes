@@ -1,9 +1,10 @@
 "use client";
 import React, { useMemo } from "react";
-import { Mail, MapPin, Send, ShieldCheck, Calendar, BookOpen, BookmarkCheck, Clock } from "lucide-react";
-import { MailingAddress, SavedAddress } from "@/lib/types";
+import { Mail, MapPin, Send, ShieldCheck, Calendar, BookOpen, BookmarkCheck, Clock, Bell, Sparkles, Gift, Heart } from "lucide-react";
+import { MailingAddress, SavedAddress, RecipientOccasion, OccasionType } from "@/lib/types";
 import { useAuth } from "@/context/AuthContext";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
+import { MONTH_NAMES } from "@/lib/reminder-utils";
 
 interface AddressStepProps {
   recipient: MailingAddress;
@@ -14,6 +15,8 @@ interface AddressStepProps {
   onChangeScheduledSendDate: (date: string) => void;
   saveRecipientToAddressBook: boolean;
   onToggleSaveRecipient: (val: boolean) => void;
+  recipientOccasion?: RecipientOccasion | null;
+  onChangeRecipientOccasion?: (val: RecipientOccasion | null) => void;
 }
 
 export function AddressStep({
@@ -25,6 +28,8 @@ export function AddressStep({
   onChangeScheduledSendDate,
   saveRecipientToAddressBook,
   onToggleSaveRecipient,
+  recipientOccasion,
+  onChangeRecipientOccasion,
 }: AddressStepProps) {
   const { user, account } = useAuth();
 
@@ -51,7 +56,66 @@ export function AddressStep({
       onChangeRecipient("city", found.city);
       onChangeRecipient("state", found.state);
       onChangeRecipient("zip", found.zip);
+
+      if (found.occasionMonth && found.occasionDay && onChangeRecipientOccasion) {
+        onChangeRecipientOccasion({
+          occasionType: found.occasionType || "birthday",
+          occasionTitle: found.occasionTitle || `${found.firstName}'s ${found.occasionType || "Special Day"}`,
+          month: found.occasionMonth,
+          day: found.occasionDay,
+          year: found.occasionYear,
+          remindMe: found.remindMe !== false,
+          remindDaysBefore: found.remindDaysBefore || 14,
+        });
+      }
     }
+  };
+
+  const handleToggleReminder = (enabled: boolean) => {
+    if (!onChangeRecipientOccasion) return;
+    if (!enabled) {
+      onChangeRecipientOccasion(null);
+      return;
+    }
+    const now = new Date();
+    onChangeRecipientOccasion({
+      occasionType: recipientOccasion?.occasionType || "birthday",
+      occasionTitle: recipientOccasion?.occasionTitle || (recipient.firstName ? `${recipient.firstName}'s Birthday` : "Birthday"),
+      month: recipientOccasion?.month || (now.getMonth() + 1),
+      day: recipientOccasion?.day || now.getDate(),
+      remindMe: true,
+      remindDaysBefore: 14,
+    });
+  };
+
+  const handleUpdateOccasionType = (type: OccasionType) => {
+    if (!onChangeRecipientOccasion) return;
+    const now = new Date();
+    const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
+    onChangeRecipientOccasion({
+      occasionType: type,
+      occasionTitle: recipient.firstName ? `${recipient.firstName}'s ${typeLabel}` : typeLabel,
+      month: recipientOccasion?.month || (now.getMonth() + 1),
+      day: recipientOccasion?.day || now.getDate(),
+      remindMe: true,
+      remindDaysBefore: recipientOccasion?.remindDaysBefore || 14,
+    });
+  };
+
+  const handleUpdateMonth = (month: number) => {
+    if (!onChangeRecipientOccasion || !recipientOccasion) return;
+    onChangeRecipientOccasion({
+      ...recipientOccasion,
+      month,
+    });
+  };
+
+  const handleUpdateDay = (day: number) => {
+    if (!onChangeRecipientOccasion || !recipientOccasion) return;
+    onChangeRecipientOccasion({
+      ...recipientOccasion,
+      day,
+    });
   };
 
   const handleUseDefaultReturn = () => {
@@ -215,22 +279,136 @@ export function AddressStep({
             </div>
           </div>
 
-          {user && (
-            <div className="pt-2 border-t border-stone-100">
-              <label className="flex items-center gap-2 text-xs text-stone-600 cursor-pointer">
+          {/* ADDRESS BOOK & OCCASION REMINDER (PURELY OPT-IN) */}
+          <div className="pt-3 border-t border-stone-100 space-y-2.5">
+            {user ? (
+              <label className="flex items-center gap-2 text-xs text-stone-700 cursor-pointer">
                 <input
                   type="checkbox"
                   checked={saveRecipientToAddressBook}
                   onChange={(e) => onToggleSaveRecipient(e.target.checked)}
                   className="rounded border-stone-300 text-amber-600 focus:ring-amber-500"
                 />
-                <span className="flex items-center gap-1 font-medium">
+                <span className="flex items-center gap-1.5 font-medium">
                   <BookmarkCheck className="w-3.5 h-3.5 text-amber-600" />
-                  Save recipient to my Address Book
+                  <span>Save {recipient.firstName ? `${recipient.firstName}'s address` : "recipient"} to my Address Book</span>
                 </span>
               </label>
+            ) : (
+              <div className="flex items-center justify-between text-[11px] text-stone-600 bg-stone-50 p-2.5 rounded-xl border border-stone-200/80">
+                <span className="flex items-center gap-1.5">
+                  <BookmarkCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                  <span>Guest Checkout: Option to save this contact to your Address Book in 1 click after payment.</span>
+                </span>
+              </div>
+            )}
+
+            {/* OCCASION REMINDER TOGGLE & EXPANDABLE CARD */}
+            <div className="bg-amber-50/60 rounded-xl p-3 border border-amber-200/80 space-y-2.5">
+              <label className="flex items-start gap-2 text-xs text-stone-800 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={Boolean(recipientOccasion?.remindMe)}
+                  onChange={(e) => handleToggleReminder(e.target.checked)}
+                  className="rounded border-stone-300 text-amber-600 focus:ring-amber-500 mt-0.5"
+                />
+                <div className="space-y-0.5">
+                  <span className="font-semibold text-stone-900 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                    <span>Never miss {recipient.firstName ? `${recipient.firstName}'s` : "their"} next birthday or anniversary</span>
+                    <span className="text-[9px] uppercase font-bold text-amber-800 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-200/60">
+                      Opt-In
+                    </span>
+                  </span>
+                  <p className="text-[11px] text-stone-500 leading-normal">
+                    We&apos;ll send an email 14 days before with a 1-click preview so your card inks and arrives on time. 100% free, zero spam.
+                  </p>
+                </div>
+              </label>
+
+              {/* EXPANDED OCCASION SELECTORS */}
+              {recipientOccasion?.remindMe && (
+                <div className="pt-2.5 border-t border-amber-200/70 space-y-3 animate-in fade-in duration-200">
+                  {/* Occasion Type Selection */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                      Occasion
+                    </label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { type: "birthday", label: "Birthday", emoji: "🎂" },
+                        { type: "anniversary", label: "Anniversary", emoji: "🥂" },
+                        { type: "holiday", label: "Holiday", emoji: "🎄" },
+                        { type: "custom", label: "Special Milestone", emoji: "⭐️" },
+                      ].map((item) => (
+                        <button
+                          key={item.type}
+                          type="button"
+                          onClick={() => handleUpdateOccasionType(item.type as OccasionType)}
+                          className={`text-xs px-2.5 py-1 rounded-lg border font-medium transition cursor-pointer flex items-center gap-1 ${
+                            recipientOccasion.occasionType === item.type
+                              ? "bg-amber-600 text-white border-amber-600 shadow-xs"
+                              : "bg-white text-stone-700 border-stone-200 hover:bg-stone-50"
+                          }`}
+                        >
+                          <span>{item.emoji}</span>
+                          <span>{item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Month & Day Pickers */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                        Month
+                      </label>
+                      <select
+                        value={recipientOccasion.month || 1}
+                        onChange={(e) => handleUpdateMonth(parseInt(e.target.value, 10))}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-stone-300 rounded-lg text-stone-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                      >
+                        {MONTH_NAMES.map((mName, idx) => (
+                          <option key={mName} value={idx + 1}>
+                            {mName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-stone-600 mb-1">
+                        Day of Month
+                      </label>
+                      <select
+                        value={recipientOccasion.day || 1}
+                        onChange={(e) => handleUpdateDay(parseInt(e.target.value, 10))}
+                        className="w-full px-2.5 py-1.5 text-xs bg-white border border-stone-300 rounded-lg text-stone-800 focus:outline-none focus:ring-1 focus:ring-amber-500 font-medium"
+                      >
+                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                          <option key={d} value={d}>
+                            {d}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Notification Timing Notice */}
+                  <div className="flex items-center justify-between text-[11px] text-stone-600 pt-1 border-t border-amber-200/50">
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3 text-amber-600" />
+                      <span>Reminder timing:</span>
+                    </span>
+                    <span className="font-semibold text-amber-900 bg-amber-100/90 px-2 py-0.5 rounded-full text-[10px]">
+                      14 days before (Allows 2 days inking + USPS transit)
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
 
         {/* RETURN MAILING ADDRESS */}

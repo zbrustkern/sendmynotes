@@ -17,10 +17,50 @@ export type OrderStatus =
   | "MAILED"
   | "FAILED";
 
+export type OccasionType = "birthday" | "anniversary" | "holiday" | "milestone" | "custom";
+
+export interface RecipientOccasion {
+  occasionType: OccasionType;
+  occasionTitle?: string;
+  month: number; // 1-12
+  day: number; // 1-31
+  year?: number;
+  remindMe: boolean;
+  remindDaysBefore?: number; // default 14
+}
+
+export interface OccasionReminder {
+  id: string;
+  recipientName: string;
+  recipientAddress?: MailingAddress;
+  recipientId?: string; // id of SavedAddress if saved
+  userEmail: string;
+  userId?: string;
+  occasionType: OccasionType;
+  occasionTitle: string; // e.g. "Sarah's Birthday"
+  month: number; // 1-12
+  day: number; // 1-31
+  year?: number;
+  remindDaysBefore: number; // default: 14
+  optIn: boolean;
+  notes?: string;
+  orderId?: string;
+  lastNotifiedYear?: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface SavedAddress extends MailingAddress {
   id: string;
   label?: string;
-  occasionReminderDate?: string; // YYYY-MM-DD for birthdays/anniversaries
+  occasionReminderDate?: string; // legacy YYYY-MM-DD
+  occasionType?: OccasionType;
+  occasionTitle?: string;
+  occasionMonth?: number; // 1-12
+  occasionDay?: number; // 1-31
+  occasionYear?: number;
+  remindMe?: boolean;
+  remindDaysBefore?: number; // default 14
 }
 
 export interface OrderAttribution {
@@ -60,6 +100,7 @@ export interface Order {
   discountAmountInCents?: number;
   paymentMethod?: "STRIPE" | "PROMO_CODE" | "STUDIO_COMP";
   attribution?: OrderAttribution;
+  recipientOccasion?: RecipientOccasion;
   viewToken?: string;
   isRedacted?: boolean;
   createdAt: number;

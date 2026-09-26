@@ -23,9 +23,21 @@ import {
   BookmarkCheck,
   Feather,
   RefreshCw,
+  Bell,
+  BellRing,
+  Gift,
+  Heart,
+  Award,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { Order, SavedAddress, MailingAddress } from "@/lib/types";
+import { Order, SavedAddress, MailingAddress, OccasionType } from "@/lib/types";
+import {
+  MONTH_NAMES,
+  MONTH_SHORT_NAMES,
+  formatOccasionDate,
+  getOccasionTypeDisplay,
+  calculateDaysUntilNextOccasion,
+} from "@/lib/reminder-utils";
 import { AuthModal } from "@/components/AuthModal";
 
 export default function AccountDashboardPage() {
@@ -61,6 +73,16 @@ export default function AccountDashboardPage() {
     zip: "",
     country: "USA",
   });
+
+  // Upcoming milestone occasions in next 60 days
+  const upcomingMilestones = (account?.savedAddresses || [])
+    .filter((addr) => addr.occasionMonth && addr.occasionDay)
+    .map((addr) => ({
+      ...addr,
+      daysUntil: calculateDaysUntilNextOccasion(addr.occasionMonth!, addr.occasionDay!),
+    }))
+    .filter((item) => item.daysUntil <= 60)
+    .sort((a, b) => a.daysUntil - b.daysUntil);
 
   // Auth Modal State (if not logged in)
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -351,6 +373,88 @@ export default function AccountDashboardPage() {
         {/* TAB 2: ADDRESS BOOK */}
         {activeTab === "addresses" && (
           <div className="space-y-8">
+            {/* UPCOMING MILESTONES & REMINDERS STRIP (Next 60 Days) */}
+            {upcomingMilestones.length > 0 && (
+              <div className="bg-gradient-to-br from-amber-500/10 via-amber-50/50 to-orange-500/5 rounded-3xl p-5 sm:p-6 border border-amber-200/80 shadow-xs space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-xs">
+                      <BellRing className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-stone-900 font-serif">
+                        Upcoming Milestones &amp; Reminders
+                      </h3>
+                      <p className="text-[11px] text-stone-600">
+                        Never miss a birthday or anniversary. 1-click card preparation ready.
+                      </p>
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                    Next 60 Days ({upcomingMilestones.length})
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
+                  {upcomingMilestones.map((m) => {
+                    const occasionDisplay = getOccasionTypeDisplay(m.occasionType || "birthday");
+                    const dateFormatted = formatOccasionDate(m.occasionMonth!, m.occasionDay!, m.occasionYear);
+                    const builderUrl = `/?toName=${encodeURIComponent(`${m.firstName} ${m.lastName}`.trim())}&toStreet=${encodeURIComponent(m.street1)}&toStreet2=${encodeURIComponent(m.street2 || "")}&toCity=${encodeURIComponent(m.city)}&toState=${encodeURIComponent(m.state)}&toZip=${encodeURIComponent(m.zip)}&occasion=${encodeURIComponent(m.occasionType === "birthday" ? "Birthday" : m.occasionType === "anniversary" ? "Anniversary" : "Congratulations")}&step=1`;
+
+                    return (
+                      <div
+                        key={m.id}
+                        className="bg-white/95 backdrop-blur-xs rounded-2xl p-4 border border-amber-200/60 shadow-2xs flex flex-col justify-between gap-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 flex items-center gap-1">
+                              <span>{occasionDisplay.emoji}</span>
+                              <span>{m.occasionTitle || occasionDisplay.label}</span>
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                m.daysUntil <= 14
+                                  ? "bg-rose-100 text-rose-800 border border-rose-200 animate-pulse"
+                                  : "bg-stone-100 text-stone-700"
+                              }`}
+                            >
+                              {m.daysUntil === 0
+                                ? "Today!"
+                                : m.daysUntil === 1
+                                ? "Tomorrow"
+                                : `In ${m.daysUntil} days`}
+                            </span>
+                          </div>
+
+                          <h4 className="text-sm font-bold text-stone-900 pt-1">
+                            {m.firstName} {m.lastName}
+                          </h4>
+                          <p className="text-xs text-stone-500 font-medium">
+                            {dateFormatted}
+                          </p>
+                          {m.remindMe && (
+                            <p className="text-[10px] text-emerald-700 font-semibold flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>14-day email reminder active</span>
+                            </p>
+                          )}
+                        </div>
+
+                        <Link
+                          href={builderUrl}
+                          className="w-full py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                          <span>Send {occasionDisplay.label} Card &rarr;</span>
+                        </Link>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* SAVED RECIPIENTS */}
             <div className="space-y-4">
               <div className="flex items-center justify-between">
@@ -423,56 +527,85 @@ export default function AccountDashboardPage() {
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {account.savedAddresses.map((addr) => (
-                    <div
-                      key={addr.id}
-                      className="bg-white rounded-2xl p-5 border border-stone-200 shadow-sm flex flex-col justify-between space-y-3"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                            {addr.label || "Recipient"}
-                          </span>
-                          <button
-                            onClick={() => deleteAddress(addr.id)}
-                            className="text-stone-400 hover:text-rose-600 transition p-1"
-                            title="Delete Contact"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                  {account.savedAddresses.map((addr) => {
+                    const cardBuilderUrl = `/?toName=${encodeURIComponent(`${addr.firstName} ${addr.lastName}`.trim())}&toStreet=${encodeURIComponent(addr.street1)}&toStreet2=${encodeURIComponent(addr.street2 || "")}&toCity=${encodeURIComponent(addr.city)}&toState=${encodeURIComponent(addr.state)}&toZip=${encodeURIComponent(addr.zip)}${addr.occasionType ? `&occasion=${encodeURIComponent(addr.occasionType === "birthday" ? "Birthday" : addr.occasionType === "anniversary" ? "Anniversary" : "Congratulations")}` : ""}`;
+                    const hasOccasion = addr.occasionMonth && addr.occasionDay;
+                    const occasionDisplay = hasOccasion ? getOccasionTypeDisplay(addr.occasionType || "birthday") : null;
+                    const daysUntil = hasOccasion ? calculateDaysUntilNextOccasion(addr.occasionMonth!, addr.occasionDay!) : null;
+
+                    return (
+                      <div
+                        key={addr.id}
+                        className="bg-white rounded-2xl p-5 border border-stone-200 shadow-sm flex flex-col justify-between space-y-3"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                              {addr.label || "Recipient"}
+                            </span>
+                            <button
+                              onClick={() => deleteAddress(addr.id)}
+                              className="text-stone-400 hover:text-rose-600 transition p-1 cursor-pointer"
+                              title="Delete Contact"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          <h3 className="text-sm font-bold text-stone-900 pt-1">
+                            {addr.firstName} {addr.lastName}
+                          </h3>
+                          <p className="text-xs text-stone-600">{addr.street1}</p>
+                          {addr.street2 && <p className="text-xs text-stone-600">{addr.street2}</p>}
+                          <p className="text-xs text-stone-600">
+                            {addr.city}, {addr.state} {addr.zip}
+                          </p>
+
+                          {hasOccasion && occasionDisplay && (
+                            <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
+                              <span className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-700 bg-stone-50 px-2 py-0.5 rounded-lg border border-stone-200/60">
+                                <span>{occasionDisplay.emoji}</span>
+                                <span>
+                                  {formatOccasionDate(addr.occasionMonth!, addr.occasionDay!, addr.occasionYear)}
+                                  {daysUntil !== null && daysUntil <= 30 && (
+                                    <span className="text-amber-700 font-semibold ml-1">
+                                      ({daysUntil === 0 ? "today" : `in ${daysUntil}d`})
+                                    </span>
+                                  )}
+                                </span>
+                              </span>
+                              {addr.remindMe && (
+                                <span className="text-[10px] text-emerald-700 font-medium flex items-center gap-0.5" title="14-day email reminder active">
+                                  <Bell className="w-3 h-3 text-emerald-600" />
+                                  <span>Reminder</span>
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
 
-                        <h3 className="text-sm font-bold text-stone-900 pt-1">
-                          {addr.firstName} {addr.lastName}
-                        </h3>
-                        <p className="text-xs text-stone-600">{addr.street1}</p>
-                        {addr.street2 && <p className="text-xs text-stone-600">{addr.street2}</p>}
-                        <p className="text-xs text-stone-600">
-                          {addr.city}, {addr.state} {addr.zip}
-                        </p>
-                      </div>
+                        <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
+                          <button
+                            onClick={() => {
+                              setEditingAddress(addr);
+                              setIsAddressModalOpen(true);
+                            }}
+                            className="text-stone-500 hover:text-stone-800 flex items-center gap-1 text-[11px] font-medium cursor-pointer"
+                          >
+                            <Edit2 className="w-3 h-3" />
+                            <span>Edit</span>
+                          </button>
 
-                      <div className="pt-2 border-t border-stone-100 flex items-center justify-between text-xs">
-                        <button
-                          onClick={() => {
-                            setEditingAddress(addr);
-                            setIsAddressModalOpen(true);
-                          }}
-                          className="text-stone-500 hover:text-stone-800 flex items-center gap-1 text-[11px] font-medium"
-                        >
-                          <Edit2 className="w-3 h-3" />
-                          <span>Edit</span>
-                        </button>
-
-                        <Link
-                          href="/"
-                          className="text-amber-700 hover:text-amber-900 font-semibold text-[11px] flex items-center gap-1"
-                        >
-                          <span>Send Card &rarr;</span>
-                        </Link>
+                          <Link
+                            href={cardBuilderUrl}
+                            className="text-amber-700 hover:text-amber-900 font-semibold text-[11px] flex items-center gap-1"
+                          >
+                            <span>Send Card &rarr;</span>
+                          </Link>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -649,6 +782,30 @@ export default function AccountDashboardPage() {
           onClose={() => setIsAddressModalOpen(false)}
           onSave={async (savedData) => {
             await saveAddress(savedData);
+            if (savedData.remindMe && savedData.occasionMonth && savedData.occasionDay && user?.email) {
+              await fetch("/api/reminders", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  userId: user.uid,
+                  userEmail: user.email,
+                  recipientName: `${savedData.firstName} ${savedData.lastName}`.trim(),
+                  occasionType: savedData.occasionType || "birthday",
+                  occasionTitle:
+                    savedData.occasionTitle ||
+                    `${savedData.firstName}'s ${
+                      savedData.occasionType
+                        ? savedData.occasionType.charAt(0).toUpperCase() + savedData.occasionType.slice(1)
+                        : "Milestone"
+                    }`,
+                  month: Number(savedData.occasionMonth),
+                  day: Number(savedData.occasionDay),
+                  year: savedData.occasionYear ? Number(savedData.occasionYear) : undefined,
+                  remindDaysBefore: savedData.remindDaysBefore || 14,
+                  optIn: true,
+                }),
+              }).catch((err) => console.warn("Notice syncing reminder:", err));
+            }
             setIsAddressModalOpen(false);
           }}
         />
@@ -677,6 +834,13 @@ function ContactModal({
     state: initialAddress?.state || "",
     zip: initialAddress?.zip || "",
     country: "USA",
+    occasionType: (initialAddress?.occasionType || "birthday") as OccasionType,
+    occasionTitle: initialAddress?.occasionTitle || "",
+    occasionMonth: initialAddress?.occasionMonth ? String(initialAddress.occasionMonth) : "",
+    occasionDay: initialAddress?.occasionDay ? String(initialAddress.occasionDay) : "",
+    occasionYear: initialAddress?.occasionYear ? String(initialAddress.occasionYear) : "",
+    remindMe: initialAddress?.remindMe !== undefined ? initialAddress.remindMe : true,
+    remindDaysBefore: initialAddress?.remindDaysBefore || 14,
   });
   const [saving, setSaving] = useState(false);
 
@@ -684,7 +848,13 @@ function ContactModal({
     e.preventDefault();
     setSaving(true);
     try {
-      await onSave(form);
+      await onSave({
+        ...form,
+        occasionMonth: form.occasionMonth ? Number(form.occasionMonth) : undefined,
+        occasionDay: form.occasionDay ? Number(form.occasionDay) : undefined,
+        occasionYear: form.occasionYear ? Number(form.occasionYear) : undefined,
+        remindMe: Boolean(form.occasionMonth && form.occasionDay && form.remindMe),
+      });
     } finally {
       setSaving(false);
     }
@@ -692,12 +862,12 @@ function ContactModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-2xl space-y-5">
+      <div className="w-full max-w-lg bg-white rounded-3xl p-6 sm:p-7 border border-stone-200 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-          <h3 className="text-base font-bold text-stone-900">
+          <h3 className="text-base font-bold text-stone-900 font-serif">
             {initialAddress ? "Edit Contact" : "Add New Contact"}
           </h3>
-          <button onClick={onClose} className="text-stone-400 hover:text-stone-700">
+          <button onClick={onClose} className="text-stone-400 hover:text-stone-700 cursor-pointer p-1">
             &times;
           </button>
         </div>
@@ -712,7 +882,7 @@ function ContactModal({
               value={form.label}
               onChange={(e) => setForm((p) => ({ ...p, label: e.target.value }))}
               placeholder="Mom"
-              className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl"
+              className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
 
@@ -726,7 +896,7 @@ function ContactModal({
                 required
                 value={form.firstName}
                 onChange={(e) => setForm((p) => ({ ...p, firstName: e.target.value }))}
-                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl"
+                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <div>
@@ -738,7 +908,7 @@ function ContactModal({
                 required
                 value={form.lastName}
                 onChange={(e) => setForm((p) => ({ ...p, lastName: e.target.value }))}
-                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl"
+                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
           </div>
@@ -752,7 +922,7 @@ function ContactModal({
               required
               value={form.street1}
               onChange={(e) => setForm((p) => ({ ...p, street1: e.target.value }))}
-              className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl"
+              className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
 
@@ -764,7 +934,7 @@ function ContactModal({
               type="text"
               value={form.street2}
               onChange={(e) => setForm((p) => ({ ...p, street2: e.target.value }))}
-              className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl"
+              className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
 
@@ -776,7 +946,7 @@ function ContactModal({
                 required
                 value={form.city}
                 onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl"
+                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <div className="col-span-1">
@@ -787,7 +957,7 @@ function ContactModal({
                 maxLength={2}
                 value={form.state}
                 onChange={(e) => setForm((p) => ({ ...p, state: e.target.value.toUpperCase() }))}
-                className="w-full px-2 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl text-center uppercase"
+                className="w-full px-2 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl text-center uppercase focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
             <div className="col-span-2">
@@ -797,23 +967,133 @@ function ContactModal({
                 required
                 value={form.zip}
                 onChange={(e) => setForm((p) => ({ ...p, zip: e.target.value }))}
-                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl"
+                className="w-full px-3 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
               />
             </div>
+          </div>
+
+          {/* Milestone Occasion & Opt-in Reminder */}
+          <div className="pt-3 border-t border-stone-200/80 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-bold uppercase tracking-wider text-stone-700 flex items-center gap-1.5">
+                <Gift className="w-3.5 h-3.5 text-amber-600" />
+                <span>Card Milestone &amp; Reminder (Optional)</span>
+              </label>
+              <span className="text-[10px] text-stone-400 font-medium">14-day lead time</span>
+            </div>
+
+            {/* Occasion Type Pills */}
+            <div className="grid grid-cols-5 gap-1 text-[11px]">
+              {[
+                { type: "birthday" as OccasionType, label: "Birthday", emoji: "🎂" },
+                { type: "anniversary" as OccasionType, label: "Anniv.", emoji: "🥂" },
+                { type: "holiday" as OccasionType, label: "Holiday", emoji: "🎄" },
+                { type: "milestone" as OccasionType, label: "Milestone", emoji: "🏆" },
+                { type: "custom" as OccasionType, label: "Other", emoji: "⭐️" },
+              ].map((pill) => (
+                <button
+                  key={pill.type}
+                  type="button"
+                  onClick={() => setForm((p) => ({ ...p, occasionType: pill.type }))}
+                  className={`py-1.5 px-1 rounded-xl text-center font-medium border transition cursor-pointer flex flex-col items-center justify-center gap-0.5 ${
+                    form.occasionType === pill.type
+                      ? "bg-amber-500/10 border-amber-500/60 text-amber-950 font-bold shadow-2xs"
+                      : "bg-stone-50 border-stone-200/80 text-stone-600 hover:bg-stone-100"
+                  }`}
+                >
+                  <span className="text-xs">{pill.emoji}</span>
+                  <span className="text-[10px] leading-none truncate">{pill.label}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Month & Day Pickers */}
+            <div className="grid grid-cols-12 gap-2 pt-1">
+              <div className="col-span-5">
+                <label className="block text-[10px] font-semibold text-stone-500 mb-1">
+                  Month
+                </label>
+                <select
+                  value={form.occasionMonth}
+                  onChange={(e) => setForm((p) => ({ ...p, occasionMonth: e.target.value }))}
+                  className="w-full px-2 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                >
+                  <option value="">Select Month</option>
+                  {MONTH_NAMES.map((name, idx) => (
+                    <option key={name} value={idx + 1}>
+                      {name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-3">
+                <label className="block text-[10px] font-semibold text-stone-500 mb-1">
+                  Day
+                </label>
+                <select
+                  value={form.occasionDay}
+                  onChange={(e) => setForm((p) => ({ ...p, occasionDay: e.target.value }))}
+                  className="w-full px-2 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer"
+                >
+                  <option value="">Day</option>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                    <option key={d} value={d}>
+                      {d}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="col-span-4">
+                <label className="block text-[10px] font-semibold text-stone-500 mb-1">
+                  Year (Opt.)
+                </label>
+                <input
+                  type="number"
+                  min="1900"
+                  max="2099"
+                  placeholder="e.g. 1990"
+                  value={form.occasionYear}
+                  onChange={(e) => setForm((p) => ({ ...p, occasionYear: e.target.value }))}
+                  className="w-full px-2 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500"
+                />
+              </div>
+            </div>
+
+            {/* Opt-in Email Reminder Checkbox */}
+            {form.occasionMonth && form.occasionDay && (
+              <label className="flex items-start gap-2.5 p-3 rounded-2xl bg-amber-500/10 border border-amber-300/60 cursor-pointer animate-in fade-in duration-150">
+                <input
+                  type="checkbox"
+                  checked={form.remindMe}
+                  onChange={(e) => setForm((p) => ({ ...p, remindMe: e.target.checked }))}
+                  className="mt-0.5 w-4 h-4 rounded text-amber-600 focus:ring-amber-500 border-stone-300 cursor-pointer"
+                />
+                <div className="text-xs">
+                  <span className="font-bold text-amber-950 block">
+                    Remind me 14 days before via email
+                  </span>
+                  <span className="text-[11px] text-amber-900/80 leading-tight block">
+                    Allows ample time to ink in real pen and deliver via USPS First Class so it arrives before their celebration.
+                  </span>
+                </div>
+              </label>
+            )}
           </div>
 
           <div className="flex items-center gap-2 pt-3">
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 py-2.5 bg-stone-900 text-white text-xs font-semibold rounded-xl hover:bg-black transition disabled:opacity-50"
+              className="flex-1 py-2.5 bg-stone-900 text-white text-xs font-semibold rounded-xl hover:bg-black transition disabled:opacity-50 cursor-pointer shadow-sm"
             >
               {saving ? "Saving..." : "Save Contact"}
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 text-xs text-stone-500 hover:text-stone-800 transition"
+              className="px-4 py-2.5 text-xs text-stone-500 hover:text-stone-800 transition cursor-pointer"
             >
               Cancel
             </button>

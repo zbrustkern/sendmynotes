@@ -22,8 +22,11 @@ import {
   KeyRound,
   Eye,
   Loader2,
+  Bell,
+  BellRing,
 } from "lucide-react";
 import { Order } from "@/lib/types";
+import { formatOccasionDate, getOccasionTypeDisplay } from "@/lib/reminder-utils";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "@/components/AuthModal";
 import { trackGoogleAdsPurchase } from "@/lib/google-ads";
@@ -43,6 +46,48 @@ export default function OrderStatusPage() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
 
+  // Post-order 1-click reminder prompt state
+  const [postOrderReminderSet, setPostOrderReminderSet] = useState(false);
+  const [postOrderReminderLoading, setPostOrderReminderLoading] = useState(false);
+  const [postOrderOccasionType, setPostOrderOccasionType] = useState<"birthday" | "anniversary" | "milestone">("birthday");
+
+  const handleSetPostOrderReminder = async () => {
+    if (!order?.customerEmail) return;
+    setPostOrderReminderLoading(true);
+    try {
+      const today = new Date();
+      const res = await fetch("/api/reminders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: user?.uid,
+          userEmail: order.customerEmail,
+          recipientName: `${order.recipientAddress.firstName} ${order.recipientAddress.lastName}`.trim(),
+          occasionType: postOrderOccasionType,
+          occasionTitle: `${order.recipientAddress.firstName}'s ${
+            postOrderOccasionType === "birthday"
+              ? "Birthday"
+              : postOrderOccasionType === "anniversary"
+              ? "Anniversary"
+              : "Celebration"
+          }`,
+          month: today.getMonth() + 1,
+          day: today.getDate(),
+          remindDaysBefore: 14,
+          optIn: true,
+          orderId: order.id,
+        }),
+      });
+      if (res.ok) {
+        setPostOrderReminderSet(true);
+      }
+    } catch (err) {
+      console.warn("Notice setting post-order reminder:", err);
+    } finally {
+      setPostOrderReminderLoading(false);
+    }
+  };
+
   // Auto-sync recipient address to user's address book if logged in or after claiming account
   useEffect(() => {
     if (user && order?.recipientAddress && order.recipientAddress.street1) {
@@ -56,6 +101,13 @@ export default function OrderStatusPage() {
         zip: order.recipientAddress.zip,
         country: order.recipientAddress.country,
         label: `${order.recipientAddress.firstName}'s Address`,
+        occasionType: order.recipientOccasion?.occasionType,
+        occasionTitle: order.recipientOccasion?.occasionTitle,
+        occasionMonth: order.recipientOccasion?.month,
+        occasionDay: order.recipientOccasion?.day,
+        occasionYear: order.recipientOccasion?.year,
+        remindMe: order.recipientOccasion?.remindMe,
+        remindDaysBefore: order.recipientOccasion?.remindDaysBefore,
       }).catch((err) => console.warn("Notice syncing address book on order page:", err));
     }
   }, [user, order?.id]);
@@ -378,6 +430,101 @@ export default function OrderStatusPage() {
             </span>
           </div>
         </div>
+
+        {/* MILESTONE REMINDER CONFIRMATION BANNER */}
+        {order.recipientOccasion?.remindMe && (
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-500/10 border border-amber-300/80 rounded-3xl p-5 sm:p-6 shadow-xs flex items-start gap-4">
+            <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+              <BellRing className="w-5 h-5" />
+            </div>
+            <div className="flex-1">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                  {getOccasionTypeDisplay(order.recipientOccasion.occasionType || "birthday").emoji}{" "}
+                  {getOccasionTypeDisplay(order.recipientOccasion.occasionType || "birthday").label} Reminder Set
+                </span>
+                <span className="text-xs text-stone-500 font-medium hidden sm:inline">
+                  • 14 Days Before
+                </span>
+              </div>
+              <h3 className="text-sm font-bold text-stone-900 font-serif pt-1">
+                Annual Reminder Confirmed for {order.recipientAddress.firstName}
+              </h3>
+              <p className="text-xs text-stone-600 mt-0.5 leading-relaxed">
+                We&apos;ll send an email reminder to <strong className="text-stone-800">{order.customerEmail}</strong> 14 days before{" "}
+                <strong>
+                  {formatOccasionDate(
+                    order.recipientOccasion.month,
+                    order.recipientOccasion.day,
+                    order.recipientOccasion.year
+                  )}
+                </strong>{" "}
+                with a 1-click personalized link to pen and send another luxury card.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* POST-ORDER 1-CLICK REMINDER PROMPT (If not already set during checkout) */}
+        {!order.recipientOccasion?.remindMe && (
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-sm space-y-4">
+            {postOrderReminderSet ? (
+              <div className="flex items-center gap-3 text-emerald-800">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold">14-Day Annual Reminder Saved!</h4>
+                  <p className="text-xs text-emerald-700">
+                    We&apos;ll remind you at <span className="font-semibold">{order.customerEmail}</span> two weeks before this date next year. No account required.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
+                    <Bell className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-stone-900 font-serif">
+                        Never forget {order.recipientAddress.firstName}&apos;s card next year
+                      </h4>
+                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
+                        Zero-Spam Opt-In
+                      </span>
+                    </div>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      Get a single email 14 days before so our robotic pen can write and deliver a fresh card on time.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <select
+                    value={postOrderOccasionType}
+                    onChange={(e) => setPostOrderOccasionType(e.target.value as "birthday" | "anniversary" | "milestone")}
+                    className="px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-xl cursor-pointer"
+                  >
+                    <option value="birthday">🎂 Birthday</option>
+                    <option value="anniversary">🥂 Anniversary</option>
+                    <option value="milestone">🏆 Milestone</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={handleSetPostOrderReminder}
+                    disabled={postOrderReminderLoading}
+                    className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-sm transition flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
+                  >
+                    <Bell className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{postOrderReminderLoading ? "Saving..." : "Remind Me Next Year"}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ROBOTIC FULFILLMENT TIMELINE */}
         <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/80 shadow-md space-y-6">

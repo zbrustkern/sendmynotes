@@ -28,7 +28,7 @@ import { AddressStep } from "./AddressStep";
 import { CheckoutStep } from "./CheckoutStep";
 import { FeedbackModal } from "./FeedbackModal";
 import { CARD_PRESETS, OCCASIONS, FONT_OPTIONS, CardPreset } from "@/lib/card-presets";
-import { MailingAddress } from "@/lib/types";
+import { MailingAddress, RecipientOccasion } from "@/lib/types";
 import { trackEvent } from "@/lib/telemetry";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "./AuthModal";
@@ -77,6 +77,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   // Address State & Scheduling
   const [scheduledSendDate, setScheduledSendDate] = useState<string>("");
   const [saveRecipientToAddressBook, setSaveRecipientToAddressBook] = useState<boolean>(true);
+  const [recipientOccasion, setRecipientOccasion] = useState<RecipientOccasion | null>(null);
 
   const [recipient, setRecipient] = useState<MailingAddress>({
     firstName: "",
@@ -372,6 +373,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
           scheduledSendDate: scheduledSendDate || undefined,
           discountCode: discountCodeToUse,
           attribution: getStoredAttribution() || undefined,
+          recipientOccasion: recipientOccasion || undefined,
         }),
       });
 
@@ -392,6 +394,13 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
           zip: recipient.zip,
           country: recipient.country,
           label: `${recipient.firstName}'s Address`,
+          occasionType: recipientOccasion?.occasionType,
+          occasionTitle: recipientOccasion?.occasionTitle,
+          occasionMonth: recipientOccasion?.month,
+          occasionDay: recipientOccasion?.day,
+          occasionYear: recipientOccasion?.year,
+          remindMe: recipientOccasion?.remindMe,
+          remindDaysBefore: recipientOccasion?.remindDaysBefore,
         }).catch((err) => console.warn("Notice saving recipient:", err));
       }
 
@@ -724,6 +733,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
                 onChangeScheduledSendDate={setScheduledSendDate}
                 saveRecipientToAddressBook={saveRecipientToAddressBook}
                 onToggleSaveRecipient={setSaveRecipientToAddressBook}
+                recipientOccasion={recipientOccasion}
+                onChangeRecipientOccasion={setRecipientOccasion}
               />
             )}
 

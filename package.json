@@ -11,7 +11,8 @@
     "lint": "next lint",
     "test:m1": "tsx tests/milestone1.test.ts",
     "test:m4": "tsx tests/milestone4.test.ts",
-    "test:margins": "tsx tests/unit-economics.test.ts"
+    "test:margins": "tsx tests/unit-economics.test.ts",
+    "test:reminders": "tsx tests/reminders.test.ts"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.1.1",
