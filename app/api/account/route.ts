@@ -165,6 +165,13 @@ export async function POST(req: NextRequest) {
         zip: String(addressToAdd.zip || "").trim(),
         country: String(addressToAdd.country || "US").trim(),
         label: addressToAdd.label || `${addressToAdd.firstName}'s Address`,
+        ...(addressToAdd.occasionType ? { occasionType: addressToAdd.occasionType } : {}),
+        ...(addressToAdd.occasionTitle ? { occasionTitle: addressToAdd.occasionTitle } : {}),
+        ...(addressToAdd.occasionMonth ? { occasionMonth: Number(addressToAdd.occasionMonth) } : {}),
+        ...(addressToAdd.occasionDay ? { occasionDay: Number(addressToAdd.occasionDay) } : {}),
+        ...(addressToAdd.occasionYear ? { occasionYear: Number(addressToAdd.occasionYear) } : {}),
+        ...(addressToAdd.remindMe !== undefined ? { remindMe: Boolean(addressToAdd.remindMe) } : {}),
+        ...(addressToAdd.remindDaysBefore ? { remindDaysBefore: Number(addressToAdd.remindDaysBefore) } : {}),
       };
 
       const existingIndex = finalAddresses.findIndex(

@@ -23,6 +23,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshAccount: () => Promise<void>;
   saveAddress: (address: Omit<SavedAddress, "id"> & { id?: string }) => Promise<void>;
+  saveAddressesBulk: (addresses: (Omit<SavedAddress, "id"> & { id?: string })[]) => Promise<void>;
   deleteAddress: (addressId: string) => Promise<void>;
   updateDefaultReturnAddress: (address: MailingAddress) => Promise<void>;
 }
@@ -153,6 +154,67 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const saveAddressesBulk = async (addressesToImport: (Omit<SavedAddress, "id"> & { id?: string })[]) => {
+    if (!user) return;
+    const currentAddresses = account?.savedAddresses || [];
+    const merged = [...currentAddresses];
+
+    for (const item of addressesToImport) {
+      const addrId = item.id || `addr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+      const cleanAddress: SavedAddress = {
+        id: addrId,
+        firstName: item.firstName.trim(),
+        lastName: item.lastName.trim(),
+        street1: item.street1.trim(),
+        street2: (item.street2 || "").trim(),
+        city: item.city.trim(),
+        state: item.state.trim().toUpperCase(),
+        zip: item.zip.trim(),
+        country: item.country?.trim() || "USA",
+        label: item.label || `${item.firstName}'s Address`,
+        ...(item.occasionType ? { occasionType: item.occasionType } : {}),
+        ...(item.occasionTitle ? { occasionTitle: item.occasionTitle } : {}),
+        ...(item.occasionMonth ? { occasionMonth: Number(item.occasionMonth) } : {}),
+        ...(item.occasionDay ? { occasionDay: Number(item.occasionDay) } : {}),
+        ...(item.occasionYear ? { occasionYear: Number(item.occasionYear) } : {}),
+        ...(item.remindMe !== undefined ? { remindMe: Boolean(item.remindMe) } : {}),
+        ...(item.remindDaysBefore ? { remindDaysBefore: Number(item.remindDaysBefore) } : {}),
+      };
+
+      const existingIndex = merged.findIndex(
+        (a) =>
+          a.street1.toLowerCase() === cleanAddress.street1.toLowerCase() &&
+          a.zip.toLowerCase() === cleanAddress.zip.toLowerCase() &&
+          a.firstName.toLowerCase() === cleanAddress.firstName.toLowerCase()
+      );
+
+      if (existingIndex >= 0) {
+        merged[existingIndex] = { ...merged[existingIndex], ...cleanAddress, id: merged[existingIndex].id };
+      } else {
+        merged.push(cleanAddress);
+      }
+    }
+
+    const res = await fetch("/api/account", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: user.uid,
+        email: user.email || account?.email || "",
+        displayName: account?.displayName || user.displayName || "",
+        savedAddresses: merged,
+        defaultReturnAddress: account?.defaultReturnAddress,
+      }),
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.user) {
+        setAccount(data.user);
+      }
+    }
+  };
+
   const deleteAddress = async (addressId: string) => {
     if (!user) return;
 
@@ -213,6 +275,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         refreshAccount,
         saveAddress,
+        saveAddressesBulk,
         deleteAddress,
         updateDefaultReturnAddress,
       }}
