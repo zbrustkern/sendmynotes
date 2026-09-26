@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       discountCode: rawDiscountCode,
       attribution,
       recipientOccasion,
+      occasion,
     } = body;
 
     if (!frontImageUrl) {
@@ -104,6 +105,7 @@ export async function POST(req: NextRequest) {
         printedMessage: printedMessage || "",
         handwrittenNote: handwrittenNote || "",
         fontStyleId,
+        ...(occasion ? { occasion } : {}),
         recipientAddress: recipientAddress as MailingAddress,
         returnAddress: returnAddress as MailingAddress,
         ...(scheduledSendDate ? { scheduledSendDate } : {}),
@@ -161,6 +163,7 @@ export async function POST(req: NextRequest) {
       printedMessage: printedMessage || "",
       handwrittenNote: handwrittenNote || "",
       fontStyleId,
+      ...(occasion ? { occasion } : {}),
       recipientAddress: recipientAddress as MailingAddress,
       returnAddress: returnAddress as MailingAddress,
       ...(scheduledSendDate ? { scheduledSendDate } : {}),

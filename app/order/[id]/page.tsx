@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useParams } from "next/navigation";
@@ -24,9 +24,16 @@ import {
   Loader2,
   Bell,
   BellRing,
+  Heart,
+  Gift,
+  BookmarkCheck,
+  Check,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
-import { Order } from "@/lib/types";
-import { formatOccasionDate, getOccasionTypeDisplay } from "@/lib/reminder-utils";
+import { Order, OccasionType } from "@/lib/types";
+import { formatOccasionDate, getOccasionTypeDisplay, MONTH_SHORT_NAMES, MONTH_NAMES } from "@/lib/reminder-utils";
+import { detectCardIntent } from "@/lib/card-intent";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "@/components/AuthModal";
 import { trackGoogleAdsPurchase } from "@/lib/google-ads";
@@ -46,16 +53,45 @@ export default function OrderStatusPage() {
   const [verifyLoading, setVerifyLoading] = useState(false);
   const [verifyError, setVerifyError] = useState<string | null>(null);
 
-  // Post-order 1-click reminder prompt state
+  // Post-order occasion-tailored reminder prompt state
+  const intentConfig = useMemo(() => {
+    return order ? detectCardIntent(order) : null;
+  }, [order]);
+
   const [postOrderReminderSet, setPostOrderReminderSet] = useState(false);
   const [postOrderReminderLoading, setPostOrderReminderLoading] = useState(false);
-  const [postOrderOccasionType, setPostOrderOccasionType] = useState<"birthday" | "anniversary" | "milestone">("birthday");
+  const [reminderMonth, setReminderMonth] = useState<number>(1);
+  const [reminderDay, setReminderDay] = useState<number>(1);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showAddOccasionForRelational, setShowAddOccasionForRelational] = useState(false);
+  const [relationalOccasionType, setRelationalOccasionType] = useState<OccasionType>("birthday");
 
-  const handleSetPostOrderReminder = async () => {
+  useEffect(() => {
+    if (intentConfig) {
+      setReminderMonth(intentConfig.suggestedMonth);
+      setReminderDay(intentConfig.suggestedDay);
+    }
+  }, [intentConfig?.suggestedMonth, intentConfig?.suggestedDay]);
+
+  const handleSetPostOrderReminder = async (opts?: {
+    occasionType?: OccasionType;
+    occasionTitle?: string;
+    month?: number;
+    day?: number;
+    remindDaysBefore?: number;
+  }) => {
     if (!order?.customerEmail) return;
     setPostOrderReminderLoading(true);
     try {
-      const today = new Date();
+      const type = opts?.occasionType || intentConfig?.defaultOccasionType || "birthday";
+      const title =
+        opts?.occasionTitle ||
+        intentConfig?.defaultOccasionTitle ||
+        `${order.recipientAddress.firstName}'s Occasion`;
+      const month = opts?.month ?? reminderMonth;
+      const day = opts?.day ?? reminderDay;
+      const remindDaysBefore = opts?.remindDaysBefore ?? (intentConfig?.interactionMode === "care_checkin" ? 0 : 14);
+
       const res = await fetch("/api/reminders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -63,17 +99,11 @@ export default function OrderStatusPage() {
           userId: user?.uid,
           userEmail: order.customerEmail,
           recipientName: `${order.recipientAddress.firstName} ${order.recipientAddress.lastName}`.trim(),
-          occasionType: postOrderOccasionType,
-          occasionTitle: `${order.recipientAddress.firstName}'s ${
-            postOrderOccasionType === "birthday"
-              ? "Birthday"
-              : postOrderOccasionType === "anniversary"
-              ? "Anniversary"
-              : "Celebration"
-          }`,
-          month: today.getMonth() + 1,
-          day: today.getDate(),
-          remindDaysBefore: 14,
+          occasionType: type,
+          occasionTitle: title,
+          month,
+          day,
+          remindDaysBefore,
           optIn: true,
           orderId: order.id,
         }),
@@ -465,8 +495,8 @@ export default function OrderStatusPage() {
           </div>
         )}
 
-        {/* POST-ORDER 1-CLICK REMINDER PROMPT (If not already set during checkout) */}
-        {!order.recipientOccasion?.remindMe && (
+        {/* POST-ORDER OCCASION-TAILORED NUDGE (If not already set during checkout) */}
+        {!order.recipientOccasion?.remindMe && intentConfig && (
           <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-sm space-y-4">
             {postOrderReminderSet ? (
               <div className="flex items-center gap-3 text-emerald-800">
@@ -474,53 +504,192 @@ export default function OrderStatusPage() {
                   <CheckCircle2 className="w-5 h-5" />
                 </div>
                 <div>
-                  <h4 className="text-sm font-bold">14-Day Annual Reminder Saved!</h4>
+                  <h4 className="text-sm font-bold">{intentConfig.successTitle}</h4>
                   <p className="text-xs text-emerald-700">
-                    We&apos;ll remind you at <span className="font-semibold">{order.customerEmail}</span> two weeks before this date next year. No account required.
+                    {intentConfig.successDescription} We&apos;ll notify you at{" "}
+                    <span className="font-semibold">{order.customerEmail}</span>. No account required.
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-700 border border-amber-200 flex items-center justify-center shrink-0">
-                    <Bell className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-sm font-bold text-stone-900 font-serif">
-                        Never forget {order.recipientAddress.firstName}&apos;s card next year
-                      </h4>
-                      <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 border border-stone-200">
-                        Zero-Spam Opt-In
-                      </span>
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-700 border border-amber-200/70 flex items-center justify-center shrink-0 text-lg">
+                      {intentConfig.badgeEmoji}
                     </div>
-                    <p className="text-xs text-stone-500 mt-0.5">
-                      Get a single email 14 days before so our robotic pen can write and deliver a fresh card on time.
-                    </p>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-stone-900 font-serif">
+                          {intentConfig.headline}
+                        </h4>
+                        <span className={`text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full border ${intentConfig.badgeClass}`}>
+                          {intentConfig.badgeLabel}
+                        </span>
+                      </div>
+                      <p className="text-xs text-stone-500 mt-1 max-w-xl leading-relaxed">
+                        {intentConfig.description}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* ACTION CONTROLS BASED ON INTERACTION MODE */}
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto shrink-0">
+                    {intentConfig.interactionMode === "address_book_retention" ? (
+                      user ? (
+                        <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold">
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Saved in Your Address Book</span>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setIsAuthModalOpen(true)}
+                          className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <BookmarkCheck className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Save {order.recipientAddress.firstName}&apos;s Contact Free</span>
+                        </button>
+                      )
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => handleSetPostOrderReminder()}
+                        disabled={postOrderReminderLoading}
+                        className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-sm transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        <Bell className="w-3.5 h-3.5 text-amber-400" />
+                        <span>{postOrderReminderLoading ? "Saving..." : intentConfig.primaryButtonLabel}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <select
-                    value={postOrderOccasionType}
-                    onChange={(e) => setPostOrderOccasionType(e.target.value as "birthday" | "anniversary" | "milestone")}
-                    className="px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-xl cursor-pointer"
-                  >
-                    <option value="birthday">🎂 Birthday</option>
-                    <option value="anniversary">🥂 Anniversary</option>
-                    <option value="milestone">🏆 Milestone</option>
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleSetPostOrderReminder}
-                    disabled={postOrderReminderLoading}
-                    className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-sm transition flex items-center gap-1.5 shrink-0 cursor-pointer disabled:opacity-50"
-                  >
-                    <Bell className="w-3.5 h-3.5 text-amber-400" />
-                    <span>{postOrderReminderLoading ? "Saving..." : "Remind Me Next Year"}</span>
-                  </button>
-                </div>
+                {/* DATE ADJUSTMENT ACCORDION (For Birthday & Anniversary) */}
+                {intentConfig.allowDateAdjustment && (
+                  <div className="pt-2 border-t border-stone-100 flex flex-wrap items-center justify-between gap-2 text-xs text-stone-500">
+                    <button
+                      type="button"
+                      onClick={() => setShowDatePicker(!showDatePicker)}
+                      className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-500 hover:text-stone-800 transition cursor-pointer"
+                    >
+                      <Calendar className="w-3 h-3 text-stone-400" />
+                      <span>
+                        Target Date: {MONTH_SHORT_NAMES[reminderMonth - 1]} {reminderDay}
+                      </span>
+                      {showDatePicker ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    </button>
+
+                    {showDatePicker && (
+                      <div className="flex items-center gap-2 animate-in fade-in duration-150 w-full sm:w-auto pt-2 sm:pt-0">
+                        <select
+                          value={reminderMonth}
+                          onChange={(e) => setReminderMonth(Number(e.target.value))}
+                          className="px-2 py-1 text-xs bg-stone-50 border border-stone-200 rounded-lg text-stone-700"
+                        >
+                          {MONTH_NAMES.map((name, i) => (
+                            <option key={i} value={i + 1}>
+                              {name}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={reminderDay}
+                          onChange={(e) => setReminderDay(Number(e.target.value))}
+                          className="px-2 py-1 text-xs bg-stone-50 border border-stone-200 rounded-lg text-stone-700"
+                        >
+                          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                            <option key={d} value={d}>
+                              Day {d}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* OPTIONAL EXPANDABLE OCCASION FOR RELATIONAL NOTES (Thank You, Thinking of You) */}
+                {intentConfig.interactionMode === "address_book_retention" && (
+                  <div className="pt-2 border-t border-stone-100">
+                    {!showAddOccasionForRelational ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowAddOccasionForRelational(true)}
+                        className="inline-flex items-center gap-1 text-[11px] font-medium text-stone-500 hover:text-stone-800 transition cursor-pointer"
+                      >
+                        <Calendar className="w-3 h-3 text-stone-400" />
+                        <span>+ Note {order.recipientAddress.firstName}&apos;s birthday or anniversary for next year</span>
+                      </button>
+                    ) : (
+                      <div className="p-3 bg-stone-50/80 rounded-2xl border border-stone-200/60 space-y-2.5 animate-in fade-in duration-150">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-semibold text-stone-700">
+                            Add milestone reminder for {order.recipientAddress.firstName}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setShowAddOccasionForRelational(false)}
+                            className="text-[11px] text-stone-400 hover:text-stone-600 cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <select
+                            value={relationalOccasionType}
+                            onChange={(e) => setRelationalOccasionType(e.target.value as OccasionType)}
+                            className="px-2.5 py-1.5 text-xs bg-white border border-stone-200 rounded-xl cursor-pointer"
+                          >
+                            <option value="birthday">🎂 Birthday</option>
+                            <option value="anniversary">🥂 Anniversary</option>
+                            <option value="milestone">🏆 Milestone</option>
+                          </select>
+                          <select
+                            value={reminderMonth}
+                            onChange={(e) => setReminderMonth(Number(e.target.value))}
+                            className="px-2 py-1.5 text-xs bg-white border border-stone-200 rounded-xl cursor-pointer"
+                          >
+                            {MONTH_NAMES.map((m, idx) => (
+                              <option key={idx} value={idx + 1}>{m}</option>
+                            ))}
+                          </select>
+                          <select
+                            value={reminderDay}
+                            onChange={(e) => setReminderDay(Number(e.target.value))}
+                            className="px-2 py-1.5 text-xs bg-white border border-stone-200 rounded-xl cursor-pointer"
+                          >
+                            {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                              <option key={d} value={d}>Day {d}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleSetPostOrderReminder({
+                                occasionType: relationalOccasionType,
+                                occasionTitle: `${order.recipientAddress.firstName}'s ${
+                                  relationalOccasionType === "birthday"
+                                    ? "Birthday"
+                                    : relationalOccasionType === "anniversary"
+                                    ? "Anniversary"
+                                    : "Milestone"
+                                }`,
+                                month: reminderMonth,
+                                day: reminderDay,
+                                remindDaysBefore: 14,
+                              })
+                            }
+                            disabled={postOrderReminderLoading}
+                            className="px-3.5 py-1.5 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
+                          >
+                            {postOrderReminderLoading ? "Saving..." : "Save Reminder"}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

@@ -362,6 +362,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          occasion,
           frontImageUrl: coverUrl,
           printedMessage: printedGreeting,
           handwrittenNote,

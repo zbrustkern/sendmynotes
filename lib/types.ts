@@ -80,6 +80,7 @@ export interface Order {
   stripePaymentId?: string;
   customerEmail: string;
   userId?: string;
+  occasion?: string;
   frontImageUrl: string;
   printedMessage: string;
   handwrittenNote: string;
