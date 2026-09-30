@@ -329,7 +329,7 @@ export async function fetchHandwryttenOrderStatus(
 
   try {
     const res = await fetch(
-      `https://api.handwrytten.com/v2/orders/view?order_id=${encodeURIComponent(orderId)}`,
+      `https://api.handwrytten.com/v2/orders/details?id=${encodeURIComponent(orderId)}&order_id=${encodeURIComponent(orderId)}`,
       {
         method: "GET",
         headers: {
