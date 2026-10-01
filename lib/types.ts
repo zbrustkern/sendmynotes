@@ -12,9 +12,11 @@ export interface MailingAddress {
 export type OrderStatus =
   | "PENDING_PAYMENT"
   | "PAYMENT_RECEIVED"
+  | "DISPATCHING"
   | "PROCESSING_HANDWRYTTEN"
   | "QUEUED_FOR_FULFILLMENT"
   | "MAILED"
+  | "PAYMENT_VERIFICATION_FAILED"
   | "FAILED";
 
 export type OccasionType = "birthday" | "anniversary" | "holiday" | "milestone" | "custom";
@@ -95,6 +97,7 @@ export interface Order {
   handwryttenMailedDate?: string;
   fulfillmentError?: string;
   scheduledSendDate?: string; // YYYY-MM-DD if scheduled
+  dispatchStartedAt?: number;
   amountInCents: number;
   originalAmountInCents?: number;
   discountCode?: string;
@@ -162,6 +165,7 @@ export interface HandwryttenAddress {
 }
 
 export interface HandwryttenOrderParams {
+  orderId?: string; // Internal order ID for idempotency & deduplication
   imageUrl: string;
   printedGreeting?: string;
   handwrittenMessage: string;

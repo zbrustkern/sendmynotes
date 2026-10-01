@@ -206,7 +206,7 @@ export async function fulfillHandwryttenOrder(
     console.log("[Handwrytten] Creating custom card via /v2/cards/createCustomCard...");
     const cardPayload: Record<string, unknown> = {
       dimension_id: 4, // A2 Folded Portrait (4.25 x 5.5)
-      name: `SendMyNotes-${Date.now()}`,
+      name: params.orderId ? `SendMyNotes-${params.orderId}` : `SendMyNotes-${Date.now()}`,
       back_type: "logo",
       cover_id: coverId,
       ...(backId ? { back_logo_id: backId } : {}),

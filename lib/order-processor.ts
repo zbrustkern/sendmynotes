@@ -1,4 +1,6 @@
 import {
+  firestoreDb,
+  getOrdersCollection,
   getOrderById,
   updateOrderStatus,
   getImageCachePoolCollection,
@@ -7,6 +9,7 @@ import {
 } from "./firebase-admin";
 import { fulfillHandwryttenOrder } from "./handwrytten";
 import { logIncident } from "./incident-logger";
+import { Order } from "./types";
 
 export interface ProcessPaidOrderResult {
   success: boolean;
@@ -16,46 +19,104 @@ export interface ProcessPaidOrderResult {
   alreadyProcessed?: boolean;
 }
 
+export class DuplicateDispatchError extends Error {
+  public status: string;
+  public handwryttenOrderId?: string;
+  constructor(status: string, handwryttenOrderId?: string) {
+    super(`Order already in state ${status}`);
+    this.name = "DuplicateDispatchError";
+    this.status = status;
+    this.handwryttenOrderId = handwryttenOrderId;
+  }
+}
+
 /**
- * Idempotently processes and fulfills a paid order.
- * Safe to be called multiple times from Stripe webhooks, client confirmation fallbacks, or admin panel syncs.
+ * Atomically and idempotently processes and fulfills a paid order.
+ * Uses a Firestore database transaction to acquire an exclusive 'DISPATCHING' lock,
+ * completely preventing concurrent double-dispatch races between client confirmation
+ * and asynchronous Stripe webhooks.
  */
 export async function processPaidOrder(
   orderId: string,
   paymentIntentId: string,
   customerEmail?: string
 ): Promise<ProcessPaidOrderResult> {
-  // 1. Fetch Order from Firestore
-  const order = await getOrderById(orderId);
-  if (!order) {
-    return {
-      success: false,
-      status: "NOT_FOUND",
-      error: `Order ${orderId} not found in database.`,
-    };
+  let order: Order;
+
+  // 1. Atomic Locking via Firestore Transaction:
+  // Read and check status atomically, and claim the 'DISPATCHING' lock.
+  // This guarantees that even under extreme concurrency, only ONE thread acquires the lock.
+  try {
+    order = await firestoreDb.runTransaction(async (transaction: any) => {
+      const docRef = getOrdersCollection().doc(orderId);
+      const snapshot = await transaction.get(docRef);
+
+      if (!snapshot.exists) {
+        throw new Error(`Order ${orderId} not found in database.`);
+      }
+
+      const existingOrder = snapshot.data() as Order;
+
+      // Check if already dispatched, processing, or actively being dispatched
+      const isStaleLock =
+        existingOrder.status === "DISPATCHING" &&
+        existingOrder.dispatchStartedAt &&
+        Date.now() - existingOrder.dispatchStartedAt > 5 * 60 * 1000;
+
+      if (
+        (existingOrder.status === "DISPATCHING" && !isStaleLock) ||
+        existingOrder.status === "PROCESSING_HANDWRYTTEN" ||
+        existingOrder.status === "MAILED"
+      ) {
+        throw new DuplicateDispatchError(
+          existingOrder.status,
+          existingOrder.handwryttenOrderId
+        );
+      }
+
+      const finalEmail = customerEmail || existingOrder.customerEmail;
+
+      // Atomically transition status to DISPATCHING lock
+      transaction.update(docRef, {
+        status: "DISPATCHING",
+        stripePaymentId: paymentIntentId,
+        customerEmail: finalEmail,
+        dispatchStartedAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      return {
+        ...existingOrder,
+        status: "DISPATCHING",
+        stripePaymentId: paymentIntentId,
+        customerEmail: finalEmail,
+      };
+    });
+  } catch (err: unknown) {
+    if (err instanceof DuplicateDispatchError) {
+      console.log(
+        `[OrderProcessor] Idempotency lock active: Order ${orderId} is currently '${err.status}' (HW ID: ${err.handwryttenOrderId || "pending"}). Safely dropping duplicate dispatch.`
+      );
+      return {
+        success: true,
+        status: err.status,
+        handwryttenOrderId: err.handwryttenOrderId,
+        alreadyProcessed: true,
+      };
+    }
+
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("not found")) {
+      return {
+        success: false,
+        status: "NOT_FOUND",
+        error: msg,
+      };
+    }
+
+    console.error(`[OrderProcessor] Transaction exception for order ${orderId}:`, msg);
+    throw err;
   }
-
-  // 2. Check Idempotency: If already dispatched to Handwrytten, don't duplicate robotic order
-  if (
-    order.status === "PROCESSING_HANDWRYTTEN" ||
-    order.status === "MAILED"
-  ) {
-    return {
-      success: true,
-      status: order.status,
-      handwryttenOrderId: order.handwryttenOrderId,
-      alreadyProcessed: true,
-    };
-  }
-
-  const finalEmail = customerEmail || order.customerEmail;
-
-  // 3. Update status to PAYMENT_RECEIVED
-  await updateOrderStatus(orderId, {
-    status: "PAYMENT_RECEIVED",
-    stripePaymentId: paymentIntentId,
-    customerEmail: finalEmail,
-  });
 
   // 4. Record discount code usage metrics if applicable
   if (order.discountCode) {
@@ -66,8 +127,9 @@ export async function processPaidOrder(
     }
   }
 
-  // 5. Dispatch to Handwrytten robotic pen fulfillment
+  // 5. Dispatch to Handwrytten robotic pen fulfillment with deterministic orderId for supplier idempotency
   const fulfillment = await fulfillHandwryttenOrder({
+    orderId,
     imageUrl: order.frontImageUrl,
     printedGreeting: order.printedMessage,
     handwrittenMessage: order.handwrittenNote,

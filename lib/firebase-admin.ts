@@ -246,6 +246,58 @@ class MockFirestore {
     }
     return this.collections.get(name)!;
   }
+
+  private transactionQueue: Promise<void> = Promise.resolve();
+
+  async runTransaction<T>(
+    updateFunction: (transaction: MockTransaction) => Promise<T>
+  ): Promise<T> {
+    let result: T;
+    let thrownError: unknown;
+
+    await new Promise<void>((resolveNext) => {
+      this.transactionQueue = this.transactionQueue
+        .catch(() => {})
+        .then(async () => {
+          try {
+            const tx = new MockTransaction(this);
+            result = await updateFunction(tx);
+          } catch (err) {
+            thrownError = err;
+          } finally {
+            resolveNext();
+          }
+        });
+    });
+
+    if (thrownError !== undefined) {
+      throw thrownError;
+    }
+    return result!;
+  }
+}
+
+class MockTransaction {
+  constructor(private firestore: MockFirestore) {}
+
+  async get<T = unknown>(ref: MockDocRef<T>): Promise<MockDocumentSnapshot<T>> {
+    return ref.get();
+  }
+
+  set<T = unknown>(ref: MockDocRef<T>, data: T, options?: { merge?: boolean }): this {
+    ref.set(data, options);
+    return this;
+  }
+
+  update<T = unknown>(ref: MockDocRef<T>, data: Partial<T>): this {
+    ref.update(data);
+    return this;
+  }
+
+  delete<T = unknown>(ref: MockDocRef<T>): this {
+    ref.delete();
+    return this;
+  }
 }
 
 const mockFirestoreInstance = new MockFirestore();
