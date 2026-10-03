@@ -16,6 +16,7 @@ import {
   Activity,
   Globe,
   Compass,
+  Bot,
 } from "lucide-react";
 import { AdminMetrics, VisitorSessionRecord } from "@/lib/types";
 
@@ -42,6 +43,8 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
   };
   const topLocations = telemetry?.topLocations || [];
   const recentSessions = telemetry?.recentSessions || [];
+  const botVisitors = telemetry?.botVisitors || 0;
+  const humanVisitors = telemetry?.humanVisitors !== undefined ? telemetry.humanVisitors : (metrics.funnel?.totalSessions || 1);
 
   const handleCopy = (id: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -67,19 +70,28 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
   const overallConversion = ((paidCount / totalSessions) * 100).toFixed(1);
 
   return (
-    <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-8">
+    <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-6 sm:space-y-8 w-full min-w-0 overflow-hidden">
       {/* 1. Header & Live Indicator */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
         <div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-              <TrendingUp className="w-4 h-4 text-amber-600" />
-              Traffic Acquisition &amp; Micro-Funnel Drop-Offs
+              <TrendingUp className="w-4 h-4 text-amber-600 shrink-0" />
+              <span>Traffic Acquisition &amp; Micro-Funnel Drop-Offs</span>
             </h2>
             <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
               Live Telemetry
             </span>
+            {botVisitors > 0 && (
+              <span
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200"
+                title={`${botVisitors} automated search engine crawlers or indexer bots identified`}
+              >
+                <Bot className="w-3 h-3 text-amber-600" />
+                <span>{botVisitors} Bot{botVisitors === 1 ? "" : "s"} Filtered</span>
+              </span>
+            )}
           </div>
           <p className="text-xs text-stone-500 mt-1">
             Pinpoints visitor origin, Google Analytics Client IDs, device specs, and exact drop-off steps.
@@ -360,9 +372,15 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
                     <tr key={idx} className="hover:bg-stone-50/50 transition-colors">
                       {/* Visitor / Source */}
                       <td className="py-3 px-3">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <span className="font-semibold text-stone-900">{session.source}</span>
                           <span className="text-stone-400">/ {session.medium}</span>
+                          {session.isBot && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 inline-flex items-center gap-0.5">
+                              <Bot className="w-2.5 h-2.5 text-amber-600" />
+                              Bot
+                            </span>
+                          )}
                           {session.gclid && (
                             <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-blue-50 text-blue-700 border border-blue-200">
                               gclid

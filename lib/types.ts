@@ -253,6 +253,7 @@ export interface TelemetryEvent {
   ipRegion?: string;
   ipCountry?: string;
   userAgent?: string;
+  isBot?: boolean;
 }
 
 // Programmatic SEO Scenario Types
@@ -379,6 +380,8 @@ export interface VisitorSessionRecord {
   country?: string;
   landingPath?: string;
   googleClientId?: string;
+  userAgent?: string;
+  isBot?: boolean;
 }
 
 export interface FunnelStepLeak {
@@ -401,6 +404,9 @@ export interface AcquisitionSourceMetric {
 }
 
 export interface VisitorTelemetryMetrics {
+  totalVisitors: number;
+  humanVisitors: number;
+  botVisitors: number;
   funnelLeaks: FunnelStepLeak[];
   acquisitionSources: AcquisitionSourceMetric[];
   deviceBreakdown: {

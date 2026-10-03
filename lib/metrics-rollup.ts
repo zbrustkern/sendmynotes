@@ -211,6 +211,8 @@ export async function ingestTelemetryEvent(event: TelemetryEvent): Promise<void>
     if (event.ipCountry) existingSession.country = event.ipCountry;
     if (event.googleClientId) existingSession.googleClientId = event.googleClientId;
     if (event.utmCampaign) existingSession.campaign = event.utmCampaign;
+    if (event.isBot !== undefined) existingSession.isBot = event.isBot;
+    if (event.userAgent) existingSession.userAgent = event.userAgent;
   } else {
     const newSession: VisitorSessionRecord = {
       sessionId: event.sessionId,
@@ -232,6 +234,8 @@ export async function ingestTelemetryEvent(event: TelemetryEvent): Promise<void>
       country: event.ipCountry,
       landingPath: event.landingPath || event.path,
       googleClientId: event.googleClientId,
+      userAgent: event.userAgent,
+      isBot: event.isBot,
     };
     summary.recentSessions.unshift(newSession);
     if (summary.recentSessions.length > 50) {
@@ -696,12 +700,19 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     },
   ];
 
+  const recentSessions = telemetry.recentSessions || [];
+  const botVisitors = recentSessions.filter((s) => s.isBot).length;
+  const humanVisitors = Math.max(0, totalSessions - botVisitors);
+
   const visitorTelemetry: VisitorTelemetryMetrics = {
+    totalVisitors: totalSessions,
+    humanVisitors,
+    botVisitors,
     funnelLeaks,
     acquisitionSources,
     deviceBreakdown,
     topLocations,
-    recentSessions: telemetry.recentSessions || [],
+    recentSessions,
   };
 
   return {

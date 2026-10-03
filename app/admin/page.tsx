@@ -794,7 +794,7 @@ export default function AdminDashboardPage() {
       : "0.0";
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] pb-24 md:pb-20 text-stone-900">
+    <div className="min-h-screen w-full overflow-x-hidden bg-[#FAF8F5] pb-24 md:pb-20 text-stone-900">
       {/* ADMIN HEADER */}
       <header className="border-b border-stone-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 md:py-4">
@@ -1024,23 +1024,23 @@ export default function AdminDashboardPage() {
       {/* ADMIN TABS NAVIGATION */}
       <div className="border-b border-stone-200/80 bg-white shadow-2xs">
         <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <nav className="flex space-x-1.5 sm:space-x-8 overflow-x-auto py-2 sm:py-0 no-scrollbar" aria-label="Admin Tabs">
+          <nav className="flex items-center gap-1.5 sm:gap-8 overflow-x-auto py-2.5 sm:py-0 no-scrollbar scroll-smooth" aria-label="Admin Tabs">
             <button
               type="button"
               onClick={() => setActiveTab("orders")}
-              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "orders"
-                  ? "bg-stone-900 text-white shadow-2xs sm:bg-transparent sm:border-stone-900 sm:text-stone-900 sm:shadow-none font-semibold"
-                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-stone-800 sm:hover:border-stone-300"
+                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-stone-900 sm:text-stone-900 sm:shadow-none sm:ring-0 font-semibold"
+                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
               }`}
             >
-              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
               <span>Orders &amp; Ops</span>
               {metrics?.totalOrders !== undefined && (
-                <span className={`ml-1 py-0.2 px-1.5 rounded-full text-[10px] font-bold ${
+                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
                   activeTab === "orders"
-                    ? "bg-stone-700 text-stone-200 sm:bg-stone-100 sm:text-stone-600"
-                    : "bg-stone-200 text-stone-600 sm:bg-stone-100"
+                    ? "bg-stone-800 text-stone-200 sm:bg-stone-100 sm:text-stone-600"
+                    : "bg-stone-100 text-stone-600 sm:bg-stone-100"
                 }`}>
                   {metrics.totalOrders}
                 </span>
@@ -1051,14 +1051,14 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("incidents")}
-              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 hasActiveAlerts
                   ? activeTab === "incidents"
-                    ? "bg-rose-600 text-white shadow-2xs sm:bg-rose-50/30 sm:border-rose-600 sm:text-rose-700 sm:shadow-none font-bold"
-                    : "bg-rose-50 text-rose-700 border border-rose-200 sm:bg-transparent sm:border-transparent sm:text-rose-600 font-semibold"
+                    ? "bg-rose-600 text-white shadow-xs ring-1 ring-rose-600 sm:bg-rose-50/30 sm:border-rose-600 sm:text-rose-700 sm:shadow-none sm:ring-0 font-bold"
+                    : "bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-rose-600 font-semibold"
                   : activeTab === "incidents"
-                  ? "bg-stone-900 text-white shadow-2xs sm:bg-emerald-50/30 sm:border-emerald-600 sm:text-emerald-800 sm:shadow-none font-bold"
-                  : "bg-stone-100 text-emerald-800 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-emerald-700 font-medium"
+                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-emerald-50/30 sm:border-emerald-600 sm:text-emerald-800 sm:shadow-none sm:ring-0 font-bold"
+                  : "bg-white text-emerald-800 hover:text-emerald-900 hover:bg-stone-50 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-emerald-700 font-medium sm:shadow-none"
               }`}
             >
               {/* Alert icon ONLY shows up when there are active/unresolved alerts */}
@@ -1069,11 +1069,11 @@ export default function AdminDashboardPage() {
               )}
               <span>System Health</span>
               {hasActiveAlerts ? (
-                <span className="ml-1 py-0.2 px-1.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-bold border border-rose-200">
+                <span className="ml-1 py-0.5 px-1.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-bold border border-rose-200">
                   {unresolvedIncidents.length}
                 </span>
               ) : (
-                <span className="ml-1 py-0.2 px-1.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-medium hidden sm:inline">
+                <span className="ml-1 py-0.5 px-1.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-medium">
                   Healthy
                 </span>
               )}
@@ -1082,19 +1082,19 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("margins")}
-              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "margins"
-                  ? "bg-stone-900 text-white shadow-2xs sm:bg-transparent sm:border-emerald-600 sm:text-emerald-900 sm:shadow-none font-semibold"
-                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-stone-800 sm:hover:border-stone-300"
+                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-emerald-600 sm:text-emerald-900 sm:shadow-none sm:ring-0 font-semibold"
+                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
               }`}
             >
-              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 sm:text-emerald-600" />
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
               <span>Unit Economics</span>
               {metrics?.margins?.netContributionMarginPercent !== undefined && (
-                <span className={`ml-1 py-0.2 px-1.5 rounded-full text-[10px] font-bold ${
+                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
                   activeTab === "margins"
-                    ? "bg-emerald-800 text-emerald-100 sm:bg-emerald-100 sm:text-emerald-800"
-                    : "bg-stone-200 text-stone-600 sm:bg-emerald-100 sm:text-emerald-800"
+                    ? "bg-stone-800 text-emerald-300 sm:bg-emerald-100 sm:text-emerald-800"
+                    : "bg-stone-100 text-stone-600 sm:bg-emerald-100 sm:text-emerald-800"
                 }`}>
                   {metrics.margins.netContributionMarginPercent}%
                 </span>
@@ -1104,19 +1104,19 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("discounts")}
-              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "discounts"
-                  ? "bg-stone-900 text-white shadow-2xs sm:bg-transparent sm:border-amber-600 sm:text-amber-900 sm:shadow-none font-semibold"
-                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-stone-800 sm:hover:border-stone-300"
+                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-amber-600 sm:text-amber-900 sm:shadow-none sm:ring-0 font-semibold"
+                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
               }`}
             >
-              <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 sm:text-amber-600" />
+              <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 shrink-0" />
               <span>Discounts</span>
               {discountStats?.activeCodes !== undefined && discountStats.activeCodes > 0 && (
-                <span className={`ml-1 py-0.2 px-1.5 rounded-full text-[10px] font-bold ${
+                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
                   activeTab === "discounts"
-                    ? "bg-amber-800 text-amber-100 sm:bg-amber-100 sm:text-amber-800"
-                    : "bg-stone-200 text-stone-600 sm:bg-amber-100 sm:text-amber-800"
+                    ? "bg-stone-800 text-amber-300 sm:bg-amber-100 sm:text-amber-800"
+                    : "bg-stone-100 text-stone-600 sm:bg-amber-100 sm:text-amber-800"
                 }`}>
                   {discountStats.activeCodes}
                 </span>
@@ -1126,19 +1126,19 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("scenarios")}
-              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "scenarios"
-                  ? "bg-stone-900 text-white shadow-2xs sm:bg-transparent sm:border-indigo-600 sm:text-indigo-900 sm:shadow-none font-semibold"
-                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-stone-800 sm:hover:border-stone-300"
+                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-indigo-600 sm:text-indigo-900 sm:shadow-none sm:ring-0 font-semibold"
+                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
               }`}
             >
-              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 sm:text-indigo-600" />
+              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 shrink-0" />
               <span>SEO</span>
               {scenarioSummary?.activeScenariosCount !== undefined && (
-                <span className={`ml-1 py-0.2 px-1.5 rounded-full text-[10px] font-bold ${
+                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
                   activeTab === "scenarios"
-                    ? "bg-indigo-800 text-indigo-100 sm:bg-indigo-100 sm:text-indigo-800"
-                    : "bg-stone-200 text-stone-600 sm:bg-indigo-100 sm:text-indigo-800"
+                    ? "bg-stone-800 text-indigo-300 sm:bg-indigo-100 sm:text-indigo-800"
+                    : "bg-stone-100 text-stone-600 sm:bg-indigo-100 sm:text-indigo-800"
                 }`}>
                   {scenarioSummary.activeScenariosCount}
                 </span>
@@ -1147,12 +1147,12 @@ export default function AdminDashboardPage() {
 
             <Link
               href="/admin/feature-flags"
-              className="py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap bg-amber-50 text-amber-900 border border-amber-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-amber-900 sm:hover:border-amber-400 group"
+              className="shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-amber-900 sm:hover:border-amber-400 sm:shadow-none group"
               title="Configure SendMyNotes Rework V3 Feature Flags"
             >
-              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 group-hover:text-amber-700" />
+              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 group-hover:text-amber-700 shrink-0" />
               <span>Flags</span>
-              <span className="ml-1 py-0.2 px-1.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-semibold border border-amber-200 hidden sm:inline">
+              <span className="ml-1 py-0.5 px-1.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-semibold border border-amber-200 hidden sm:inline">
                 V3
               </span>
             </Link>
@@ -1160,7 +1160,7 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 sm:pt-8 space-y-5 sm:space-y-8">
+      <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-3 sm:pt-8 space-y-4 sm:space-y-8 min-w-0">
         {/* LIVE HANDWRYTTEN STATUS & BALANCE WIDGET */}
         <HandwryttenStatusWidget />
         {/* ===================== TAB: ORDERS & OPERATIONS ===================== */}
@@ -1219,13 +1219,13 @@ export default function AdminDashboardPage() {
             {/* COHORT & HANDWRITING STYLE ANALYTICS */}
             <CohortAnalytics metrics={metrics} />
 
-            {/* RECENT ORDERS TABLE */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+            {/* RECENT ORDERS TABLE & MOBILE CARDS */}
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-stone-100">
                 <div>
                   <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                    <Package className="w-4 h-4 text-stone-600" />
-                    Physical Orders & Fulfillment Logs
+                    <Package className="w-4 h-4 text-stone-600 shrink-0" />
+                    <span>Physical Orders &amp; Fulfillment Logs</span>
                   </h2>
                   <p className="text-xs text-stone-500">
                     Real-time Handwrytten order IDs and recipient destinations.
@@ -1264,89 +1264,126 @@ export default function AdminDashboardPage() {
               ) : (
                 <>
                   {/* MOBILE ORDER CARDS (Phone Screens) */}
-                  <div className="md:hidden space-y-3">
+                  <div className="md:hidden space-y-3 w-full min-w-0">
                     {filteredOrders.map((order) => {
                       const isMailed = order.status === "MAILED";
                       const isProcessing = order.status === "PROCESSING_HANDWRYTTEN";
                       const isPending = order.status === "PENDING_PAYMENT";
+                      const isQueued = order.status === "QUEUED_FOR_FULFILLMENT";
+                      const isFailed = order.status === "FAILED" || order.status === "PAYMENT_VERIFICATION_FAILED";
+                      const isComp = order.paymentMethod === "STUDIO_COMP";
                       const canRetry = !isProcessing && !isPending && !isMailed;
+
+                      let statusLabel = order.status.replace(/_/g, " ");
+                      let statusStyle = "bg-stone-100 text-stone-700 border-stone-200";
+                      if (isMailed) {
+                        statusLabel = "Mailed";
+                        statusStyle = "bg-purple-50 text-purple-700 border-purple-200";
+                      } else if (isProcessing) {
+                        statusLabel = "Inking (Robot)";
+                        statusStyle = "bg-emerald-50 text-emerald-800 border-emerald-200";
+                      } else if (isPending) {
+                        statusLabel = "Pending";
+                        statusStyle = "bg-stone-100 text-stone-600 border-stone-200";
+                      } else if (isQueued) {
+                        statusLabel = "Queued";
+                        statusStyle = "bg-amber-50 text-amber-800 border-amber-200";
+                      } else if (isFailed) {
+                        statusLabel = "Failed";
+                        statusStyle = "bg-rose-50 text-rose-700 border-rose-200";
+                      } else if (isComp) {
+                        statusLabel = "Comp Card";
+                        statusStyle = "bg-amber-50 text-amber-800 border-amber-200";
+                      }
+
+                      const shortOrderId =
+                        order.id.length > 22
+                          ? `${order.id.slice(0, 14)}...${order.id.slice(-6)}`
+                          : order.id;
 
                       return (
                         <div
                           key={order.id}
-                          className="bg-stone-50/70 rounded-2xl p-3.5 border border-stone-200/80 space-y-2.5 shadow-2xs"
+                          className="bg-white rounded-2xl p-3.5 border border-stone-200 shadow-2xs space-y-3 w-full min-w-0 overflow-hidden"
                         >
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-2.5">
-                              <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-2xs bg-stone-100 shrink-0">
-                                <Image
-                                  src={order.frontImageUrl}
-                                  alt="Cover"
-                                  fill
-                                  sizes="40px"
-                                  unoptimized
-                                  className="object-cover"
-                                />
+                          {/* Top Header: Order ID & Status Badge */}
+                          <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-100 min-w-0">
+                            <Link
+                              href={`/order/${order.id}`}
+                              className="font-mono text-xs font-bold text-stone-900 hover:text-amber-600 transition truncate min-w-0 flex items-center gap-1.5"
+                              title={order.id}
+                            >
+                              <span className="text-stone-400 font-normal">#</span>
+                              <span className="truncate">{shortOrderId}</span>
+                            </Link>
+
+                            <span
+                              className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${statusStyle}`}
+                            >
+                              {isProcessing && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+                              {statusLabel}
+                            </span>
+                          </div>
+
+                          {/* Middle Body: Thumbnail, Recipient & Price */}
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div className="relative w-12 h-16 rounded-xl overflow-hidden border border-stone-200 shadow-2xs bg-stone-100 shrink-0">
+                              <Image
+                                src={order.frontImageUrl}
+                                alt="Cover"
+                                fill
+                                sizes="48px"
+                                unoptimized
+                                className="object-cover"
+                              />
+                            </div>
+
+                            <div className="flex-1 min-w-0 space-y-1">
+                              <div className="flex items-start justify-between gap-2 min-w-0">
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-stone-900 truncate">
+                                    {order.recipientAddress.firstName} {order.recipientAddress.lastName}
+                                  </p>
+                                  <p className="text-[11px] text-stone-500 truncate">
+                                    {order.recipientAddress.city}, {order.recipientAddress.state} {order.recipientAddress.zip}
+                                  </p>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="font-serif font-bold text-stone-900 text-sm">
+                                    ${((order.amountInCents || 900) / 100).toFixed(2)}
+                                  </span>
+                                  {order.handwryttenOrderId && (
+                                    <span className="font-mono text-[9px] text-indigo-700 block mt-0.5">
+                                      HW: {order.handwryttenOrderId}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
-                              <div>
-                                <Link
-                                  href={`/order/${order.id}`}
-                                  className="font-mono text-xs font-bold text-stone-900 hover:text-amber-600 block leading-tight"
-                                >
-                                  {order.id}
-                                </Link>
-                                <span className="text-[10px] text-stone-400 block mt-0.5">
-                                  {new Date(order.createdAt).toLocaleDateString()} at{" "}
+
+                              <div className="flex items-center justify-between gap-2 pt-1 text-[10px] text-stone-400 min-w-0">
+                                <span className="truncate">
+                                  {new Date(order.createdAt).toLocaleDateString([], { month: "short", day: "numeric" })} at{" "}
                                   {new Date(order.createdAt).toLocaleTimeString([], {
                                     hour: "2-digit",
                                     minute: "2-digit",
                                   })}
                                 </span>
-                                <p className="text-xs font-bold text-stone-900 mt-1">
-                                  {order.recipientAddress.firstName} {order.recipientAddress.lastName}
-                                </p>
-                                <p className="text-[11px] text-stone-500">
-                                  {order.recipientAddress.city}, {order.recipientAddress.state} {order.recipientAddress.zip}
-                                </p>
+                                {order.discountCode && (
+                                  <span className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                    <Tag className="w-2.5 h-2.5" />
+                                    {order.discountCode}
+                                  </span>
+                                )}
                               </div>
-                            </div>
-
-                            <div className="text-right shrink-0">
-                              <span
-                                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                  isMailed
-                                    ? "bg-purple-100 text-purple-800 border border-purple-200"
-                                    : isProcessing
-                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                    : isPending
-                                    ? "bg-stone-100 text-stone-600 border border-stone-200"
-                                    : "bg-amber-100 text-amber-800 border border-amber-200"
-                                }`}
-                              >
-                                {order.status === "QUEUED_FOR_FULFILLMENT" ? "QUEUED" : order.status}
-                              </span>
-                              <div className="font-serif font-bold text-stone-900 text-sm mt-1">
-                                ${((order.amountInCents || 900) / 100).toFixed(2)}
-                              </div>
-                              {order.handwryttenOrderId && (
-                                <span className="font-mono text-[9px] text-indigo-700 block mt-0.5">
-                                  HW: {order.handwryttenOrderId}
-                                </span>
-                              )}
                             </div>
                           </div>
 
-                          {/* Customer Email & Promo Info */}
-                          <div className="text-[11px] text-stone-500 pt-2 border-t border-stone-200/60 flex items-center justify-between">
-                            <span className="truncate max-w-[200px]">
-                              {order.customerEmail || "Guest"}
+                          {/* Customer Email */}
+                          <div className="text-[11px] text-stone-500 pt-2 border-t border-stone-100 flex items-center justify-between min-w-0">
+                            <span className="text-stone-400 text-[10px] uppercase font-semibold tracking-wider shrink-0">Buyer</span>
+                            <span className="truncate max-w-[220px] font-medium text-stone-700">
+                              {order.customerEmail || "Guest Checkout"}
                             </span>
-                            {order.discountCode && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                <Tag className="w-2.5 h-2.5" />
-                                {order.discountCode}
-                              </span>
-                            )}
                           </div>
 
                           {/* Mobile Action Buttons */}
@@ -1354,9 +1391,9 @@ export default function AdminDashboardPage() {
                             <button
                               type="button"
                               onClick={() => setSelectedProofOrderId(order.id)}
-                              className="py-2 text-center text-xs font-semibold text-stone-700 bg-white hover:bg-stone-100 rounded-xl border border-stone-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                              className="py-2.5 text-center text-xs font-semibold text-stone-700 bg-stone-50 hover:bg-stone-100 active:scale-98 rounded-xl border border-stone-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
                             >
-                              <Eye className="w-3.5 h-3.5 text-stone-500" />
+                              <Eye className="w-3.5 h-3.5 text-stone-500 shrink-0" />
                               <span>View Proof</span>
                             </button>
 
@@ -1365,10 +1402,10 @@ export default function AdminDashboardPage() {
                                 type="button"
                                 onClick={() => handleSyncHandwrytten(order.id)}
                                 disabled={syncingId === order.id}
-                                className="py-2 text-center text-xs font-semibold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                className="py-2.5 text-center text-xs font-semibold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 active:scale-98 rounded-xl border border-indigo-200 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                               >
                                 <RefreshCw
-                                  className={`w-3.5 h-3.5 ${syncingId === order.id ? "animate-spin" : ""}`}
+                                  className={`w-3.5 h-3.5 shrink-0 ${syncingId === order.id ? "animate-spin" : ""}`}
                                 />
                                 <span>Check Status</span>
                               </button>
@@ -1377,10 +1414,10 @@ export default function AdminDashboardPage() {
                                 type="button"
                                 onClick={() => handleRetryFulfillment(order.id)}
                                 disabled={retryingId === order.id}
-                                className="py-2 text-center text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-xl border border-amber-300 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                className="py-2.5 text-center text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 active:scale-98 rounded-xl border border-amber-300 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                               >
                                 <RefreshCw
-                                  className={`w-3.5 h-3.5 ${retryingId === order.id ? "animate-spin" : ""}`}
+                                  className={`w-3.5 h-3.5 shrink-0 ${retryingId === order.id ? "animate-spin" : ""}`}
                                 />
                                 <span>{retryingId === order.id ? "Inking..." : "Retry Dispatch"}</span>
                               </button>
@@ -1389,9 +1426,9 @@ export default function AdminDashboardPage() {
                                 type="button"
                                 onClick={() => handleSyncStripe(order.id)}
                                 disabled={syncingStripeId === order.id}
-                                className="py-2 text-center text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl border border-stone-200 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                                className="py-2.5 text-center text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 active:scale-98 rounded-xl border border-stone-200 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
                               >
-                                <CreditCard className="w-3.5 h-3.5" />
+                                <CreditCard className="w-3.5 h-3.5 shrink-0" />
                                 <span>Stripe Sync</span>
                               </button>
                             )}

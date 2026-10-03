@@ -53,6 +53,9 @@ export async function POST(req: NextRequest) {
       req.headers.get("cf-ipcountry") ||
       undefined;
     const userAgent = req.headers.get("user-agent") || undefined;
+    const isBot = /bot|crawler|spider|googlebot|bingbot|yandex|baidu|slurp|duckduckgo|semrush|ahrefs|lighthouse|headless|facebookexternalhit|whatsapp|twitterbot|pingdom|uptimerobot/i.test(
+      userAgent || ""
+    );
 
     let ipCity: string | undefined = undefined;
     if (rawCity) {
@@ -90,6 +93,7 @@ export async function POST(req: NextRequest) {
       ipRegion,
       ipCountry,
       userAgent,
+      isBot,
     };
 
     // Persist event and update aggregated summary atomically

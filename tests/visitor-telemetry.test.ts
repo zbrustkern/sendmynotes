@@ -109,6 +109,35 @@ async function runTelemetryTests() {
 
   console.log("✅ PASS: Real-time visitor session stream & Google Client ID tracking verified");
 
+  // 6. Test Bot / Crawler Ingestion
+  const botSession = `bot_sess_${Date.now()}`;
+  const botEvent: TelemetryEvent = {
+    id: `evt_bot_${Date.now()}`,
+    sessionId: botSession,
+    eventName: "session_start",
+    step: 1,
+    path: "/",
+    timestamp: Date.now(),
+    createdAt: Date.now(),
+    utmSource: "direct",
+    utmMedium: "none",
+    userAgent: "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)",
+    isBot: true,
+    deviceType: "desktop",
+  };
+  await ingestTelemetryEvent(botEvent);
+
+  const updatedMetrics = await getAdminDashboardMetrics();
+  const updatedVt = updatedMetrics.visitorTelemetry;
+  const recordedBotSession = updatedVt.recentSessions.find((s) => s.sessionId === botSession);
+
+  assert.ok(recordedBotSession, "Bot session must be recorded");
+  assert.strictEqual(recordedBotSession.isBot, true, "isBot flag preserved on session");
+  assert.ok(updatedVt.botVisitors >= 1, "botVisitors count should be >= 1");
+  assert.ok(typeof updatedVt.humanVisitors === "number", "humanVisitors count must be numeric");
+
+  console.log("✅ PASS: Automated crawler & bot classification verified");
+
   console.log("\n=================================================");
   console.log("🎉 ALL VISITOR TELEMETRY & ATTRIBUTION TESTS PASSED");
   console.log("=================================================\n");
