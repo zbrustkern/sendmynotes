@@ -4,7 +4,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { AttributionTracker } from "@/components/AttributionTracker";
 import { fontHwAdam, fontHwCharity, fontHwChase, fontHwDavid, fontHwKate, fontHwWill } from "@/lib/fonts";
-import { GOOGLE_ADS_ID } from "@/lib/google-ads";
+import { GOOGLE_ADS_ID, GA4_MEASUREMENT_ID } from "@/lib/google-ads";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sendmynotes.com"),
@@ -130,13 +130,13 @@ export default function RootLayout({
             }),
           }}
         />
-        {/* Google tag (gtag.js) for Google Ads */}
+        {/* Google tag (gtag.js) for Google Ads & GA4 */}
         <Script
           strategy="afterInteractive"
-          src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`}
+          src={`https://www.googletagmanager.com/gtag/js?id=${GA4_MEASUREMENT_ID || GOOGLE_ADS_ID}`}
         />
         <Script
-          id="google-ads-gtag-init"
+          id="google-gtag-init"
           strategy="afterInteractive"
           dangerouslySetInnerHTML={{
             __html: `
@@ -144,6 +144,7 @@ export default function RootLayout({
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
               gtag('config', '${GOOGLE_ADS_ID}');
+              ${GA4_MEASUREMENT_ID ? `gtag('config', '${GA4_MEASUREMENT_ID}', { send_page_view: true });` : ""}
             `,
           }}
         />

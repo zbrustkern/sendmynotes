@@ -1,6 +1,90 @@
 export const GOOGLE_ADS_ID =
   process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "AW-18474411963";
 
+export const GA4_MEASUREMENT_ID =
+  process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID;
+
+/**
+ * Fires a standard GA4 view_item event
+ */
+export function trackGA4ViewItem(item: {
+  itemId: string;
+  itemName: string;
+  price?: number;
+  itemCategory?: string;
+}): void {
+  if (typeof window === "undefined") return;
+  const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+  if (typeof win.gtag === "function") {
+    win.gtag("event", "view_item", {
+      currency: "USD",
+      value: item.price ?? 9.0,
+      items: [
+        {
+          item_id: item.itemId,
+          item_name: item.itemName,
+          price: item.price ?? 9.0,
+          item_category: item.itemCategory || "Handwritten Card",
+        },
+      ],
+    });
+  }
+}
+
+/**
+ * Fires a standard GA4 begin_checkout event
+ */
+export function trackGA4BeginCheckout(item: {
+  itemId: string;
+  itemName: string;
+  price?: number;
+}): void {
+  if (typeof window === "undefined") return;
+  const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+  if (typeof win.gtag === "function") {
+    win.gtag("event", "begin_checkout", {
+      currency: "USD",
+      value: item.price ?? 9.0,
+      items: [
+        {
+          item_id: item.itemId,
+          item_name: item.itemName,
+          price: item.price ?? 9.0,
+          item_category: "Handwritten Card",
+        },
+      ],
+    });
+  }
+}
+
+/**
+ * Fires a standard GA4 purchase event
+ */
+export function trackGA4Purchase(params: {
+  orderId: string;
+  amountInCents?: number;
+  itemName?: string;
+}): void {
+  if (typeof window === "undefined") return;
+  const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+  if (typeof win.gtag === "function") {
+    const value = params.amountInCents ? params.amountInCents / 100 : 9.0;
+    win.gtag("event", "purchase", {
+      transaction_id: params.orderId,
+      value,
+      currency: "USD",
+      items: [
+        {
+          item_id: params.orderId,
+          item_name: params.itemName || "Custom 5x7 Folded Handwritten Card",
+          price: value,
+          item_category: "Handwritten Card",
+        },
+      ],
+    });
+  }
+}
+
 /**
  * Fires a Google Ads Purchase conversion event with transaction deduplication.
  */
@@ -8,6 +92,7 @@ export function trackGoogleAdsPurchase(params: {
   orderId: string;
   amountInCents?: number;
   customerEmail?: string;
+  itemName?: string;
 }): void {
   if (typeof window === "undefined") return;
 
@@ -40,5 +125,8 @@ export function trackGoogleAdsPurchase(params: {
     });
 
     console.log("[Google Ads] Purchase conversion event recorded for order:", params.orderId);
+
+    // Also fire standard GA4 purchase
+    trackGA4Purchase(params);
   }
 }

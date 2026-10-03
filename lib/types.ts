@@ -237,6 +237,22 @@ export interface TelemetryEvent {
   path: string;
   timestamp: number;
   createdAt: number;
+  // Enriched visitor attribution & tech telemetry
+  utmSource?: string;
+  utmMedium?: string;
+  utmCampaign?: string;
+  utmContent?: string;
+  utmTerm?: string;
+  gclid?: string;
+  referrer?: string;
+  landingPath?: string;
+  googleClientId?: string; // from _ga cookie
+  deviceType?: "mobile" | "tablet" | "desktop";
+  screenResolution?: string;
+  ipCity?: string;
+  ipRegion?: string;
+  ipCountry?: string;
+  userAgent?: string;
 }
 
 // Programmatic SEO Scenario Types
@@ -343,6 +359,62 @@ export interface ValuationHeuristicOutputs {
   blendedValuationEstimate: number;
 }
 
+export interface VisitorSessionRecord {
+  sessionId: string;
+  firstSeenAt: number;
+  lastSeenAt: number;
+  highestStep: number; // 1: Cover, 2: Note, 3: Address, 4: Checkout, 5: Paid
+  highestStepName: string;
+  dropOffStep?: string;
+  completed: boolean;
+  orderId?: string;
+  source: string;
+  medium: string;
+  campaign?: string;
+  gclid?: string;
+  deviceType: "mobile" | "tablet" | "desktop";
+  screenResolution?: string;
+  city?: string;
+  region?: string;
+  country?: string;
+  landingPath?: string;
+  googleClientId?: string;
+}
+
+export interface FunnelStepLeak {
+  stepNumber: number;
+  stepName: string;
+  visitors: number;
+  conversionFromPrior: number; // percentage (100% for step 1)
+  leakToNext: number; // percentage that dropped out before next step
+}
+
+export interface AcquisitionSourceMetric {
+  sourceKey: string;
+  source: string;
+  medium: string;
+  campaign?: string;
+  sessions: number;
+  completedOrders: number;
+  conversionRate: number; // percentage
+  topDropOffStep: string;
+}
+
+export interface VisitorTelemetryMetrics {
+  funnelLeaks: FunnelStepLeak[];
+  acquisitionSources: AcquisitionSourceMetric[];
+  deviceBreakdown: {
+    mobile: number;
+    desktop: number;
+    tablet: number;
+    mobilePercent: number;
+    desktopPercent: number;
+    tabletPercent: number;
+  };
+  topLocations: { city: string; region?: string; country?: string; count: number }[];
+  recentSessions: VisitorSessionRecord[];
+}
+
 // Admin Dashboard Analytics
 export interface AdminMetrics {
   totalRevenueCents: number;
@@ -360,6 +432,7 @@ export interface AdminMetrics {
     checkoutInitiated: number;
     paid: number;
   };
+  visitorTelemetry?: VisitorTelemetryMetrics;
   fontPopularity?: { fontId: string; fontName: string; count: number; percentage: number }[];
   occasionPopularity?: { occasion: string; count: number; percentage: number }[];
   margins?: FinancialMargins;

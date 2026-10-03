@@ -1,4 +1,5 @@
 import { TelemetryEventName } from "./types";
+import { getStoredAttribution } from "@/components/AttributionTracker";
 
 export const TELEMETRY_COLLECTION = "telemetry_events";
 
@@ -22,6 +23,49 @@ export function getSessionId(): string {
   return currentSessionId;
 }
 
+/**
+ * Extracts Google Analytics Client ID from document cookies (_ga=GA1.1.XXXX.XXXX)
+ */
+export function getGoogleClientId(): string | undefined {
+  if (typeof document === "undefined") return undefined;
+  try {
+    const match = document.cookie.match(/(?:^|;\s*)_ga=([^;]+)/);
+    return match ? match[1] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Categorizes the visitor's device based on viewport and user agent
+ */
+export function getDeviceType(): "mobile" | "tablet" | "desktop" {
+  if (typeof window === "undefined") return "desktop";
+  try {
+    const ua = navigator.userAgent.toLowerCase();
+    if (/tablet|ipad|playbook|silk/i.test(ua)) return "tablet";
+    if (/mobile|iphone|ipod|android|blackberry|iemobile|opera mini/i.test(ua)) return "mobile";
+    const width = window.innerWidth || window.screen?.width || 1024;
+    if (width < 768) return "mobile";
+    if (width < 1024) return "tablet";
+    return "desktop";
+  } catch {
+    return "desktop";
+  }
+}
+
+/**
+ * Returns viewport/screen resolution string (e.g. "390x844")
+ */
+export function getScreenResolution(): string {
+  if (typeof window === "undefined") return "unknown";
+  try {
+    return `${window.screen?.width || window.innerWidth}x${window.screen?.height || window.innerHeight}`;
+  } catch {
+    return "unknown";
+  }
+}
+
 export async function trackEvent(
   eventName: TelemetryEventName,
   step?: number,
@@ -33,6 +77,11 @@ export async function trackEvent(
   const sessionId = getSessionId();
 
   try {
+    const attr = getStoredAttribution();
+    const googleClientId = getGoogleClientId();
+    const deviceType = getDeviceType();
+    const screenResolution = getScreenResolution();
+
     const payload = {
       eventName,
       step,
@@ -41,6 +90,19 @@ export async function trackEvent(
       metadata: metadata || {},
       timestamp: Date.now(),
       path: window.location.pathname,
+      // Visitor acquisition attribution
+      utmSource: attr?.utmSource,
+      utmMedium: attr?.utmMedium,
+      utmCampaign: attr?.utmCampaign,
+      utmContent: attr?.utmContent,
+      utmTerm: attr?.utmTerm,
+      gclid: attr?.gclid,
+      referrer: attr?.referrer || (document.referrer ? document.referrer : undefined),
+      landingPath: attr?.landingPath || window.location.pathname,
+      // Technology & Google Analytics identity
+      googleClientId,
+      deviceType,
+      screenResolution,
     };
 
     // Try sendBeacon first, fallback to fetch with keepalive

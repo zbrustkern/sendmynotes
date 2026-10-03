@@ -56,6 +56,7 @@ import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
 import { StudioCompModal } from "@/components/admin/StudioCompModal";
 import { CohortAnalytics } from "@/components/admin/CohortAnalytics";
 import { ValuationHeuristicsWidget } from "@/components/admin/ValuationHeuristicsWidget";
+import { VisitorTelemetryDashboard } from "@/components/admin/VisitorTelemetryDashboard";
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1017,69 +1018,8 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* CUSTOMER JOURNEY FUNNEL & DROP-OFF TELEMETRY */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-              <div className="flex items-center justify-between pb-3 border-b border-stone-100">
-                <div>
-                  <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                    <TrendingUp className="w-4 h-4 text-amber-600" />
-                    Customer Funnel & Drop-Off Telemetry
-                  </h2>
-                  <p className="text-xs text-stone-500">
-                    Track where prospective customers proceed or abandon before payment.
-                  </p>
-                </div>
-                <span className="text-xs bg-amber-50 text-amber-800 font-semibold px-2.5 py-1 rounded-full border border-amber-200">
-                  {metrics?.funnel.totalSessions || 0} Active Sessions
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-5 gap-3 text-center">
-                {[
-                  {
-                    step: "1. Cover Selection",
-                    count: metrics?.funnel.coverSelected || 0,
-                    desc: "Chose / painted AI cover",
-                  },
-                  {
-                    step: "2. Note Written",
-                    count: metrics?.funnel.noteCompleted || 0,
-                    desc: "Entered sentiment & note",
-                  },
-                  {
-                    step: "3. Address Entered",
-                    count: metrics?.funnel.addressCompleted || 0,
-                    desc: "Completed mailing form",
-                  },
-                  {
-                    step: "4. Checkout Loaded",
-                    count: metrics?.funnel.checkoutInitiated || 0,
-                    desc: "Viewed Stripe payment",
-                  },
-                  {
-                    step: "5. Completed Order",
-                    count: metrics?.funnel.paid || 0,
-                    desc: "Inked & dispatched ($9.00)",
-                    highlight: true,
-                  },
-                ].map((f, i) => (
-                  <div
-                    key={i}
-                    className={`p-4 rounded-2xl border transition-all ${
-                      f.highlight
-                        ? "bg-emerald-50/70 border-emerald-200 text-emerald-950 font-medium"
-                        : "bg-stone-50/60 border-stone-200 text-stone-800"
-                    }`}
-                  >
-                    <span className="block text-[10px] uppercase font-bold text-stone-400 tracking-wider">
-                      {f.step}
-                    </span>
-                    <span className="block font-serif text-2xl font-bold my-1">{f.count}</span>
-                    <span className="block text-[11px] text-stone-500">{f.desc}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+            {/* ENRICHED VISITOR TELEMETRY & DROP-OFF WATERFALL */}
+            <VisitorTelemetryDashboard metrics={metrics} />
 
             {/* COHORT & HANDWRITING STYLE ANALYTICS */}
             <CohortAnalytics metrics={metrics} />
