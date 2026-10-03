@@ -129,6 +129,7 @@ async function runTelemetryTests() {
 
   const updatedMetrics = await getAdminDashboardMetrics();
   const updatedVt = updatedMetrics.visitorTelemetry;
+  assert.ok(updatedVt, "Updated visitor telemetry must be defined");
   const recordedBotSession = updatedVt.recentSessions.find((s) => s.sessionId === botSession);
 
   assert.ok(recordedBotSession, "Bot session must be recorded");

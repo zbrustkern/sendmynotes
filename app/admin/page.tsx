@@ -61,6 +61,7 @@ import { StudioCompModal } from "@/components/admin/StudioCompModal";
 import { CohortAnalytics } from "@/components/admin/CohortAnalytics";
 import { ValuationHeuristicsWidget } from "@/components/admin/ValuationHeuristicsWidget";
 import { VisitorTelemetryDashboard } from "@/components/admin/VisitorTelemetryDashboard";
+import { AdminFeatureFlagsTab } from "@/components/admin/AdminFeatureFlagsTab";
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -72,7 +73,7 @@ export default function AdminDashboardPage() {
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
   // Tab Navigation State
-  const [activeTab, setActiveTab] = useState<"orders" | "margins" | "discounts" | "scenarios" | "incidents">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "margins" | "discounts" | "scenarios" | "incidents" | "flags">("orders");
 
   // Margins, Ad Spend & Campaign Attribution State
   const [adSpendInput, setAdSpendInput] = useState<string>("0.00");
@@ -614,6 +615,12 @@ export default function AdminDashboardPage() {
           fetchIncidents();
           fetchDiscounts();
           fetchScenarios();
+          if (typeof window !== "undefined") {
+            const urlTab = new URLSearchParams(window.location.search).get("tab");
+            if (urlTab === "flags" || urlTab === "incidents" || urlTab === "margins" || urlTab === "discounts" || urlTab === "scenarios" || urlTab === "orders") {
+              setActiveTab(urlTab as any);
+            }
+          }
         } else {
           if (data.locked) {
             setIsLockedOut(true);
@@ -906,14 +913,19 @@ export default function AdminDashboardPage() {
                   }`}
                 />
               </button>
-              <Link
-                href="/admin/feature-flags"
-                className="text-xs font-semibold text-amber-900 hover:text-amber-950 flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-3.5 py-2 rounded-xl transition"
+              <button
+                type="button"
+                onClick={() => setActiveTab("flags")}
+                className={`text-xs font-semibold flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition cursor-pointer ${
+                  activeTab === "flags"
+                    ? "bg-amber-600 text-white shadow-xs"
+                    : "text-amber-900 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200/80"
+                }`}
                 title="Feature Flags & V3 Rollout Controls"
               >
-                <Sliders className="w-3.5 h-3.5 text-amber-700" />
+                <Sliders className="w-3.5 h-3.5" />
                 <span>Feature Flags</span>
-              </Link>
+              </button>
               <Link
                 href="/"
                 className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 bg-stone-100 px-3.5 py-2 rounded-xl transition"
@@ -991,17 +1003,20 @@ export default function AdminDashboardPage() {
                   <ChevronRight className="w-4 h-4 text-stone-400" />
                 </Link>
 
-                <Link
-                  href="/admin/feature-flags"
-                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-stone-50 text-xs font-semibold text-stone-700 transition"
-                  onClick={() => setMobileMenuOpen(false)}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab("flags");
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-stone-50 text-xs font-semibold text-stone-700 transition text-left cursor-pointer"
                 >
                   <span className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-stone-400" />
+                    <Sliders className="w-4 h-4 text-amber-600" />
                     Feature Flags &amp; V3 Rollout
                   </span>
                   <ChevronRight className="w-4 h-4 text-stone-400" />
-                </Link>
+                </button>
               </div>
             </div>
 
@@ -1145,17 +1160,26 @@ export default function AdminDashboardPage() {
               )}
             </button>
 
-            <Link
-              href="/admin/feature-flags"
-              className="shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap bg-amber-50 text-amber-900 border border-amber-200 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-amber-900 sm:hover:border-amber-400 sm:shadow-none group"
+            <button
+              type="button"
+              onClick={() => setActiveTab("flags")}
+              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
+                activeTab === "flags"
+                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-amber-600 sm:text-amber-900 sm:shadow-none sm:ring-0 font-semibold"
+                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
+              }`}
               title="Configure SendMyNotes Rework V3 Feature Flags"
             >
-              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 group-hover:text-amber-700 shrink-0" />
+              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
               <span>Flags</span>
-              <span className="ml-1 py-0.5 px-1.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-semibold border border-amber-200 hidden sm:inline">
+              <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
+                activeTab === "flags"
+                  ? "bg-stone-800 text-amber-300 sm:bg-amber-100 sm:text-amber-800"
+                  : "bg-amber-100 text-amber-800"
+              }`}>
                 V3
               </span>
-            </Link>
+            </button>
           </nav>
         </div>
       </div>
@@ -3207,6 +3231,11 @@ export default function AdminDashboardPage() {
               )}
             </div>
           </div>
+        )}
+
+        {/* ===================== TAB: FEATURE FLAGS & V3 ROLLOUT ===================== */}
+        {activeTab === "flags" && (
+          <AdminFeatureFlagsTab />
         )}
       </main>
 
