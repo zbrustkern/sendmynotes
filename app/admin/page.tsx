@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import {
   DollarSign,
+  Coins,
   TrendingUp,
   Package,
   Clock,
@@ -46,8 +47,11 @@ import {
   Target,
   PieChart,
   Receipt,
-  Coins,
   Info,
+  Sliders,
+  Menu,
+  X,
+  ChevronRight,
 } from "lucide-react";
 import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType, ScenarioPerformanceMetric } from "@/lib/types";
 import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWidget";
@@ -100,6 +104,8 @@ export default function AdminDashboardPage() {
   const [loadingIncidents, setLoadingIncidents] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
   const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [alertFormOpen, setAlertFormOpen] = useState(false);
   const [incidentFilter, setIncidentFilter] = useState<"UNRESOLVED" | "RESOLVED" | "ALL">("UNRESOLVED");
 
   // Discount Codes State
@@ -788,91 +794,254 @@ export default function AdminDashboardPage() {
       : "0.0";
 
   return (
-    <div className="min-h-screen bg-[#FAF8F5] pb-20 text-stone-900">
+    <div className="min-h-screen bg-[#FAF8F5] pb-24 md:pb-20 text-stone-900">
       {/* ADMIN HEADER */}
       <header className="border-b border-stone-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5 text-amber-400" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-serif text-lg font-bold text-stone-900">
-                  sendmynotes Admin
-                </span>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300/60">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 md:py-4">
+          {/* MOBILE HEADER BAR (Phone Screens) */}
+          <div className="flex md:hidden items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-stone-900 text-white flex items-center justify-center shrink-0">
+                <ShieldCheck className="w-4 h-4 text-amber-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="font-serif font-bold text-sm text-stone-900 leading-tight">
+                    Admin Console
+                  </span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                </div>
+                <span className="text-[10px] text-stone-400 font-medium block leading-none">
                   Live Operations
                 </span>
               </div>
-              <p className="text-xs text-stone-400">
-                Customer telemetry, revenue analytics, and robotic fulfillment monitoring.
-              </p>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setShowCompModal(true)}
+                className="text-xs font-bold text-stone-950 bg-amber-500 hover:bg-amber-600 active:scale-95 px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
+                title="Dispatch Complimentary Card"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Comp</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  fetchMetrics();
+                  fetchIncidents();
+                  fetchDiscounts();
+                  fetchScenarios();
+                }}
+                disabled={loading || loadingIncidents || loadingDiscounts || loadingScenarios}
+                className="p-2 text-stone-600 hover:bg-stone-100 active:scale-90 rounded-lg transition cursor-pointer"
+                title="Refresh Data & Incidents"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${
+                    loading || loadingIncidents || loadingDiscounts || loadingScenarios ? "animate-spin" : ""
+                  }`}
+                />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(true)}
+                className="p-2 text-stone-700 hover:bg-stone-100 active:scale-90 rounded-lg transition cursor-pointer"
+                aria-label="Open operator menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setShowCompModal(true)}
-              className="text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Dispatch Comp Card</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                fetchMetrics();
-                fetchIncidents();
-                fetchDiscounts();
-                fetchScenarios();
-              }}
-              disabled={loading || loadingIncidents || loadingDiscounts || loadingScenarios}
-              className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition cursor-pointer"
-              title="Refresh Data & Incidents"
-            >
-              <RefreshCw
-                className={`w-4 h-4 ${
-                  loading || loadingIncidents || loadingDiscounts || loadingScenarios ? "animate-spin" : ""
-                }`}
-              />
-            </button>
-            <Link
-              href="/"
-              className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 bg-stone-100 px-3.5 py-2 rounded-xl transition"
-            >
-              <ArrowLeft className="w-3.5 h-3.5" />
-              <span>Storefront</span>
-            </Link>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl border border-rose-200 transition"
-            >
-              Log Out
-            </button>
+          {/* DESKTOP HEADER BAR (Tablet & Desktop) */}
+          <div className="hidden md:flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-serif text-lg font-bold text-stone-900">
+                    sendmynotes Admin
+                  </span>
+                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300/60">
+                    Live Operations
+                  </span>
+                </div>
+                <p className="text-xs text-stone-400">
+                  Customer telemetry, revenue analytics, and robotic fulfillment monitoring.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCompModal(true)}
+                className="text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Dispatch Comp Card</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  fetchMetrics();
+                  fetchIncidents();
+                  fetchDiscounts();
+                  fetchScenarios();
+                }}
+                disabled={loading || loadingIncidents || loadingDiscounts || loadingScenarios}
+                className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition cursor-pointer"
+                title="Refresh Data & Incidents"
+              >
+                <RefreshCw
+                  className={`w-4 h-4 ${
+                    loading || loadingIncidents || loadingDiscounts || loadingScenarios ? "animate-spin" : ""
+                  }`}
+                />
+              </button>
+              <Link
+                href="/admin/feature-flags"
+                className="text-xs font-semibold text-amber-900 hover:text-amber-950 flex items-center gap-1.5 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-3.5 py-2 rounded-xl transition"
+                title="Feature Flags & V3 Rollout Controls"
+              >
+                <Sliders className="w-3.5 h-3.5 text-amber-700" />
+                <span>Feature Flags</span>
+              </Link>
+              <Link
+                href="/"
+                className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 bg-stone-100 px-3.5 py-2 rounded-xl transition"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Storefront</span>
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl border border-rose-200 transition cursor-pointer"
+              >
+                Log Out
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
+      {/* MOBILE SLIDE-OVER DRAWER */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+          <div className="relative w-4/5 max-w-xs bg-white h-full shadow-2xl p-5 flex flex-col justify-between z-10">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-stone-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-stone-900 text-amber-400 font-bold text-xs flex items-center justify-center">
+                    SMN
+                  </div>
+                  <div>
+                    <span className="font-serif font-bold text-sm text-stone-900 block leading-tight">
+                      Operator Tools
+                    </span>
+                    <span className="text-[10px] text-stone-400">sendmynotes Admin</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="p-1 rounded-lg text-stone-400 hover:text-stone-700 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setShowCompModal(true);
+                  }}
+                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-50 text-xs font-semibold text-amber-900 bg-amber-50/60 border border-amber-200 transition text-left cursor-pointer"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4 text-amber-600" />
+                    Dispatch Comp Card
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-amber-500" />
+                </button>
+
+                <Link
+                  href="/"
+                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-stone-50 text-xs font-semibold text-stone-700 transition"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className="flex items-center gap-2">
+                    <ArrowLeft className="w-4 h-4 text-stone-400" />
+                    Return to Storefront
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-stone-400" />
+                </Link>
+
+                <Link
+                  href="/admin/feature-flags"
+                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-stone-50 text-xs font-semibold text-stone-700 transition"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-stone-400" />
+                    Feature Flags &amp; V3 Rollout
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-stone-400" />
+                </Link>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-stone-200">
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  handleLogout();
+                }}
+                className="w-full py-2.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition text-center cursor-pointer"
+              >
+                Log Out of Admin
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ADMIN TABS NAVIGATION */}
-      <div className="border-b border-stone-200/80 bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex space-x-2 sm:space-x-8 overflow-x-auto" aria-label="Admin Tabs">
+      <div className="border-b border-stone-200/80 bg-white shadow-2xs">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <nav className="flex space-x-1.5 sm:space-x-8 overflow-x-auto py-2 sm:py-0 no-scrollbar" aria-label="Admin Tabs">
             <button
               type="button"
               onClick={() => setActiveTab("orders")}
-              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "orders"
-                  ? "border-stone-900 text-stone-900 font-semibold"
-                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+                  ? "bg-stone-900 text-white shadow-2xs sm:bg-transparent sm:border-stone-900 sm:text-stone-900 sm:shadow-none font-semibold"
+                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-stone-800 sm:hover:border-stone-300"
               }`}
             >
-              <Package className="w-4 h-4" />
-              <span>Orders &amp; Operations</span>
+              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span>Orders &amp; Ops</span>
               {metrics?.totalOrders !== undefined && (
-                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-stone-100 text-stone-600 font-bold">
+                <span className={`ml-1 py-0.2 px-1.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "orders"
+                    ? "bg-stone-700 text-stone-200 sm:bg-stone-100 sm:text-stone-600"
+                    : "bg-stone-200 text-stone-600 sm:bg-stone-100"
+                }`}>
                   {metrics.totalOrders}
                 </span>
               )}
@@ -882,27 +1051,29 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("incidents")}
-              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 hasActiveAlerts
                   ? activeTab === "incidents"
-                    ? "border-rose-600 text-rose-700 font-bold bg-rose-50/30"
-                    : "border-transparent text-rose-600 font-semibold hover:text-rose-700 hover:border-rose-300"
+                    ? "bg-rose-600 text-white shadow-2xs sm:bg-rose-50/30 sm:border-rose-600 sm:text-rose-700 sm:shadow-none font-bold"
+                    : "bg-rose-50 text-rose-700 border border-rose-200 sm:bg-transparent sm:border-transparent sm:text-rose-600 font-semibold"
                   : activeTab === "incidents"
-                  ? "border-emerald-600 text-emerald-800 font-bold bg-emerald-50/30"
-                  : "border-transparent text-emerald-700 font-medium hover:text-emerald-800 hover:border-emerald-300"
+                  ? "bg-stone-900 text-white shadow-2xs sm:bg-emerald-50/30 sm:border-emerald-600 sm:text-emerald-800 sm:shadow-none font-bold"
+                  : "bg-stone-100 text-emerald-800 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-emerald-700 font-medium"
               }`}
             >
               {/* Alert icon ONLY shows up when there are active/unresolved alerts */}
-              {hasActiveAlerts && (
-                <AlertTriangle className="w-4 h-4 text-rose-600 animate-pulse shrink-0" />
-              )}
-              <span>System Health &amp; Incidents</span>
               {hasActiveAlerts ? (
-                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-rose-100 text-rose-800 font-bold border border-rose-200">
-                  {unresolvedIncidents.length} Alert{unresolvedIncidents.length > 1 ? "s" : ""}
+                <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white sm:text-rose-600 animate-pulse shrink-0" />
+              ) : (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+              )}
+              <span>System Health</span>
+              {hasActiveAlerts ? (
+                <span className="ml-1 py-0.2 px-1.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-bold border border-rose-200">
+                  {unresolvedIncidents.length}
                 </span>
               ) : (
-                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
+                <span className="ml-1 py-0.2 px-1.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-medium hidden sm:inline">
                   Healthy
                 </span>
               )}
@@ -911,17 +1082,21 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("margins")}
-              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "margins"
-                  ? "border-emerald-600 text-emerald-900 font-semibold"
-                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+                  ? "bg-stone-900 text-white shadow-2xs sm:bg-transparent sm:border-emerald-600 sm:text-emerald-900 sm:shadow-none font-semibold"
+                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-stone-800 sm:hover:border-stone-300"
               }`}
             >
-              <DollarSign className="w-4 h-4 text-emerald-600" />
-              <span>Unit Economics &amp; Ads</span>
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 sm:text-emerald-600" />
+              <span>Unit Economics</span>
               {metrics?.margins?.netContributionMarginPercent !== undefined && (
-                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-emerald-100 text-emerald-800 font-bold">
-                  {metrics.margins.netContributionMarginPercent}% Margin
+                <span className={`ml-1 py-0.2 px-1.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "margins"
+                    ? "bg-emerald-800 text-emerald-100 sm:bg-emerald-100 sm:text-emerald-800"
+                    : "bg-stone-200 text-stone-600 sm:bg-emerald-100 sm:text-emerald-800"
+                }`}>
+                  {metrics.margins.netContributionMarginPercent}%
                 </span>
               )}
             </button>
@@ -929,17 +1104,21 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("discounts")}
-              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "discounts"
-                  ? "border-amber-600 text-amber-900 font-semibold"
-                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+                  ? "bg-stone-900 text-white shadow-2xs sm:bg-transparent sm:border-amber-600 sm:text-amber-900 sm:shadow-none font-semibold"
+                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-stone-800 sm:hover:border-stone-300"
               }`}
             >
-              <Tag className="w-4 h-4 text-amber-600" />
-              <span>Discount Codes</span>
+              <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 sm:text-amber-600" />
+              <span>Discounts</span>
               {discountStats?.activeCodes !== undefined && discountStats.activeCodes > 0 && (
-                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-amber-100 text-amber-800 font-bold">
-                  {discountStats.activeCodes} Active
+                <span className={`ml-1 py-0.2 px-1.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "discounts"
+                    ? "bg-amber-800 text-amber-100 sm:bg-amber-100 sm:text-amber-800"
+                    : "bg-stone-200 text-stone-600 sm:bg-amber-100 sm:text-amber-800"
+                }`}>
+                  {discountStats.activeCodes}
                 </span>
               )}
             </button>
@@ -947,72 +1126,88 @@ export default function AdminDashboardPage() {
             <button
               type="button"
               onClick={() => setActiveTab("scenarios")}
-              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+              className={`py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
                 activeTab === "scenarios"
-                  ? "border-indigo-600 text-indigo-900 font-semibold"
-                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
+                  ? "bg-stone-900 text-white shadow-2xs sm:bg-transparent sm:border-indigo-600 sm:text-indigo-900 sm:shadow-none font-semibold"
+                  : "bg-stone-100 text-stone-600 hover:bg-stone-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-stone-800 sm:hover:border-stone-300"
               }`}
             >
-              <Globe className="w-4 h-4 text-indigo-600" />
-              <span>SEO &amp; Scenarios</span>
+              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 sm:text-indigo-600" />
+              <span>SEO</span>
               {scenarioSummary?.activeScenariosCount !== undefined && (
-                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-indigo-100 text-indigo-800 font-bold">
-                  {scenarioSummary.activeScenariosCount} Active
+                <span className={`ml-1 py-0.2 px-1.5 rounded-full text-[10px] font-bold ${
+                  activeTab === "scenarios"
+                    ? "bg-indigo-800 text-indigo-100 sm:bg-indigo-100 sm:text-indigo-800"
+                    : "bg-stone-200 text-stone-600 sm:bg-indigo-100 sm:text-indigo-800"
+                }`}>
+                  {scenarioSummary.activeScenariosCount}
                 </span>
               )}
             </button>
+
+            <Link
+              href="/admin/feature-flags"
+              className="py-1.5 sm:py-3.5 px-3 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap bg-amber-50 text-amber-900 border border-amber-200 sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:text-amber-900 sm:hover:border-amber-400 group"
+              title="Configure SendMyNotes Rework V3 Feature Flags"
+            >
+              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 group-hover:text-amber-700" />
+              <span>Flags</span>
+              <span className="ml-1 py-0.2 px-1.5 rounded-full text-[10px] bg-amber-100 text-amber-800 font-semibold border border-amber-200 hidden sm:inline">
+                V3
+              </span>
+            </Link>
           </nav>
         </div>
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8 space-y-8">
+      <main className="max-w-7xl mx-auto px-3.5 sm:px-6 lg:px-8 pt-4 sm:pt-8 space-y-5 sm:space-y-8">
         {/* LIVE HANDWRYTTEN STATUS & BALANCE WIDGET */}
         <HandwryttenStatusWidget />
         {/* ===================== TAB: ORDERS & OPERATIONS ===================== */}
         {activeTab === "orders" && (
-          <div className="space-y-8">
-            {/* KPI METRIC CARDS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+          <div className="space-y-5 sm:space-y-8">
+            {/* KPI METRIC CARDS (2x2 on Mobile, 4x1 on Desktop) */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
                   <span>Gross Revenue</span>
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
                 </div>
-                <p className="font-serif text-2xl font-bold text-stone-900">${revenueDollars}</p>
-                <p className="text-[11px] text-stone-400">$9.00 flat per delivered card</p>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">${revenueDollars}</p>
+                <p className="text-[10px] sm:text-[11px] text-stone-400">$9.00 flat per card</p>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Robotic Inking Queue</span>
-                  <PenTool className="w-4 h-4 text-indigo-600" />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+                  <span>Inking Queue</span>
+                  <PenTool className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
                 </div>
-                <p className="font-serif text-2xl font-bold text-indigo-900">
+                <p className="font-serif text-xl sm:text-2xl font-bold text-indigo-900">
                   {metrics?.ordersByStatus.processing || 0}
                 </p>
-                <p className="text-[11px] text-indigo-600 font-medium">Dispatched to Handwrytten</p>
+                <p className="text-[10px] sm:text-[11px] text-indigo-600 font-medium">Dispatched to HW</p>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
                   <span>Total Orders</span>
-                  <Package className="w-4 h-4 text-amber-600" />
+                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
                 </div>
-                <p className="font-serif text-2xl font-bold text-stone-900">
+                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">
                   {metrics?.totalOrders || 0}
                 </p>
-                <p className="text-[11px] text-stone-400">
+                <p className="text-[10px] sm:text-[11px] text-stone-400">
                   {metrics?.ordersByStatus.pending || 0} pending drafts
                 </p>
               </div>
 
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Funnel Conversion</span>
-                  <TrendingUp className="w-4 h-4 text-emerald-600" />
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+                  <span>Conversion</span>
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
                 </div>
-                <p className="font-serif text-2xl font-bold text-stone-900">{conversionRate}%</p>
-                <p className="text-[11px] text-stone-400">
+                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">{conversionRate}%</p>
+                <p className="text-[10px] sm:text-[11px] text-stone-400">
                   {metrics?.funnel.paid || 0} paid / {metrics?.funnel.totalSessions || 0} visits
                 </p>
               </div>
@@ -1067,8 +1262,148 @@ export default function AdminDashboardPage() {
                   No orders found matching your search.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-stone-600">
+                <>
+                  {/* MOBILE ORDER CARDS (Phone Screens) */}
+                  <div className="md:hidden space-y-3">
+                    {filteredOrders.map((order) => {
+                      const isMailed = order.status === "MAILED";
+                      const isProcessing = order.status === "PROCESSING_HANDWRYTTEN";
+                      const isPending = order.status === "PENDING_PAYMENT";
+                      const canRetry = !isProcessing && !isPending && !isMailed;
+
+                      return (
+                        <div
+                          key={order.id}
+                          className="bg-stone-50/70 rounded-2xl p-3.5 border border-stone-200/80 space-y-2.5 shadow-2xs"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-center gap-2.5">
+                              <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-2xs bg-stone-100 shrink-0">
+                                <Image
+                                  src={order.frontImageUrl}
+                                  alt="Cover"
+                                  fill
+                                  sizes="40px"
+                                  unoptimized
+                                  className="object-cover"
+                                />
+                              </div>
+                              <div>
+                                <Link
+                                  href={`/order/${order.id}`}
+                                  className="font-mono text-xs font-bold text-stone-900 hover:text-amber-600 block leading-tight"
+                                >
+                                  {order.id}
+                                </Link>
+                                <span className="text-[10px] text-stone-400 block mt-0.5">
+                                  {new Date(order.createdAt).toLocaleDateString()} at{" "}
+                                  {new Date(order.createdAt).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                                <p className="text-xs font-bold text-stone-900 mt-1">
+                                  {order.recipientAddress.firstName} {order.recipientAddress.lastName}
+                                </p>
+                                <p className="text-[11px] text-stone-500">
+                                  {order.recipientAddress.city}, {order.recipientAddress.state} {order.recipientAddress.zip}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="text-right shrink-0">
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                  isMailed
+                                    ? "bg-purple-100 text-purple-800 border border-purple-200"
+                                    : isProcessing
+                                    ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                    : isPending
+                                    ? "bg-stone-100 text-stone-600 border border-stone-200"
+                                    : "bg-amber-100 text-amber-800 border border-amber-200"
+                                }`}
+                              >
+                                {order.status === "QUEUED_FOR_FULFILLMENT" ? "QUEUED" : order.status}
+                              </span>
+                              <div className="font-serif font-bold text-stone-900 text-sm mt-1">
+                                ${((order.amountInCents || 900) / 100).toFixed(2)}
+                              </div>
+                              {order.handwryttenOrderId && (
+                                <span className="font-mono text-[9px] text-indigo-700 block mt-0.5">
+                                  HW: {order.handwryttenOrderId}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Customer Email & Promo Info */}
+                          <div className="text-[11px] text-stone-500 pt-2 border-t border-stone-200/60 flex items-center justify-between">
+                            <span className="truncate max-w-[200px]">
+                              {order.customerEmail || "Guest"}
+                            </span>
+                            {order.discountCode && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                <Tag className="w-2.5 h-2.5" />
+                                {order.discountCode}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Mobile Action Buttons */}
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setSelectedProofOrderId(order.id)}
+                              className="py-2 text-center text-xs font-semibold text-stone-700 bg-white hover:bg-stone-100 rounded-xl border border-stone-200 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-stone-500" />
+                              <span>View Proof</span>
+                            </button>
+
+                            {order.handwryttenOrderId ? (
+                              <button
+                                type="button"
+                                onClick={() => handleSyncHandwrytten(order.id)}
+                                disabled={syncingId === order.id}
+                                className="py-2 text-center text-xs font-semibold text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded-xl border border-indigo-200 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                <RefreshCw
+                                  className={`w-3.5 h-3.5 ${syncingId === order.id ? "animate-spin" : ""}`}
+                                />
+                                <span>Check Status</span>
+                              </button>
+                            ) : canRetry ? (
+                              <button
+                                type="button"
+                                onClick={() => handleRetryFulfillment(order.id)}
+                                disabled={retryingId === order.id}
+                                className="py-2 text-center text-xs font-semibold text-amber-900 bg-amber-50 hover:bg-amber-100 rounded-xl border border-amber-300 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                <RefreshCw
+                                  className={`w-3.5 h-3.5 ${retryingId === order.id ? "animate-spin" : ""}`}
+                                />
+                                <span>{retryingId === order.id ? "Inking..." : "Retry Dispatch"}</span>
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleSyncStripe(order.id)}
+                                disabled={syncingStripeId === order.id}
+                                className="py-2 text-center text-xs font-semibold text-stone-600 bg-stone-100 hover:bg-stone-200 rounded-xl border border-stone-200 transition flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                <CreditCard className="w-3.5 h-3.5" />
+                                <span>Stripe Sync</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* DESKTOP ORDERS TABLE */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left text-xs text-stone-600">
                     <thead className="bg-stone-50 text-stone-400 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
                       <tr>
                         <th className="py-3 px-4">Card Art</th>
@@ -1269,7 +1604,8 @@ export default function AdminDashboardPage() {
                     </tbody>
                   </table>
                 </div>
-              )}
+              </>
+            )}
             </div>
           </div>
         )}
@@ -2506,7 +2842,7 @@ export default function AdminDashboardPage() {
         {activeTab === "incidents" && (
           <div className="space-y-8">
             {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
+            <div className="bg-white rounded-3xl p-4 sm:p-8 border border-stone-200 shadow-sm space-y-4 sm:space-y-6">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-stone-100">
                 <div>
                   <div className="flex items-center gap-2">
@@ -2535,10 +2871,47 @@ export default function AdminDashboardPage() {
                   </p>
                 </div>
 
-                {/* CONTROLS: FILTER DROPDOWN & ALERT SUBSCRIPTION */}
-                <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
-                  {/* INCIDENT STATUS FILTER DROPDOWN */}
-                  <div className="flex items-center gap-1.5 bg-stone-50 border border-stone-300 rounded-lg px-2 py-1 shadow-xs">
+                {/* CONTROLS: FILTER & ALERT SUBSCRIPTIONS */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
+                  {/* MOBILE 3-WAY SEGMENTED FILTER */}
+                  <div className="grid grid-cols-3 gap-1 p-1 bg-stone-100 rounded-xl w-full sm:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setIncidentFilter("UNRESOLVED")}
+                      className={`py-2 text-[11px] font-bold rounded-lg transition text-center ${
+                        incidentFilter === "UNRESOLVED"
+                          ? "bg-white shadow-2xs text-stone-900"
+                          : "text-stone-500 hover:text-stone-900"
+                      }`}
+                    >
+                      Unresolved ({unresolvedIncidents.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIncidentFilter("RESOLVED")}
+                      className={`py-2 text-[11px] font-bold rounded-lg transition text-center ${
+                        incidentFilter === "RESOLVED"
+                          ? "bg-white shadow-2xs text-stone-900"
+                          : "text-stone-500 hover:text-stone-900"
+                      }`}
+                    >
+                      Resolved ({resolvedIncidents.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIncidentFilter("ALL")}
+                      className={`py-2 text-[11px] font-bold rounded-lg transition text-center ${
+                        incidentFilter === "ALL"
+                          ? "bg-white shadow-2xs text-stone-900"
+                          : "text-stone-500 hover:text-stone-900"
+                      }`}
+                    >
+                      All ({incidents.length})
+                    </button>
+                  </div>
+
+                  {/* DESKTOP STATUS FILTER DROPDOWN */}
+                  <div className="hidden sm:flex items-center gap-1.5 bg-stone-50 border border-stone-300 rounded-lg px-2 py-1 shadow-xs">
                     <Filter className="w-3.5 h-3.5 text-stone-400 shrink-0" />
                     <select
                       value={incidentFilter}
@@ -2560,35 +2933,62 @@ export default function AdminDashboardPage() {
                     </select>
                   </div>
 
-                  {/* ALERT SUBSCRIPTION EMAIL */}
-                  <div className="relative flex-1 sm:w-60">
-                    <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
-                    <input
-                      type="email"
-                      value={newAlertEmail}
-                      onChange={(e) => setNewAlertEmail(e.target.value)}
-                      placeholder="Alert email (e.g. zeke@...)"
-                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
-                    />
+                  {/* MOBILE COLLAPSIBLE ALERT FORM TOGGLE */}
+                  <div className="w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setAlertFormOpen(!alertFormOpen)}
+                      className="sm:hidden w-full flex items-center justify-between py-2 px-3 text-xs font-semibold text-stone-700 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-stone-500" />
+                        <span>Email &amp; Diagnostic Alerts</span>
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-stone-400 transition-transform ${
+                          alertFormOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    {/* EMAIL INPUT & ACTIONS */}
+                    <div
+                      className={`${
+                        alertFormOpen ? "block" : "hidden"
+                      } sm:flex flex-wrap items-center gap-2 mt-2 sm:mt-0 w-full sm:w-auto`}
+                    >
+                      <div className="relative flex-1 w-full sm:w-60">
+                        <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
+                        <input
+                          type="email"
+                          value={newAlertEmail}
+                          onChange={(e) => setNewAlertEmail(e.target.value)}
+                          placeholder="Alert email (e.g. zeke@...)"
+                          className="w-full pl-8 pr-3 py-2 sm:py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-xl sm:rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 mt-2 sm:mt-0 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={handleSaveAlertEmail}
+                          disabled={savingEmail}
+                          className="px-3 py-2 sm:py-1.5 text-xs font-semibold rounded-xl sm:rounded-lg bg-stone-900 hover:bg-black text-white transition disabled:opacity-50 shrink-0 cursor-pointer text-center"
+                        >
+                          {savingEmail ? "Saving..." : alertEmail ? "Update Email" : "Subscribe"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleTestAlertEmail}
+                          disabled={testingAlertEmail}
+                          className="px-2.5 py-2 sm:py-1.5 text-xs font-medium rounded-xl sm:rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition disabled:opacity-50 shrink-0 cursor-pointer inline-flex items-center justify-center gap-1 text-center"
+                          title="Send a sample diagnostic alert email to verify notifications work"
+                        >
+                          <Send className="w-3 h-3" />
+                          <span>{testingAlertEmail ? "Testing..." : "Test Alert"}</span>
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleSaveAlertEmail}
-                    disabled={savingEmail}
-                    className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-stone-900 hover:bg-black text-white transition disabled:opacity-50 shrink-0 cursor-pointer"
-                  >
-                    {savingEmail ? "Saving..." : alertEmail ? "Update Alert Email" : "Subscribe"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleTestAlertEmail}
-                    disabled={testingAlertEmail}
-                    className="px-2.5 py-1.5 text-xs font-medium rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition disabled:opacity-50 shrink-0 cursor-pointer inline-flex items-center gap-1"
-                    title="Send a sample diagnostic alert email to verify notifications work"
-                  >
-                    <Send className="w-3 h-3" />
-                    <span>{testingAlertEmail ? "Testing..." : "Test Alert"}</span>
-                  </button>
                 </div>
               </div>
 
@@ -2772,6 +3172,69 @@ export default function AdminDashboardPage() {
           </div>
         )}
       </main>
+
+      {/* MOBILE PERSISTENT BOTTOM NAVIGATION (Thumb zone) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-stone-200 py-1.5 px-3 z-40 flex items-center justify-around shadow-lg">
+        <button
+          type="button"
+          onClick={() => setActiveTab("orders")}
+          className={`flex flex-col items-center py-1 transition cursor-pointer ${
+            activeTab === "orders" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
+          }`}
+        >
+          <Package className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Orders</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("incidents")}
+          className={`flex flex-col items-center py-1 transition cursor-pointer ${
+            activeTab === "incidents" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
+          }`}
+        >
+          <div className="relative">
+            <ShieldCheck className="w-5 h-5" />
+            <span
+              className={`w-2 h-2 rounded-full absolute -top-0.5 -right-0.5 ring-2 ring-white ${
+                hasActiveAlerts ? "bg-rose-500 animate-pulse" : "bg-emerald-500"
+              }`}
+            />
+          </div>
+          <span className="text-[10px] mt-0.5">Health</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("margins")}
+          className={`flex flex-col items-center py-1 transition cursor-pointer ${
+            activeTab === "margins" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
+          }`}
+        >
+          <DollarSign className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Margins</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("discounts")}
+          className={`flex flex-col items-center py-1 transition cursor-pointer ${
+            activeTab === "discounts" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
+          }`}
+        >
+          <Tag className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Promos</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(true)}
+          className="flex flex-col items-center py-1 text-stone-400 hover:text-stone-700 font-medium transition cursor-pointer"
+        >
+          <Menu className="w-5 h-5" />
+          <span className="text-[10px] mt-0.5">Menu</span>
+        </button>
+      </nav>
 
       {/* ===================== STUDIO & OPERATOR MODALS ===================== */}
       {selectedProofOrderId && (

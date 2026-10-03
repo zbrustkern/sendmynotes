@@ -1,15 +1,13 @@
 import { Suspense } from "react";
-import { isReworkV3Enabled } from "@/lib/feature-flags";
-import { ExperienceRouter } from "@/components/ExperienceRouter";
+import { TargetPurchaseExperience } from "@/components/v3/TargetPurchaseExperience";
 
-interface PageProps {
-  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
-}
+export const metadata = {
+  title: "Send a Real Handwritten Card in 60 Seconds | Aster & Blanche",
+  description:
+    "Curated stationery cards written in real ballpoint pen by automated precision plotters. Mailed via USPS First-Class with your personal return address for $9.00 flat rate.",
+};
 
-export default async function Home({ searchParams }: PageProps) {
-  const resolvedParams = searchParams ? await searchParams : {};
-  const isV3 = await isReworkV3Enabled({ searchParams: resolvedParams });
-
+export default function NewCardPage() {
   return (
     <Suspense
       fallback={
@@ -23,7 +21,7 @@ export default async function Home({ searchParams }: PageProps) {
         </div>
       }
     >
-      <ExperienceRouter initialIsV3={isV3} />
+      <TargetPurchaseExperience />
     </Suspense>
   );
 }

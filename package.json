@@ -18,7 +18,9 @@
     "test:thematic": "tsx tests/thematic-sentiment.test.ts",
     "test:sync": "tsx tests/handwrytten-sync.test.ts",
     "test:security": "tsx tests/transaction-security.test.ts",
-    "test:telemetry": "tsx tests/visitor-telemetry.test.ts"
+    "test:telemetry": "tsx tests/visitor-telemetry.test.ts",
+    "test:flags": "tsx tests/feature-flags.test.ts",
+    "test:target": "tsx tests/target-experience.test.ts"
   },
   "dependencies": {
     "@stripe/react-stripe-js": "^3.1.1",

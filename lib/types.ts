@@ -441,3 +441,15 @@ export interface AdminMetrics {
   valuationAssumptions?: ValuationHeuristicAssumptions;
   recentOrders: Order[];
 }
+
+export interface FeatureFlagsMap {
+  reworkV3Experience: boolean;
+  [key: string]: boolean;
+}
+
+export interface FeatureFlagsState {
+  flags: FeatureFlagsMap;
+  updatedAt?: number;
+  updatedBy?: string;
+}
+

@@ -74,10 +74,10 @@ export function HandwryttenStatusWidget() {
         </div>
       </div>
 
-      <div className="flex items-center gap-4 self-end md:self-auto">
+      <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-t-0 border-stone-100">
         {data.credits !== null ? (
-          <div className="text-right">
-            <div className="flex items-center gap-1.5 justify-end">
+          <div className="text-left sm:text-right">
+            <div className="flex items-center gap-1.5 sm:justify-end">
               <span className="text-xs font-semibold text-stone-500">Credits:</span>
               <span className="font-serif font-bold text-stone-900 text-sm">
                 ${data.credits.toFixed(2)}
@@ -89,38 +89,40 @@ export function HandwryttenStatusWidget() {
               )}
             </div>
             {data.lowBalanceWarning && (
-              <p className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 justify-end">
+              <p className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 sm:justify-end">
                 <AlertTriangle className="w-3 h-3" /> Low Balance Alert
               </p>
             )}
           </div>
         ) : (
-          <div className="text-right">
+          <div className="text-left sm:text-right">
             <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded border border-emerald-200">
               Card on File Active
             </span>
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={fetchBalance}
-          disabled={loading}
-          className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 transition cursor-pointer"
-          title="Refresh Handwrytten Status"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={fetchBalance}
+            disabled={loading}
+            className="p-1.5 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 transition cursor-pointer"
+            title="Refresh Handwrytten Status"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+          </button>
 
-        <a
-          href="https://app.handwrytten.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-[11px] font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1 bg-stone-100 hover:bg-stone-200 px-2.5 py-1.5 rounded-lg transition"
-        >
-          <span>Portal</span>
-          <ExternalLink className="w-3 h-3" />
-        </a>
+          <a
+            href="https://app.handwrytten.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[11px] font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1 bg-stone-100 hover:bg-stone-200 px-2.5 py-1.5 rounded-lg transition"
+          >
+            <span>Portal</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        </div>
       </div>
     </div>
   );
