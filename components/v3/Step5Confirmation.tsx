@@ -197,7 +197,7 @@ export function Step5Confirmation({
                 </span>
               </div>
               <p className="text-xs text-stone-600">
-                Phoenix Fulfillment Center robotic plotters loaded with genuine ballpoint ink on 100 lb cardstock.
+                Phoenix Fulfillment Center robotic plotters loaded with genuine ballpoint ink on 120 lb archival cardstock.
               </p>
             </div>
           </div>

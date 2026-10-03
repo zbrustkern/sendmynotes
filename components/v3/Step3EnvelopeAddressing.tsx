@@ -211,8 +211,8 @@ export function Step3EnvelopeAddressing({
         {/* Envelope authenticity footer */}
         <div className="relative z-10 mt-6 pt-3 border-t border-[#E8E0CE] flex items-center justify-between text-[11px] text-stone-500">
           <span className="font-serif italic">Genuine USPS First-Class Postage</span>
-          <span className="text-[10px] text-amber-800 font-semibold uppercase tracking-wider">
-            Aster &amp; Blanche 70 lb Envelope
+          <span className="text-[10px] text-stone-600 font-semibold uppercase tracking-wider">
+            Matching 70 lb Premium Cream Envelope
           </span>
         </div>
       </div>

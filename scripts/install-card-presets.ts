@@ -7,7 +7,7 @@ const TARGET_HEIGHT = 1750;
 
 const PRESETS = [
   {
-    src: "/Users/zeke/.gemini/antigravity/brain/c971d6c1-20fe-41d5-a8e5-601d322e6515/preset_bday_balloons_1790367385648.jpg",
+    src: "/Users/zeke/.gemini/antigravity/brain/26a83f2d-e5c6-4276-ad0d-6080d08bf227/preset_bday_garland_1791067993649.jpg",
     dest: "birthday-balloons.jpg",
   },
   {
@@ -15,15 +15,15 @@ const PRESETS = [
     dest: "thank-you-botanical.jpg",
   },
   {
-    src: "/Users/zeke/.gemini/antigravity/brain/c971d6c1-20fe-41d5-a8e5-601d322e6515/preset_thinking_coffee_1790367410615.jpg",
+    src: "/Users/zeke/.gemini/antigravity/brain/26a83f2d-e5c6-4276-ad0d-6080d08bf227/preset_thinking_morning_1791068038449.jpg",
     dest: "thinking-of-you-coffee.jpg",
   },
   {
-    src: "/Users/zeke/.gemini/antigravity/brain/c971d6c1-20fe-41d5-a8e5-601d322e6515/preset_congrats_champagne_1790367424366.jpg",
+    src: "/Users/zeke/.gemini/antigravity/brain/26a83f2d-e5c6-4276-ad0d-6080d08bf227/preset_congrats_coupe_1791068023177.jpg",
     dest: "congrats-champagne.jpg",
   },
   {
-    src: "/Users/zeke/.gemini/antigravity/brain/c971d6c1-20fe-41d5-a8e5-601d322e6515/preset_anniv_botanicals_1790367443469.jpg",
+    src: "/Users/zeke/.gemini/antigravity/brain/26a83f2d-e5c6-4276-ad0d-6080d08bf227/preset_anniv_botanical_1791068051955.jpg",
     dest: "anniversary-monstera.jpg",
   },
   {
@@ -35,7 +35,7 @@ const PRESETS = [
     dest: "sympathy-olive.jpg",
   },
   {
-    src: "/Users/zeke/.gemini/antigravity/brain/3a0170ac-9538-470f-92d4-9b8121eafb4a/preset_justbecause_teacup_1791039194785.jpg",
+    src: "/Users/zeke/.gemini/antigravity/brain/26a83f2d-e5c6-4276-ad0d-6080d08bf227/just_because_botanical_1791067065563.jpg",
     dest: "just-because-teacup.jpg",
   },
   {

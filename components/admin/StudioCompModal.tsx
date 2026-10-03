@@ -12,7 +12,7 @@ interface StudioCompModalProps {
 
 const PRESET_COVERS = [
   {
-    title: "Golden Hour Balloons",
+    title: "Celebration Garland",
     url: "/presets/birthday-balloons.jpg",
   },
   {
@@ -20,15 +20,15 @@ const PRESET_COVERS = [
     url: "/presets/thank-you-botanical.jpg",
   },
   {
-    title: "Quiet Morning Breeze",
+    title: "Quiet Morning Still Life",
     url: "/presets/thinking-of-you-coffee.jpg",
   },
   {
-    title: "Celebration Starlight",
+    title: "Golden Cheers Coupes",
     url: "/presets/congrats-champagne.jpg",
   },
   {
-    title: "Evergreen Botanicals",
+    title: "Botanical Wreath",
     url: "/presets/anniversary-monstera.jpg",
   },
   {

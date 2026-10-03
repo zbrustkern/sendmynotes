@@ -59,21 +59,21 @@ export function Step1CardSelection({
 
   return (
     <div className="space-y-6 pb-28 md:pb-12">
-      {/* ASTER & BLANCHE COLOPHON & VALUE BANNER */}
+      {/* SENDMYNOTES VALUE & CARDSTOCK BANNER */}
       <div className="bg-white rounded-2xl border border-stone-200/90 shadow-xs p-4 sm:p-5 transition">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-stone-100 pb-3 mb-3">
-          {/* Colophon badge */}
+          {/* Brand badge */}
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-amber-700/80 shrink-0" />
-            <span className="text-xs uppercase font-serif tracking-widest text-stone-600 font-semibold">
-              Aster &amp; Blanche Press, Est. Lake Forest, IL
+            <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+            <span className="text-xs uppercase font-serif tracking-widest text-stone-700 font-semibold">
+              SendMyNotes Curated Stationery
             </span>
           </div>
 
           {/* Pedigree tag */}
           <div className="flex items-center gap-1.5 text-[11px] text-stone-500 font-medium">
-            <Feather className="w-3.5 h-3.5 text-amber-700" />
-            <span>Heavy 100 lb cardstock • Real ballpoint inking</span>
+            <Feather className="w-3.5 h-3.5 text-stone-600" />
+            <span>Luxury 120 lb archival cardstock • Real ballpoint inking</span>
           </div>
         </div>
 

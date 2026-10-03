@@ -377,15 +377,15 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-3">
           {/* Logo / Pedigree */}
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-stone-900 text-amber-500 flex items-center justify-center font-serif font-bold text-sm shadow-2xs">
-              A&amp;B
+            <div className="w-7 h-7 rounded-lg bg-stone-900 text-emerald-400 flex items-center justify-center font-sans font-bold text-xs shadow-2xs">
+              SMN
             </div>
             <div>
               <span className="font-serif font-bold text-stone-950 text-base sm:text-lg tracking-tight block leading-tight">
-                Aster &amp; Blanche Press
+                SendMyNotes
               </span>
-              <span className="text-[10px] uppercase font-sans tracking-widest text-stone-500 block">
-                SendMyNotes Target Experience • Lake Forest, IL
+              <span className="text-[10px] uppercase font-sans tracking-wider text-stone-500 block">
+                Real Pen-Written Cards In 60 Seconds
               </span>
             </div>
           </div>
@@ -506,11 +506,11 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
       {/* FOOTER */}
       <footer className="border-t border-stone-200/80 bg-white py-8 mt-12 text-center text-xs text-stone-500 space-y-2">
-        <p className="font-serif italic text-stone-700">
-          Aster &amp; Blanche Press • Real Ballpoint Ink &amp; First-Class USPS Delivery
+        <p className="font-serif font-medium text-stone-700">
+          SendMyNotes • Real Ballpoint Inking &amp; First-Class USPS Delivery
         </p>
         <p className="text-[11px] text-stone-400">
-          Lake Forest Atelier Curation • Phoenix Automated Precision Robotics Facility
+          Luxury 120 lb Archival Cardstock • Flat $9.00 Rate (Postage Included)
         </p>
       </footer>
     </div>
