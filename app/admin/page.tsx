@@ -99,6 +99,7 @@ export default function AdminDashboardPage() {
   const [loadingIncidents, setLoadingIncidents] = useState(false);
   const [savingEmail, setSavingEmail] = useState(false);
   const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
+  const [incidentFilter, setIncidentFilter] = useState<"UNRESOLVED" | "RESOLVED" | "ALL">("UNRESOLVED");
 
   // Discount Codes State
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
@@ -769,6 +770,16 @@ export default function AdminDashboardPage() {
     );
   });
 
+  const unresolvedIncidents = (incidents || []).filter((i) => !i.resolved);
+  const resolvedIncidents = (incidents || []).filter((i) => i.resolved);
+  const hasActiveAlerts = unresolvedIncidents.length > 0;
+
+  const filteredIncidents = (incidents || []).filter((incident) => {
+    if (incidentFilter === "UNRESOLVED") return !incident.resolved;
+    if (incidentFilter === "RESOLVED") return incident.resolved;
+    return true; // "ALL"
+  });
+
   const revenueDollars = ((metrics?.totalRevenueCents || 0) / 100).toFixed(2);
   const conversionRate =
     metrics && metrics.funnel.totalSessions > 0
@@ -866,6 +877,36 @@ export default function AdminDashboardPage() {
               )}
             </button>
 
+            {/* 2. SYSTEM HEALTH & INCIDENTS (Positioned second; font & icon reflect live health) */}
+            <button
+              type="button"
+              onClick={() => setActiveTab("incidents")}
+              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                hasActiveAlerts
+                  ? activeTab === "incidents"
+                    ? "border-rose-600 text-rose-700 font-bold bg-rose-50/30"
+                    : "border-transparent text-rose-600 font-semibold hover:text-rose-700 hover:border-rose-300"
+                  : activeTab === "incidents"
+                  ? "border-emerald-600 text-emerald-800 font-bold bg-emerald-50/30"
+                  : "border-transparent text-emerald-700 font-medium hover:text-emerald-800 hover:border-emerald-300"
+              }`}
+            >
+              {/* Alert icon ONLY shows up when there are active/unresolved alerts */}
+              {hasActiveAlerts && (
+                <AlertTriangle className="w-4 h-4 text-rose-600 animate-pulse shrink-0" />
+              )}
+              <span>System Health &amp; Incidents</span>
+              {hasActiveAlerts ? (
+                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-rose-100 text-rose-800 font-bold border border-rose-200">
+                  {unresolvedIncidents.length} Alert{unresolvedIncidents.length > 1 ? "s" : ""}
+                </span>
+              ) : (
+                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-emerald-50 text-emerald-700 font-medium border border-emerald-200">
+                  Healthy
+                </span>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={() => setActiveTab("margins")}
@@ -916,24 +957,6 @@ export default function AdminDashboardPage() {
               {scenarioSummary?.activeScenariosCount !== undefined && (
                 <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-indigo-100 text-indigo-800 font-bold">
                   {scenarioSummary.activeScenariosCount} Active
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("incidents")}
-              className={`py-3.5 px-3 border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "incidents"
-                  ? "border-rose-600 text-rose-900 font-semibold"
-                  : "border-transparent text-stone-500 hover:text-stone-800 hover:border-stone-300"
-              }`}
-            >
-              <AlertTriangle className="w-4 h-4 text-rose-600" />
-              <span>System Health &amp; Incidents</span>
-              {incidents.filter((i) => !i.resolved).length > 0 && (
-                <span className="ml-1 py-0.5 px-2 rounded-full text-[11px] bg-rose-100 text-rose-800 font-bold">
-                  {incidents.filter((i) => !i.resolved).length} Unresolved
                 </span>
               )}
             </button>
@@ -2609,22 +2632,22 @@ export default function AdminDashboardPage() {
           <div className="space-y-8">
             {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-4 border-b border-stone-100">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-stone-100">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                      <AlertTriangle
-                        className={`w-4 h-4 ${
-                          incidents.some((i) => !i.resolved)
-                            ? "text-rose-600"
-                            : "text-emerald-600"
-                        }`}
-                      />
+                    <h2
+                      className={`text-base font-bold flex items-center gap-2 ${
+                        hasActiveAlerts ? "text-rose-700" : "text-emerald-800"
+                      }`}
+                    >
+                      {hasActiveAlerts && (
+                        <AlertTriangle className="w-5 h-5 text-rose-600 animate-pulse shrink-0" />
+                      )}
                       System Health &amp; Incident Feed
                     </h2>
-                    {incidents.filter((i) => !i.resolved).length > 0 ? (
+                    {hasActiveAlerts ? (
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                        {incidents.filter((i) => !i.resolved).length} Unresolved
+                        {unresolvedIncidents.length} Active Alert{unresolvedIncidents.length > 1 ? "s" : ""}
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
@@ -2637,9 +2660,33 @@ export default function AdminDashboardPage() {
                   </p>
                 </div>
 
-                {/* ALERT SUBSCRIPTION EMAIL */}
-                <div className="flex items-center gap-2 w-full sm:w-auto">
-                  <div className="relative flex-1 sm:w-72">
+                {/* CONTROLS: FILTER DROPDOWN & ALERT SUBSCRIPTION */}
+                <div className="flex flex-wrap items-center gap-2.5 w-full lg:w-auto">
+                  {/* INCIDENT STATUS FILTER DROPDOWN */}
+                  <div className="flex items-center gap-1.5 bg-stone-50 border border-stone-300 rounded-lg px-2 py-1 shadow-xs">
+                    <Filter className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                    <select
+                      value={incidentFilter}
+                      onChange={(e) =>
+                        setIncidentFilter(e.target.value as "UNRESOLVED" | "RESOLVED" | "ALL")
+                      }
+                      className="text-xs font-semibold bg-transparent text-stone-700 focus:outline-none cursor-pointer pr-1"
+                      aria-label="Filter incidents"
+                    >
+                      <option value="UNRESOLVED">
+                        Unresolved Alerts ({unresolvedIncidents.length})
+                      </option>
+                      <option value="RESOLVED">
+                        Resolved History ({resolvedIncidents.length})
+                      </option>
+                      <option value="ALL">
+                        All Incidents ({incidents.length})
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* ALERT SUBSCRIPTION EMAIL */}
+                  <div className="relative flex-1 sm:w-60">
                     <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
                     <input
                       type="email"
@@ -2671,17 +2718,44 @@ export default function AdminDashboardPage() {
               </div>
 
               {/* INCIDENTS LIST */}
-              {incidents.length === 0 ? (
-                <div className="text-center py-6 text-stone-400 text-xs">
-                  <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto mb-2 opacity-80" />
-                  <p className="font-semibold text-stone-700">No Incidents Recorded</p>
-                  <p className="text-[11px] text-stone-400 mt-0.5">
-                    Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
-                  </p>
-                </div>
+              {filteredIncidents.length === 0 ? (
+                incidentFilter === "UNRESOLVED" ? (
+                  <div className="text-center py-10 px-4 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-2">
+                    <ShieldCheck className="w-10 h-10 text-emerald-600 mx-auto" />
+                    <p className="font-bold text-sm text-emerald-900">All Systems Healthy &amp; Operational</p>
+                    <p className="text-xs text-emerald-700 max-w-md mx-auto">
+                      No active or unresolved alerts. Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
+                    </p>
+                    {resolvedIncidents.length > 0 && (
+                      <div className="pt-2">
+                        <button
+                          type="button"
+                          onClick={() => setIncidentFilter("RESOLVED")}
+                          className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
+                        >
+                          View {resolvedIncidents.length} resolved incident{resolvedIncidents.length > 1 ? "s" : ""} in archive &rarr;
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : incidentFilter === "RESOLVED" ? (
+                  <div className="text-center py-10 px-4 rounded-2xl bg-stone-50 border border-stone-200 text-stone-500 text-xs space-y-1">
+                    <CheckCircle2 className="w-8 h-8 text-stone-400 mx-auto mb-1 opacity-70" />
+                    <p className="font-semibold text-stone-700">No Resolved Incidents</p>
+                    <p className="text-[11px] text-stone-400">There are no resolved incidents in the archive.</p>
+                  </div>
+                ) : (
+                  <div className="text-center py-10 px-4 rounded-2xl bg-stone-50 border border-stone-200 text-stone-500 text-xs space-y-1">
+                    <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto mb-1 opacity-80" />
+                    <p className="font-semibold text-stone-700">No Incidents Recorded</p>
+                    <p className="text-[11px] text-stone-400">
+                      Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
+                    </p>
+                  </div>
+                )
               ) : (
                 <div className="space-y-3">
-                  {incidents.map((incident) => {
+                  {filteredIncidents.map((incident) => {
                     const isExpanded = expandedIncidentId === incident.id;
                     const typeColor =
                       incident.type === "STRIPE"

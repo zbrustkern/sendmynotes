@@ -41,7 +41,7 @@ async function runSecurityTests() {
     // 1A. Attempt spoof with x-mock-payment-intent when webhook secret is missing/placeholder
     delete process.env.STRIPE_WEBHOOK_SECRET;
     delete process.env["stripe-webhook-secret"];
-    process.env.NODE_ENV = "production";
+    (process.env as Record<string, string | undefined>).NODE_ENV = "production";
 
     const spoofReq = new NextRequest("http://localhost:3000/api/webhooks/stripe", {
       method: "POST",

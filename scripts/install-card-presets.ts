@@ -30,6 +30,26 @@ const PRESETS = [
     src: "/Users/zeke/.gemini/antigravity/brain/c971d6c1-20fe-41d5-a8e5-601d322e6515/preset_love_roses_1790367459663.jpg",
     dest: "love-roses.jpg",
   },
+  {
+    src: "/Users/zeke/.gemini/antigravity/brain/3a0170ac-9538-470f-92d4-9b8121eafb4a/preset_sympathy_olive_1791039181882.jpg",
+    dest: "sympathy-olive.jpg",
+  },
+  {
+    src: "/Users/zeke/.gemini/antigravity/brain/3a0170ac-9538-470f-92d4-9b8121eafb4a/preset_justbecause_teacup_1791039194785.jpg",
+    dest: "just-because-teacup.jpg",
+  },
+  {
+    src: "/Users/zeke/.gemini/antigravity/brain/3a0170ac-9538-470f-92d4-9b8121eafb4a/preset_holiday_evergreen_1791039209480.jpg",
+    dest: "holiday-evergreen.jpg",
+  },
+  {
+    src: "/Users/zeke/.gemini/antigravity/brain/3a0170ac-9538-470f-92d4-9b8121eafb4a/preset_easter_blossom_1791039225353.jpg",
+    dest: "easter-blossom.jpg",
+  },
+  {
+    src: "/Users/zeke/.gemini/antigravity/brain/3a0170ac-9538-470f-92d4-9b8121eafb4a/preset_halloween_harvest_1791039245656.jpg",
+    dest: "halloween-harvest.jpg",
+  },
 ];
 
 async function installPresets() {
@@ -38,12 +58,22 @@ async function installPresets() {
     fs.mkdirSync(destDir, { recursive: true });
   }
 
+  const force = process.argv.includes("--force");
+  let processedCount = 0;
+
   for (const preset of PRESETS) {
+    const outPath = path.join(destDir, preset.dest);
+
+    if (fs.existsSync(outPath) && !force) {
+      console.log(`✓ Preserving installed preset: ${preset.dest}`);
+      processedCount++;
+      continue;
+    }
+
     if (!fs.existsSync(preset.src)) {
       throw new Error(`Source image not found: ${preset.src}`);
     }
 
-    const outPath = path.join(destDir, preset.dest);
     console.log(`Processing ${preset.dest}...`);
 
     await sharp(preset.src)
@@ -56,9 +86,10 @@ async function installPresets() {
 
     const stats = fs.statSync(outPath);
     console.log(`✓ Saved ${preset.dest} (${Math.round(stats.size / 1024)} KB, ${TARGET_WIDTH}x${TARGET_HEIGHT})`);
+    processedCount++;
   }
 
-  console.log("All 6 card presets successfully installed!");
+  console.log(`All ${processedCount} card presets successfully verified / installed!`);
 }
 
 installPresets().catch((err) => {
