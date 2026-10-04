@@ -43,3 +43,9 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  - variable: NEXT_PUBLIC_GA4_MEASUREMENT_ID
+    value: G-5DV25FZ7Q8
+    availability:
+      - BUILD
+      - RUNTIME

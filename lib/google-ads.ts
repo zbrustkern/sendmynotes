@@ -2,7 +2,7 @@ export const GOOGLE_ADS_ID =
   process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "AW-18474411963";
 
 export const GA4_MEASUREMENT_ID =
-  process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID;
+  process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID || "G-5DV25FZ7Q8";
 
 /**
  * Fires a standard GA4 view_item event
