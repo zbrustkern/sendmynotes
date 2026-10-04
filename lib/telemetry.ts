@@ -123,6 +123,19 @@ export async function trackEvent(
         keepalive: true,
       }).catch(() => {});
     }
+
+    // Forward to GA4 / gtag if active
+    if (typeof window !== "undefined") {
+      const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+      if (typeof win.gtag === "function") {
+        win.gtag("event", eventName, {
+          event_category: "visitor_telemetry",
+          step_number: step,
+          order_id: orderId,
+          ...(metadata || {}),
+        });
+      }
+    }
   } catch (err) {
     // Non-blocking
     console.debug("[Telemetry] Failed to dispatch event:", err);

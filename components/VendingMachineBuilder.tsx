@@ -31,6 +31,13 @@ import { CARD_PRESETS, OCCASIONS, FONT_OPTIONS, CardPreset } from "@/lib/card-pr
 import { ThematicSentiment } from "@/lib/thematic-sentiment";
 import { MailingAddress, RecipientOccasion } from "@/lib/types";
 import { trackEvent } from "@/lib/telemetry";
+import {
+  trackGA4ViewItem,
+  trackGA4BeginCheckout,
+  trackGA4AddShippingInfo,
+  trackGA4AddPaymentInfo,
+  trackGA4CustomEvent,
+} from "@/lib/google-ads";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "./AuthModal";
 import { useDeviceWallet } from "@/lib/device-wallet";
@@ -288,6 +295,16 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
     }
   }, [searchParams]);
 
+  // Track initial card view in GA4
+  useEffect(() => {
+    trackGA4ViewItem({
+      itemId: props?.scenarioSlug || occasion || "custom",
+      itemName: `${occasion} Card`,
+      price: 9.0,
+      itemCategory: occasion,
+    });
+  }, []);
+
   // Handle Preset Selection
   const handleSelectPreset = (url: string, preset?: CardPreset) => {
     setCoverUrl(url);
@@ -295,6 +312,12 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       setOccasion(preset.occasion);
       setCustomPrompt(preset.prompt);
       trackEvent("cover_preset_selected", 1, { presetId: preset.id, occasion: preset.occasion, title: preset.title });
+      trackGA4ViewItem({
+        itemId: preset.id,
+        itemName: preset.title,
+        price: 9.0,
+        itemCategory: preset.occasion,
+      });
       setPrintedGreeting(preset.defaultPrintedMessage || "");
       setHandwrittenNote(preset.defaultHandwrittenNote);
     }
@@ -310,6 +333,33 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
   const navigateToStep = (targetStep: number) => {
     trackEvent("step_navigated", targetStep, { fromStep: currentStep, toStep: targetStep });
+
+    // Standard GA4 Purchase Journey Funnel Milestones
+    if (targetStep === 3) {
+      // Step 3: Address Entry (begin_checkout)
+      const currentPrice = isFreeOrder ? 0.0 : appliedDiscount ? appliedDiscount.finalAmountInCents / 100 : 9.0;
+      trackGA4BeginCheckout({
+        itemId: props?.scenarioSlug || occasion || "custom",
+        itemName: `${occasion} Card`,
+        price: currentPrice,
+      });
+    } else if (targetStep === 4) {
+      // Step 4: Payment Form Loaded (add_shipping_info + add_payment_info)
+      const currentPrice = isFreeOrder ? 0.0 : appliedDiscount ? appliedDiscount.finalAmountInCents / 100 : 9.0;
+      trackGA4AddShippingInfo({
+        itemId: props?.scenarioSlug || occasion || "custom",
+        itemName: `${occasion} Card`,
+        price: currentPrice,
+        shippingTier: "USPS First Class",
+      });
+      trackGA4AddPaymentInfo({
+        itemId: props?.scenarioSlug || occasion || "custom",
+        itemName: `${occasion} Card`,
+        price: currentPrice,
+        paymentType: deviceWallet.type || "card",
+      });
+    }
+
     setCurrentStep(targetStep);
   };
 
@@ -712,6 +762,10 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
                 onChangePrompt={setCustomPrompt}
                 onContinue={() => navigateToStep(2)}
                 onArtGenerated={(art) => {
+                  trackGA4CustomEvent("ai_cover_generated", {
+                    occasion,
+                    themeTag: art.themeTag || "",
+                  });
                   if (art.matchedSentiments && art.matchedSentiments.length > 0) {
                     setThematicSentiments(art.matchedSentiments);
                     setThemeTag(art.themeTag || "");

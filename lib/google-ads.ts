@@ -58,6 +58,76 @@ export function trackGA4BeginCheckout(item: {
 }
 
 /**
+ * Fires a standard GA4 add_shipping_info event
+ */
+export function trackGA4AddShippingInfo(item: {
+  itemId: string;
+  itemName: string;
+  price?: number;
+  shippingTier?: string;
+}): void {
+  if (typeof window === "undefined") return;
+  const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+  if (typeof win.gtag === "function") {
+    win.gtag("event", "add_shipping_info", {
+      currency: "USD",
+      value: item.price ?? 9.0,
+      shipping_tier: item.shippingTier || "USPS First Class",
+      items: [
+        {
+          item_id: item.itemId,
+          item_name: item.itemName,
+          price: item.price ?? 9.0,
+          item_category: "Handwritten Card",
+        },
+      ],
+    });
+  }
+}
+
+/**
+ * Fires a standard GA4 add_payment_info event
+ */
+export function trackGA4AddPaymentInfo(item: {
+  itemId: string;
+  itemName: string;
+  price?: number;
+  paymentType?: string;
+}): void {
+  if (typeof window === "undefined") return;
+  const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+  if (typeof win.gtag === "function") {
+    win.gtag("event", "add_payment_info", {
+      currency: "USD",
+      value: item.price ?? 9.0,
+      payment_type: item.paymentType || "card",
+      items: [
+        {
+          item_id: item.itemId,
+          item_name: item.itemName,
+          price: item.price ?? 9.0,
+          item_category: "Handwritten Card",
+        },
+      ],
+    });
+  }
+}
+
+/**
+ * Fires a custom GA4 event (e.g. ai_cover_generated, handwriting_style_selected)
+ */
+export function trackGA4CustomEvent(
+  eventName: string,
+  params?: Record<string, unknown>
+): void {
+  if (typeof window === "undefined") return;
+  const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+  if (typeof win.gtag === "function") {
+    win.gtag("event", eventName, params || {});
+  }
+}
+
+/**
  * Fires a standard GA4 purchase event
  */
 export function trackGA4Purchase(params: {
