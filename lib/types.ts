@@ -74,6 +74,7 @@ export interface OrderAttribution {
   gclid?: string;
   referrer?: string;
   landingPath?: string;
+  googleClientId?: string;
   capturedAt?: number;
 }
 

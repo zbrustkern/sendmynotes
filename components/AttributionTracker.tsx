@@ -3,6 +3,7 @@
 import { useEffect, Suspense } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { OrderAttribution } from "@/lib/types";
+import { getGoogleClientId } from "@/lib/telemetry";
 
 export const SMN_ATTRIBUTION_KEY = "smn_attribution";
 
@@ -45,6 +46,7 @@ function AttributionTrackerInner() {
           gclid,
           referrer: document.referrer || undefined,
           landingPath: pathname || window.location.pathname,
+          googleClientId: getGoogleClientId(),
           capturedAt: Date.now(),
         };
 

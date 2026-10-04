@@ -62,6 +62,9 @@ import { CohortAnalytics } from "@/components/admin/CohortAnalytics";
 import { ValuationHeuristicsWidget } from "@/components/admin/ValuationHeuristicsWidget";
 import { VisitorTelemetryDashboard } from "@/components/admin/VisitorTelemetryDashboard";
 import { AdminFeatureFlagsTab } from "@/components/admin/AdminFeatureFlagsTab";
+import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
+import { CampaignPerformanceWidget } from "@/components/admin/CampaignPerformanceWidget";
+import { HighIntentCartsWidget } from "@/components/admin/HighIntentCartsWidget";
 
 export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -90,6 +93,7 @@ export default function AdminDashboardPage() {
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingStripeId, setSyncingStripeId] = useState<string | null>(null);
+  const [expandedJourneyOrderId, setExpandedJourneyOrderId] = useState<string | null>(null);
 
   // Studio & Operator Modals State
   const [selectedProofOrderId, setSelectedProofOrderId] = useState<string | null>(null);
@@ -1049,8 +1053,8 @@ export default function AdminDashboardPage() {
                   : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
               }`}
             >
-              <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0" />
-              <span>Orders &amp; Ops</span>
+              <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 shrink-0" />
+              <span>Command Center</span>
               {metrics?.totalOrders !== undefined && (
                 <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
                   activeTab === "orders"
@@ -1237,6 +1241,14 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
+            {/* ALL-IN-ONE COMMAND CENTER: CAMPAIGN PERFORMANCE & HIGH-INTENT CART RECOVERY */}
+            <CampaignPerformanceWidget
+              metrics={metrics}
+              orders={metrics?.recentOrders || []}
+            />
+
+            <HighIntentCartsWidget metrics={metrics} />
+
             {/* ENRICHED VISITOR TELEMETRY & DROP-OFF WATERFALL */}
             <VisitorTelemetryDashboard metrics={metrics} />
 
@@ -1402,13 +1414,55 @@ export default function AdminDashboardPage() {
                             </div>
                           </div>
 
-                          {/* Customer Email */}
-                          <div className="text-[11px] text-stone-500 pt-2 border-t border-stone-100 flex items-center justify-between min-w-0">
+                          {/* Customer Email & Attribution */}
+                          <div className="text-[11px] text-stone-500 pt-2 border-t border-stone-100 flex items-center justify-between min-w-0 gap-2">
                             <span className="text-stone-400 text-[10px] uppercase font-semibold tracking-wider shrink-0">Buyer</span>
                             <span className="truncate max-w-[220px] font-medium text-stone-700">
                               {order.customerEmail || "Guest Checkout"}
                             </span>
                           </div>
+
+                          {order.attribution && (
+                            <div className="text-[10px] text-stone-600 pt-1 flex items-center justify-between min-w-0 gap-2">
+                              <span className="text-amber-800 text-[9px] uppercase font-bold tracking-wider shrink-0">Channel</span>
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200 truncate max-w-[200px]">
+                                {order.attribution.utmCampaign || order.attribution.utmSource || "Direct"}
+                              </span>
+                            </div>
+                          )}
+
+                          {/* 360 Customer Journey Toggle */}
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExpandedJourneyOrderId(
+                                expandedJourneyOrderId === order.id ? null : order.id
+                              )
+                            }
+                            className={`w-full py-2 px-3 text-center text-xs font-semibold rounded-xl border transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                              expandedJourneyOrderId === order.id
+                                ? "bg-amber-900 text-amber-100 border-amber-950 shadow-inner"
+                                : "bg-amber-50 text-amber-950 border-amber-200 hover:bg-amber-100"
+                            }`}
+                          >
+                            <Compass className="w-3.5 h-3.5 text-amber-600" />
+                            <span>
+                              {expandedJourneyOrderId === order.id
+                                ? "Close 360° Journey"
+                                : "View 360° Customer Journey"}
+                            </span>
+                          </button>
+
+                          {/* Expanded 360 Journey Drawer */}
+                          {expandedJourneyOrderId === order.id && (
+                            <div className="pt-2">
+                              <OrderJourneyDrawer
+                                order={order}
+                                onInspectProof={(id) => setSelectedProofOrderId(id)}
+                                onRetryAddress={(ord) => setAddressRetryOrder(ord)}
+                              />
+                            </div>
+                          )}
 
                           {/* Mobile Action Buttons */}
                           <div className="grid grid-cols-2 gap-2 pt-1">
@@ -1469,6 +1523,7 @@ export default function AdminDashboardPage() {
                       <tr>
                         <th className="py-3 px-4">Card Art</th>
                         <th className="py-3 px-4">Order ID & Date</th>
+                        <th className="py-3 px-4">Attribution / Ad</th>
                         <th className="py-3 px-4">Recipient</th>
                         <th className="py-3 px-4">Customer Email</th>
                         <th className="py-3 px-4">Status & Robot ID</th>
@@ -1485,181 +1540,244 @@ export default function AdminDashboardPage() {
                         const canRetry = !isProcessing && !isPending && !isMailed;
 
                         return (
-                          <tr key={order.id} className="hover:bg-stone-50/50 transition">
-                            <td className="py-3 px-4">
-                              <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-stone-100 flex-shrink-0">
-                                <Image
-                                  src={order.frontImageUrl}
-                                  alt="Cover"
-                                  fill
-                                  sizes="40px"
-                                  unoptimized
-                                  className="object-cover"
-                                />
-                              </div>
-                            </td>
-                            <td className="py-3 px-4">
-                              <Link
-                                href={`/order/${order.id}`}
-                                className="font-mono font-medium text-stone-900 hover:text-amber-600 hover:underline block"
-                              >
-                                {order.id}
-                              </Link>
-                              <span className="text-[10px] text-stone-400">
-                                {new Date(order.createdAt).toLocaleDateString()} at{" "}
-                                {new Date(order.createdAt).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                })}
-                              </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <p className="font-semibold text-stone-800">
-                                {order.recipientAddress.firstName} {order.recipientAddress.lastName}
-                              </p>
-                              <p className="text-[11px] text-stone-400 truncate max-w-[180px]">
-                                {order.recipientAddress.city}, {order.recipientAddress.state}{" "}
-                                {order.recipientAddress.zip}
-                              </p>
-                            </td>
-                            <td className="py-3 px-4 truncate max-w-[160px]">
-                              {order.customerEmail || "Guest (in checkout)"}
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="space-y-1">
-                                <span
-                                  className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                    isMailed
-                                      ? "bg-purple-100 text-purple-800 border border-purple-200"
-                                      : isProcessing
-                                      ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                      : isPending
-                                      ? "bg-stone-100 text-stone-600 border border-stone-200"
-                                      : "bg-amber-100 text-amber-800 border border-amber-200"
-                                  }`}
+                          <React.Fragment key={order.id}>
+                            <tr className="hover:bg-stone-50/50 transition">
+                              <td className="py-3 px-4">
+                                <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-stone-100 flex-shrink-0">
+                                  <Image
+                                    src={order.frontImageUrl}
+                                    alt="Cover"
+                                    fill
+                                    sizes="40px"
+                                    unoptimized
+                                    className="object-cover"
+                                  />
+                                </div>
+                              </td>
+                              <td className="py-3 px-4">
+                                <Link
+                                  href={`/order/${order.id}`}
+                                  className="font-mono font-medium text-stone-900 hover:text-amber-600 hover:underline block"
                                 >
-                                  {order.status === "QUEUED_FOR_FULFILLMENT"
-                                    ? "QUEUED"
-                                    : order.status}
+                                  {order.id}
+                                </Link>
+                                <span className="text-[10px] text-stone-400">
+                                  {new Date(order.createdAt).toLocaleDateString()} at{" "}
+                                  {new Date(order.createdAt).toLocaleTimeString([], {
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
                                 </span>
-                                {order.handwryttenOrderId && (
-                                  <p className="font-mono text-[9px] text-indigo-700">
-                                    HW: {order.handwryttenOrderId}
-                                  </p>
+                              </td>
+                              <td className="py-3 px-4">
+                                {order.attribution ? (
+                                  <div className="space-y-0.5 max-w-[140px]">
+                                    <div className="flex items-center gap-1">
+                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200 truncate">
+                                        {order.attribution.utmCampaign || order.attribution.utmSource || "Direct"}
+                                      </span>
+                                    </div>
+                                    {order.attribution.gclid && (
+                                      <span
+                                        className="inline-block text-[9px] font-mono text-stone-500 bg-stone-100 px-1 py-0.5 rounded truncate max-w-[130px]"
+                                        title={order.attribution.gclid}
+                                      >
+                                        GCLID: {order.attribution.gclid.slice(0, 8)}...
+                                      </span>
+                                    )}
+                                    {order.attribution.googleClientId && (
+                                      <span
+                                        className="block text-[9px] font-mono text-stone-400 truncate"
+                                        title={order.attribution.googleClientId}
+                                      >
+                                        GA4: {order.attribution.googleClientId.split(".").slice(-2).join(".")}
+                                      </span>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <span className="text-stone-300 text-[11px] font-mono">Organic/Direct</span>
                                 )}
-                                {order.handwryttenStatus && (
-                                  <p className="text-[10px] font-medium text-stone-600">
-                                    HW: <span className="capitalize font-semibold text-stone-900">{order.handwryttenStatus}</span>
-                                  </p>
-                                )}
-                                {order.handwryttenMailedDate && (
-                                  <p className="text-[9px] text-purple-700 font-medium">
-                                    Mailed: {order.handwryttenMailedDate}
-                                  </p>
-                                )}
-                                {order.handwryttenTrackingNumber && (
-                                  <p className="text-[9px] text-stone-500 font-mono">
-                                    Trk: {order.handwryttenTrackingNumber}
-                                  </p>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <span className="font-serif font-bold text-stone-900 text-sm">
-                                ${((order.amountInCents || 900) / 100).toFixed(2)}
-                              </span>
-                              {order.discountCode && (
-                                <div className="mt-1 flex items-center justify-end gap-1">
-                                  <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                    <Tag className="w-2.5 h-2.5" />
-                                    {order.discountCode}
+                              </td>
+                              <td className="py-3 px-4">
+                                <p className="font-semibold text-stone-800">
+                                  {order.recipientAddress.firstName} {order.recipientAddress.lastName}
+                                </p>
+                                <p className="text-[11px] text-stone-400 truncate max-w-[180px]">
+                                  {order.recipientAddress.city}, {order.recipientAddress.state}{" "}
+                                  {order.recipientAddress.zip}
+                                </p>
+                              </td>
+                              <td className="py-3 px-4 truncate max-w-[160px]">
+                                {order.customerEmail || "Guest (in checkout)"}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="space-y-1">
+                                  <span
+                                    className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                      isMailed
+                                        ? "bg-purple-100 text-purple-800 border border-purple-200"
+                                        : isProcessing
+                                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                        : isPending
+                                        ? "bg-stone-100 text-stone-600 border border-stone-200"
+                                        : "bg-amber-100 text-amber-800 border border-amber-200"
+                                    }`}
+                                  >
+                                    {order.status === "QUEUED_FOR_FULFILLMENT"
+                                      ? "QUEUED"
+                                      : order.status}
                                   </span>
-                                  {order.paymentMethod === "PROMO_CODE" && (
-                                    <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
-                                      VIP Free
-                                    </span>
+                                  {order.handwryttenOrderId && (
+                                    <p className="font-mono text-[9px] text-indigo-700">
+                                      HW: {order.handwryttenOrderId}
+                                    </p>
+                                  )}
+                                  {order.handwryttenStatus && (
+                                    <p className="text-[10px] font-medium text-stone-600">
+                                      HW: <span className="capitalize font-semibold text-stone-900">{order.handwryttenStatus}</span>
+                                    </p>
+                                  )}
+                                  {order.handwryttenMailedDate && (
+                                    <p className="text-[9px] text-purple-700 font-medium">
+                                      Mailed: {order.handwryttenMailedDate}
+                                    </p>
+                                  )}
+                                  {order.handwryttenTrackingNumber && (
+                                    <p className="text-[9px] text-stone-500 font-mono">
+                                      Trk: {order.handwryttenTrackingNumber}
+                                    </p>
                                   )}
                                 </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4 text-center">
-                              <div className="flex flex-col items-center gap-1.5">
-                                <button
-                                  type="button"
-                                  onClick={() => setSelectedProofOrderId(order.id)}
-                                  className="px-2 py-0.5 text-[10px] font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded border border-stone-200 transition inline-flex items-center gap-1 cursor-pointer"
-                                  title="Inspect 1:1 card proof and live handwriting"
-                                >
-                                  <Eye className="w-3 h-3 text-stone-500" />
-                                  <span>Proof</span>
-                                </button>
-                                {canRetry && (
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <span className="font-serif font-bold text-stone-900 text-sm">
+                                  ${((order.amountInCents || 900) / 100).toFixed(2)}
+                                </span>
+                                {order.discountCode && (
+                                  <div className="mt-1 flex items-center justify-end gap-1">
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                      <Tag className="w-2.5 h-2.5" />
+                                      {order.discountCode}
+                                    </span>
+                                    {order.paymentMethod === "PROMO_CODE" && (
+                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
+                                        VIP Free
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <div className="flex flex-col items-center gap-1.5">
                                   <div className="flex items-center gap-1">
                                     <button
-                                      onClick={() => handleRetryFulfillment(order.id)}
-                                      disabled={retryingId === order.id}
-                                      className="px-2 py-0.5 text-[10px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded border border-amber-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                      type="button"
+                                      onClick={() => setSelectedProofOrderId(order.id)}
+                                      className="px-2 py-0.5 text-[10px] font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded border border-stone-200 transition inline-flex items-center gap-1 cursor-pointer"
+                                      title="Inspect 1:1 card proof and live handwriting"
                                     >
-                                      <RefreshCw
-                                        className={`w-2.5 h-2.5 ${
-                                          retryingId === order.id ? "animate-spin" : ""
-                                        }`}
-                                      />
-                                      {retryingId === order.id ? "Inking..." : "Retry"}
+                                      <Eye className="w-3 h-3 text-stone-500" />
+                                      <span>Proof</span>
                                     </button>
                                     <button
                                       type="button"
-                                      onClick={() => setAddressRetryOrder(order)}
-                                      className="px-2 py-0.5 text-[10px] font-medium text-stone-700 bg-white hover:bg-stone-100 rounded border border-stone-300 transition inline-flex items-center gap-1 cursor-pointer"
-                                      title="Edit recipient address before retry"
+                                      onClick={() =>
+                                        setExpandedJourneyOrderId(
+                                          expandedJourneyOrderId === order.id ? null : order.id
+                                        )
+                                      }
+                                      className={`px-2 py-0.5 text-[10px] font-semibold rounded border transition inline-flex items-center gap-1 cursor-pointer ${
+                                        expandedJourneyOrderId === order.id
+                                          ? "bg-amber-900 text-amber-100 border-amber-950 shadow-inner"
+                                          : "bg-amber-50 text-amber-900 hover:bg-amber-100 border-amber-200"
+                                      }`}
+                                      title="Toggle 360 Customer Journey Drawer"
                                     >
-                                      <MapPin className="w-2.5 h-2.5 text-stone-500" />
-                                      <span>Edit</span>
+                                      <Compass className="w-3 h-3 text-amber-600" />
+                                      <span>{expandedJourneyOrderId === order.id ? "Hide" : "360°"}</span>
                                     </button>
                                   </div>
-                                )}
-                                {order.handwryttenOrderId && (
-                                  <button
-                                    onClick={() => handleSyncHandwrytten(order.id)}
-                                    disabled={syncingId === order.id}
-                                    title="Check latest order and postal status directly from Handwrytten API"
-                                    className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
-                                  >
-                                    <RefreshCw
-                                      className={`w-2.5 h-2.5 ${
-                                        syncingId === order.id ? "animate-spin" : ""
-                                      }`}
+                                  {canRetry && (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => handleRetryFulfillment(order.id)}
+                                        disabled={retryingId === order.id}
+                                        className="px-2 py-0.5 text-[10px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded border border-amber-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                      >
+                                        <RefreshCw
+                                          className={`w-2.5 h-2.5 ${
+                                            retryingId === order.id ? "animate-spin" : ""
+                                          }`}
+                                        />
+                                        {retryingId === order.id ? "Inking..." : "Retry"}
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => setAddressRetryOrder(order)}
+                                        className="px-2 py-0.5 text-[10px] font-medium text-stone-700 bg-white hover:bg-stone-100 rounded border border-stone-300 transition inline-flex items-center gap-1 cursor-pointer"
+                                        title="Edit recipient address before retry"
+                                      >
+                                        <MapPin className="w-2.5 h-2.5 text-stone-500" />
+                                        <span>Edit</span>
+                                      </button>
+                                    </div>
+                                  )}
+                                  {order.handwryttenOrderId && (
+                                    <button
+                                      onClick={() => handleSyncHandwrytten(order.id)}
+                                      disabled={syncingId === order.id}
+                                      title="Check latest order and postal status directly from Handwrytten API"
+                                      className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                    >
+                                      <RefreshCw
+                                        className={`w-2.5 h-2.5 ${
+                                          syncingId === order.id ? "animate-spin" : ""
+                                        }`}
+                                      />
+                                      {syncingId === order.id ? "Checking..." : "Sync HW"}
+                                    </button>
+                                  )}
+                                  {isMailed && (
+                                    <span className="text-[11px] text-purple-700 font-medium inline-flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3" /> Mailed
+                                    </span>
+                                  )}
+                                  {isProcessing && !isMailed && (
+                                    <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
+                                      <CheckCircle2 className="w-3 h-3" /> Dispatched
+                                    </span>
+                                  )}
+                                  {isPending && (
+                                    <button
+                                      onClick={() => handleSyncStripe(order.id)}
+                                      disabled={syncingStripeId === order.id}
+                                      title="Check if customer completed payment on Stripe and initiate fulfillment"
+                                      className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                    >
+                                      <CreditCard className={`w-3 h-3 ${syncingStripeId === order.id ? "animate-spin" : ""}`} />
+                                      {syncingStripeId === order.id ? "Verifying..." : "Verify Stripe"}
+                                    </button>
+                                  )}
+                                  {!isPending && !canRetry && !order.handwryttenOrderId && (
+                                    <span className="text-stone-300">—</span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                            {expandedJourneyOrderId === order.id && (
+                              <tr key={`${order.id}-journey`} className="bg-stone-50/80">
+                                <td colSpan={8} className="p-0 border-b border-stone-200">
+                                  <div className="p-4 sm:p-6 bg-stone-50/60 border-t border-b border-stone-200/80">
+                                    <OrderJourneyDrawer
+                                      order={order}
+                                      onInspectProof={(id) => setSelectedProofOrderId(id)}
+                                      onRetryAddress={(ord) => setAddressRetryOrder(ord)}
                                     />
-                                    {syncingId === order.id ? "Checking..." : "Sync HW"}
-                                  </button>
-                                )}
-                                {isMailed && (
-                                  <span className="text-[11px] text-purple-700 font-medium inline-flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" /> Mailed
-                                  </span>
-                                )}
-                                {isProcessing && !isMailed && (
-                                  <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
-                                    <CheckCircle2 className="w-3 h-3" /> Dispatched
-                                  </span>
-                                )}
-                                {isPending && (
-                                  <button
-                                    onClick={() => handleSyncStripe(order.id)}
-                                    disabled={syncingStripeId === order.id}
-                                    title="Check if customer completed payment on Stripe and initiate fulfillment"
-                                    className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
-                                  >
-                                    <CreditCard className={`w-3 h-3 ${syncingStripeId === order.id ? "animate-spin" : ""}`} />
-                                    {syncingStripeId === order.id ? "Verifying..." : "Verify Stripe"}
-                                  </button>
-                                )}
-                                {!isPending && !canRetry && !order.handwryttenOrderId && (
-                                  <span className="text-stone-300">—</span>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                          </React.Fragment>
                         );
                       })}
                     </tbody>
