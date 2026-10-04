@@ -269,6 +269,7 @@ export interface ScenarioFaqItem {
 
 export interface ScenarioConfig {
   slug: string; // e.g. "after-job-interview"
+  aliases?: string[]; // e.g. ["loss-of-pet", "pet-loss"]
   occasionSlug: string; // e.g. "thank-you"
   occasionName: string; // e.g. "Thank You"
   category: "career" | "milestone" | "sympathy" | "gratitude" | "support";

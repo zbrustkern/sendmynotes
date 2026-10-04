@@ -7,6 +7,7 @@ import {
   getAllScenarios,
   getScenario,
   getScenariosByCategory,
+  OCCASION_ALIASES,
 } from "@/lib/seo-scenarios";
 import { VendingMachineBuilder } from "@/components/VendingMachineBuilder";
 import {
@@ -28,11 +29,25 @@ interface PageProps {
   }>;
 }
 
+// Explicitly allow dynamic rendering on-demand for any other ad URLs or incoming aliases
+export const dynamicParams = true;
+
 export async function generateStaticParams() {
-  return getAllScenarios().map((s) => ({
+  // Pre-render the 12 primary canonical scenarios
+  const canonicalRoutes = getAllScenarios().map((s) => ({
     occasion: s.occasionSlug,
     slug: s.slug,
   }));
+
+  // Pre-render active Google Ads destination URLs so crawler receives instant 200 from CDN
+  const activeAdRoutes = [
+    { occasion: "sympathy", slug: "loss-of-pet" },
+    { occasion: "anniversary", slug: "anniversary-cards-mailed" },
+    { occasion: "congratulations", slug: "promotion-and-congrats" },
+    { occasion: "birthday", slug: "birthday-cards-mailed" },
+  ];
+
+  return [...canonicalRoutes, ...activeAdRoutes];
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {

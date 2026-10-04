@@ -1,9 +1,115 @@
 import { ScenarioConfig } from "./types";
 
+export const OCCASION_ALIASES: Record<string, string> = {
+  congrats: "congratulations",
+  congratulations: "congratulations",
+  birthday: "birthday",
+  birthdays: "birthday",
+  anniversary: "anniversary",
+  anniversaries: "anniversary",
+  "get-well": "get-well",
+  "get-well-soon": "get-well",
+  getwell: "get-well",
+  "thank-you": "thank-you",
+  thankyou: "thank-you",
+  thanks: "thank-you",
+  "thinking-of-you": "thinking-of-you",
+  thinkingofyou: "thinking-of-you",
+  support: "thinking-of-you",
+  sympathy: "sympathy",
+  condolence: "sympathy",
+  condolences: "sympathy",
+};
+
+export const OCCASION_METADATA: Record<
+  string,
+  {
+    name: string;
+    headline: string;
+    description: string;
+    metaTitle: string;
+    metaDescription: string;
+  }
+> = {
+  "thank-you": {
+    name: "Thank You",
+    headline: "Send a Real Handwritten Thank You Card",
+    description:
+      "Show genuine gratitude to interviewers, mentors, and clients with physical cards penned in real ballpoint ink and delivered via USPS First Class.",
+    metaTitle: "Send a Real Handwritten Thank You Card | Mailed for You ($9)",
+    metaDescription:
+      "Send authentic handwritten thank-you cards for job interviews, mentors, and client closings. Real pen and ink on heavy cardstock with stamped mail delivery.",
+  },
+  sympathy: {
+    name: "Sympathy & Support",
+    headline: "Send a Heartfelt Handwritten Sympathy Card",
+    description:
+      "Offer quiet comfort for pet loss, family loss, and heavy seasons. Real pen-on-paper notes sent through the mail provide lasting solace when words feel hard.",
+    metaTitle: "Send a Real Handwritten Sympathy Card | Condolence Mail ($9)",
+    metaDescription:
+      "Send thoughtful, pen-written sympathy cards for pet loss or loss of a loved one. Stamped and delivered via USPS First Class without having to buy stamps or visit the store.",
+  },
+  congratulations: {
+    name: "Congratulations",
+    headline: "Send a Real Handwritten Congratulations Card",
+    description:
+      "Celebrate promotions, new homes, and major life achievements with a real, tangible keepsake penned in ink.",
+    metaTitle: "Send a Handwritten Congratulations Card | Real Pen Mail ($9)",
+    metaDescription:
+      "Congratulate friends, family, or colleagues on promotions, new homes, and career achievements. Written in real pen and ink, delivered via USPS First Class.",
+  },
+  birthday: {
+    name: "Birthday",
+    headline: "Send a Real Handwritten Birthday Card",
+    description:
+      "Make milestone birthdays and long-distance friendships feel unforgettable with authentic pen-written cards stamped and delivered to their door.",
+    metaTitle: "Send a Real Handwritten Birthday Card | Stamped & Mailed ($9)",
+    metaDescription:
+      "Celebrate milestone birthdays and long-distance best friends. Written with a real ballpoint pen on heavy cardstock and mailed for $9 all-inclusive.",
+  },
+  anniversary: {
+    name: "Anniversary",
+    headline: "Send a Real Handwritten Anniversary Card",
+    description:
+      "Surprise your spouse or celebrate a couple's journey with a timeless love note written in real pen on heavy archival cardstock.",
+    metaTitle: "Send a Handwritten Anniversary Card | Real Ink Delivery ($9)",
+    metaDescription:
+      "Celebrate anniversaries with a lasting handwritten love note. Real ballpoint ink, premium folded cardstock, and USPS First Class mail delivery.",
+  },
+  "get-well": {
+    name: "Get Well & Healing",
+    headline: "Send a Real Handwritten Get Well Card",
+    description:
+      "Brighten someone's recovery from surgery or illness with a warm, encouraging note penned in real ink.",
+    metaTitle: "Send a Handwritten Get Well Soon Card | Real Pen Mail ($9)",
+    metaDescription:
+      "Encourage surgery and hospital recovery with a physical, pen-written card sent directly to their home or bedside.",
+  },
+  "thinking-of-you": {
+    name: "Thinking of You",
+    headline: "Send a Real Handwritten Thinking of You Card",
+    description:
+      "Send quiet solidarity and love during difficult transitions or tough times. Real ink delivered with no reply required.",
+    metaTitle: "Send a Handwritten Thinking of You Card | Real Pen Mail ($9)",
+    metaDescription:
+      "Send quiet support and compassion during hard times with a handwritten card written in real pen and mailed via USPS.",
+  },
+};
+
 export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 1. CAREER: Post Job Interview Thank You
   {
     slug: "after-job-interview",
+    aliases: [
+      "interview-thank-you",
+      "job-interview-thank-you",
+      "interview-follow-up",
+      "interview",
+      "after-interview",
+      "interview-thank-you-cards",
+      "job-interview",
+      "interview-card",
+    ],
     occasionSlug: "thank-you",
     occasionName: "Thank You",
     category: "career",
@@ -58,6 +164,15 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 2. CAREER: Thank You to Mentor or Advisor
   {
     slug: "to-mentor-or-advisor",
+    aliases: [
+      "mentor-thank-you",
+      "advisor-thank-you",
+      "to-mentor",
+      "mentor-appreciation",
+      "mentor-gratitude",
+      "mentor",
+      "advisor",
+    ],
     occasionSlug: "thank-you",
     occasionName: "Thank You",
     category: "career",
@@ -99,6 +214,15 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 3. CAREER / BUSINESS: Client Closing Appreciation
   {
     slug: "client-closing-appreciation",
+    aliases: [
+      "client-closing-gift",
+      "closing-gift",
+      "client-closing",
+      "client-appreciation",
+      "real-estate-closing",
+      "closing-appreciation",
+      "realtor-closing-gift",
+    ],
     occasionSlug: "thank-you",
     occasionName: "Thank You",
     category: "career",
@@ -140,6 +264,22 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 4. SYMPATHY: Loss of a Beloved Pet
   {
     slug: "loss-of-beloved-pet",
+    aliases: [
+      "loss-of-pet",
+      "pet-loss",
+      "pet-loss-sympathy",
+      "pet-loss-and-sympathy",
+      "pet-sympathy",
+      "dog-loss",
+      "cat-loss",
+      "pet-condolence",
+      "dog-sympathy",
+      "cat-sympathy",
+      "loss-of-dog",
+      "loss-of-cat",
+      "loss-of-a-pet",
+      "pet-death",
+    ],
     occasionSlug: "sympathy",
     occasionName: "Sympathy & Support",
     category: "sympathy",
@@ -182,6 +322,16 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 5. SYMPATHY: Loss of a Parent
   {
     slug: "loss-of-parent",
+    aliases: [
+      "loss-of-mother",
+      "loss-of-father",
+      "parent-loss",
+      "condolence-loss-of-parent",
+      "loss-of-mom",
+      "loss-of-dad",
+      "parent-sympathy",
+      "sympathy-parent",
+    ],
     occasionSlug: "sympathy",
     occasionName: "Sympathy & Support",
     category: "sympathy",
@@ -223,6 +373,15 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 6. MILESTONES: Housewarming / New Home
   {
     slug: "new-home-housewarming",
+    aliases: [
+      "housewarming",
+      "new-home",
+      "housewarming-cards",
+      "new-house",
+      "housewarming-card",
+      "first-home",
+      "congratulations-new-home",
+    ],
     occasionSlug: "congratulations",
     occasionName: "Congratulations",
     category: "milestone",
@@ -260,6 +419,18 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 7. MILESTONES: Promotion or New Job
   {
     slug: "promotion-or-new-job",
+    aliases: [
+      "promotion-and-congrats",
+      "promotion-congrats",
+      "promotion-or-congrats",
+      "promotion",
+      "new-job",
+      "congrats",
+      "promotion-cards",
+      "career-congrats",
+      "job-promotion",
+      "promotion-card",
+    ],
     occasionSlug: "congratulations",
     occasionName: "Congratulations",
     category: "milestone",
@@ -297,6 +468,18 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 8. BIRTHDAY: Milestone 50th, 60th, or 70th Birthday
   {
     slug: "milestone-birthday",
+    aliases: [
+      "birthday-cards-mailed",
+      "birthday-cards",
+      "birthday-card",
+      "milestone-birthdays",
+      "50th-birthday",
+      "60th-birthday",
+      "70th-birthday",
+      "milestone",
+      "milestone-birthday-card",
+      "birthday",
+    ],
     occasionSlug: "birthday",
     occasionName: "Birthday",
     category: "milestone",
@@ -334,6 +517,15 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 9. BIRTHDAY: Long Distance Best Friend
   {
     slug: "long-distance-friend",
+    aliases: [
+      "long-distance-friend-birthday",
+      "distant-friend",
+      "friend-birthday",
+      "best-friend-birthday",
+      "faraway-friend",
+      "long-distance",
+      "friend-card",
+    ],
     occasionSlug: "birthday",
     occasionName: "Birthday",
     category: "gratitude",
@@ -370,6 +562,19 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 10. ANNIVERSARY: Heartfelt Love Note to Spouse
   {
     slug: "heartfelt-to-spouse",
+    aliases: [
+      "anniversary-cards-mailed",
+      "anniversary-cards",
+      "anniversary-card",
+      "anniversary",
+      "anniversary-love-note",
+      "to-spouse",
+      "for-spouse",
+      "husband-anniversary",
+      "wife-anniversary",
+      "wedding-anniversary",
+      "spouse-anniversary",
+    ],
     occasionSlug: "anniversary",
     occasionName: "Anniversary",
     category: "gratitude",
@@ -400,13 +605,23 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
       {
         question: "Can I mail this secretly to our home address?",
         answer: "Yes! Many customers enter their home address addressed to their spouse so it arrives as a surprise in the mailbox on their anniversary week.",
-        },
+      },
     ],
   },
 
   // 11. HEALTH & SUPPORT: Surgery & Hospital Recovery
   {
     slug: "surgery-recovery",
+    aliases: [
+      "get-well-soon",
+      "speedy-recovery",
+      "after-surgery",
+      "surgery",
+      "hospital-recovery",
+      "get-well-cards",
+      "get-well-card",
+      "recovery",
+    ],
     occasionSlug: "get-well",
     occasionName: "Thinking of You",
     category: "support",
@@ -443,6 +658,16 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   // 12. EMPATHY: Thinking of You During Hard Times
   {
     slug: "during-hard-times",
+    aliases: [
+      "tough-times",
+      "hard-times",
+      "difficult-times",
+      "thinking-of-you-support",
+      "quiet-support",
+      "sympathy-support",
+      "support",
+      "thinking-of-you",
+    ],
     occasionSlug: "thinking-of-you",
     occasionName: "Thinking of You",
     category: "support",
@@ -481,10 +706,91 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
   },
 ];
 
+export function normalizeOccasionSlug(occasion: string): string {
+  const clean = occasion.toLowerCase().trim();
+  return OCCASION_ALIASES[clean] || clean;
+}
+
 export function getScenario(occasionSlug: string, slug: string): ScenarioConfig | undefined {
-  return SEO_SCENARIOS.find(
-    (s) => s.occasionSlug.toLowerCase() === occasionSlug.toLowerCase() && s.slug.toLowerCase() === slug.toLowerCase()
+  if (!slug) return undefined;
+
+  const normOccasion = normalizeOccasionSlug(occasionSlug);
+  const normSlug = slug.toLowerCase().trim();
+
+  // 1. Exact match within normalized occasion
+  const exact = SEO_SCENARIOS.find(
+    (s) => s.occasionSlug === normOccasion && s.slug.toLowerCase() === normSlug
   );
+  if (exact) return exact;
+
+  // 2. Explicit alias match within normalized occasion
+  const aliasMatch = SEO_SCENARIOS.find(
+    (s) => s.occasionSlug === normOccasion && s.aliases?.some((a) => a.toLowerCase() === normSlug)
+  );
+  if (aliasMatch) return aliasMatch;
+
+  // 3. Exact slug match across ANY occasion (in case user/ad hit /send/cards/loss-of-beloved-pet)
+  const crossExact = SEO_SCENARIOS.find((s) => s.slug.toLowerCase() === normSlug);
+  if (crossExact) return crossExact;
+
+  // 4. Alias match across ANY occasion
+  const crossAlias = SEO_SCENARIOS.find((s) =>
+    s.aliases?.some((a) => a.toLowerCase() === normSlug)
+  );
+  if (crossAlias) return crossAlias;
+
+  // 5. Keyword / tokenized fuzzy match within the occasion
+  const occasionScenarios = SEO_SCENARIOS.filter((s) => s.occasionSlug === normOccasion);
+  if (occasionScenarios.length > 0) {
+    const cleanTokens = normSlug
+      .split(/[-_]+/)
+      .filter((t) => !["cards", "card", "mailed", "and", "or", "the", "for", "a", "of", "to"].includes(t));
+
+    if (cleanTokens.length > 0) {
+      let bestScenario = occasionScenarios[0];
+      let bestScore = 0;
+
+      for (const scenario of occasionScenarios) {
+        let score = 0;
+        const allKeywords = [
+          scenario.slug,
+          ...(scenario.aliases || []),
+          ...scenario.keywords,
+          scenario.h1Title,
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        for (const token of cleanTokens) {
+          if (allKeywords.includes(token)) {
+            score++;
+          }
+        }
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestScenario = scenario;
+        }
+      }
+
+      if (bestScore > 0) {
+        return bestScenario;
+      }
+    }
+
+    // 6. Occasion-level fallback: if the occasion is valid but the slug didn't match any specific scenario,
+    // fallback to the primary scenario of this occasion instead of 404!
+    // This protects ad campaigns with custom tracking, new ad variants, or dynamic keyword slugs.
+    return occasionScenarios[0];
+  }
+
+  // 7. Fallback if occasionSlug itself was actually a scenario slug (e.g. /send/loss-of-pet)
+  const fallbackByOccasionParam = SEO_SCENARIOS.find(
+    (s) => s.slug.toLowerCase() === normOccasion || s.aliases?.some((a) => a.toLowerCase() === normOccasion)
+  );
+  if (fallbackByOccasionParam) return fallbackByOccasionParam;
+
+  return undefined;
 }
 
 export function getAllScenarios(): ScenarioConfig[] {
@@ -493,4 +799,39 @@ export function getAllScenarios(): ScenarioConfig[] {
 
 export function getScenariosByCategory(category: string): ScenarioConfig[] {
   return SEO_SCENARIOS.filter((s) => s.category === category);
+}
+
+export function getScenariosByOccasion(occasionSlug: string): ScenarioConfig[] {
+  const norm = normalizeOccasionSlug(occasionSlug);
+  return SEO_SCENARIOS.filter((s) => s.occasionSlug === norm);
+}
+
+export function getAllOccasions(): {
+  occasionSlug: string;
+  occasionName: string;
+  count: number;
+  primaryScenario: ScenarioConfig;
+}[] {
+  const seen = new Set<string>();
+  const results: {
+    occasionSlug: string;
+    occasionName: string;
+    count: number;
+    primaryScenario: ScenarioConfig;
+  }[] = [];
+
+  for (const s of SEO_SCENARIOS) {
+    if (!seen.has(s.occasionSlug)) {
+      seen.add(s.occasionSlug);
+      const scenarios = SEO_SCENARIOS.filter((item) => item.occasionSlug === s.occasionSlug);
+      results.push({
+        occasionSlug: s.occasionSlug,
+        occasionName: s.occasionName,
+        count: scenarios.length,
+        primaryScenario: s,
+      });
+    }
+  }
+
+  return results;
 }
