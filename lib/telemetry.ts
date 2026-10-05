@@ -97,6 +97,7 @@ export async function trackEvent(
       utmContent: attr?.utmContent,
       utmTerm: attr?.utmTerm,
       gclid: attr?.gclid,
+      fbclid: attr?.fbclid,
       referrer: attr?.referrer || (document.referrer ? document.referrer : undefined),
       landingPath: attr?.landingPath || window.location.pathname,
       // Technology & Google Analytics identity

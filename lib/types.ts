@@ -72,6 +72,7 @@ export interface OrderAttribution {
   utmContent?: string;
   utmTerm?: string;
   gclid?: string;
+  fbclid?: string;
   referrer?: string;
   landingPath?: string;
   googleClientId?: string;
@@ -245,6 +246,7 @@ export interface TelemetryEvent {
   utmContent?: string;
   utmTerm?: string;
   gclid?: string;
+  fbclid?: string;
   referrer?: string;
   landingPath?: string;
   googleClientId?: string; // from _ga cookie
@@ -375,6 +377,7 @@ export interface VisitorSessionRecord {
   medium: string;
   campaign?: string;
   gclid?: string;
+  fbclid?: string;
   deviceType: "mobile" | "tablet" | "desktop";
   screenResolution?: string;
   city?: string;

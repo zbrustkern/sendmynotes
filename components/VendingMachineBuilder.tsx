@@ -38,6 +38,12 @@ import {
   trackGA4AddPaymentInfo,
   trackGA4CustomEvent,
 } from "@/lib/google-ads";
+import {
+  trackMetaViewContent,
+  trackMetaCustomizeProduct,
+  trackMetaInitiateCheckout,
+  trackMetaAddPaymentInfo,
+} from "@/lib/meta-ads";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "./AuthModal";
 import { useDeviceWallet } from "@/lib/device-wallet";
@@ -303,6 +309,12 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       price: 9.0,
       itemCategory: occasion,
     });
+    trackMetaViewContent({
+      contentId: props?.scenarioSlug || occasion || "custom",
+      contentName: `${occasion} Card`,
+      contentCategory: occasion,
+      value: 9.0,
+    });
   }, []);
 
   // Handle Preset Selection
@@ -317,6 +329,12 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         itemName: preset.title,
         price: 9.0,
         itemCategory: preset.occasion,
+      });
+      trackMetaViewContent({
+        contentId: preset.id,
+        contentName: preset.title,
+        contentCategory: preset.occasion,
+        value: 9.0,
       });
       setPrintedGreeting(preset.defaultPrintedMessage || "");
       setHandwrittenNote(preset.defaultHandwrittenNote);
@@ -343,6 +361,11 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         itemName: `${occasion} Card`,
         price: currentPrice,
       });
+      trackMetaInitiateCheckout({
+        contentId: props?.scenarioSlug || occasion || "custom",
+        contentName: `${occasion} Card`,
+        value: currentPrice,
+      });
     } else if (targetStep === 4) {
       // Step 4: Payment Form Loaded (add_shipping_info + add_payment_info)
       const currentPrice = isFreeOrder ? 0.0 : appliedDiscount ? appliedDiscount.finalAmountInCents / 100 : 9.0;
@@ -356,6 +379,11 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         itemId: props?.scenarioSlug || occasion || "custom",
         itemName: `${occasion} Card`,
         price: currentPrice,
+        paymentType: deviceWallet.type || "card",
+      });
+      trackMetaAddPaymentInfo({
+        contentName: `${occasion} Card`,
+        value: currentPrice,
         paymentType: deviceWallet.type || "card",
       });
     }
@@ -765,6 +793,10 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
                   trackGA4CustomEvent("ai_cover_generated", {
                     occasion,
                     themeTag: art.themeTag || "",
+                  });
+                  trackMetaCustomizeProduct({
+                    customizationType: "AI Cover Art Generated",
+                    occasion,
                   });
                   if (art.matchedSentiments && art.matchedSentiments.length > 0) {
                     setThematicSentiments(art.matchedSentiments);

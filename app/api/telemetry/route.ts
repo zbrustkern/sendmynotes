@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       utmContent,
       utmTerm,
       gclid,
+      fbclid,
       referrer,
       landingPath,
       googleClientId,
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
       utmContent,
       utmTerm,
       gclid,
+      fbclid,
       referrer,
       landingPath,
       // Identity & Tech

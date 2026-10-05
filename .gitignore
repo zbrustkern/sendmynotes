@@ -38,3 +38,6 @@ next-env.d.ts
 # Standalone Aster & Blanche site (independent repo)
 asterandblanche-site/
 
+# Local media / content staging
+content/
+

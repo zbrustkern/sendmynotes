@@ -21,6 +21,8 @@ import confetti from "canvas-confetti";
 import { detectCardIntent } from "@/lib/card-intent";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { AddressData } from "./Step3EnvelopeAddressing";
+import { trackGoogleAdsPurchase } from "@/lib/google-ads";
+import { trackMetaPurchase } from "@/lib/meta-ads";
 
 interface Step5ConfirmationProps {
   orderId: string;
@@ -55,7 +57,7 @@ export function Step5Confirmation({
 }: Step5ConfirmationProps) {
   const deliveryEstimate = useMemo(() => calculateDeliveryEstimate(), []);
 
-  // Launch celebration confetti on mount
+  // Launch celebration confetti and fire purchase conversions on mount
   useEffect(() => {
     try {
       confetti({
@@ -67,7 +69,26 @@ export function Step5Confirmation({
     } catch {
       // ignore
     }
-  }, []);
+
+    if (orderId) {
+      trackGoogleAdsPurchase({
+        orderId,
+        amountInCents: amountInCents || 900,
+        customerEmail,
+        itemName: cardTitle,
+      });
+      trackMetaPurchase({
+        orderId,
+        value: amountInCents ? amountInCents / 100 : 9.0,
+        customerEmail,
+        customerName: sender.fullName,
+        recipientCity: recipient.city,
+        recipientState: recipient.state,
+        recipientZip: recipient.zip,
+        itemName: cardTitle,
+      });
+    }
+  }, [orderId, amountInCents, customerEmail, cardTitle, sender.fullName, recipient.city, recipient.state, recipient.zip]);
 
   // Occasion intent classification
   const intentConfig = useMemo(() => {

@@ -37,6 +37,7 @@ import { detectCardIntent } from "@/lib/card-intent";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "@/components/AuthModal";
 import { trackGoogleAdsPurchase } from "@/lib/google-ads";
+import { trackMetaPurchase } from "@/lib/meta-ads";
 
 export default function OrderStatusPage() {
   const params = useParams();
@@ -196,6 +197,18 @@ export default function OrderStatusPage() {
               orderId: data.order.id,
               amountInCents: data.order.amountInCents || 900,
               customerEmail: data.order.customerEmail,
+            });
+            trackMetaPurchase({
+              orderId: data.order.id,
+              value: data.order.amountInCents ? data.order.amountInCents / 100 : 9.0,
+              customerEmail: data.order.customerEmail,
+              customerName: data.order.returnAddress?.firstName
+                ? `${data.order.returnAddress.firstName} ${data.order.returnAddress.lastName || ""}`.trim()
+                : undefined,
+              recipientCity: data.order.recipientAddress?.city,
+              recipientState: data.order.recipientAddress?.state,
+              recipientZip: data.order.recipientAddress?.zip,
+              itemName: data.order.occasion ? `${data.order.occasion} Card` : undefined,
             });
           }
         }

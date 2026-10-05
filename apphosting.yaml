@@ -49,3 +49,23 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  - variable: NEXT_PUBLIC_GOOGLE_ADS_ID
+    value: AW-18474411963
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_META_PIXEL_ID
+    value: "1773518093991339"
+    availability:
+      - BUILD
+      - RUNTIME
+
+
+  - variable: NEXT_PUBLIC_META_PIXEL_ID
+    value: "1773518093991339"
+    availability:
+      - BUILD
+      - RUNTIME
+

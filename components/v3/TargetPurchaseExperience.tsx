@@ -9,6 +9,18 @@ import { Step4ReviewAndPayment, AppliedDiscountInfo } from "./Step4ReviewAndPaym
 import { Step5Confirmation } from "./Step5Confirmation";
 import { CARD_PRESETS, OCCASIONS, CardPreset } from "@/lib/card-presets";
 import { trackEvent } from "@/lib/telemetry";
+import {
+  trackGA4ViewItem,
+  trackGA4BeginCheckout,
+  trackGA4AddShippingInfo,
+  trackGA4AddPaymentInfo,
+} from "@/lib/google-ads";
+import {
+  trackMetaViewContent,
+  trackMetaCustomizeProduct,
+  trackMetaInitiateCheckout,
+  trackMetaAddPaymentInfo,
+} from "@/lib/meta-ads";
 import { useAuth } from "@/context/AuthContext";
 import { getStoredAttribution } from "@/components/AttributionTracker";
 import { Feather, ShieldCheck } from "lucide-react";
@@ -122,9 +134,21 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
     }
   }, [user, account]);
 
-  // Telemetry: track session start
+  // Telemetry: track session start & initial view
   useEffect(() => {
     trackEvent("session_start", 1, { experience: "v3_target" });
+    trackGA4ViewItem({
+      itemId: CARD_PRESETS[0].id,
+      itemName: CARD_PRESETS[0].title,
+      price: 9.0,
+      itemCategory: CARD_PRESETS[0].occasion,
+    });
+    trackMetaViewContent({
+      contentId: CARD_PRESETS[0].id,
+      contentName: CARD_PRESETS[0].title,
+      contentCategory: CARD_PRESETS[0].occasion,
+      value: 9.0,
+    });
   }, []);
 
   // Hydrate from searchParams if present
@@ -209,6 +233,19 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
     setSelectedCardUrl(preset.imageUrl);
     setSelectedCardTitle(preset.title);
     setOccasion(preset.occasion);
+    // Track preset view in GA4 and Meta
+    trackGA4ViewItem({
+      itemId: preset.id,
+      itemName: preset.title,
+      price: 9.0,
+      itemCategory: preset.occasion,
+    });
+    trackMetaViewContent({
+      contentId: preset.id,
+      contentName: preset.title,
+      contentCategory: preset.occasion,
+      value: 9.0,
+    });
     // If body note is currently empty or matches another preset default, update it
     const isDefaultNote = CARD_PRESETS.some((p) => p.defaultHandwrittenNote === bodyNote);
     if (!bodyNote.trim() || isDefaultNote) {
@@ -221,6 +258,11 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
     setSelectedCardUrl(art.imageUrl);
     setSelectedCardTitle(`Custom AI: ${art.prompt.slice(0, 30)}...`);
     setOccasion(art.occasion);
+    trackMetaCustomizeProduct({
+      customizationType: "AI Art Generated",
+      occasion: art.occasion,
+      contentName: `Custom AI: ${art.prompt.slice(0, 30)}`,
+    });
   };
 
   // Active handwriting font class
@@ -231,6 +273,39 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
   // Navigate & Track Step
   const goToStep = (stepNumber: number) => {
     trackEvent("step_navigated", stepNumber, { fromStep: currentStep, toStep: stepNumber });
+
+    if (stepNumber === 3) {
+      const price = amountInCents / 100;
+      trackGA4BeginCheckout({
+        itemId: occasion,
+        itemName: selectedCardTitle || `${occasion} Card`,
+        price,
+      });
+      trackMetaInitiateCheckout({
+        contentName: selectedCardTitle || `${occasion} Card`,
+        value: price,
+      });
+    } else if (stepNumber === 4) {
+      const price = amountInCents / 100;
+      trackGA4AddShippingInfo({
+        itemId: occasion,
+        itemName: selectedCardTitle || `${occasion} Card`,
+        price,
+        shippingTier: "USPS First Class",
+      });
+      trackGA4AddPaymentInfo({
+        itemId: occasion,
+        itemName: selectedCardTitle || `${occasion} Card`,
+        price,
+        paymentType: "card",
+      });
+      trackMetaAddPaymentInfo({
+        contentName: selectedCardTitle || `${occasion} Card`,
+        value: price,
+        paymentType: "card",
+      });
+    }
+
     setCurrentStep(stepNumber);
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });

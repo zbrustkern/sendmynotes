@@ -32,18 +32,24 @@ function AttributionTrackerInner() {
       const utmContent = searchParams.get("utm_content") || undefined;
       const utmTerm = searchParams.get("utm_term") || undefined;
       const gclid = searchParams.get("gclid") || undefined;
+      const fbclid = searchParams.get("fbclid") || undefined;
 
-      const hasCampaignParams = Boolean(utmSource || utmMedium || utmCampaign || gclid || utmContent || utmTerm);
+      const hasCampaignParams = Boolean(utmSource || utmMedium || utmCampaign || gclid || fbclid || utmContent || utmTerm);
 
       // If user landed with campaign parameters, overwrite or set attribution
       if (hasCampaignParams) {
+        const defaultSource = gclid ? "google" : fbclid ? "meta" : undefined;
+        const defaultMedium = gclid || fbclid ? "cpc" : undefined;
+        const defaultCampaign = gclid ? "Google Ads" : fbclid ? "Meta Ads" : undefined;
+
         const attribution: OrderAttribution = {
-          utmSource: utmSource || (gclid ? "google" : undefined),
-          utmMedium: utmMedium || (gclid ? "cpc" : undefined),
-          utmCampaign: utmCampaign || (gclid ? "Google Ads" : undefined),
+          utmSource: utmSource || defaultSource,
+          utmMedium: utmMedium || defaultMedium,
+          utmCampaign: utmCampaign || defaultCampaign,
           utmContent,
           utmTerm,
           gclid,
+          fbclid,
           referrer: document.referrer || undefined,
           landingPath: pathname || window.location.pathname,
           googleClientId: getGoogleClientId(),
