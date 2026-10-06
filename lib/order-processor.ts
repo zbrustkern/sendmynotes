@@ -10,6 +10,7 @@ import {
 import { fulfillHandwryttenOrder } from "./handwrytten";
 import { logIncident } from "./incident-logger";
 import { Order } from "./types";
+import { sendMetaCapiPurchaseEvent } from "./meta-conversions-api";
 
 export interface ProcessPaidOrderResult {
   success: boolean;
@@ -39,7 +40,8 @@ export class DuplicateDispatchError extends Error {
 export async function processPaidOrder(
   orderId: string,
   paymentIntentId: string,
-  customerEmail?: string
+  customerEmail?: string,
+  clientContext?: { clientIp?: string; userAgent?: string }
 ): Promise<ProcessPaidOrderResult> {
   let order: Order;
 
@@ -210,6 +212,25 @@ export async function processPaidOrder(
     }
   } catch (cacheErr) {
     console.warn("[OrderProcessor] Notice updating cache pool status:", cacheErr);
+  }
+
+  // 9. Dispatch Meta Conversions API (CAPI) Purchase Event (deduplicated via event_id: orderId)
+  if (!order.metaCapiTrackedAt) {
+    try {
+      await sendMetaCapiPurchaseEvent({
+        order: {
+          ...order,
+          customerEmail: customerEmail || order.customerEmail,
+        },
+        clientIp: clientContext?.clientIp,
+        userAgent: clientContext?.userAgent,
+      });
+      await updateOrderStatus(orderId, {
+        metaCapiTrackedAt: Date.now(),
+      });
+    } catch (capiErr) {
+      console.warn("[OrderProcessor] Notice sending Meta CAPI purchase event:", capiErr);
+    }
   }
 
   console.log(`[OrderProcessor] Order ${orderId} successfully dispatched! HW ID: ${fulfillment.order_id}`);

@@ -17,6 +17,7 @@ import {
 } from "@/lib/google-ads";
 import {
   trackMetaViewContent,
+  trackMetaAddToCart,
   trackMetaCustomizeProduct,
   trackMetaInitiateCheckout,
   trackMetaAddPaymentInfo,
@@ -274,7 +275,15 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
   const goToStep = (stepNumber: number) => {
     trackEvent("step_navigated", stepNumber, { fromStep: currentStep, toStep: stepNumber });
 
-    if (stepNumber === 3) {
+    if (stepNumber === 2) {
+      const price = amountInCents / 100;
+      trackMetaAddToCart({
+        contentId: occasion,
+        contentName: selectedCardTitle || `${occasion} Card`,
+        contentCategory: occasion,
+        value: price,
+      });
+    } else if (stepNumber === 3) {
       const price = amountInCents / 100;
       trackGA4BeginCheckout({
         itemId: occasion,

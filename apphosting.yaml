@@ -37,6 +37,11 @@ env:
     availability:
       - RUNTIME
 
+  - variable: META_CONVERSIONS_API_ACCESS_TOKEN
+    secret: meta-conversions-api-access-token
+    availability:
+      - RUNTIME
+
   # Public client configuration
   - variable: NEXT_PUBLIC_APP_URL
     value: https://sendmynotes.com
@@ -62,9 +67,8 @@ env:
       - BUILD
       - RUNTIME
 
-
-  - variable: NEXT_PUBLIC_META_PIXEL_ID
-    value: "1773518093991339"
+  - variable: NEXT_PUBLIC_META_DOMAIN_VERIFICATION
+    value: "1726796005062111"
     availability:
       - BUILD
       - RUNTIME

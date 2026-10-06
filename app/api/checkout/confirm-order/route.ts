@@ -191,11 +191,18 @@ export async function POST(req: NextRequest) {
       console.log(`[Confirm Order] Mock mode verification active for order ${orderId}`);
     }
 
+    const clientIp =
+      req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      req.headers.get("x-real-ip") ||
+      undefined;
+    const userAgent = req.headers.get("user-agent") || undefined;
+
     // Process and fulfill the verified paid order (atomic locking handled in order-processor)
     const result = await processPaidOrder(
       orderId,
       verifiedPaymentIntentId,
-      customerEmail || customerEmailFromStripe || order.customerEmail
+      customerEmail || customerEmailFromStripe || order.customerEmail,
+      { clientIp, userAgent }
     );
 
     return NextResponse.json({

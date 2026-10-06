@@ -40,6 +40,7 @@ import {
 } from "@/lib/google-ads";
 import {
   trackMetaViewContent,
+  trackMetaAddToCart,
   trackMetaCustomizeProduct,
   trackMetaInitiateCheckout,
   trackMetaAddPaymentInfo,
@@ -352,8 +353,15 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const navigateToStep = (targetStep: number) => {
     trackEvent("step_navigated", targetStep, { fromStep: currentStep, toStep: targetStep });
 
-    // Standard GA4 Purchase Journey Funnel Milestones
-    if (targetStep === 3) {
+    if (targetStep === 2) {
+      const currentPrice = isFreeOrder ? 0.0 : appliedDiscount ? appliedDiscount.finalAmountInCents / 100 : 9.0;
+      trackMetaAddToCart({
+        contentId: props?.scenarioSlug || occasion || "custom",
+        contentName: `${occasion} Card`,
+        contentCategory: occasion,
+        value: currentPrice,
+      });
+    } else if (targetStep === 3) {
       // Step 3: Address Entry (begin_checkout)
       const currentPrice = isFreeOrder ? 0.0 : appliedDiscount ? appliedDiscount.finalAmountInCents / 100 : 9.0;
       trackGA4BeginCheckout({

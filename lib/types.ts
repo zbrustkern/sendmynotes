@@ -73,6 +73,10 @@ export interface OrderAttribution {
   utmTerm?: string;
   gclid?: string;
   fbclid?: string;
+  fbp?: string; // Meta Pixel browser cookie (_fbp)
+  fbc?: string; // Meta click identifier (_fbc or formatted from fbclid)
+  clientIp?: string;
+  userAgent?: string;
   referrer?: string;
   landingPath?: string;
   googleClientId?: string;
@@ -106,6 +110,7 @@ export interface Order {
   discountAmountInCents?: number;
   paymentMethod?: "STRIPE" | "PROMO_CODE" | "STUDIO_COMP";
   attribution?: OrderAttribution;
+  metaCapiTrackedAt?: number; // Timestamp when Meta Conversions API purchase was dispatched
   recipientOccasion?: RecipientOccasion;
   viewToken?: string;
   isRedacted?: boolean;
