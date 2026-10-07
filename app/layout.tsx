@@ -172,12 +172,10 @@ export default function RootLayout({
             alt=""
           />
         </noscript>
-        {process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION && (
-          <meta
-            name="facebook-domain-verification"
-            content={process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION}
-          />
-        )}
+        <meta
+          name="facebook-domain-verification"
+          content={process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION || "7j8rbkz9ktc5jzapl53uueqvute5et"}
+        />
       </head>
       <body
         className={`${fontHwAdam.variable} ${fontHwCharity.variable} ${fontHwChase.variable} ${fontHwDavid.variable} ${fontHwKate.variable} ${fontHwWill.variable} min-h-screen bg-[#FAF8F5] text-stone-900 antialiased selection:bg-amber-100 selection:text-amber-900`}

@@ -68,7 +68,7 @@ env:
       - RUNTIME
 
   - variable: NEXT_PUBLIC_META_DOMAIN_VERIFICATION
-    value: "1726796005062111"
+    value: "7j8rbkz9ktc5jzapl53uueqvute5et"
     availability:
       - BUILD
       - RUNTIME
