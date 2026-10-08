@@ -229,7 +229,7 @@ export async function sendMetaCapiEvents(
       formattedUserData.fbc = u.fbc;
     }
 
-    return {
+    const singleEvent: Record<string, unknown> = {
       event_name: event.event_name,
       event_time: event.event_time || Math.floor(Date.now() / 1000),
       event_id: event.event_id,
@@ -238,6 +238,15 @@ export async function sendMetaCapiEvents(
       user_data: formattedUserData,
       custom_data: event.custom_data || {},
     };
+
+    if (event.opt_out) {
+      singleEvent.opt_out = true;
+      singleEvent.data_processing_options = ["LDU"];
+      singleEvent.data_processing_options_country = 1;
+      singleEvent.data_processing_options_state = 1000;
+    }
+
+    return singleEvent;
   });
 
   const requestBody: Record<string, unknown> = {
@@ -328,13 +337,20 @@ export async function sendMetaCapiPurchaseEvent(params: {
     resolvedFbc = `fb.1.${Date.now()}.${order.attribution.fbclid}`;
   }
 
+  const isOptedOut = Boolean(
+    order.attribution?.optOut || order.attribution?.gpc
+  );
+
+  // Payload minimization & privacy compliance:
+  // Only purchaser/sender address fields (from returnAddress) are used for customer matching.
+  // Recipient address information and card correspondence are strictly excluded from all advertising payloads.
   const userData: MetaCapiUserData = {
     email: order.customerEmail || undefined,
     firstName,
     lastName,
-    city: order.recipientAddress?.city || order.returnAddress?.city,
-    state: order.recipientAddress?.state || order.returnAddress?.state,
-    zip: order.recipientAddress?.zip || order.returnAddress?.zip,
+    city: order.returnAddress?.city,
+    state: order.returnAddress?.state,
+    zip: order.returnAddress?.zip,
     country: "us",
     clientIpAddress: clientIp || order.attribution?.clientIp,
     clientUserAgent: userAgent || order.attribution?.userAgent,
@@ -370,6 +386,7 @@ export async function sendMetaCapiPurchaseEvent(params: {
         action_source: "website",
         user_data: userData,
         custom_data: customData,
+        opt_out: isOptedOut,
       },
     ],
     testEventCode

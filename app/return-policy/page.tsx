@@ -51,7 +51,7 @@ export default function ReturnPolicyPage() {
             Refund &amp; Return Policy
           </h1>
           <p className="text-xs text-stone-500 max-w-lg mx-auto leading-relaxed">
-            Effective Date: September 24, 2026 • Published by{" "}
+            Effective Date: October 8, 2026 • Published by{" "}
             <strong>Aster &amp; Blanche Press</strong>, operator of{" "}
             <strong>sendmynotes.com</strong> (Lake Forest, IL).
           </p>

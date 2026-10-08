@@ -40,7 +40,7 @@ export default function TermsPage() {
             Terms of Service &amp; Conditions
           </h1>
           <p className="text-xs text-stone-500 max-w-lg mx-auto leading-relaxed">
-            Effective Date: September 24, 2026 • Published by <strong>Aster &amp; Blanche Press</strong>, operator of <strong>sendmynotes.com</strong> (Lake Forest, IL).
+            Effective Date: October 8, 2026 • Published by <strong>Aster &amp; Blanche Press</strong>, operator of <strong>sendmynotes.com</strong> (Lake Forest, IL).
           </p>
         </div>
 
@@ -57,6 +57,9 @@ export default function TermsPage() {
             </p>
             <p>
               By accessing our website, creating custom greeting cards, generating imagery, or purchasing our robotic pen mailing services, you agree to be bound by these Terms and all applicable laws. If you do not agree with any part of these Terms, you may not use the Service.
+            </p>
+            <p>
+              Our <Link href="/privacy" className="text-amber-700 underline font-medium">Privacy Policy</Link> explains how we collect, use, and disclose personal information, including information used for analytics and advertising. You can review and manage optional tracking preferences as described in our Privacy Policy.
             </p>
           </section>
 
@@ -102,6 +105,14 @@ export default function TermsPage() {
             <p className="text-xs text-stone-500">
               We reserve the absolute right to cancel and refuse fulfillment of any order that violates these standards. In cases of unlawful harassment or threats sent via mail, we cooperate fully with law enforcement and the United States Postal Inspection Service (USPIS).
             </p>
+            <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs text-stone-600 space-y-1">
+              <p className="font-semibold text-stone-900">
+                Correspondence Confidentiality &amp; Advertising Exclusion:
+              </p>
+              <p>
+                We do not provide your card messages, custom greetings, or recipient information to advertising platforms or data brokers. We process this information, and disclose it to necessary service providers (such as robotic pen plotting facilities and postal delivery carriers), solely to manufacture and mail cards and operate the service as described in our Privacy Policy.
+              </p>
+            </div>
           </section>
 
           {/* Section 4: AI Art Generation */}

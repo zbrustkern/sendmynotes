@@ -80,6 +80,8 @@ export interface OrderAttribution {
   referrer?: string;
   landingPath?: string;
   googleClientId?: string;
+  gpc?: boolean; // Global Privacy Control signal detected
+  optOut?: boolean; // User opted out of marketing tracking
   capturedAt?: number;
 }
 

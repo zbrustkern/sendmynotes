@@ -83,6 +83,18 @@ function AttributionTrackerInner() {
     if (typeof window === "undefined") return;
 
     try {
+      const isGpcActive =
+        typeof navigator !== "undefined" &&
+        (navigator as unknown as { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+
+      if (isGpcActive) {
+        const win = window as unknown as { fbq?: (...args: unknown[]) => void };
+        if (typeof win.fbq === "function") {
+          // Enforce Meta Limited Data Use for GPC compliance
+          win.fbq("dataProcessingOptions", ["LDU"], 0, 0);
+        }
+      }
+
       const utmSource = searchParams.get("utm_source") || undefined;
       const utmMedium = searchParams.get("utm_medium") || undefined;
       const utmCampaign = searchParams.get("utm_campaign") || undefined;
@@ -121,6 +133,7 @@ function AttributionTrackerInner() {
           referrer: document.referrer || undefined,
           landingPath: pathname || window.location.pathname,
           googleClientId: getGoogleClientId(),
+          gpc: isGpcActive || undefined,
           capturedAt: Date.now(),
         };
 
@@ -212,6 +225,7 @@ function AttributionTrackerInner() {
         landingPath: pathname || window.location.pathname,
         fbp: fbp || undefined,
         fbc: fbc || undefined,
+        gpc: isGpcActive || undefined,
         capturedAt: Date.now(),
       };
 

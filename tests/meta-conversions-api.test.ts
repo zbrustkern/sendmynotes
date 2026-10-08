@@ -206,10 +206,14 @@ async function runTests() {
   assert(userData.em[0] === hashSha256("john.doe@example.com"), "Customer email properly hashed with SHA-256");
   assert(userData.fn[0] === hashSha256("john"), "Sender first name properly hashed");
   assert(userData.ln[0] === hashSha256("doe"), "Sender last name properly hashed");
-  assert(userData.ct[0] === hashSha256("chicago"), "City properly hashed");
+  assert(userData.ct[0] === hashSha256("lakeforest"), "Purchaser city properly hashed from return address");
   assert(userData.st[0] === hashSha256("il"), "State properly hashed");
-  assert(userData.zp[0] === hashSha256("60601"), "Zip properly hashed");
+  assert(userData.zp[0] === hashSha256("60045"), "Purchaser zip properly hashed from return address");
   assert(userData.country[0] === hashSha256("us"), "Country properly hashed");
+
+  // Privacy Safeguard: Verify recipient address information is strictly NOT transmitted to Meta
+  assert(userData.ct[0] !== hashSha256("chicago"), "Recipient city (Chicago) is strictly excluded from payload");
+  assert(userData.zp[0] !== hashSha256("60601"), "Recipient zip (60601) is strictly excluded from payload");
 
   // Verify unhashed browser and network data
   assert(userData.client_ip_address === "98.76.54.32", "client_ip_address unhashed");
@@ -228,6 +232,29 @@ async function runTests() {
   assert(customData.content_ids[0] === mockOrder.id, "custom_data content_ids contains order ID");
   assert(customData.contents[0].id === mockOrder.id, "custom_data contents array contains order ID");
   assert(customData.contents[0].item_price === 9.0, "custom_data contents item_price is 9.0");
+
+  // --- 5. Testing GPC / Opt-Out Limited Data Use Handling ---
+  const optedOutOrder: Order = {
+    ...mockOrder,
+    id: "order_capi_test_gpc_999",
+    attribution: {
+      ...mockOrder.attribution,
+      gpc: true,
+      optOut: true,
+    },
+  };
+
+  await sendMetaCapiPurchaseEvent({
+    order: optedOutOrder,
+  });
+
+  const gpcEventPayload = capturedBody.data[0];
+  assert(gpcEventPayload.opt_out === true, "opt_out is true when GPC/opt-out detected");
+  assert(
+    Array.isArray(gpcEventPayload.data_processing_options) &&
+      gpcEventPayload.data_processing_options[0] === "LDU",
+    "Limited Data Use (LDU) flag attached when GPC/opt-out detected"
+  );
 
   // Cleanup
   global.fetch = originalFetch;
