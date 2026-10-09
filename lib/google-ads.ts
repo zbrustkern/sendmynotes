@@ -1,8 +1,15 @@
+export const GOOGLE_TAG_ID =
+  process.env.NEXT_PUBLIC_GOOGLE_TAG_ID || "GT-TNPN256B";
+
 export const GOOGLE_ADS_ID =
   process.env.NEXT_PUBLIC_GOOGLE_ADS_ID || "AW-18474411963";
 
+export const GOOGLE_ADS_CONVERSION_LABEL =
+  process.env.NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_LABEL || "ZzzVCMqAjoUdELvPpOlE";
+
 export const GA4_MEASUREMENT_ID =
   process.env.NEXT_PUBLIC_GA4_MEASUREMENT_ID || "G-5DV25FZ7Q8";
+
 
 /**
  * Fires a standard GA4 view_item event
@@ -175,7 +182,7 @@ export function trackGoogleAdsPurchase(params: {
 
   const win = window as unknown as { gtag?: (...args: unknown[]) => void };
   if (typeof win.gtag === "function") {
-    const conversionLabel = process.env.NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_LABEL;
+    const conversionLabel = process.env.NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_LABEL || GOOGLE_ADS_CONVERSION_LABEL;
     const sendTo = conversionLabel
       ? `${GOOGLE_ADS_ID}/${conversionLabel}`
       : GOOGLE_ADS_ID;

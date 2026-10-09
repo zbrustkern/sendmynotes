@@ -55,8 +55,20 @@ env:
       - BUILD
       - RUNTIME
 
+  - variable: NEXT_PUBLIC_GOOGLE_TAG_ID
+    value: GT-TNPN256B
+    availability:
+      - BUILD
+      - RUNTIME
+
   - variable: NEXT_PUBLIC_GOOGLE_ADS_ID
     value: AW-18474411963
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_LABEL
+    value: ZzzVCMqAjoUdELvPpOlE
     availability:
       - BUILD
       - RUNTIME

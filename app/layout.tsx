@@ -3,7 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { AttributionTracker } from "@/components/AttributionTracker";
 import { fontHwAdam, fontHwCharity, fontHwChase, fontHwDavid, fontHwKate, fontHwWill } from "@/lib/fonts";
-import { GOOGLE_ADS_ID, GA4_MEASUREMENT_ID } from "@/lib/google-ads";
+import { GOOGLE_TAG_ID, GOOGLE_ADS_ID, GA4_MEASUREMENT_ID } from "@/lib/google-ads";
 import { META_PIXEL_ID } from "@/lib/meta-ads";
 
 export const metadata: Metadata = {
@@ -130,10 +130,10 @@ export default function RootLayout({
             }),
           }}
         />
-        {/* Google tag (gtag.js) for Google Ads & GA4 */}
+        {/* Google tag (gtag.js) for Google Tag, Google Ads & GA4 */}
         <script
           async
-          src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_ADS_ID}`}
+          src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG_ID || GOOGLE_ADS_ID}`}
         />
         <script
           dangerouslySetInnerHTML={{
@@ -141,6 +141,7 @@ export default function RootLayout({
               window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
+              ${GOOGLE_TAG_ID ? `gtag('config', '${GOOGLE_TAG_ID}');` : ""}
               gtag('config', '${GOOGLE_ADS_ID}');
               ${GA4_MEASUREMENT_ID ? `gtag('config', '${GA4_MEASUREMENT_ID}', { send_page_view: true });` : ""}
             `,
