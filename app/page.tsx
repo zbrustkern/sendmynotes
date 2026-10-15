@@ -26,7 +26,19 @@ export default async function Home({ searchParams }: PageProps) {
         </div>
       }
     >
-      <ExperienceRouter initialIsV3={isV3} initialStep={isAuto ? "note" : undefined} />
+      <ExperienceRouter
+        initialIsV3={isV3}
+        initialOccasion={isAuto ? "Thinking of You" : undefined}
+        initialCoverUrl={isAuto ? "/presets/thinking-of-you-quiet-cup.jpg" : undefined}
+        initialHandwrittenNote={
+          isAuto
+            ? "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!"
+            : undefined
+        }
+        scenarioTitle={isAuto ? "A Quiet Cup" : undefined}
+        embedded={false}
+        initialStep={isAuto ? "note" : undefined}
+      />
     </Suspense>
   );
 }

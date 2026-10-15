@@ -55,8 +55,8 @@ assert(
 const birthdayScenario = getScenario("birthday", "birthday-cards-mailed");
 assert(!!birthdayScenario, "birthday/birthday-cards-mailed resolves");
 assert(
-  birthdayScenario?.slug === "milestone-birthday",
-  `birthday/birthday-cards-mailed maps to 'milestone-birthday' (got '${birthdayScenario?.slug}')`
+  birthdayScenario?.slug === "happy-birthday",
+  `birthday/birthday-cards-mailed maps to 'happy-birthday' (got '${birthdayScenario?.slug}')`
 );
 
 // --- 2. Testing Occasion Aliases ---

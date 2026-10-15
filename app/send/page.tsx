@@ -75,7 +75,15 @@ export default async function SendCatalogPage({ searchParams }: PageProps) {
           </div>
         }
       >
-        <ExperienceRouter initialIsV3={isV3} initialStep="note" embedded={false} />
+        <ExperienceRouter
+          initialIsV3={isV3}
+          initialOccasion="Thinking of You"
+          initialCoverUrl="/presets/thinking-of-you-quiet-cup.jpg"
+          initialHandwrittenNote="Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!"
+          scenarioTitle="A Quiet Cup"
+          initialStep="note"
+          embedded={false}
+        />
       </Suspense>
     );
   }

@@ -297,7 +297,18 @@ export const OCCASION_MESSAGE_BANK: Record<string, MessageInspiration[]> = {
 };
 
 export const CARD_PRESETS: CardPreset[] = [
-  // --- #1 Bestselling Everyday / General Studio Default ---
+  // --- #1 Bestselling Everyday Thinking of You / General Studio Default ---
+  {
+    id: "preset-thinking-coffee",
+    occasion: "Thinking of You",
+    title: "A Quiet Cup",
+    prompt: "Quiet contemporary oil still life of a blue-gray ceramic coffee cup on warm wooden sill beside a window in soft afternoon light",
+    imageUrl: "/presets/thinking-of-you-quiet-cup.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!",
+  },
+
+  // --- Thank You ---
   {
     id: "preset-thankyou-botanical",
     occasion: "Thank You",
@@ -306,6 +317,15 @@ export const CARD_PRESETS: CardPreset[] = [
     imageUrl: "/presets/thank-you-botanical.jpg",
     defaultPrintedMessage: "",
     defaultHandwrittenNote: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I am so grateful to have you in my corner!",
+  },
+  {
+    id: "preset-thankyou-laurel",
+    occasion: "Thank You",
+    title: "Olive & Laurel Wreath",
+    prompt: "Classical botanical garland wreath of lush green olive branches, golden bay laurel leaves, and delicate ivory blossom accents on warm cream",
+    imageUrl: "/presets/thank-you-laurel-wreath.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Thank you so much for your guidance, encouragement, and generosity. Your support has made an extraordinary difference and I am deeply grateful.",
   },
 
   // --- Birthday ---
@@ -328,27 +348,7 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultHandwrittenNote: "Wishing you the happiest of birthdays and an unforgettable year ahead! May all your wishes come true.",
   },
 
-  // --- Thank You ---
-  {
-    id: "preset-thankyou-laurel",
-    occasion: "Thank You",
-    title: "Olive & Laurel Wreath",
-    prompt: "Classical botanical garland wreath of lush green olive branches, golden bay laurel leaves, and delicate ivory blossom accents on warm cream",
-    imageUrl: "/presets/thank-you-laurel-wreath.jpg",
-    defaultPrintedMessage: "",
-    defaultHandwrittenNote: "Thank you so much for your guidance, encouragement, and generosity. Your support has made an extraordinary difference and I am deeply grateful.",
-  },
-
   // --- Thinking of You ---
-  {
-    id: "preset-thinking-coffee",
-    occasion: "Thinking of You",
-    title: "A Quiet Cup",
-    prompt: "Quiet contemporary oil still life of a blue-gray ceramic coffee cup on warm wooden sill beside a window in soft afternoon light",
-    imageUrl: "/presets/thinking-of-you-quiet-cup.jpg",
-    defaultPrintedMessage: "",
-    defaultHandwrittenNote: "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!",
-  },
   {
     id: "preset-thinking-healing",
     occasion: "Thinking of You",

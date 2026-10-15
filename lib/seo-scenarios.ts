@@ -321,7 +321,58 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     ],
   },
 
-  // 4. SYMPATHY: Loss of a Beloved Pet
+  // 4. SYMPATHY: Gentle Everyday Condolences & Support (#1 Sympathy Default)
+  {
+    slug: "heartfelt-condolences",
+    aliases: [
+      "sympathy-cards-mailed",
+      "sympathy-cards",
+      "sympathy-card",
+      "send-sympathy-card",
+      "sympathy",
+      "condolences",
+      "condolence-card",
+      "here-for-you",
+    ],
+    occasionSlug: "sympathy",
+    occasionName: "Sympathy & Support",
+    category: "sympathy",
+    badgeText: "Quiet Condolences",
+    h1Title: "Send a Real Handwritten Sympathy Card",
+    heroTagline: "Offer genuine comfort, warmth, and quiet strength with a real pen-and-ink handwritten sympathy card delivered to their mailbox.",
+    metaTitle: "Send a Real Handwritten Sympathy Card | Stamped & Mailed ($9)",
+    metaDescription: "Send an authentic handwritten sympathy card written with real pen and ink on heavy cardstock. Stamped and mailed via USPS First Class.",
+    keywords: [
+      "handwritten sympathy card",
+      "mail a sympathy card",
+      "condolence card real pen",
+      "thinking of you sympathy card",
+    ],
+    coverUrl: "/presets/sympathy-typography.jpg",
+    coverPrompt: "Quiet, compassionate typography-led card on pale dove-blue ground with charcoal serif 'Here for you' lettering and fine frame rule",
+    printedGreeting: "Holding you close in our thoughts during this difficult time.",
+    handwrittenNote: "Dear [Name],\n\nI am so deeply sorry for your loss. Please know that I am holding you and your family close in my thoughts and heart. Sending you gentle comfort, quiet strength, and peace in the days ahead. I am always here for you.\n\nWith love and sympathy,\n[Your Name]",
+    fontStyleId: "1",
+    fontName: "Warm Cursive",
+    etiquetteTips: [
+      {
+        title: "Keep it Gentle and Sincere",
+        content: "A few genuine words of comfort mean far more than long explanations. Let them know they are in your thoughts.",
+      },
+      {
+        title: "No Pressure to Respond",
+        content: "Grieving recipients appreciate knowing that a physical card requires no reply or acknowledgement.",
+      },
+    ],
+    faq: [
+      {
+        question: "How fast is a sympathy card mailed?",
+        answer: "Orders placed by 2 PM EST are penned, stamped, and dispatched via USPS First Class the same day.",
+      },
+    ],
+  },
+
+  // 5. SYMPATHY: Loss of a Beloved Pet
   {
     slug: "loss-of-beloved-pet",
     aliases: [
@@ -525,7 +576,56 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     ],
   },
 
-  // 8. BIRTHDAY: Milestone 50th, 60th, or 70th Birthday
+  // 8. BIRTHDAY: Joyful Everyday Birthday Celebration (#1 Birthday Default)
+  {
+    slug: "happy-birthday",
+    aliases: [
+      "birthday-cards-mailed",
+      "birthday-cards",
+      "birthday-card",
+      "send-birthday-card",
+      "birthday",
+      "birthday-wish",
+    ],
+    occasionSlug: "birthday",
+    occasionName: "Birthday",
+    category: "milestone",
+    badgeText: "Birthday Celebration",
+    h1Title: "Send a Real Handwritten Birthday Card",
+    heroTagline: "Celebrate someone special with a genuine, real pen-on-paper birthday card delivered directly to their mailbox.",
+    metaTitle: "Send a Real Handwritten Birthday Card | Stamped & Mailed ($9)",
+    metaDescription: "Send an authentic handwritten birthday card written with real pen and ink on heavy cardstock. Stamped and mailed via USPS First Class.",
+    keywords: [
+      "handwritten birthday card",
+      "mail a real birthday card",
+      "birthday card handwritten pen",
+      "custom birthday card mail",
+    ],
+    coverUrl: "/presets/birthday-cake.jpg",
+    coverPrompt: "Sophisticated cut-paper collage of a round birthday cake on cobalt-blue pedestal with five lit candles, confetti accents, and 'Happy Birthday' lettering",
+    printedGreeting: "Wishing you a year filled with joy and wonderful adventures.",
+    handwrittenNote: "Dear [Name],\n\nHappy Birthday! Wishing you a year filled with magic, laughter, and milestones together. So proud of everything you have accomplished this year, and hope you have the most wonderful celebration today!\n\nWarmly,\n[Your Name]",
+    fontStyleId: "1",
+    fontName: "Warm Cursive",
+    etiquetteTips: [
+      {
+        title: "Make it Personal and Warm",
+        content: "Mention a favorite shared memory or milestone from the past year to make your birthday wish feel deeply personal.",
+      },
+      {
+        title: "Send with Time to Spare",
+        content: "We handle pen-writing and USPS First Class stamping so it arrives right on time for their special day.",
+      },
+    ],
+    faq: [
+      {
+        question: "Can I schedule the send date for their birthday?",
+        answer: "Yes! In Step 3 you can pick an exact scheduled send date to ensure timely mailbox arrival.",
+      },
+    ],
+  },
+
+  // 9. BIRTHDAY: Milestone 50th, 60th, or 70th Birthday
   {
     slug: "milestone-birthday",
     aliases: [

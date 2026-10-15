@@ -42,19 +42,27 @@ export function useDraft(options: UseDraftOptions = {}) {
   useEffect(() => {
     const existing = loadDraft(storageRef.current);
     const existingOccasion = canonicalOccasion(existing?.selectedDesign?.occasion);
-    const targetOccasion = canonicalOccasion(initialOccasion);
+    const targetOccasion = canonicalOccasion(initialOccasion || "thinking-of-you");
     const isOccasionMismatch = Boolean(
       existing &&
-      initialOccasion &&
-      targetOccasion !== "general" &&
-      existingOccasion !== "general" &&
       existingOccasion !== targetOccasion
     );
 
     if (existing && !isOccasionMismatch) {
       dispatch({ type: "HYDRATE_DRAFT", payload: existing });
     } else {
-      // If an initial preset or curated scenario was passed via URL/context and no draft was present:
+      if (isOccasionMismatch) {
+        // Cross-occasion draft detected: purge foreign draft from storage immediately
+        clearStorageDraft(storageRef.current);
+        // Retain existing delivery addresses so user doesn't have to retype them
+        if (existing?.recipient) {
+          dispatch({ type: "UPDATE_RECIPIENT", payload: existing.recipient });
+        }
+        if (existing?.sender) {
+          dispatch({ type: "UPDATE_SENDER", payload: existing.sender });
+        }
+      }
+      // If an initial preset or curated scenario was passed via URL/context:
       if (initialPresetUrl && initialPresetTitle) {
         dispatch({
           type: "SELECT_DESIGN",
@@ -62,7 +70,7 @@ export function useDraft(options: UseDraftOptions = {}) {
             presetId: initialPresetId,
             imageUrl: initialPresetUrl,
             title: initialPresetTitle,
-            occasion: initialOccasion,
+            occasion: initialOccasion || targetOccasion,
             source: "preset",
             accepted: Boolean(initialHandwrittenNote), // Pre-seeded curated scenario starts accepted
           },

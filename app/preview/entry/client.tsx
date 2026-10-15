@@ -106,15 +106,16 @@ export function EntryPrototypeClient({
       const found = matchOccasionToPreset(occasionParam);
       if (found) return found;
     }
-    if (isAutoSelectMode) {
-      return CARD_PRESETS[0];
-    }
-    return undefined;
-  }, [presetParam, occasionParam, isAutoSelectMode]);
+    return CARD_PRESETS[0];
+  }, [presetParam, occasionParam]);
 
   const targetOccasionSlug = useMemo(() => {
-    return canonicalOccasion(occasionParam || scenarioSlug || initialPreset?.occasion);
-  }, [occasionParam, scenarioSlug, initialPreset?.occasion]);
+    if (occasionParam) return canonicalOccasion(occasionParam);
+    if (initialOccasion) return canonicalOccasion(initialOccasion);
+    if (scenarioSlug) return canonicalOccasion(scenarioSlug);
+    if (initialPreset?.occasion) return canonicalOccasion(initialPreset.occasion);
+    return "thinking-of-you";
+  }, [occasionParam, initialOccasion, scenarioSlug, initialPreset?.occasion]);
 
   const resolvedInitialPresetId = scenarioSlug || initialPreset?.id || CARD_PRESETS[0].id;
   const resolvedInitialPresetTitle =
@@ -255,19 +256,32 @@ export function EntryPrototypeClient({
     const currentDesignOccasion = canonicalOccasion(draft.selectedDesign?.occasion);
     const isDesignMismatched = Boolean(
       draft.selectedDesign &&
-      targetOccasionSlug !== "general" &&
-      currentDesignOccasion !== "general" &&
-      currentDesignOccasion !== targetOccasionSlug
+      (
+        currentDesignOccasion !== targetOccasionSlug ||
+        (scenarioSlug && draft.selectedDesign.presetId && draft.selectedDesign.presetId !== scenarioSlug) ||
+        (!scenarioSlug && draft.selectedDesign.presetId && draft.selectedDesign.presetId === "loss-of-beloved-pet" && targetOccasionSlug === "sympathy")
+      )
     );
 
     if ((!draft.selectedDesign || isDesignMismatched) && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
+      if (isDesignMismatched) {
+        try {
+          localStorage.removeItem("smn_active_draft_v2");
+          if (currentDesignOccasion) {
+            localStorage.removeItem(`smn_active_draft_v2_${currentDesignOccasion}`);
+          }
+        } catch {
+          // ignore
+        }
+      }
+
       dispatch({
         type: "SELECT_DESIGN",
         payload: {
           presetId: resolvedInitialPresetId,
           imageUrl: resolvedInitialPresetUrl,
           title: resolvedInitialPresetTitle,
-          occasion: occasionParam || initialPreset?.occasion,
+          occasion: occasionParam || initialPreset?.occasion || targetOccasionSlug,
           source: "preset",
           accepted: isAutoSelectMode || Boolean(initialHandwrittenNote),
         },
@@ -284,8 +298,8 @@ export function EntryPrototypeClient({
             style: mappedInitialFont,
           },
         });
-        if (parsedScenario?.salutation) setSalutation(parsedScenario.salutation);
-        if (parsedScenario?.signOff) setSignOff(parsedScenario.signOff);
+        setSalutation(parsedScenario?.salutation || "");
+        setSignOff(parsedScenario?.signOff || "");
       }
     }
 
@@ -362,15 +376,24 @@ export function EntryPrototypeClient({
 
       const savedOccasion = canonicalOccasion(parsed.canonicalOccasion || parsed.occasionSlug);
       const isCrossOccasion = Boolean(
-        targetOccasionSlug !== "general" &&
-        savedOccasion !== "general" &&
-        savedOccasion !== targetOccasionSlug
+        savedOccasion !== targetOccasionSlug ||
+        (scenarioSlug && parsed.scenarioSlug && parsed.scenarioSlug !== scenarioSlug) ||
+        (!scenarioSlug && parsed.scenarioSlug && parsed.scenarioSlug === "loss-of-beloved-pet" && targetOccasionSlug === "sympathy")
       );
 
       // If cross-occasion draft detected:
       // DO NOT restore note, greeting, sign-off, or cover from foreign occasion!
-      // Only preserve sender/recipient addresses so the user doesn't have to retype them.
+      // Completely clear mismatched draft from global localStorage so old occasion never bleeds!
       if (isCrossOccasion) {
+        try {
+          localStorage.removeItem("smn_active_draft_v2");
+          if (savedOccasion) {
+            localStorage.removeItem(`smn_active_draft_v2_${savedOccasion}`);
+          }
+        } catch {
+          // ignore
+        }
+
         if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
           setRecipient(parsed.recipientAddress);
         }
@@ -519,6 +542,7 @@ export function EntryPrototypeClient({
         coverId: currentCard.presetId,
         occasionSlug: currentCard.occasion,
         canonicalOccasion: targetOccasionSlug,
+        scenarioSlug: scenarioSlug || undefined,
         insideNoteText: draft.note.text,
         salutation,
         signOff,

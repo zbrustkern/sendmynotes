@@ -199,10 +199,44 @@ assert(
   primaryThankYou.handwrittenNote.includes("generosity") || primaryThankYou.handwrittenNote.includes("kindness"),
   "Primary thank you note contains warm personal gratitude (kindness/generosity)"
 );
-assert(generalPreset.id === "preset-thankyou-botanical", "General studio preset #1 is Wildflower Meadow thank-you");
+assert(
+  generalPreset.id === "preset-thinking-coffee",
+  `General studio preset #1 is 'preset-thinking-coffee' (got '${generalPreset.id}')`
+);
 
-// --- 7. Testing Cross-Occasion Draft Bleed Isolation ---
-console.log("\n--- 7. Testing Cross-Occasion Draft Bleed Isolation ---");
+// --- 7. Testing Birthday Warm Personal Default (No Milestone Brackets) ---
+console.log("\n--- 7. Testing Birthday Warm Personal Defaults ---");
+const birthdayScenarios = getScenariosByOccasion("birthday");
+assert(birthdayScenarios.length > 0, "Birthday scenarios exist");
+const primaryBirthday = birthdayScenarios[0];
+assert(primaryBirthday.slug === "happy-birthday", `Primary birthday slug is 'happy-birthday' (got '${primaryBirthday.slug}')`);
+assert(primaryBirthday.coverUrl === "/presets/birthday-cake.jpg", "Primary birthday cover is birthday cake");
+assert(!primaryBirthday.handwrittenNote.includes("[50th/60th/70th]"), "Primary birthday note has no bracketed milestone templates");
+assert(
+  primaryBirthday.handwrittenNote.includes("Happy Birthday!") && primaryBirthday.handwrittenNote.includes("magic"),
+  "Primary birthday note contains warm celebration text"
+);
+
+// --- 8. Testing Sympathy Defaults: Category vs Leaf Pet Loss ---
+console.log("\n--- 8. Testing Sympathy Category vs Leaf Pet Loss Defaults ---");
+const sympathyScenarios = getScenariosByOccasion("sympathy");
+assert(sympathyScenarios.length > 0, "Sympathy scenarios exist");
+const primarySympathy = sympathyScenarios[0];
+assert(primarySympathy.slug === "heartfelt-condolences", `Primary sympathy slug is 'heartfelt-condolences' (got '${primarySympathy.slug}')`);
+assert(primarySympathy.coverUrl === "/presets/sympathy-typography.jpg", "Primary sympathy cover is Here for You typography");
+assert(!primarySympathy.handwrittenNote.toLowerCase().includes("pet"), "Primary sympathy note does NOT mention pet");
+assert(
+  primarySympathy.handwrittenNote.includes("gentle comfort") || primarySympathy.handwrittenNote.includes("peace"),
+  "Primary sympathy note contains gentle comfort text"
+);
+
+// Leaf Pet Loss
+const leafPetScenario = getScenario("sympathy", "loss-of-pet");
+assert(leafPetScenario?.slug === "loss-of-beloved-pet", "Leaf pet sympathy resolves to 'loss-of-beloved-pet'");
+assert(leafPetScenario?.coverUrl === "/presets/pet-sympathy-rainbow.jpg", "Leaf pet sympathy cover is rainbow paws");
+
+// --- 9. Testing Cross-Occasion Draft Bleed Isolation ---
+console.log("\n--- 9. Testing Cross-Occasion Draft Bleed Isolation ---");
 const storedSympathyDraft = {
   coverId: "preset-sympathy-quiet-sky",
   occasionSlug: "Sympathy & Support",
@@ -212,12 +246,13 @@ const storedSympathyDraft = {
 // Navigating to Birthday route:
 const incomingBirthdayOccasion = canonicalOccasion("birthday");
 const savedOccasion = canonicalOccasion(storedSympathyDraft.occasionSlug);
-const isCrossOccasionBleed = Boolean(
-  incomingBirthdayOccasion !== "general" &&
-  savedOccasion !== "general" &&
-  savedOccasion !== incomingBirthdayOccasion
-);
-assert(isCrossOccasionBleed === true, "Cross-occasion bleed is correctly detected between Sympathy draft and Birthday route");
+const isCrossOccasionBirthday = savedOccasion !== incomingBirthdayOccasion;
+assert(isCrossOccasionBirthday === true, "Cross-occasion bleed detected between Sympathy draft and Birthday route");
+
+// Navigating to Root Studio (Thinking of You):
+const incomingRootOccasion = canonicalOccasion("Thinking of You");
+const isCrossOccasionRoot = savedOccasion !== incomingRootOccasion;
+assert(isCrossOccasionRoot === true, "Cross-occasion bleed detected between Sympathy draft and Root Studio (Thinking of You)");
 
 // Navigating to matching Sympathy route:
 const incomingSympathyOccasion = canonicalOccasion("sympathy");
