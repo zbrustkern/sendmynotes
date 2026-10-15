@@ -20,8 +20,8 @@ const PRESET_COVERS = [
     url: "/presets/thank-you-botanical.jpg",
   },
   {
-    title: "Quiet Morning Still Life",
-    url: "/presets/thinking-of-you-coffee.jpg",
+    title: "Misty Pines & Dawn",
+    url: "/presets/thinking-of-you-misty-pines.jpg",
   },
   {
     title: "Golden Cheers Coupes",

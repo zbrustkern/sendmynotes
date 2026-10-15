@@ -328,13 +328,13 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultHandwrittenNote: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I am so grateful to have you in my corner!",
   },
   {
-    id: "preset-thankyou-executive",
+    id: "preset-thankyou-laurel",
     occasion: "Thank You",
-    title: "With Sincere Gratitude",
-    prompt: "Refined minimalist gouache composition with warm ivory and slate blue tones, vintage brass fountain pen, and subtle botanical geometry",
-    imageUrl: "/presets/thank-you-executive.jpg",
+    title: "Olive & Laurel Wreath",
+    prompt: "Classical botanical garland wreath of lush green olive branches, golden bay laurel leaves, and delicate ivory blossom accents on warm cream",
+    imageUrl: "/presets/thank-you-laurel-wreath.jpg",
     defaultPrintedMessage: "",
-    defaultHandwrittenNote: "Thank you so much for your time, invaluable mentorship, and generosity. I am deeply grateful for your perspective and support.",
+    defaultHandwrittenNote: "Thank you so much for your guidance, encouragement, and generosity. Your support has made an extraordinary difference and I am deeply grateful.",
   },
 
   // --- Thinking of You ---
@@ -357,13 +357,13 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultHandwrittenNote: "Sending you so much love, peace, and healing energy today. Please take all the gentle time you need to rest and recover.",
   },
   {
-    id: "preset-thinking-warmth",
+    id: "preset-thinking-misty-pines",
     occasion: "Thinking of You",
-    title: "Morning Warmth",
-    prompt: "Quiet contemporary oil still life of a steaming coffee cup resting on warm wooden table in morning sunlight",
-    imageUrl: "/presets/thinking-of-you-coffee.jpg",
+    title: "Misty Pines & Dawn",
+    prompt: "Serene atmospheric fine-art landscape of misty blue-gray pine ridges and solitary cedar trees with soft golden morning light",
+    imageUrl: "/presets/thinking-of-you-misty-pines.jpg",
     defaultPrintedMessage: "",
-    defaultHandwrittenNote: "You crossed my mind today and I wanted to send a warm reminder of how much you are appreciated. Thinking of you and sending big hugs!",
+    defaultHandwrittenNote: "You crossed my mind today and I wanted to send a quiet reminder of how much you are loved and appreciated. Thinking of you and sending warm thoughts.",
   },
 
   // --- Congratulations ---
@@ -377,13 +377,13 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultHandwrittenNote: "Huge congratulations! Your hard work and relentless dedication have paid off in the most wonderful way. So proud of you—pop the bubbly!",
   },
   {
-    id: "preset-congrats-newhome",
+    id: "preset-congrats-summit",
     occasion: "Congratulations",
-    title: "Welcome Home",
-    prompt: "Sunlit sage green front door in warm artisanal gouache with terracotta brick, welcoming botanical boxwood wreath, and potted lemon topiary",
-    imageUrl: "/presets/congrats-new-home.jpg",
+    title: "The Golden Summit",
+    prompt: "Majestic mountain peak rising above dawn clouds crowned with radiant golden sunrise beams breaking through deep indigo morning mist",
+    imageUrl: "/presets/congrats-golden-summit.jpg",
     defaultPrintedMessage: "",
-    defaultHandwrittenNote: "Congratulations on your beautiful new home! Wishing you countless cozy evenings, joyful memories, and happy celebrations in your new space.",
+    defaultHandwrittenNote: "Huge congratulations on reaching the summit of this amazing achievement! So proud of your hard work, dedication, and brilliance.",
   },
   {
     id: "preset-congrats-celebration",
