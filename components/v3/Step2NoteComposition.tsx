@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
   PenTool,
   Sparkles,
@@ -294,6 +294,45 @@ export function Step2NoteComposition({
     }
   };
 
+  // Track initial values on mount to differentiate between pre-filled default template and real edits
+  const initialValuesRef = useRef({
+    salutation,
+    bodyNote,
+    signOff,
+  });
+
+  const firedStep3Ref = useRef(false);
+
+  // Emit default_template_loaded on passive mount if initial note is pre-populated
+  // Never fire step_3_note_typed passively!
+  useEffect(() => {
+    if (bodyNote.trim().length > 0) {
+      trackEvent("default_template_loaded", 2, {
+        charCount: fullText.length,
+        occasion,
+        scenarioSlug,
+        noteEdited: false,
+      });
+    }
+  }, []); // Run once on component mount
+
+  // Fire step_3_note_typed ONLY when the user actively interacts
+  const markNoteAsEditedAndFireStep3 = useCallback(
+    (charLength: number, fromStarterPrompt = false, field = "body") => {
+      if (!firedStep3Ref.current) {
+        firedStep3Ref.current = true;
+        trackEvent("step_3_note_typed", 2, {
+          charCount: charLength,
+          usedStarterPrompt: fromStarterPrompt,
+          noteEdited: true,
+          isDirty: true,
+          inputField: field,
+        });
+      }
+    },
+    []
+  );
+
   const applyInspirationText = (text: string) => {
     setPreviousBodyNote(bodyNote);
     const projectedCombined = [salutation, text, signOff].filter(Boolean).join("\n\n");
@@ -304,6 +343,7 @@ export function Step2NoteComposition({
       onChangeBodyNote(text);
     }
     setPendingInspiration(null);
+    markNoteAsEditedAndFireStep3(text.length, false, "inspiration");
   };
 
   // Available covers for quick switcher (at least 6 designs)
@@ -328,10 +368,7 @@ export function Step2NoteComposition({
       occasion,
       promptNumber,
     });
-    trackEvent("step_3_note_typed", 2, {
-      charCount: prompt.template.length,
-      usedStarterPrompt: true,
-    });
+    markNoteAsEditedAndFireStep3(prompt.template.length, true, "starterPrompt");
   };
 
   const handleUseStarter = (starterText: string) => {
@@ -360,11 +397,8 @@ export function Step2NoteComposition({
       }
     }
 
-    if (newBody.trim().length >= 10) {
-      trackEvent("step_3_note_typed", 2, {
-        charCount: newBody.length,
-        usedStarterPrompt: false,
-      });
+    if (newBody !== initialValuesRef.current.bodyNote) {
+      markNoteAsEditedAndFireStep3(newBody.length, false, "body");
     }
   };
 
@@ -548,6 +582,9 @@ export function Step2NoteComposition({
                   if (projected.length <= MAX_CHARS) {
                     onChangeSalutation(val);
                   }
+                  if (val !== initialValuesRef.current.salutation) {
+                    markNoteAsEditedAndFireStep3(bodyNote.length, false, "greeting");
+                  }
                 }}
                 placeholder="e.g. Dear Eleanor,"
                 className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-2xs font-sans"
@@ -655,6 +692,9 @@ export function Step2NoteComposition({
                   const projected = [salutation, bodyNote, val].filter(Boolean).join("\n\n");
                   if (projected.length <= MAX_CHARS) {
                     onChangeSignOff(val);
+                  }
+                  if (val !== initialValuesRef.current.signOff) {
+                    markNoteAsEditedAndFireStep3(bodyNote.length, false, "signOff");
                   }
                 }}
                 placeholder="e.g. Warmly, Thomas"

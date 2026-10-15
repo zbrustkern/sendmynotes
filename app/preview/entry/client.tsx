@@ -652,6 +652,8 @@ export function EntryPrototypeClient({
     trackEvent("inside_note_edited", 2, {
       charCount: newText.length,
       hasContent: newText.trim().length > 0,
+      noteEdited: true,
+      isDirty: true,
     });
   };
 

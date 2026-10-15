@@ -38,6 +38,40 @@ export function getGoogleClientId(): string | undefined {
 }
 
 /**
+ * Gets or creates persistent client device ID for browser
+ */
+export function getClientId(): string {
+  if (typeof window === "undefined") {
+    return "server_client";
+  }
+  try {
+    let cid = window.localStorage.getItem("smn_client_id");
+    if (!cid) {
+      cid = `cid_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
+      window.localStorage.setItem("smn_client_id", cid);
+    }
+    return cid;
+  } catch {
+    return "unknown_client";
+  }
+}
+
+/**
+ * Checks whether this browser is marked as founder device via localStorage or cookie
+ */
+export function isFounderDevice(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      window.localStorage.getItem("smn_founder_device") === "1" ||
+      (typeof document !== "undefined" && document.cookie.includes("smn_founder_device=1"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Categorizes the visitor's device based on viewport and user agent
  */
 export function getDeviceType(): "mobile" | "tablet" | "desktop" {
@@ -104,13 +138,19 @@ export async function trackEvent(
     const cleanPath = sanitizeUrlOrPath(window.location.pathname) || "/";
     const cleanLandingPath = sanitizeUrlOrPath(attr?.landingPath || window.location.pathname) || "/";
 
+    const founder = isFounderDevice();
+    const clientId = getClientId();
+
     const payload = {
       eventName,
       step,
       sessionId,
       orderId,
+      clientId,
+      ...(founder ? { is_founder: true, isFounder: true } : {}),
       metadata: {
         in_app_browser: inApp,
+        ...(founder ? { is_founder: true, isFounder: true } : {}),
         ...(metadata || {}),
       },
       timestamp: Date.now(),

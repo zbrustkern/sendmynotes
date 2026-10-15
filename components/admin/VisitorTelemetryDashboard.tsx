@@ -41,6 +41,9 @@ interface VisitorTelemetryDashboardProps {
   isMarkingFounder?: boolean;
   onMarkFounderDevice?: () => void;
   founderMarkedSuccess?: boolean;
+  onUnflagFounderSessions?: () => void;
+  isUnflaggingFounder?: boolean;
+  unflagFounderSuccess?: string | null;
 }
 
 export function VisitorTelemetryDashboard({
@@ -58,6 +61,9 @@ export function VisitorTelemetryDashboard({
   isMarkingFounder = false,
   onMarkFounderDevice,
   founderMarkedSuccess = false,
+  onUnflagFounderSessions,
+  isUnflaggingFounder = false,
+  unflagFounderSuccess = null,
 }: VisitorTelemetryDashboardProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sessionSearch, setSessionSearch] = useState("");
@@ -177,6 +183,23 @@ export function VisitorTelemetryDashboard({
               )}
               <span>{isFounderDeviceSaved || founderMarkedSuccess ? "Founder Device Marked" : "Mark My Current Browser as Founder Device"}</span>
             </button>
+
+            {onUnflagFounderSessions && (
+              <button
+                type="button"
+                onClick={onUnflagFounderSessions}
+                disabled={isUnflaggingFounder}
+                className="flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition border cursor-pointer bg-stone-800 text-amber-300 border-amber-600/50 hover:bg-stone-700 hover:text-amber-200"
+                title="Un-flag any mobile or paid sessions that were mistakenly classified as founder by IP matching"
+              >
+                {isUnflaggingFounder ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+                ) : (
+                  <RefreshCw className="w-3.5 h-3.5 text-amber-400" />
+                )}
+                <span>{unflagFounderSuccess ? unflagFounderSuccess : "Un-flag Mistagged Traffic"}</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -473,11 +496,29 @@ export function VisitorTelemetryDashboard({
                       {/* Note Length */}
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         {session.noteLength !== undefined && session.noteLength > 0 ? (
-                          <span className="font-mono font-medium text-stone-800 text-[11px]">
-                            {session.noteLength} chars
-                          </span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono font-medium text-stone-800 text-[11px]">
+                              {session.noteLength} chars
+                            </span>
+                            {session.noteEdited ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                (Edited)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-stone-100 text-stone-600 border border-stone-200">
+                                (Default Unedited)
+                              </span>
+                            )}
+                          </div>
                         ) : (
-                          <span className="text-stone-400 text-[11px] italic">Typed / Prompt</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-stone-400 text-[11px] italic">Typed / Prompt</span>
+                            {session.noteEdited && (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                (Edited)
+                              </span>
+                            )}
+                          </div>
                         )}
                       </td>
 

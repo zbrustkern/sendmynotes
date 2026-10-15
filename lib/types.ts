@@ -259,6 +259,7 @@ export type TelemetryEventName =
   | "step_5_checkout_initiated"
   | "step_6_paid_order"
   | "starter_prompt_used"
+  | "default_template_loaded"
   // Source plan §10 additions:
   | "landing_viewed"
   | "builder_started"
@@ -307,6 +308,9 @@ export interface TelemetryEvent {
   ipCountry?: string;
   userAgent?: string;
   isBot?: boolean;
+  clientId?: string;
+  isFounder?: boolean;
+  is_founder?: boolean;
 }
 
 // Programmatic SEO Scenario Types
@@ -441,6 +445,8 @@ export interface VisitorSessionRecord {
   usedAddressDeferral?: boolean;
   lastValidationError?: string;
   noteLength?: number;
+  noteEdited?: boolean;
+  clientId?: string;
   isFounder?: boolean;
 }
 

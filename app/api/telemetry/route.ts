@@ -93,7 +93,14 @@ export async function POST(req: NextRequest) {
       googleClientId,
       deviceType,
       screenResolution,
+      clientId: rawClientId,
+      is_founder: rawIsFounder,
+      isFounder: rawIsFounderAlt,
     } = body;
+
+    const cookieFounder = req.cookies.get("smn_founder_device")?.value === "1";
+    const isFounder = Boolean(rawIsFounder || rawIsFounderAlt || cookieFounder);
+    const clientId = typeof rawClientId === "string" ? rawClientId.slice(0, 100) : undefined;
 
     if (!eventName || typeof eventName !== "string" || !sessionId || typeof sessionId !== "string") {
       return NextResponse.json({ error: "Missing required fields (eventName, sessionId)" }, { status: 400 });
@@ -202,6 +209,8 @@ export async function POST(req: NextRequest) {
       ipCountry,
       userAgent: userAgent ? userAgent.slice(0, 300) : undefined,
       isBot,
+      clientId,
+      ...(isFounder ? { isFounder: true, is_founder: true } : {}),
     };
 
     // Persist event and update aggregated summary atomically

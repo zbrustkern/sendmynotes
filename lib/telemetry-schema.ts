@@ -67,6 +67,7 @@ export const ALLOWED_BROWSER_EVENT_NAMES = new Set<TelemetryEventName>([
   "step_5_checkout_initiated",
   "step_6_paid_order",
   "starter_prompt_used",
+  "default_template_loaded",
 ]);
 
 export type AllowedFieldType = "string" | "number" | "boolean";
@@ -86,6 +87,11 @@ export const COMMON_METADATA_RULES: Record<string, FieldRule> = {
   in_app_browser: { type: "boolean" },
   used_address_deferral: { type: "boolean" },
   last_validation_error: { type: "string", maxLength: 200 },
+  noteEdited: { type: "boolean" },
+  isDirty: { type: "boolean" },
+  is_founder: { type: "boolean" },
+  isFounder: { type: "boolean" },
+  clientId: { type: "string", maxLength: 100 },
 };
 
 /**
@@ -232,10 +238,20 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     auto_selected: { type: "boolean" },
     in_app_browser: { type: "boolean" },
   },
+  default_template_loaded: {
+    charCount: { type: "number" },
+    occasion: { type: "string", maxLength: 50 },
+    scenarioSlug: { type: "string", maxLength: 100 },
+    noteEdited: { type: "boolean" },
+    in_app_browser: { type: "boolean" },
+  },
   step_3_note_typed: {
     charCount: { type: "number" },
     fontId: { type: "string", maxLength: 50 },
     usedStarterPrompt: { type: "boolean" },
+    noteEdited: { type: "boolean" },
+    isDirty: { type: "boolean" },
+    inputField: { type: "string", maxLength: 50 },
     in_app_browser: { type: "boolean" },
   },
   step_4a_address_viewed: {

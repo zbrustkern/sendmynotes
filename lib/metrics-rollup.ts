@@ -347,11 +347,31 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     if (usedAddressDeferral) existingSession.usedAddressDeferral = true;
     if (lastValidationError) existingSession.lastValidationError = lastValidationError;
     if (noteLength !== undefined) existingSession.noteLength = Math.max(existingSession.noteLength || 0, noteLength);
+    const isFounderEvt = Boolean(event.isFounder || event.is_founder || event.metadata?.is_founder || event.metadata?.isFounder);
+    if (isFounderEvt) existingSession.isFounder = true;
+    if (event.clientId && !existingSession.clientId) existingSession.clientId = event.clientId;
+    const isNoteEditEvt = Boolean(
+      event.metadata?.noteEdited === true ||
+      event.eventName === "step_3_note_typed" ||
+      event.eventName === "starter_prompt_used" ||
+      event.eventName === "inside_note_edited"
+    );
+    if (isNoteEditEvt) existingSession.noteEdited = true;
+    else if (event.eventName === "default_template_loaded" && existingSession.noteEdited !== true) {
+      existingSession.noteEdited = false;
+    }
   } else {
     const isCompleted =
       event.eventName === "purchase_verified" ||
       event.eventName === "payment_succeeded" ||
       event.eventName === "step_6_paid_order";
+    const isFounderEvt = Boolean(event.isFounder || event.is_founder || event.metadata?.is_founder || event.metadata?.isFounder);
+    const isNoteEditEvt = Boolean(
+      event.metadata?.noteEdited === true ||
+      event.eventName === "step_3_note_typed" ||
+      event.eventName === "starter_prompt_used" ||
+      event.eventName === "inside_note_edited"
+    );
     const newSession: VisitorSessionRecord = {
       sessionId: event.sessionId,
       firstSeenAt: Date.now(),
@@ -378,6 +398,9 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
       usedAddressDeferral,
       lastValidationError,
       noteLength,
+      isFounder: isFounderEvt,
+      clientId: event.clientId,
+      noteEdited: isNoteEditEvt ? true : (event.eventName === "default_template_loaded" ? false : undefined),
     };
     summary.recentSessions.unshift(newSession);
     if (summary.recentSessions.length > 50) {
@@ -701,15 +724,13 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     toTime = options?.customTo || Date.now();
   }
 
-  // Load founder device registry from system config
+  // Load founder device registry from system config (client_id and session_id scoped only)
   const founderRegistry = (await getSystemConfig<{
-    ips?: string[];
+    clientIds?: string[];
     sessionIds?: string[];
-    userAgents?: string[];
-  }>(FOUNDER_REGISTRY_CONFIG_KEY)) || { ips: [], sessionIds: [], userAgents: [] };
+  }>(FOUNDER_REGISTRY_CONFIG_KEY)) || { clientIds: [], sessionIds: [] };
   const founderSessionIds = new Set(founderRegistry.sessionIds || []);
-  const founderIps = new Set(founderRegistry.ips || []);
-  const founderUserAgents = new Set(founderRegistry.userAgents || []);
+  const founderClientIds = new Set(founderRegistry.clientIds || []);
 
   // 1. Fetch all orders and apply date, founder exclusion, and channel filters
   const allOrdersSnap = await getOrdersCollection().get();
@@ -1044,6 +1065,13 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     const usedAddressDeferral = Boolean(evt.metadata?.used_address_deferral || evt.metadata?.usedAddressDeferral);
     const lastValidationError = (evt.metadata?.last_validation_error as string) || (evt.metadata?.lastValidationError as string) || undefined;
     const noteLength = typeof evt.metadata?.charCount === "number" ? evt.metadata.charCount : undefined;
+    const isFounderEvt = Boolean(evt.is_founder || (evt as any).isFounder || evt.metadata?.is_founder || evt.metadata?.isFounder);
+    const isNoteEditEvt = Boolean(
+      evt.metadata?.noteEdited === true ||
+      evt.eventName === "step_3_note_typed" ||
+      evt.eventName === "starter_prompt_used" ||
+      evt.eventName === "inside_note_edited"
+    );
 
     let existing = sessionMap.get(sId);
     if (existing) {
@@ -1062,6 +1090,12 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
       if (usedAddressDeferral) existing.usedAddressDeferral = true;
       if (lastValidationError) existing.lastValidationError = lastValidationError;
       if (noteLength !== undefined) existing.noteLength = Math.max(existing.noteLength || 0, noteLength);
+      if (isFounderEvt) existing.isFounder = true;
+      if (evt.clientId && !existing.clientId) existing.clientId = evt.clientId;
+      if (isNoteEditEvt) existing.noteEdited = true;
+      else if (evt.eventName === "default_template_loaded" && existing.noteEdited !== true) {
+        existing.noteEdited = false;
+      }
     } else {
       const isPaid = stages.hasStage6;
       sessionMap.set(sId, {
@@ -1091,6 +1125,9 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
         usedAddressDeferral,
         lastValidationError,
         noteLength,
+        isFounder: isFounderEvt,
+        clientId: evt.clientId,
+        noteEdited: isNoteEditEvt ? true : (evt.eventName === "default_template_loaded" ? false : undefined),
       });
     }
   }
@@ -1147,10 +1184,32 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     }
 
     if (excludeFounder) {
-      if (s.isFounder) return false;
-      if (founderSessionIds.has(s.sessionId)) return false;
-      if (s.sessionId.startsWith("test_founder")) return false;
-      if (s.userAgent && founderUserAgents.has(s.userAgent)) return false;
+      // Real mobile and paid ad traffic (gclid, fbclid, utm_source google/meta) must NEVER be filtered by IP proxy contamination
+      const isMobile =
+        s.deviceType === "mobile" ||
+        (s.screenResolution && parseInt(s.screenResolution.split("x")[0] || "0", 10) < 768);
+      const isPaidOrAd = Boolean(
+        s.gclid ||
+        s.fbclid ||
+        s.campaign ||
+        (s.source && ["google", "meta", "facebook", "instagram"].includes(s.source.toLowerCase())) ||
+        (s.medium && ["cpc", "paid", "social"].includes(s.medium.toLowerCase()))
+      );
+      const isProtectedRealTraffic = isMobile || isPaidOrAd;
+
+      // Founder 3440x1440 desktop test sessions are strictly excluded
+      const isFounderDesktopResolution = s.screenResolution === "3440x1440";
+      if (isFounderDesktopResolution && !isMobile) {
+        return false;
+      }
+
+      // For non-protected traffic, exclude registered founder sessions and client IDs
+      if (!isProtectedRealTraffic) {
+        if (s.isFounder) return false;
+        if (founderSessionIds.has(s.sessionId)) return false;
+        if (s.sessionId.startsWith("test_founder")) return false;
+        if (s.clientId && founderClientIds.has(s.clientId)) return false;
+      }
     }
 
     if (!matchesChannelFilter(channel, s.source, s.medium, s.campaign, s.gclid, s.fbclid)) {

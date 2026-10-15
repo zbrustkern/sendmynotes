@@ -67,6 +67,7 @@ import { AdminFeatureFlagsTab } from "@/components/admin/AdminFeatureFlagsTab";
 import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
 import { CampaignPerformanceWidget } from "@/components/admin/CampaignPerformanceWidget";
 import { HighIntentCartsWidget } from "@/components/admin/HighIntentCartsWidget";
+import { getClientId, getSessionId } from "@/lib/telemetry";
 
 export default function AdminDashboardPage() {
   const { user, signInWithGoogle, signOut: authSignOut } = useAuth();
@@ -101,6 +102,8 @@ export default function AdminDashboardPage() {
   const [customTo, setCustomTo] = useState<string>("");
   const [isMarkingFounder, setIsMarkingFounder] = useState<boolean>(false);
   const [founderMarkedSuccess, setFounderMarkedSuccess] = useState<boolean>(false);
+  const [isUnflaggingFounder, setIsUnflaggingFounder] = useState<boolean>(false);
+  const [unflagFounderSuccess, setUnflagFounderSuccess] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -321,14 +324,18 @@ export default function AdminDashboardPage() {
         }
       } catch {}
 
+      const clientId = getClientId();
+      const currentSessionId = getSessionId() || storedSessionId;
+
       const res = await fetch("/api/admin/mark-founder-device", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sessionId: storedSessionId }),
+        body: JSON.stringify({ clientId, sessionId: currentSessionId }),
       });
       const data = await res.json();
       if (res.ok && data.success) {
         localStorage.setItem("smn_founder_device", "1");
+        document.cookie = "smn_founder_device=1; path=/; max-age=63072000; SameSite=Lax";
         setFounderMarkedSuccess(true);
         setTimeout(() => setFounderMarkedSuccess(false), 5000);
         await fetchMetrics();
@@ -339,6 +346,32 @@ export default function AdminDashboardPage() {
       alert("Error marking browser as founder device.");
     } finally {
       setIsMarkingFounder(false);
+    }
+  };
+
+  const handleUnflagFounderSessions = async () => {
+    if (!confirm("This will scan the database and un-flag any mobile or paid ad sessions that were mistakenly classified as founder sessions due to proxy IP matching. Real founder 3440x1440 desktop tests will remain flagged. Proceed?")) {
+      return;
+    }
+    setIsUnflaggingFounder(true);
+    setUnflagFounderSuccess(null);
+    try {
+      const res = await fetch("/api/admin/unflag-founder-sessions", {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setUnflagFounderSuccess(`Restored ${data.unflaggedSessionsCount ?? 0} sessions`);
+        alert(data.message || "Founder flags cleaned up successfully.");
+        await fetchMetrics();
+        setTimeout(() => setUnflagFounderSuccess(null), 6000);
+      } else {
+        alert(data.error || "Failed to un-flag founder sessions.");
+      }
+    } catch {
+      alert("Error calling unflag founder sessions endpoint.");
+    } finally {
+      setIsUnflaggingFounder(false);
     }
   };
 
@@ -1451,6 +1484,9 @@ export default function AdminDashboardPage() {
               isMarkingFounder={isMarkingFounder}
               onMarkFounderDevice={handleMarkFounderDevice}
               founderMarkedSuccess={founderMarkedSuccess}
+              onUnflagFounderSessions={handleUnflagFounderSessions}
+              isUnflaggingFounder={isUnflaggingFounder}
+              unflagFounderSuccess={unflagFounderSuccess}
             />
 
             {/* COHORT & HANDWRITING STYLE ANALYTICS */}
