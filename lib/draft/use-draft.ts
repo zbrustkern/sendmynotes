@@ -42,9 +42,11 @@ export function useDraft(options: UseDraftOptions = {}) {
   useEffect(() => {
     const existing = loadDraft(storageRef.current);
     const existingOccasion = canonicalOccasion(existing?.selectedDesign?.occasion);
-    const targetOccasion = canonicalOccasion(initialOccasion || "thinking-of-you");
+    const targetOccasion = initialOccasion ? canonicalOccasion(initialOccasion) : undefined;
     const isOccasionMismatch = Boolean(
       existing &&
+      targetOccasion &&
+      targetOccasion !== "general" &&
       existingOccasion !== targetOccasion
     );
 

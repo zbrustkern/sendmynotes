@@ -113,9 +113,9 @@ export function EntryPrototypeClient({
     if (occasionParam) return canonicalOccasion(occasionParam);
     if (initialOccasion) return canonicalOccasion(initialOccasion);
     if (scenarioSlug) return canonicalOccasion(scenarioSlug);
-    if (initialPreset?.occasion) return canonicalOccasion(initialPreset.occasion);
-    return "thinking-of-you";
-  }, [occasionParam, initialOccasion, scenarioSlug, initialPreset?.occasion]);
+    if (isAutoSelectMode && initialPreset?.occasion) return canonicalOccasion(initialPreset.occasion);
+    return "general";
+  }, [occasionParam, initialOccasion, scenarioSlug, isAutoSelectMode, initialPreset?.occasion]);
 
   const resolvedInitialPresetId = scenarioSlug || initialPreset?.id || CARD_PRESETS[0].id;
   const resolvedInitialPresetTitle =
@@ -253,28 +253,7 @@ export function EntryPrototypeClient({
       setStep("note");
     }
 
-    const currentDesignOccasion = canonicalOccasion(draft.selectedDesign?.occasion);
-    const isDesignMismatched = Boolean(
-      draft.selectedDesign &&
-      (
-        currentDesignOccasion !== targetOccasionSlug ||
-        (scenarioSlug && draft.selectedDesign.presetId && draft.selectedDesign.presetId !== scenarioSlug) ||
-        (!scenarioSlug && draft.selectedDesign.presetId && draft.selectedDesign.presetId === "loss-of-beloved-pet" && targetOccasionSlug === "sympathy")
-      )
-    );
-
-    if ((!draft.selectedDesign || isDesignMismatched) && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
-      if (isDesignMismatched) {
-        try {
-          localStorage.removeItem("smn_active_draft_v2");
-          if (currentDesignOccasion) {
-            localStorage.removeItem(`smn_active_draft_v2_${currentDesignOccasion}`);
-          }
-        } catch {
-          // ignore
-        }
-      }
-
+    if (!draft.selectedDesign && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
       dispatch({
         type: "SELECT_DESIGN",
         payload: {
@@ -286,21 +265,6 @@ export function EntryPrototypeClient({
           accepted: isAutoSelectMode || Boolean(initialHandwrittenNote),
         },
       });
-
-      if (isDesignMismatched) {
-        const starterNote = parsedScenario?.bodyNote || initialPreset?.defaultHandwrittenNote || "";
-        dispatch({
-          type: "UPDATE_NOTE",
-          payload: {
-            text: starterNote,
-            salutation: parsedScenario?.salutation || "",
-            signOff: parsedScenario?.signOff || "",
-            style: mappedInitialFont,
-          },
-        });
-        setSalutation(parsedScenario?.salutation || "");
-        setSignOff(parsedScenario?.signOff || "");
-      }
     }
 
     if (draft.note.salutation !== undefined && draft.note.salutation !== "") {
@@ -376,9 +340,12 @@ export function EntryPrototypeClient({
 
       const savedOccasion = canonicalOccasion(parsed.canonicalOccasion || parsed.occasionSlug);
       const isCrossOccasion = Boolean(
-        savedOccasion !== targetOccasionSlug ||
-        (scenarioSlug && parsed.scenarioSlug && parsed.scenarioSlug !== scenarioSlug) ||
-        (!scenarioSlug && parsed.scenarioSlug && parsed.scenarioSlug === "loss-of-beloved-pet" && targetOccasionSlug === "sympathy")
+        targetOccasionSlug !== "general" &&
+        (
+          savedOccasion !== targetOccasionSlug ||
+          (scenarioSlug && parsed.scenarioSlug && parsed.scenarioSlug !== scenarioSlug) ||
+          (!scenarioSlug && parsed.scenarioSlug && parsed.scenarioSlug === "loss-of-beloved-pet" && targetOccasionSlug === "sympathy")
+        )
       );
 
       // If cross-occasion draft detected:

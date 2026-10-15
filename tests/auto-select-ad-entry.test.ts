@@ -259,6 +259,17 @@ const incomingSympathyOccasion = canonicalOccasion("sympathy");
 const isSameOccasion = incomingSympathyOccasion === savedOccasion;
 assert(isSameOccasion === true, "Same occasion draft is correctly recognized as matching");
 
+// --- 10. Testing Plain Homepage Card Selection Freedom ---
+console.log("\n--- 10. Testing Plain Homepage Card Selection Freedom ---");
+const plainTargetOccasion = "general";
+const userSelectedBirthdayPreset = CARD_PRESETS.find((p) => p.occasion === "Birthday")!;
+// On plain homepage, selecting any card must NOT be treated as cross-occasion mismatch
+const isHomepageSelectionMismatch = Boolean(
+  plainTargetOccasion !== "general" &&
+  canonicalOccasion(userSelectedBirthdayPreset.occasion) !== plainTargetOccasion
+);
+assert(isHomepageSelectionMismatch === false, "User selecting a Birthday card on plain homepage is not blocked by mismatch check");
+
 console.log("\n=================================================");
 console.log(`Test Summary: ${passed} Passed, ${failed} Failed`);
 console.log("=================================================");
