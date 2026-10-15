@@ -106,6 +106,40 @@ export default async function ScenarioPage({ params, searchParams }: PageProps) 
 
   const canonicalUrl = `https://sendmynotes.com/send/${scenario.occasionSlug}/${scenario.slug}`;
 
+  const autoParam = resolvedParams["auto_select"];
+  const utmSource = typeof resolvedParams["utm_source"] === "string" ? resolvedParams["utm_source"].toLowerCase() : undefined;
+  const isAuto = autoParam === "1" || utmSource === "google" || utmSource === "meta";
+
+  if (isAuto) {
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-8">
+            <div className="text-center space-y-3">
+              <div className="w-8 h-8 border-2 border-stone-300 border-t-amber-800 rounded-full animate-spin mx-auto" />
+              <p className="text-xs font-serif uppercase tracking-widest text-stone-600">
+                Opening {scenario.h1Title}...
+              </p>
+            </div>
+          </div>
+        }
+      >
+        <ExperienceRouter
+          initialIsV3={isV3}
+          initialOccasion={scenario.occasionName}
+          initialCoverUrl={scenario.coverUrl}
+          initialPrintedGreeting={scenario.printedGreeting}
+          initialHandwrittenNote={scenario.handwrittenNote}
+          initialFontStyleId={scenario.fontStyleId}
+          scenarioSlug={scenario.slug}
+          scenarioTitle={scenario.h1Title}
+          embedded={false}
+          initialStep="note"
+        />
+      </Suspense>
+    );
+  }
+
   // Structured Data: Product + Offer Schema
   const productSchema = {
     "@context": "https://schema.org",

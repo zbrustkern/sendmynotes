@@ -222,12 +222,14 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     landingPath: { type: "string", maxLength: 100 },
     in_app_browser: { type: "boolean" },
     autoSelected: { type: "boolean" },
+    auto_selected: { type: "boolean" },
   },
   step_2_cover_ready: {
     presetId: { type: "string", maxLength: 100 },
     occasion: { type: "string", maxLength: 50 },
     title: { type: "string", maxLength: 100 },
     autoSelected: { type: "boolean" },
+    auto_selected: { type: "boolean" },
     in_app_browser: { type: "boolean" },
   },
   step_3_note_typed: {

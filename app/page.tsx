@@ -9,6 +9,9 @@ interface PageProps {
 export default async function Home({ searchParams }: PageProps) {
   const resolvedParams = searchParams ? await searchParams : {};
   const isV3 = await isReworkV3Enabled({ searchParams: resolvedParams });
+  const autoParam = resolvedParams["auto_select"];
+  const utmSource = typeof resolvedParams["utm_source"] === "string" ? resolvedParams["utm_source"].toLowerCase() : undefined;
+  const isAuto = autoParam === "1" || utmSource === "google" || utmSource === "meta";
 
   return (
     <Suspense
@@ -23,7 +26,7 @@ export default async function Home({ searchParams }: PageProps) {
         </div>
       }
     >
-      <ExperienceRouter initialIsV3={isV3} />
+      <ExperienceRouter initialIsV3={isV3} initialStep={isAuto ? "note" : undefined} />
     </Suspense>
   );
 }

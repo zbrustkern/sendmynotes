@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { CARD_PRESETS, OCCASIONS, CardPreset } from "@/lib/card-presets";
+import { CARD_PRESETS, OCCASIONS, CardPreset, matchOccasionToPreset, getTopPresetForOccasion } from "@/lib/card-presets";
 import { useDraft, AddressDraft } from "@/lib/draft";
 import {
   FlowHeader,
@@ -81,23 +81,41 @@ export function EntryPrototypeClient({
     return mapScenarioFontId(initialFontStyleId);
   }, [initialFontStyleId]);
 
+  // Deep link auto-selection detection: occasion routes, scenario slug, auto_select=1, or paid traffic UTMs
+  const autoParam = searchParams?.get("auto_select");
+  const utmSource = searchParams?.get("utm_source")?.toLowerCase();
+
+  const isAutoSelectMode = useMemo(() => {
+    return Boolean(
+      scenarioSlug ||
+      initialHandwrittenNote ||
+      autoParam === "1" ||
+      utmSource === "google" ||
+      utmSource === "meta" ||
+      (occasionParam && !presetParam)
+    );
+  }, [scenarioSlug, initialHandwrittenNote, autoParam, utmSource, occasionParam, presetParam]);
+
   // Resolve contextual preselection if specified
   const initialPreset = useMemo(() => {
     if (presetParam) {
-      return CARD_PRESETS.find((p) => p.id === presetParam);
+      const found = CARD_PRESETS.find((p) => p.id.toLowerCase() === presetParam.toLowerCase());
+      if (found) return found;
     }
     if (occasionParam) {
-      return CARD_PRESETS.find(
-        (p) => p.occasion.toLowerCase() === occasionParam.toLowerCase()
-      );
+      const found = matchOccasionToPreset(occasionParam);
+      if (found) return found;
+    }
+    if (isAutoSelectMode) {
+      return CARD_PRESETS[0];
     }
     return undefined;
-  }, [presetParam, occasionParam]);
+  }, [presetParam, occasionParam, isAutoSelectMode]);
 
-  const resolvedInitialPresetId = scenarioSlug || initialPreset?.id;
+  const resolvedInitialPresetId = scenarioSlug || initialPreset?.id || CARD_PRESETS[0].id;
   const resolvedInitialPresetTitle =
-    scenarioTitle || initialPreset?.title || (occasionParam ? `${occasionParam} Card` : "Custom Card");
-  const resolvedInitialPresetUrl = initialCoverUrl || initialPreset?.imageUrl;
+    scenarioTitle || initialPreset?.title || (occasionParam ? `${occasionParam} Card` : CARD_PRESETS[0].title);
+  const resolvedInitialPresetUrl = initialCoverUrl || initialPreset?.imageUrl || CARD_PRESETS[0].imageUrl;
 
   const { draft, dispatch, clearDraft, isLoaded } = useDraft({
     experienceVersion: "candidate_v1",
@@ -111,24 +129,12 @@ export function EntryPrototypeClient({
     initialFontStyleId: mappedInitialFont,
   });
 
-  // Deep link auto-selection detection: occasion routes, scenario slug, auto_select=1, or paid traffic UTMs
-  const isAutoSelectMode = useMemo(() => {
-    const utmSource = searchParams?.get("utm_source")?.toLowerCase();
-    const autoParam = searchParams?.get("auto_select");
-    return Boolean(
-      scenarioSlug ||
-      initialHandwrittenNote ||
-      autoParam === "1" ||
-      utmSource === "google" ||
-      utmSource === "meta" ||
-      (occasionParam && !presetParam)
-    );
-  }, [scenarioSlug, initialHandwrittenNote, searchParams, occasionParam, presetParam]);
-
   // Current active step (curated deep links & paid ads default directly to 'note' studio)
-  const [step, setStep] = useState<FlowStep>(
-    initialStep || (isAutoSelectMode ? "note" : "card")
-  );
+  const effectiveInitialStep: FlowStep = isAutoSelectMode
+    ? "note"
+    : (initialStep || "card");
+
+  const [step, setStep] = useState<FlowStep>(effectiveInitialStep);
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
 
   // Address deferral bypass & mobile keyboard/validation states
@@ -227,6 +233,13 @@ export function EntryPrototypeClient({
         // No order identity found — do not certify completed
         setIsOrderConfirmed(false);
       }
+    } else if (isAutoSelectMode) {
+      // Auto-selection takes precedence over default "card" currentStep from createInitialDraft
+      if (draft.currentStep === "address" || draft.currentStep === "pay") {
+        setStep(draft.currentStep as FlowStep);
+      } else {
+        setStep("note");
+      }
     } else if (draft.currentStep && draft.currentStep !== "confirmation") {
       setStep(draft.currentStep as FlowStep);
     } else if (initialStep) {
@@ -244,7 +257,7 @@ export function EntryPrototypeClient({
           title: resolvedInitialPresetTitle,
           occasion: occasionParam || initialPreset?.occasion,
           source: "preset",
-          accepted: Boolean(initialHandwrittenNote),
+          accepted: isAutoSelectMode || Boolean(initialHandwrittenNote),
         },
       });
     }
@@ -304,6 +317,7 @@ export function EntryPrototypeClient({
     initialHandwrittenNote,
     parsedScenario?.salutation,
     parsedScenario?.signOff,
+    isAutoSelectMode,
     dispatch,
   ]);
 
@@ -332,8 +346,20 @@ export function EntryPrototypeClient({
         if (parsed.senderAddress && !sender.fullName && !sender.street1) {
           setSender(parsed.senderAddress);
         }
-        if (parsed.currentStep && parsed.currentStep !== "confirmation" && !initialStep) {
-          setStep(parsed.currentStep as FlowStep);
+        if (parsed.currentStep && parsed.currentStep !== "confirmation") {
+          if (isAutoSelectMode) {
+            // Requirement 2: If fresh visitor arrives with ?auto_select=1 and has no existing insideNoteText in localStorage,
+            // auto_select=1 must take precedence and set active step to Inside Note Editor immediately.
+            if (!parsed.insideNoteText?.trim()) {
+              setStep("note");
+            } else if (parsed.currentStep !== "card") {
+              setStep(parsed.currentStep as FlowStep);
+            } else {
+              setStep("note");
+            }
+          } else if (!initialStep) {
+            setStep(parsed.currentStep as FlowStep);
+          }
         }
         setRestoredToast(true);
         const t = setTimeout(() => setRestoredToast(false), 4500);
@@ -342,28 +368,7 @@ export function EntryPrototypeClient({
     } catch {
       // ignore
     }
-  }, []);
-
-  // Telemetry on initial load
-  useEffect(() => {
-    trackEvent("session_start", 1, { experience: "candidate_v1" });
-    trackEvent("step_1_landed", 1);
-    if (isAutoSelectMode) {
-      trackEvent("step_2_cover_ready", 1, { autoSelected: true });
-    }
-    trackGA4ViewItem({
-      itemId: CARD_PRESETS[0].id,
-      itemName: CARD_PRESETS[0].title,
-      price: 9.0,
-      itemCategory: CARD_PRESETS[0].occasion,
-    });
-    trackMetaViewContent({
-      contentId: CARD_PRESETS[0].id,
-      contentName: CARD_PRESETS[0].title,
-      contentCategory: CARD_PRESETS[0].occasion,
-      value: 9.0,
-    });
-  }, [isAutoSelectMode]);
+  }, [isAutoSelectMode, initialStep, salutation, signOff, draft.note.text, recipient.fullName, recipient.street1, sender.fullName, sender.street1, dispatch]);
 
   // Current selected card details
   const currentCard = useMemo(() => {
@@ -393,6 +398,45 @@ export function EntryPrototypeClient({
       occasion: defaultPreset.occasion,
     };
   }, [draft.selectedDesign, initialPreset, occasionParam]);
+
+  // Telemetry on initial load
+  useEffect(() => {
+    trackEvent("session_start", 1, { experience: "candidate_v1" });
+    trackEvent("step_1_landed", 1, {
+      landingPath: typeof window !== "undefined" ? window.location.pathname : undefined,
+      auto_selected: isAutoSelectMode,
+      autoSelected: isAutoSelectMode,
+    });
+    if (isAutoSelectMode) {
+      trackEvent("step_2_cover_ready", 1, {
+        presetId: resolvedInitialPresetId || currentCard.presetId,
+        occasion: occasionParam || currentCard.occasion,
+        title: resolvedInitialPresetTitle || currentCard.title,
+        auto_selected: true,
+        autoSelected: true,
+      });
+    }
+    trackGA4ViewItem({
+      itemId: resolvedInitialPresetId || CARD_PRESETS[0].id,
+      itemName: resolvedInitialPresetTitle || CARD_PRESETS[0].title,
+      price: 9.0,
+      itemCategory: occasionParam || CARD_PRESETS[0].occasion,
+    });
+    trackMetaViewContent({
+      contentId: resolvedInitialPresetId || CARD_PRESETS[0].id,
+      contentName: resolvedInitialPresetTitle || CARD_PRESETS[0].title,
+      contentCategory: occasionParam || CARD_PRESETS[0].occasion,
+      value: 9.0,
+    });
+  }, [
+    isAutoSelectMode,
+    resolvedInitialPresetId,
+    resolvedInitialPresetTitle,
+    occasionParam,
+    currentCard.presetId,
+    currentCard.occasion,
+    currentCard.title,
+  ]);
 
   // Active handwriting font
   const activeFont = useMemo(() => {

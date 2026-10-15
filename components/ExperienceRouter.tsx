@@ -43,6 +43,16 @@ export function ExperienceRouter({
     return initialIsV3;
   }, [searchParams, initialIsV3]);
 
+  const isAutoSelect = useMemo(() => {
+    if (!searchParams) return false;
+    const utm = searchParams.get("utm_source")?.toLowerCase();
+    const auto = searchParams.get("auto_select");
+    return auto === "1" || utm === "google" || utm === "meta";
+  }, [searchParams]);
+
+  const effectiveEmbedded = isAutoSelect ? false : embedded;
+  const effectiveInitialStep = isAutoSelect ? "note" : initialStep;
+
   if (isV3) {
     return (
       <EntryPrototypeClient
@@ -53,8 +63,8 @@ export function ExperienceRouter({
         initialFontStyleId={initialFontStyleId}
         scenarioSlug={scenarioSlug}
         scenarioTitle={scenarioTitle}
-        embedded={embedded}
-        initialStep={initialStep}
+        embedded={effectiveEmbedded}
+        initialStep={effectiveInitialStep}
       />
     );
   }

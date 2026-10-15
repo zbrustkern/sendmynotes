@@ -588,3 +588,63 @@ export function getCohortFontOptions(cohort: "A" | "B" = "A"): FontOption[] {
 
 export const FONT_OPTIONS: FontOption[] = getCohortFontOptions("A");
 
+/**
+ * Normalizes an occasion string and finds the top #1 matching CardPreset.
+ * Handles hyphens, aliases, and substring matches (e.g., 'sympathy' -> 'Sympathy & Support', 'thank-you' -> 'Thank You').
+ */
+export function matchOccasionToPreset(occasion: string): CardPreset | undefined {
+  if (!occasion) return undefined;
+  const raw = occasion.toLowerCase().trim();
+  const cleaned = raw.replace(/[-_&]/g, " ").replace(/\s+/g, " ").trim();
+
+  // 1. Exact or normalized equality
+  const exact = CARD_PRESETS.find((p) => {
+    const pClean = p.occasion.toLowerCase().replace(/[-_&]/g, " ").replace(/\s+/g, " ").trim();
+    return pClean === cleaned || p.occasion.toLowerCase() === raw;
+  });
+  if (exact) return exact;
+
+  // 2. Keyword/substring containment
+  const containment = CARD_PRESETS.find((p) => {
+    const pClean = p.occasion.toLowerCase().replace(/[-_&]/g, " ").replace(/\s+/g, " ").trim();
+    return pClean.includes(cleaned) || cleaned.includes(pClean);
+  });
+  if (containment) return containment;
+
+  // 3. Known occasion slug aliases
+  if (raw.includes("sympathy") || raw.includes("condolence") || raw.includes("pet") || raw.includes("loss")) {
+    return CARD_PRESETS.find((p) => p.occasion === "Sympathy & Support");
+  }
+  if (raw.includes("thank")) {
+    return CARD_PRESETS.find((p) => p.occasion === "Thank You");
+  }
+  if (raw.includes("bday") || raw.includes("birthday")) {
+    return CARD_PRESETS.find((p) => p.occasion === "Birthday");
+  }
+  if (raw.includes("congrat")) {
+    return CARD_PRESETS.find((p) => p.occasion === "Congratulations");
+  }
+  if (raw.includes("anniv")) {
+    return CARD_PRESETS.find((p) => p.occasion === "Anniversary");
+  }
+  if (raw.includes("love") || raw.includes("romance")) {
+    return CARD_PRESETS.find((p) => p.occasion === "Love & Romance");
+  }
+  if (raw.includes("think") || raw.includes("well") || raw.includes("healing")) {
+    return CARD_PRESETS.find((p) => p.occasion === "Thinking of You");
+  }
+  if (raw.includes("holiday") || raw.includes("christmas")) {
+    return CARD_PRESETS.find((p) => p.occasion === "Christmas & Holidays");
+  }
+
+  return undefined;
+}
+
+/**
+ * Returns the #1 cover preset for the given occasion, falling back to the #1 bestselling general cover.
+ */
+export function getTopPresetForOccasion(occasion?: string): CardPreset {
+  if (!occasion) return CARD_PRESETS[0];
+  return matchOccasionToPreset(occasion) || CARD_PRESETS[0];
+}
+

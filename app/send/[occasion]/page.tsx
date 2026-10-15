@@ -11,6 +11,7 @@ import {
 } from "@/lib/seo-scenarios";
 import { isReworkV3Enabled } from "@/lib/feature-flags";
 import { ExperienceRouter } from "@/components/ExperienceRouter";
+import { matchOccasionToPreset, CARD_PRESETS } from "@/lib/card-presets";
 import {
   PenTool,
   CheckCircle2,
@@ -99,6 +100,48 @@ export default async function OccasionPage({ params, searchParams }: PageProps) 
 
   const primaryScenario = scenarios[0];
   const canonicalUrl = `https://sendmynotes.com/send/${normOccasion}`;
+
+  const autoParam = resolvedParams["auto_select"];
+  const utmSource = typeof resolvedParams["utm_source"] === "string" ? resolvedParams["utm_source"].toLowerCase() : undefined;
+  const isAuto = autoParam === "1" || utmSource === "google" || utmSource === "meta";
+
+  if (isAuto) {
+    const topPreset = matchOccasionToPreset(normOccasion);
+    const defaultCoverUrl = primaryScenario?.coverUrl || topPreset?.imageUrl || CARD_PRESETS[0].imageUrl;
+    const defaultTitle = primaryScenario?.h1Title || topPreset?.title || `${meta.name} Card`;
+    const defaultOccasion = meta.name || primaryScenario?.occasionName || topPreset?.occasion;
+    const defaultNote = primaryScenario?.handwrittenNote || topPreset?.defaultHandwrittenNote;
+    const defaultGreeting = primaryScenario?.printedGreeting || "";
+    const defaultFontId = primaryScenario?.fontStyleId || "hwDavid";
+
+    return (
+      <Suspense
+        fallback={
+          <div className="min-h-screen bg-[#FAF8F5] flex items-center justify-center p-8">
+            <div className="text-center space-y-3">
+              <div className="w-8 h-8 border-2 border-stone-300 border-t-amber-800 rounded-full animate-spin mx-auto" />
+              <p className="text-xs font-serif uppercase tracking-widest text-stone-600">
+                Opening {meta.name} Studio...
+              </p>
+            </div>
+          </div>
+        }
+      >
+        <ExperienceRouter
+          initialIsV3={isV3}
+          initialOccasion={defaultOccasion}
+          initialCoverUrl={defaultCoverUrl}
+          initialPrintedGreeting={defaultGreeting}
+          initialHandwrittenNote={defaultNote}
+          initialFontStyleId={defaultFontId}
+          scenarioSlug={primaryScenario?.slug}
+          scenarioTitle={defaultTitle}
+          embedded={false}
+          initialStep="note"
+        />
+      </Suspense>
+    );
+  }
 
   const breadcrumbSchema = {
     "@context": "https://schema.org",
@@ -325,7 +368,7 @@ export default async function OccasionPage({ params, searchParams }: PageProps) 
               scenarioSlug={primaryScenario.slug}
               scenarioTitle={primaryScenario.h1Title}
               embedded={true}
-              initialStep="card"
+              initialStep="note"
             />
           </Suspense>
         </section>

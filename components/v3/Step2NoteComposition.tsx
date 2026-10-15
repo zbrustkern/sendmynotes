@@ -397,6 +397,25 @@ export function Step2NoteComposition({
         </button>
       </div>
 
+      {/* COMPACT "SWAP COVER DESIGN" PILL VISIBLE AT TOP */}
+      <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs shadow-2xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+          <span className="text-stone-700 truncate">
+            Selected Cover:{" "}
+            <strong className="text-stone-900 font-semibold">{cardTitle || "Featured Design"}</strong>
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={() => setIsCoverSheetOpen(true)}
+          className="inline-flex items-center gap-1 font-semibold text-amber-900 hover:text-amber-950 bg-white hover:bg-amber-100/80 border border-amber-300/80 px-2.5 py-1 rounded-lg shadow-2xs transition cursor-pointer shrink-0"
+        >
+          <span>Swap Cover Design</span>
+          <span className="text-[11px] text-amber-800 font-normal">({availableCovers.length}) &rarr;</span>
+        </button>
+      </div>
+
       {/* MAIN LAYOUT: SIDE-BY-SIDE ON DESKTOP, STACKED ON MOBILE */}
       <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-start">
         {/* COMPOSITION FORM (Left Column) */}
@@ -678,7 +697,7 @@ export function Step2NoteComposition({
                 </span>
               </div>
               <span className="text-amber-800 font-semibold shrink-0 group-hover:underline">
-                Swap Design ({availableCovers.length}) →
+                Swap Cover Design ({availableCovers.length}) →
               </span>
             </button>
 
