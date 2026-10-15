@@ -10,6 +10,7 @@ import {
   Eye,
   Undo2,
   Layers,
+  PenTool,
 } from "lucide-react";
 import { OCCASION_MESSAGE_BANK, MessageInspiration, CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { Sheet } from "@/components/flow/Sheet";
@@ -153,6 +154,7 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
 export interface HandwritingStyle {
   id: string;
   name: string;
+  subtitle: string;
   fontClass: string;
   fontFamily: string;
   description: string;
@@ -163,6 +165,7 @@ export const HANDWRITING_STYLES: HandwritingStyle[] = [
   {
     id: "hwDavid",
     name: "Casual David",
+    subtitle: "Neat Print",
     fontClass: "font-hwDavid",
     fontFamily: "var(--font-hw-david), 'HandwryttenDavid', cursive",
     description: "Clean, natural everyday print with effortless charm.",
@@ -171,6 +174,7 @@ export const HANDWRITING_STYLES: HandwritingStyle[] = [
   {
     id: "hwKate",
     name: "Carefree Kate",
+    subtitle: "Warm Script",
     fontClass: "font-hwKate",
     fontFamily: "var(--font-hw-kate), 'HandwryttenKate', cursive",
     description: "Graceful, rounded cursive with flowing warmth.",
@@ -179,6 +183,7 @@ export const HANDWRITING_STYLES: HandwritingStyle[] = [
   {
     id: "hwAdam",
     name: "Executive Adam",
+    subtitle: "Clean Block",
     fontClass: "font-hwAdam",
     fontFamily: "var(--font-hw-adam), 'HandwryttenAdam', cursive",
     description: "Strong upright architectural lettering.",
@@ -187,6 +192,7 @@ export const HANDWRITING_STYLES: HandwritingStyle[] = [
   {
     id: "hwChase",
     name: "Charming Chase",
+    subtitle: "Modern Script",
     fontClass: "font-hwChase",
     fontFamily: "var(--font-hw-chase), 'HandwryttenChase', cursive",
     description: "Expressive, stylish modern handwriting.",
@@ -246,6 +252,9 @@ export function Step2NoteComposition({
 
   // Card preview sheet state for full inspection modal
   const [isPreviewCardOpen, setIsPreviewCardOpen] = useState(false);
+
+  // 1-Tap toggle between Edit Text and Live Ballpoint Ink Preview
+  const [noteMode, setNoteMode] = useState<"edit" | "preview">("edit");
 
   // Undo memory for starter insertion
   const [previousBodyNote, setPreviousBodyNote] = useState<string | null>(null);
@@ -447,13 +456,13 @@ export function Step2NoteComposition({
 
   return (
     <div className="w-full space-y-4">
-      {/* 1. MOBILE-ONLY COMPACT TOP PREVIEW HEADER (< lg): SLEEK SIDE-BY-SIDE MINI PREVIEW BAR (h-28) */}
-      <div className="lg:hidden bg-[#F9F6F0] rounded-2xl p-2.5 sm:p-3 border border-stone-200/90 shadow-2xs flex items-center justify-between gap-3 h-28">
+      {/* 1. MOBILE-ONLY TOP CARD BAR (< lg) WITH HIGH-AFFORDANCE PREVIEW BUTTON */}
+      <div className="lg:hidden bg-[#F9F6F0] rounded-2xl p-2.5 sm:p-3 border border-stone-200/90 shadow-2xs flex items-center justify-between gap-2.5">
         {/* Left: Mini Front Cover Artwork Thumbnail */}
         <div
           onClick={() => setIsPreviewCardOpen(true)}
-          className="relative w-18 h-full aspect-[17/22] rounded-lg overflow-hidden shadow-sm border border-stone-300 bg-stone-100 shrink-0 cursor-pointer group"
-          title="Tap to preview full card"
+          className="relative w-14 aspect-[17/22] rounded-lg overflow-hidden shadow-xs border border-stone-300 bg-stone-100 shrink-0 cursor-pointer group"
+          title="Tap to preview full card and live ink"
         >
           <img
             src={cardUrl || availableCovers[0]?.imageUrl}
@@ -465,27 +474,28 @@ export function Step2NoteComposition({
           </div>
         </div>
 
-        {/* Center: Live Ink Snippet Preview */}
-        <div className="flex-1 min-w-0 flex flex-col justify-center px-1 space-y-0.5">
+        {/* Center: Title + Explicit High-Affordance [ Preview Card & Live Ink ] Button */}
+        <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
-            <span className="text-[11px] font-bold text-stone-900 truncate">
+            <span className="text-xs font-bold text-stone-900 truncate">
               {cardTitle || "Featured Design"}
             </span>
           </div>
-          <p className={`text-xs text-[#1B3B6F] line-clamp-2 leading-relaxed ${currentFont.fontClass}`}>
-            &ldquo;{salutation ? `${salutation} ` : ""}{bodyNote || "Your handwritten message..."}&rdquo;
-          </p>
-          <span className="text-[10px] text-stone-500 font-medium">
-            Blue ballpoint ink &bull; {currentFont.name}
-          </span>
+          <button
+            type="button"
+            onClick={() => setIsPreviewCardOpen(true)}
+            className="w-full px-2.5 py-1.5 bg-amber-100/90 hover:bg-amber-200/90 active:bg-amber-300/90 border border-amber-300 rounded-xl text-xs font-bold text-amber-950 shadow-2xs flex items-center justify-center gap-1.5 transition cursor-pointer"
+          >
+            <span>🔍 Preview Card &amp; Live Ink</span>
+          </button>
         </div>
 
-        {/* Right: Tap to Enlarge / All Covers Modal */}
+        {/* Right: All Covers Button */}
         <button
           type="button"
           onClick={() => setIsCoverSheetOpen(true)}
-          className="self-center px-2.5 py-2 bg-white hover:bg-stone-50 active:bg-stone-100 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 shadow-2xs flex flex-col items-center justify-center gap-0.5 shrink-0 cursor-pointer min-w-[72px]"
+          className="px-2 py-2 bg-white hover:bg-stone-50 active:bg-stone-100 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 shadow-2xs flex flex-col items-center justify-center gap-0.5 shrink-0 cursor-pointer min-w-[64px]"
         >
           <Layers className="w-3.5 h-3.5 text-amber-700" />
           <span className="text-[11px] leading-tight">All Covers</span>
@@ -571,13 +581,18 @@ export function Step2NoteComposition({
                       key={style.id}
                       type="button"
                       onClick={() => onChangeFontStyleId(style.id)}
-                      className={`px-2.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer text-center truncate ${
+                      className={`p-2 rounded-xl transition cursor-pointer text-center flex flex-col items-center justify-center ${
                         isSelected
-                          ? "bg-emerald-800 text-white shadow-xs ring-2 ring-emerald-600/30"
-                          : "bg-white text-stone-700 border border-stone-200 hover:bg-stone-50 hover:border-stone-300"
+                          ? "bg-emerald-800 text-white shadow-xs ring-2 ring-emerald-600/30 border border-emerald-800"
+                          : "bg-white text-stone-800 border border-stone-200 hover:bg-stone-50 hover:border-stone-300"
                       }`}
                     >
-                      {style.name}
+                      <span className={`${style.fontClass} text-[19px] sm:text-[20px] leading-tight block truncate w-full`}>
+                        {style.name}
+                      </span>
+                      <span className={`text-[10px] font-sans font-normal mt-0.5 block ${isSelected ? "text-emerald-100" : "text-stone-500"}`}>
+                        {style.subtitle}
+                      </span>
                     </button>
                   );
                 })}
@@ -701,17 +716,48 @@ export function Step2NoteComposition({
               </p>
             </div>
 
-            {/* 3. YOUR MESSAGE TEXTAREA + STARTER INSPIRATION CHIPS */}
+            {/* 3. YOUR MESSAGE TEXTAREA + STARTER INSPIRATION CHIPS + 1-TAP LIVE INK TOGGLE */}
             <div>
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
                 <label className="block text-xs font-semibold text-stone-700">
                   Your message
                 </label>
-                <div className="font-mono text-stone-500 text-xs">
-                  <span className={isAtLimit ? "text-rose-600 font-bold" : isApproachingLimit ? "text-amber-700 font-bold" : "text-stone-700"}>
-                    {charCount}
-                  </span>
-                  <span> / {MAX_CHARS}</span>
+
+                <div className="flex items-center gap-2">
+                  {/* 1-Tap Toggle: Edit Text vs Preview in Real Ballpoint Ink */}
+                  <div className="flex items-center bg-stone-100 p-0.5 rounded-lg border border-stone-200">
+                    <button
+                      type="button"
+                      onClick={() => setNoteMode("edit")}
+                      className={`px-2 py-1 text-[11px] font-semibold rounded-md transition cursor-pointer flex items-center gap-1 ${
+                        noteMode === "edit"
+                          ? "bg-white text-stone-900 shadow-2xs"
+                          : "text-stone-500 hover:text-stone-800"
+                      }`}
+                    >
+                      <PenTool className="w-3 h-3" />
+                      <span>Edit Text</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNoteMode("preview")}
+                      className={`px-2 py-1 text-[11px] font-semibold rounded-md transition cursor-pointer flex items-center gap-1 ${
+                        noteMode === "preview"
+                          ? "bg-white text-emerald-900 shadow-2xs"
+                          : "text-stone-500 hover:text-stone-800"
+                      }`}
+                    >
+                      <Eye className="w-3 h-3 text-emerald-700" />
+                      <span>Preview in Real Ballpoint Ink</span>
+                    </button>
+                  </div>
+
+                  <div className="font-mono text-stone-500 text-xs">
+                    <span className={isAtLimit ? "text-rose-600 font-bold" : isApproachingLimit ? "text-amber-700 font-bold" : "text-stone-700"}>
+                      {charCount}
+                    </span>
+                    <span> / {MAX_CHARS}</span>
+                  </div>
                 </div>
               </div>
 
@@ -743,21 +789,40 @@ export function Step2NoteComposition({
                 )}
               </div>
 
-              {/* Stationery Lined Textarea */}
-              <div className={`relative rounded-2xl border overflow-hidden bg-white shadow-2xs ${
-                bracketWarning && /\[.*?\]/.test(bodyNote)
-                  ? "border-amber-400 bg-amber-50/30 ring-2 ring-amber-300"
-                  : "border-stone-300"
-              }`}>
-                <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(transparent_31px,#94A3B8_32px)] bg-[length:100%_32px]" />
-                <textarea
-                  rows={5}
-                  value={bodyNote}
-                  onChange={handleBodyChange}
-                  placeholder="Write your note from the heart..."
-                  className="w-full p-4 bg-transparent relative z-10 text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-base leading-[32px] resize-y min-h-[150px] font-sans"
-                />
-              </div>
+              {/* Note Content: Lined Stationery Textarea OR 1:1 Live Ink Pane */}
+              {noteMode === "edit" ? (
+                <div className={`relative rounded-2xl border overflow-hidden bg-white shadow-2xs ${
+                  bracketWarning && /\[.*?\]/.test(bodyNote)
+                    ? "border-amber-400 bg-amber-50/30 ring-2 ring-amber-300"
+                    : "border-stone-300"
+                }`}>
+                  <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(transparent_31px,#94A3B8_32px)] bg-[length:100%_32px]" />
+                  <textarea
+                    rows={5}
+                    value={bodyNote}
+                    onChange={handleBodyChange}
+                    placeholder="Write your note from the heart..."
+                    className="w-full p-4 bg-transparent relative z-10 text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-base leading-[32px] resize-y min-h-[150px] font-sans"
+                  />
+                </div>
+              ) : (
+                <div className="relative rounded-2xl border border-stone-200 overflow-hidden bg-[#FDFCF7] paper-texture shadow-xs p-5 select-none min-h-[160px] flex flex-col justify-start">
+                  <div className="absolute inset-2.5 rounded-xl border border-stone-300/40 pointer-events-none" />
+                  <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/20 via-stone-300/10 to-transparent pointer-events-none z-10" />
+                  <div className={`text-[#1B3B6F] relative z-10 text-sm sm:text-base leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}>
+                    {salutation && <p className="mb-2 font-medium">{salutation}</p>}
+                    <p className="mb-3 min-h-[60px]">{bodyNote || "Your personal note written in real ballpoint ink will appear here..."}</p>
+                    {signOff && <p className="font-medium">{signOff}</p>}
+                  </div>
+                  <div className="mt-auto pt-2 border-t border-stone-200/60 flex items-center justify-between text-[11px] text-stone-500">
+                    <span className="flex items-center gap-1 text-emerald-800 font-medium">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
+                      <span>Real blue ballpoint pen inking</span>
+                    </span>
+                    <span className="font-semibold text-stone-700">{currentFont.name} ({currentFont.subtitle})</span>
+                  </div>
+                </div>
+              )}
 
               {isAtLimit && (
                 <p className="text-xs text-rose-600 font-medium mt-1 flex items-center gap-1">
@@ -811,8 +876,8 @@ export function Step2NoteComposition({
             {/* MOBILE ONLY: QUICK HANDWRITING SELECTOR PILLS */}
             <div className="lg:hidden space-y-1.5 pt-2 border-t border-stone-200">
               <div className="flex items-center justify-between text-xs text-stone-700">
-                <span className="font-semibold">Handwriting:</span>
-                <span className="text-[11px] text-stone-500">{currentFont.name}</span>
+                <span className="font-semibold">Handwriting Style:</span>
+                <span className="text-[11px] text-stone-500">{currentFont.name} &bull; {currentFont.subtitle}</span>
               </div>
               <div className="grid grid-cols-2 gap-1.5">
                 {HANDWRITING_STYLES.map((style) => (
@@ -820,13 +885,18 @@ export function Step2NoteComposition({
                     key={style.id}
                     type="button"
                     onClick={() => onChangeFontStyleId(style.id)}
-                    className={`px-2 py-1.5 rounded-lg text-xs font-semibold text-center truncate ${
+                    className={`p-2 rounded-xl transition cursor-pointer text-center flex flex-col items-center justify-center ${
                       fontStyleId === style.id
-                        ? "bg-emerald-800 text-white shadow-xs"
-                        : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                        ? "bg-emerald-800 text-white shadow-xs ring-2 ring-emerald-600/30 border border-emerald-800"
+                        : "bg-stone-50 text-stone-800 border border-stone-200 hover:bg-stone-100"
                     }`}
                   >
-                    {style.name}
+                    <span className={`${style.fontClass} text-[19px] sm:text-[20px] leading-tight block truncate w-full`}>
+                      {style.name}
+                    </span>
+                    <span className={`text-[10px] font-sans font-normal mt-0.5 block ${fontStyleId === style.id ? "text-emerald-100" : "text-stone-500"}`}>
+                      {style.subtitle}
+                    </span>
                   </button>
                 ))}
               </div>
@@ -927,22 +997,54 @@ export function Step2NoteComposition({
         </div>
       </Sheet>
 
-      {/* 5. FULL ENLARGED CARD INSPECTION SHEET */}
+      {/* 5. FULL ENLARGED CARD INSPECTION SHEET: FRONT COVER ALONGSIDE 1:1 LIVE BALLPOINT INK */}
       <Sheet
         isOpen={isPreviewCardOpen}
         onClose={() => setIsPreviewCardOpen(false)}
-        title="Card Preview"
-        description={cardTitle || "Folded Greeting Card"}
+        title="Card Inspection &amp; Live Ink Preview"
+        description={`${cardTitle || "Folded Greeting Card"} — Front Cover &amp; 1:1 Ballpoint Inking`}
       >
-        <div className="py-2">
-          <CardPreview
-            coverUrl={cardUrl || ""}
-            printedGreeting={salutation}
-            handwrittenNote={[bodyNote, signOff].filter(Boolean).join("\n\n")}
-            fontStyleId={fontStyleId}
-            occasion={occasion}
-            currentStep={2}
-          />
+        <div className="py-2 space-y-6 max-h-[75vh] overflow-y-auto">
+          {/* Side-by-Side: Front Cover alongside 1:1 Live Ballpoint Ink Inside Page */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto">
+            {/* 1. FRONT COVER */}
+            <div className="flex flex-col items-center space-y-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-stone-500 bg-stone-100 px-2.5 py-0.5 rounded-full border border-stone-200">
+                Front Cover Artwork
+              </span>
+              <div className="relative w-full max-w-[280px] aspect-[17/22] rounded-2xl overflow-hidden shadow-md border-2 border-stone-200 bg-stone-100">
+                <img
+                  src={cardUrl || availableCovers[0]?.imageUrl}
+                  alt={cardTitle || "Front Cover Artwork"}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+              <span className="text-xs font-semibold text-stone-800 text-center">
+                {cardTitle}
+              </span>
+            </div>
+
+            {/* 2. 1:1 LIVE BALLPOINT INK INSIDE PAGE */}
+            <div className="flex flex-col items-center space-y-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                1:1 Real Ballpoint Ink Page
+              </span>
+              <div className="relative w-full max-w-[280px] aspect-[17/22] rounded-2xl overflow-hidden shadow-md border-2 border-stone-200 bg-[#FDFCF7] paper-texture p-6 flex flex-col justify-start select-none">
+                <div className="absolute inset-2.5 rounded-xl border border-stone-300/40 pointer-events-none" />
+                <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/25 via-stone-300/10 to-transparent pointer-events-none z-10" />
+                <div className={`text-[#1B3B6F] relative z-10 text-xs sm:text-sm leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}>
+                  {salutation && <p className="mb-2 font-medium">{salutation}</p>}
+                  <p className="mb-3 min-h-[70px]">
+                    {bodyNote || "Your personal note written in real ballpoint ink will appear here..."}
+                  </p>
+                  {signOff && <p className="font-medium">{signOff}</p>}
+                </div>
+              </div>
+              <span className="text-xs font-medium text-stone-600 text-center">
+                Penned in <strong className="text-stone-900">{currentFont.name}</strong> ({currentFont.subtitle})
+              </span>
+            </div>
+          </div>
         </div>
       </Sheet>
     </div>

@@ -16,6 +16,8 @@ import {
   Check,
   Loader2,
   Calendar,
+  Copy,
+  Share2,
 } from "lucide-react";
 import confetti from "canvas-confetti";
 import { detectCardIntent } from "@/lib/card-intent";
@@ -40,6 +42,7 @@ interface Step5ConfirmationProps {
   customerEmail: string;
   amountInCents: number;
   onSendAnotherCard: () => void;
+  isAddressDeferred?: boolean;
 }
 
 export function Step5Confirmation({
@@ -58,6 +61,7 @@ export function Step5Confirmation({
   customerEmail,
   amountInCents,
   onSendAnotherCard,
+  isAddressDeferred = false,
 }: Step5ConfirmationProps) {
   const deliveryEstimate = useMemo(() => calculateDeliveryEstimate(), []);
 
@@ -120,6 +124,42 @@ export function Step5Confirmation({
       },
     });
   }, [occasion, salutation, bodyNote, signOff, recipient]);
+
+  // Deferred Address State & Magic Link Helpers
+  const isDeferred = Boolean(isAddressDeferred || !recipient.street1?.trim());
+
+  const magicLinkUrl = useMemo(() => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "https://sendmynotes.com";
+    return `${origin}/orders/${orderId}/complete-address?token=${encodeURIComponent(viewToken || "")}`;
+  }, [orderId, viewToken]);
+
+  const [linkCopied, setLinkCopied] = useState(false);
+
+  const handleCopyLink = async () => {
+    try {
+      await navigator.clipboard.writeText(magicLinkUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch {
+      // fallback
+    }
+  };
+
+  const handleShareLink = async () => {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({
+          title: "SendMyNotes - Add Recipient Address",
+          text: `Add mailing address for ${recipient.fullName || "recipient"}'s card (Order #${orderId}):`,
+          url: magicLinkUrl,
+        });
+      } catch {
+        // user cancelled share
+      }
+    } else {
+      handleCopyLink();
+    }
+  };
 
   // Retention Reminder State
   const [reminderSaved, setReminderSaved] = useState(false);
@@ -190,6 +230,84 @@ export function Step5Confirmation({
         </div>
       </div>
 
+      {/* DEFERRED ADDRESS HIGH-AFFORDANCE LINK DELIVERY CARD */}
+      {isDeferred && (
+        <div className="bg-gradient-to-br from-amber-50 via-orange-50/70 to-yellow-50 rounded-3xl p-6 sm:p-7 border-2 border-amber-400 shadow-sm space-y-4 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse shrink-0" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-950 bg-amber-200/80 border border-amber-300 px-2.5 py-0.5 rounded-full">
+              Action Required: Add Recipient Address
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            <h2 className="font-serif font-bold text-xl sm:text-2xl text-stone-900">
+              Your Card is Locked In &amp; Held in Queue
+            </h2>
+            <p className="text-xs sm:text-sm text-stone-700 leading-relaxed">
+              Whenever you have {recipient.fullName || "their"}&apos;s street address handy, use your personal magic link below to enter it. We&apos;ve also emailed this link to <strong className="text-stone-900">{customerEmail}</strong>.
+            </p>
+          </div>
+
+          {/* Magic Link URL Display Box */}
+          <div className="p-3 bg-white/95 rounded-2xl border border-amber-300 shadow-2xs space-y-1.5">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">
+              Your Unique Address Magic Link:
+            </span>
+            <input
+              type="text"
+              readOnly
+              value={magicLinkUrl}
+              onFocus={(e) => e.target.select()}
+              className="w-full text-xs font-mono bg-stone-50 text-stone-900 border border-stone-200 rounded-xl px-3 py-2.5 select-all focus:outline-none focus:ring-2 focus:ring-amber-500"
+            />
+          </div>
+
+          {/* 1-Tap Action Buttons: Copy Link & Share / Text Link to Myself */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+            <button
+              type="button"
+              onClick={handleCopyLink}
+              className="px-5 py-3 bg-amber-800 hover:bg-amber-900 active:bg-amber-950 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer flex-1"
+            >
+              {linkCopied ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-300 stroke-[3]" />
+                  <span>Magic Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="w-4 h-4" />
+                  <span>Copy Magic Link</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              onClick={handleShareLink}
+              className="px-5 py-3 bg-white hover:bg-stone-50 active:bg-stone-100 text-stone-800 font-bold text-xs sm:text-sm rounded-xl border border-stone-300 shadow-2xs transition flex items-center justify-center gap-2 cursor-pointer flex-1"
+            >
+              <Share2 className="w-4 h-4 text-amber-700" />
+              <span>Share / Text Link to Myself</span>
+            </button>
+
+            <a
+              href={magicLinkUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 text-center shrink-0"
+            >
+              <span>Open &rarr;</span>
+            </a>
+          </div>
+
+          <p className="text-[11px] text-stone-500 leading-relaxed">
+            As soon as the mailing address is entered, your card is automatically released to our Phoenix studio robotic pen plotters and mailed via USPS First-Class.
+          </p>
+        </div>
+      )}
+
       {/* 4-STAGE FULFILLMENT STEPPER */}
       <div className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/90 shadow-sm space-y-6">
         <h2 className="text-xs font-bold uppercase tracking-wider text-stone-500 border-b border-stone-100 pb-3">
@@ -219,16 +337,18 @@ export function Step5Confirmation({
 
           {/* Stage 2: Real Ballpoint Inking (Dynamic fulfillment state) */}
           <div className="relative flex items-start gap-4">
-            <div className="relative z-10 w-8 h-8 rounded-full bg-amber-700 text-white flex items-center justify-center shadow-xs shrink-0 animate-pulse">
-              <PenTool className="w-4 h-4" />
+            <div className={`relative z-10 w-8 h-8 rounded-full ${isDeferred ? "bg-amber-600" : "bg-amber-700"} text-white flex items-center justify-center shadow-xs shrink-0 ${isDeferred ? "" : "animate-pulse"}`}>
+              {isDeferred ? <Clock className="w-4 h-4" /> : <PenTool className="w-4 h-4" />}
             </div>
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-amber-950">
-                  2. {fulfillmentStatus === "MAILED" ? "Inked & Mailed" : "Real Ballpoint Inking"}
+                  2. {isDeferred ? "Awaiting Recipient Address" : fulfillmentStatus === "MAILED" ? "Inked & Mailed" : "Real Ballpoint Inking"}
                 </span>
                 <span className="text-[10px] bg-amber-100 text-amber-900 font-semibold px-2 py-0.5 rounded-full">
-                  {fulfillmentStatus === "MAILED"
+                  {isDeferred
+                    ? "Held in Queue"
+                    : fulfillmentStatus === "MAILED"
                     ? "Mailed"
                     : fulfillmentStatus === "PROCESSING_HANDWRYTTEN"
                     ? "In Production"
@@ -238,7 +358,9 @@ export function Step5Confirmation({
                 </span>
               </div>
               <p className="text-xs text-stone-600">
-                {fulfillmentStatus === "QUEUED_FOR_FULFILLMENT"
+                {isDeferred
+                  ? "Order verified and held safely in queue. Robotic pen fulfillment begins as soon as you enter the recipient address."
+                  : fulfillmentStatus === "QUEUED_FOR_FULFILLMENT"
                   ? "Order verified and queued for robotic pen fulfillment at Phoenix studio."
                   : "Phoenix Fulfillment Center robotic plotters loaded with genuine ballpoint ink on quality folded cardstock."}
               </p>

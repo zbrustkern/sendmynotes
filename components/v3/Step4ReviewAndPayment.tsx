@@ -379,39 +379,73 @@ function InnerPaymentForm({
     }
   };
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "instant" });
+    }
+  }, []);
+
+  const [committedEmail, setCommittedEmail] = useState(customerEmail);
+
+  useEffect(() => {
+    if (customerEmail && !committedEmail) {
+      setCommittedEmail(customerEmail);
+    }
+  }, [customerEmail, committedEmail]);
+
+  const recipientDisplayName = recipient.fullName?.trim() || "Recipient";
+  const recipientLocation = useMemo(() => {
+    if (!recipient.street1?.trim()) {
+      return "Address Added Later";
+    }
+    if (recipient.city?.trim() && recipient.state?.trim()) {
+      return `${recipient.city.trim()}, ${recipient.state.trim()}`;
+    }
+    return recipient.street1.trim();
+  }, [recipient]);
+
+  const paymentElementOptions = useMemo(
+    () => ({
+      layout: "tabs" as const,
+      paymentMethodOrder: ["apple_pay", "google_pay", "card", "link"],
+      defaultValues: {
+        billingDetails: {
+          email: committedEmail || undefined,
+          name: recipient.fullName || sender.fullName || undefined,
+        },
+      },
+    }),
+    [committedEmail, recipient.fullName, sender.fullName]
+  );
+
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 pb-28 md:pb-12">
-      {/* HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200/80 pb-3">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-amber-800 text-white font-bold text-xs flex items-center justify-center">
-              4
-            </span>
-            <h1 className="font-serif text-lg sm:text-xl font-bold text-stone-900 tracking-tight">
-              Order Review &amp; Verified Payment
-            </h1>
-          </div>
-          <p className="text-xs text-stone-500">
-            Confirm your card, envelope addresses, and complete checkout.
-          </p>
+    <form onSubmit={handleSubmit} className="space-y-4 pb-28 md:pb-12">
+      {/* COMPACT STEP HEADER */}
+      <div className="flex items-center justify-between gap-2 pb-1">
+        <div className="flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-amber-800 text-white font-bold text-xs flex items-center justify-center shrink-0">
+            4
+          </span>
+          <h1 className="font-serif text-lg sm:text-xl font-bold text-stone-900 tracking-tight">
+            Review &amp; Pay
+          </h1>
         </div>
 
         <button
           type="button"
           onClick={onBack}
-          className="self-start sm:self-auto px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer"
+          className="px-2.5 py-1 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer shrink-0"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Edit Address</span>
         </button>
       </div>
 
-      {/* COMPACT PHYSICAL SUMMARY CARD */}
-      <div className="bg-[#FAF8F5] rounded-2xl p-4 sm:p-5 border border-stone-200 shadow-sm space-y-4">
-        <div className="flex items-start gap-4">
-          {/* Card thumbnail in true 5:7 vertical proportion */}
-          <div className="relative w-16 h-[89px] sm:w-20 sm:h-[112px] rounded-lg overflow-hidden border border-stone-300 shadow-xs shrink-0 bg-stone-100">
+      {/* SLEEK 1-ROW ORDER SUMMARY BAR (~90px tall) */}
+      <div className="bg-[#FAF8F5] rounded-2xl p-3 sm:p-3.5 border border-stone-200 shadow-2xs flex items-center justify-between gap-3 min-h-[84px]">
+        {/* Left: Thumbnail + Recipient info + Delivery + Preview/Edit */}
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="relative w-12 h-16 sm:w-14 sm:h-[75px] rounded-lg overflow-hidden border border-stone-300 shadow-2xs shrink-0 bg-stone-100">
             <Image
               src={cardUrl}
               alt={cardTitle}
@@ -421,132 +455,57 @@ function InnerPaymentForm({
             />
           </div>
 
-          {/* Details */}
-          <div className="space-y-2 flex-1 min-w-0">
-            <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-800">
-                Folded Greeting Card (4.25&quot; × 5.5&quot;)
-              </div>
-              <h3 className="font-serif font-bold text-base text-stone-900 truncate">
+          <div className="min-w-0 space-y-0.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-serif font-bold text-sm text-stone-900 truncate max-w-[140px] sm:max-w-[200px]">
                 {cardTitle}
-              </h3>
+              </span>
+              <span className="text-[10px] text-stone-400">•</span>
               <button
                 type="button"
                 onClick={() => setIsPreviewOpen(true)}
-                className="mt-1 text-xs text-emerald-800 hover:text-emerald-950 font-medium inline-flex items-center gap-1 cursor-pointer"
+                className="text-[11px] text-amber-800 hover:text-amber-950 font-semibold underline underline-offset-2 flex items-center gap-0.5 cursor-pointer"
               >
-                <Eye className="w-3.5 h-3.5 text-emerald-700" />
-                <span>Preview your card</span>
+                <Eye className="w-3 h-3 inline" />
+                <span>Preview / Edit</span>
               </button>
             </div>
 
-            {/* Note Excerpt */}
-            <div className="p-2.5 bg-white/80 rounded-xl border border-stone-200 text-xs text-stone-700 italic">
-              <span className={`text-stone-900 block ${fontClass}`}>
-                &ldquo;{noteExcerpt}&rdquo;
-              </span>
+            <div className="text-xs text-stone-600 truncate">
+              <span className="font-medium text-stone-800">To: </span>
+              <span>{recipientDisplayName}</span>
+              <span className="text-stone-400"> ({recipientLocation})</span>
+            </div>
+
+            <div className="text-[11px] text-stone-500 flex items-center gap-1">
+              <Truck className="w-3 h-3 text-amber-700 shrink-0" />
+              <span>Est. Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}</span>
             </div>
           </div>
         </div>
 
-        {/* 4-Point Metadata Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-stone-200/80 text-xs text-stone-700">
-          <div className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-stone-200/70">
-            <span className="text-base">📬</span>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
-                Deliver To
-              </span>
-              <span className="font-semibold text-stone-900 block truncate">
-                {recipient.fullName || "Recipient"}
-              </span>
-              <span className="text-stone-500 text-[11px] truncate block">
-                {recipient.street1}, {recipient.city}, {recipient.state} {recipient.zip}
-              </span>
-            </div>
+        {/* Right: Total Price + Subtitle */}
+        <div className="text-right shrink-0 pl-2 border-l border-stone-200/80">
+          <div className="font-serif font-bold text-lg sm:text-xl text-stone-950">
+            {isZeroCost ? "$0.00 Total" : `$${(finalPriceCents / 100).toFixed(2)} Total`}
           </div>
-
-          <div className="flex items-start gap-2 bg-white p-2.5 rounded-xl border border-stone-200/70">
-            <span className="text-base">✉️</span>
-            <div className="min-w-0">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
-                Return From
-              </span>
-              <span className="font-semibold text-stone-900 block truncate">
-                {sender.fullName || "Sender"}
-              </span>
-              <span className="text-stone-500 text-[11px] truncate block">
-                {sender.city}, {sender.state} {sender.zip}
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2 bg-white p-2.5 rounded-xl border border-stone-200/70">
-            <Truck className="w-4 h-4 text-amber-700 shrink-0" />
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-stone-400 block">
-                Est. USPS Arrival
-              </span>
-              <span className="font-semibold text-stone-900">
-                {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
-              </span>
-              <span className="text-stone-500 text-[10px] block">
-                (3–5 business days nationwide)
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-between bg-amber-50/80 p-2.5 rounded-xl border border-amber-200/80">
-            <div>
-              <span className="text-[10px] uppercase font-bold tracking-wider text-amber-800 block">
-                Total Flat Rate
-              </span>
-              <span className="text-[11px] text-stone-600">
-                Postage &amp; Pen Inking Included
-              </span>
-            </div>
-            <div className="font-serif font-bold text-xl text-stone-950">
-              {isZeroCost ? "$0.00 (Free)" : `$${(finalPriceCents / 100).toFixed(2)}`}
-            </div>
+          <div className="text-[10px] sm:text-[11px] text-stone-500 whitespace-nowrap">
+            Postage &amp; Real Pen Included
           </div>
         </div>
       </div>
 
-      {/* REAL PRODUCT PROOF */}
-      <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wider text-stone-700">
-            What Arrives
-          </span>
-        </div>
-        <div className="flex flex-col sm:flex-row items-center gap-4">
-          <div className="relative w-full sm:w-44 aspect-[1200/628] rounded-xl overflow-hidden border border-stone-200 shadow-2xs shrink-0 bg-stone-100">
-            <Image
-              src="/ad-assets/google-ads-landscape-delivery-1200x628.jpg"
-              alt="Real handwritten card, envelope, and pen"
-              fill
-              className="object-cover"
-            />
-          </div>
-          <div className="text-xs text-stone-600 leading-relaxed space-y-1">
-            <p className="font-semibold text-stone-900">
-              Real pen ink on heavy cardstock.
-            </p>
-            <p>
-              Each note is written with real ballpoint pen ink, sealed in a matching envelope with USPS First-Class postage, and mailed directly to your recipient.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* CUSTOMER EMAIL INPUT (RECEIPT & TRACKING) */}
-      <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-xs space-y-2">
+      {/* CUSTOMER EMAIL INPUT (RECEIPT & TRACKING) - IMMEDIATELY ABOVE PAYMENT */}
+      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs space-y-1.5">
         <label
           htmlFor="email"
-          className="block text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center gap-1.5 cursor-pointer"
+          className="block text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center justify-between cursor-pointer"
         >
-          <Mail className="w-3.5 h-3.5 text-amber-800" />
-          <span>Receipt &amp; USPS Tracking Notification Email</span>
+          <span className="flex items-center gap-1.5">
+            <Mail className="w-3.5 h-3.5 text-amber-800" />
+            <span>Receipt &amp; USPS Tracking Notification Email</span>
+          </span>
+          <span className="text-[10px] text-stone-400 font-normal lowercase">no password needed</span>
         </label>
         <input
           id="email"
@@ -563,16 +522,118 @@ function InnerPaymentForm({
             onChangeCustomerEmail(e.target.value);
             if (errorMessage) setErrorMessage(null);
           }}
+          onBlur={() => {
+            if (customerEmail !== committedEmail) {
+              setCommittedEmail(customerEmail);
+            }
+          }}
           placeholder="your.email@example.com"
-          className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
+          className="w-full px-3.5 py-2 text-base sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
         />
         <p className="text-[11px] text-stone-400">
           Zero accounts or passwords required. We only send your receipt and tracking updates.
         </p>
       </div>
 
+      {/* STRIPE PAYMENT CONTAINER - DIRECTLY ABOVE THE FOLD */}
+      {isZeroCost ? (
+        <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+          <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+            <Sparkles className="w-4 h-4 text-emerald-600" />
+            <span>100% Free Order Voucher</span>
+          </div>
+          <p className="text-xs text-emerald-800 leading-relaxed">
+            Your card, real ballpoint inking, and USPS postage are completely covered by voucher{" "}
+            <strong className="font-mono">{appliedDiscount?.code}</strong>. Zero billing info needed.
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs space-y-3">
+          <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-900 flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Apple Pay, Google Pay &amp; Card</span>
+            </span>
+            <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
+          </div>
+
+          {isMock ? (
+            <div className="p-4 bg-amber-50/60 border border-amber-200/70 rounded-xl space-y-2 text-xs text-stone-700">
+              <div className="flex items-center justify-between text-amber-900 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-amber-700" />
+                  Dev &amp; Sandbox Verified Checkout Active
+                </span>
+                <span className="bg-amber-200/70 text-amber-900 text-[10px] uppercase font-mono px-2 py-0.5 rounded">
+                  Sandbox
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-600">
+                Test checkout enabled. Clicking &quot;Authorize &amp; Send Card&quot; simulates end-to-end payment and fulfillment dispatch.
+              </p>
+            </div>
+          ) : !elements ? (
+            <div className="p-4 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-2 text-xs text-stone-700">
+              <div className="flex items-center justify-between text-rose-900 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 text-rose-600" />
+                  Payment Processor Unavailable
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-600">
+                Unable to load secure payment elements. Please refresh or retry.
+              </p>
+            </div>
+          ) : (
+            <div className="min-h-[140px] flex flex-col justify-center space-y-4">
+              {!isPaymentElementReady && (
+                <div className="flex flex-col items-center justify-center py-6 gap-2 text-stone-400 text-xs">
+                  <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
+                  <span>Loading secure Stripe payment fields...</span>
+                </div>
+              )}
+
+              {/* EXPRESS CHECKOUT ELEMENT (Apple Pay / Google Pay / Link) */}
+              <div className={walletAvailable ? "space-y-3" : "h-0 overflow-hidden opacity-0 pointer-events-none"}>
+                <ExpressCheckoutElement
+                  onConfirm={handleExpressConfirm}
+                  onReady={handleExpressReady}
+                  options={{
+                    buttonHeight: 44,
+                    paymentMethodOrder: ["applePay", "googlePay", "link"],
+                  }}
+                />
+                {walletAvailable && (
+                  <div className="relative my-3">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-stone-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="bg-white px-3 text-stone-400 font-medium">
+                        — Or pay with card —
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* CARD ELEMENT FALLBACK */}
+              <PaymentElement
+                id="v3-payment-element"
+                options={paymentElementOptions}
+                onReady={() => setIsPaymentElementReady(true)}
+                onLoadError={(err) => {
+                  console.error("[Stripe Load Error]", err);
+                  setErrorMessage(err.error?.message || "Could not load payment form.");
+                }}
+              />
+            </div>
+          )}
+        </div>
+      )}
+
       {/* COLLAPSED PROMO CODE LINK */}
-      <div className="bg-white rounded-2xl p-4 border border-stone-200/90 shadow-xs">
+      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs">
         {appliedDiscount ? (
           <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
             <div className="flex items-center gap-2">
@@ -634,100 +695,6 @@ function InnerPaymentForm({
           </button>
         )}
       </div>
-
-      {/* PAYMENT CONTAINER */}
-      {isZeroCost ? (
-        <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
-          <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
-            <Sparkles className="w-4 h-4 text-emerald-600" />
-            <span>100% Free Order Voucher</span>
-          </div>
-          <p className="text-xs text-emerald-800 leading-relaxed">
-            Your card, real ballpoint inking, and USPS postage are completely covered by voucher{" "}
-            <strong className="font-mono">{appliedDiscount?.code}</strong>. Zero billing info needed.
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-xs space-y-4">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
-            <span className="text-xs font-bold uppercase tracking-wider text-stone-900 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Apple Pay, Google Pay &amp; Card</span>
-            </span>
-            <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
-          </div>
-
-          {isMock ? (
-            <div className="p-4 bg-amber-50/60 border border-amber-200/70 rounded-xl space-y-2 text-xs text-stone-700">
-              <div className="flex items-center justify-between text-amber-900 font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-amber-700" />
-                  Dev &amp; Sandbox Verified Checkout Active
-                </span>
-                <span className="bg-amber-200/70 text-amber-900 text-[10px] uppercase font-mono px-2 py-0.5 rounded">
-                  Sandbox
-                </span>
-              </div>
-              <p className="text-[11px] text-stone-600">
-                Test checkout enabled. Clicking &quot;Authorize &amp; Send Card&quot; simulates end-to-end payment and fulfillment dispatch.
-              </p>
-            </div>
-          ) : !elements ? (
-            <div className="p-4 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-2 text-xs text-stone-700">
-              <div className="flex items-center justify-between text-rose-900 font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 text-rose-600" />
-                  Payment Processor Unavailable
-                </span>
-              </div>
-              <p className="text-[11px] text-stone-600">
-                Unable to load secure payment elements. Please refresh or retry.
-              </p>
-            </div>
-          ) : (
-            <div className="min-h-[140px] flex flex-col justify-center space-y-4">
-              {!isPaymentElementReady && (
-                <div className="flex flex-col items-center justify-center py-6 gap-2 text-stone-400 text-xs">
-                  <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
-                  <span>Loading secure Stripe payment fields...</span>
-                </div>
-              )}
-
-              {/* EXPRESS CHECKOUT ELEMENT (Apple Pay / Google Pay / Link) */}
-              <div className={walletAvailable ? "space-y-3" : "h-0 overflow-hidden opacity-0 pointer-events-none"}>
-                <ExpressCheckoutElement
-                  onConfirm={handleExpressConfirm}
-                  onReady={handleExpressReady}
-                  options={{ buttonHeight: 44 }}
-                />
-                {walletAvailable && (
-                  <div className="relative my-3">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-stone-200" />
-                    </div>
-                    <div className="relative flex justify-center text-xs">
-                      <span className="bg-white px-3 text-stone-400 font-medium">
-                        — Or pay with card —
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* CARD ELEMENT FALLBACK */}
-              <PaymentElement
-                id="v3-payment-element"
-                options={{ layout: "tabs" }}
-                onReady={() => setIsPaymentElementReady(true)}
-                onLoadError={(err) => {
-                  console.error("[Stripe Load Error]", err);
-                  setErrorMessage(err.error?.message || "Could not load payment form.");
-                }}
-              />
-            </div>
-          )}
-        </div>
-      )}
 
       {errorMessage && (
         <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">

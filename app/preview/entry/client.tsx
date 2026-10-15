@@ -954,7 +954,7 @@ export function EntryPrototypeClient({
       setStep("pay");
       dispatch({ type: "SET_STEP", payload: "pay" });
       if (typeof window !== "undefined") {
-        window.scrollTo({ top: 0, behavior: "smooth" });
+        window.scrollTo({ top: 0, behavior: "instant" });
       }
     } catch (err) {
       const msg =
@@ -1155,6 +1155,7 @@ export function EntryPrototypeClient({
             customerEmail={customerEmail}
             amountInCents={amountInCents}
             onSendAnotherCard={resetEntireFlow}
+            isAddressDeferred={isAddressDeferred || !recipient.street1?.trim()}
           />
         </main>
       </div>

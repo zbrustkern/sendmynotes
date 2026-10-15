@@ -189,7 +189,7 @@ export function Step3EnvelopeAddressing({
               Don&apos;t have their street address handy? Lock in your card now &amp; add address later
             </strong>
             <span className="text-stone-700 block text-xs sm:text-sm leading-relaxed">
-              We&apos;ll hold your card in queue and immediately text/email you a secure link to enter the mailing address whenever you&apos;re ready.
+              We&apos;ll hold your card in queue and immediately email you a magic link (and display it on your confirmation page) to enter the mailing address whenever you&apos;re ready.
             </span>
           </label>
         </div>
@@ -208,9 +208,6 @@ export function Step3EnvelopeAddressing({
             <h2 className="text-sm font-bold text-stone-900">
               Send to
             </h2>
-            <span className="text-[11px] font-normal text-emerald-800 bg-emerald-50 border border-emerald-200/70 rounded-md px-2 py-0.5">
-              Phone autofill ready
-            </span>
           </div>
 
           {/* Recipient Full Name */}
@@ -355,7 +352,7 @@ export function Step3EnvelopeAddressing({
           ) : (
             <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs text-stone-600 flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
-              <span>Street address will be requested via magic link text/email before dispatch.</span>
+              <span>Street address will be entered via your magic link (displayed on confirmation &amp; emailed) before postal dispatch.</span>
             </div>
           )}
         </div>

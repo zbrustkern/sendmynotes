@@ -11,6 +11,7 @@ import { CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { logIncident } from "@/lib/incident-logger";
 import { validatePersonalSender } from "@/lib/order-processor";
+import { sendAddressDeferredEmail } from "@/lib/email-alerts";
 import { Order, DiscountCode } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
@@ -182,6 +183,33 @@ export async function POST(req: NextRequest) {
         orderId,
         status: "QUEUED_FOR_FULFILLMENT",
         warning: "Order placed, but fulfillment is queued for studio verification of return address.",
+      });
+    }
+
+    // Address Deferral Bypass: halt automatic Handwrytten dispatch, order is awaiting recipient address from magic link
+    if (order.status === "AWAITING_RECIPIENT_ADDRESS" || order.addressDeferred || (order as any).address_deferred) {
+      await updateOrderStatus(orderId, {
+        status: "AWAITING_RECIPIENT_ADDRESS",
+      });
+      try {
+        const finalTo = customerEmail || order.customerEmail;
+        if (finalTo) {
+          await sendAddressDeferredEmail({
+            to: finalTo,
+            orderId,
+            viewToken: order.viewToken || "",
+            recipientName: `${order.recipientAddress?.firstName || ""} ${order.recipientAddress?.lastName || ""}`.trim() || "Recipient",
+          });
+        }
+      } catch (emailErr) {
+        console.warn("[Free Order] Error sending address deferred magic link email:", emailErr);
+      }
+
+      return NextResponse.json({
+        success: true,
+        orderId,
+        status: "AWAITING_RECIPIENT_ADDRESS",
+        viewToken: order.viewToken,
       });
     }
 

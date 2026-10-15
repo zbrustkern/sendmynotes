@@ -55,9 +55,7 @@ export async function createCardPaymentIntent(params: CreateIntentParams): Promi
       product: "Folded A2 greeting card, written in pen and mailed",
       ...(params.metadata || {}),
     },
-    automatic_payment_methods: {
-      enabled: true,
-    },
+    payment_method_types: ["card", "link"],
   });
 
   return {
