@@ -54,6 +54,18 @@ assert(
   htmlGeneral.includes("Selected Cover:"),
   "Selected Cover label is prominently displayed"
 );
+assert(
+  htmlGeneral.includes("Physical Front"),
+  "High-visibility front cover preview badge 'Physical Front' is rendered"
+);
+assert(
+  htmlGeneral.includes("Front Cover"),
+  "Front Cover label is prominently displayed alongside card preview"
+);
+assert(
+  htmlGeneral.includes("1-Tap Swap: Quick"),
+  "1-Tap Mini Cover Strip is present and rendered"
+);
 
 // --- 2. Test Step2NoteComposition with Pet Loss Sympathy Scenario ---
 console.log("\n--- 2. Testing Pet Loss Sympathy Note Composition ---");

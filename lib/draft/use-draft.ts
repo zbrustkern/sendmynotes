@@ -4,6 +4,7 @@ import { useEffect, useReducer, useRef, useState, useCallback } from "react";
 import { DraftState, DraftStorage } from "./types";
 import { draftReducer, DraftAction, createInitialDraft } from "./reducer";
 import { loadDraft, saveDraft, clearDraft as clearStorageDraft, getBrowserSessionStorage } from "./store";
+import { canonicalOccasion } from "../card-presets";
 
 interface UseDraftOptions {
   storage?: DraftStorage;
@@ -40,7 +41,17 @@ export function useDraft(options: UseDraftOptions = {}) {
   // Hydrate on mount
   useEffect(() => {
     const existing = loadDraft(storageRef.current);
-    if (existing) {
+    const existingOccasion = canonicalOccasion(existing?.selectedDesign?.occasion);
+    const targetOccasion = canonicalOccasion(initialOccasion);
+    const isOccasionMismatch = Boolean(
+      existing &&
+      initialOccasion &&
+      targetOccasion !== "general" &&
+      existingOccasion !== "general" &&
+      existingOccasion !== targetOccasion
+    );
+
+    if (existing && !isOccasionMismatch) {
       dispatch({ type: "HYDRATE_DRAFT", payload: existing });
     } else {
       // If an initial preset or curated scenario was passed via URL/context and no draft was present:

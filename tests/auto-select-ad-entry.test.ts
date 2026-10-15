@@ -1,5 +1,5 @@
-import { CARD_PRESETS, matchOccasionToPreset, getTopPresetForOccasion } from "../lib/card-presets";
-import { getScenario } from "../lib/seo-scenarios";
+import { CARD_PRESETS, matchOccasionToPreset, getTopPresetForOccasion, canonicalOccasion } from "../lib/card-presets";
+import { getScenario, getScenariosByOccasion } from "../lib/seo-scenarios";
 import { EVENT_METADATA_SCHEMAS, sanitizeMetadata } from "../lib/telemetry-schema";
 
 console.log("=================================================");
@@ -185,6 +185,44 @@ assert(
 // Case D: Organic visitor without auto_select (normal flow)
 const organicVisitorStep = determineActiveStep(false, "card", null);
 assert(organicVisitorStep === "card", `Normal visitor without auto_select starts on 'card' step (got '${organicVisitorStep}')`);
+
+// --- 6. Testing Thank-You Warm Personal Default (No Job Interview) ---
+console.log("\n--- 6. Testing Warm Personal Thank-You Defaults ---");
+const thankYouScenarios = getScenariosByOccasion("thank-you");
+assert(thankYouScenarios.length > 0, "Thank you scenarios exist");
+const primaryThankYou = thankYouScenarios[0];
+assert(primaryThankYou.slug === "kindness-and-support", `Primary thank you slug is 'kindness-and-support' (got '${primaryThankYou.slug}')`);
+assert(primaryThankYou.coverUrl === "/presets/thank-you-botanical.jpg", "Primary thank you cover is Wildflower Meadow botanical");
+assert(!primaryThankYou.handwrittenNote.toLowerCase().includes("interview"), "Primary thank you note does NOT mention 'interview'");
+assert(!primaryThankYou.handwrittenNote.toLowerCase().includes("job title"), "Primary thank you note does NOT mention 'Job Title'");
+assert(
+  primaryThankYou.handwrittenNote.includes("generosity") || primaryThankYou.handwrittenNote.includes("kindness"),
+  "Primary thank you note contains warm personal gratitude (kindness/generosity)"
+);
+assert(generalPreset.id === "preset-thankyou-botanical", "General studio preset #1 is Wildflower Meadow thank-you");
+
+// --- 7. Testing Cross-Occasion Draft Bleed Isolation ---
+console.log("\n--- 7. Testing Cross-Occasion Draft Bleed Isolation ---");
+const storedSympathyDraft = {
+  coverId: "preset-sympathy-quiet-sky",
+  occasionSlug: "Sympathy & Support",
+  insideNoteText: "There are no words to ease your pain, holding you close in our thoughts.",
+};
+
+// Navigating to Birthday route:
+const incomingBirthdayOccasion = canonicalOccasion("birthday");
+const savedOccasion = canonicalOccasion(storedSympathyDraft.occasionSlug);
+const isCrossOccasionBleed = Boolean(
+  incomingBirthdayOccasion !== "general" &&
+  savedOccasion !== "general" &&
+  savedOccasion !== incomingBirthdayOccasion
+);
+assert(isCrossOccasionBleed === true, "Cross-occasion bleed is correctly detected between Sympathy draft and Birthday route");
+
+// Navigating to matching Sympathy route:
+const incomingSympathyOccasion = canonicalOccasion("sympathy");
+const isSameOccasion = incomingSympathyOccasion === savedOccasion;
+assert(isSameOccasion === true, "Same occasion draft is correctly recognized as matching");
 
 console.log("\n=================================================");
 console.log(`Test Summary: ${passed} Passed, ${failed} Failed`);

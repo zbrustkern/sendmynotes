@@ -297,6 +297,17 @@ export const OCCASION_MESSAGE_BANK: Record<string, MessageInspiration[]> = {
 };
 
 export const CARD_PRESETS: CardPreset[] = [
+  // --- #1 Bestselling Everyday / General Studio Default ---
+  {
+    id: "preset-thankyou-botanical",
+    occasion: "Thank You",
+    title: "Wildflower Meadow",
+    prompt: "Warm botanical gouache painting of blooming lavender and chamomile wildflowers in a sunlit meadow",
+    imageUrl: "/presets/thank-you-botanical.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I am so grateful to have you in my corner!",
+  },
+
   // --- Birthday ---
   {
     id: "preset-bday-balloons",
@@ -318,15 +329,6 @@ export const CARD_PRESETS: CardPreset[] = [
   },
 
   // --- Thank You ---
-  {
-    id: "preset-thankyou-botanical",
-    occasion: "Thank You",
-    title: "Wildflower Meadow",
-    prompt: "Warm botanical gouache painting of blooming lavender and chamomile wildflowers in a sunlit meadow",
-    imageUrl: "/presets/thank-you-botanical.jpg",
-    defaultPrintedMessage: "",
-    defaultHandwrittenNote: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I am so grateful to have you in my corner!",
-  },
   {
     id: "preset-thankyou-laurel",
     occasion: "Thank You",
@@ -646,5 +648,38 @@ export function matchOccasionToPreset(occasion: string): CardPreset | undefined 
 export function getTopPresetForOccasion(occasion?: string): CardPreset {
   if (!occasion) return CARD_PRESETS[0];
   return matchOccasionToPreset(occasion) || CARD_PRESETS[0];
+}
+
+/**
+ * Normalizes any occasion string, alias, or slug to a canonical key for comparison and storage scoping.
+ */
+export function canonicalOccasion(occasion?: string): string {
+  if (!occasion) return "general";
+  const lower = occasion.toLowerCase().trim();
+  if (lower.includes("sympathy") || lower.includes("condolence") || lower.includes("pet") || lower.includes("loss")) {
+    return "sympathy";
+  }
+  if (lower.includes("thank")) {
+    return "thank-you";
+  }
+  if (lower.includes("bday") || lower.includes("birthday")) {
+    return "birthday";
+  }
+  if (lower.includes("congrat")) {
+    return "congratulations";
+  }
+  if (lower.includes("anniv")) {
+    return "anniversary";
+  }
+  if (lower.includes("love") || lower.includes("romance")) {
+    return "love-and-romance";
+  }
+  if (lower.includes("think") || lower.includes("healing") || lower.includes("well")) {
+    return "thinking-of-you";
+  }
+  if (lower.includes("holiday") || lower.includes("christmas")) {
+    return "christmas-and-holidays";
+  }
+  return lower.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "general";
 }
 

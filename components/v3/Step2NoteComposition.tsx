@@ -397,23 +397,136 @@ export function Step2NoteComposition({
         </button>
       </div>
 
-      {/* COMPACT "SWAP COVER DESIGN" PILL VISIBLE AT TOP */}
-      <div className="bg-amber-50/70 border border-amber-200/90 rounded-2xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs shadow-2xs">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
-          <span className="text-stone-700 truncate">
-            Selected Cover:{" "}
-            <strong className="text-stone-900 font-semibold">{cardTitle || "Featured Design"}</strong>
-          </span>
+      {/* HIGH-VISIBILITY CARD COVER SHOWCASE & 1-TAP MINI COVER STRIP */}
+      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs space-y-3">
+        {/* COMPACT "SWAP COVER DESIGN" PILL VISIBLE AT TOP */}
+        <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl px-3.5 py-2 flex items-center justify-between gap-3 text-xs shadow-2xs">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+            <span className="text-stone-700 truncate">
+              Selected Cover:{" "}
+              <strong className="text-stone-900 font-semibold">{cardTitle || "Featured Design"}</strong>
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsCoverSheetOpen(true)}
+            className="inline-flex items-center gap-1 font-semibold text-amber-900 hover:text-amber-950 bg-white hover:bg-amber-100/80 border border-amber-300/80 px-2.5 py-1 rounded-lg shadow-2xs transition cursor-pointer shrink-0"
+          >
+            <span>Swap Cover Design</span>
+            <span className="text-[11px] text-amber-800 font-normal">({availableCovers.length}) &rarr;</span>
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setIsCoverSheetOpen(true)}
-          className="inline-flex items-center gap-1 font-semibold text-amber-900 hover:text-amber-950 bg-white hover:bg-amber-100/80 border border-amber-300/80 px-2.5 py-1 rounded-lg shadow-2xs transition cursor-pointer shrink-0"
-        >
-          <span>Swap Cover Design</span>
-          <span className="text-[11px] text-amber-800 font-normal">({availableCovers.length}) &rarr;</span>
-        </button>
+
+        {/* Selected Cover Visual Showcase + 1-Tap Mini Strip */}
+        <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-4 pt-0.5">
+          {/* Active Front Cover Preview Thumbnail */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div
+              className="relative w-20 sm:w-24 aspect-[17/22] rounded-xl overflow-hidden shadow-md border border-stone-200/80 bg-stone-100 cursor-pointer group"
+              onClick={() => setIsPreviewCardOpen(true)}
+              title="Click to preview full folded card"
+            >
+              {cardUrl ? (
+                <img
+                  src={cardUrl}
+                  alt={cardTitle || "Selected Card Front"}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-stone-100 text-stone-400">
+                  <Eye className="w-5 h-5" />
+                </div>
+              )}
+              <span className="absolute bottom-1 left-1 right-1 bg-stone-900/80 backdrop-blur-xs text-white text-[9px] font-medium text-center py-0.5 rounded px-1 truncate">
+                Physical Front
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200/60">
+                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                Front Cover
+              </span>
+              <h4 className="text-xs sm:text-sm font-serif font-bold text-stone-900 line-clamp-1">
+                {cardTitle || "Featured Design"}
+              </h4>
+              <p className="text-[11px] text-stone-500 line-clamp-1">
+                Heavy folded cardstock &bull; Real ink
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsPreviewCardOpen(true)}
+                className="text-[11px] font-semibold text-amber-800 hover:text-amber-950 inline-flex items-center gap-1 cursor-pointer underline"
+              >
+                <Eye className="w-3 h-3" />
+                <span>View inside &amp; out</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Vertical Divider on Desktop */}
+          <div className="hidden sm:block w-px bg-stone-200/90 my-1 shrink-0" />
+
+          {/* 1-Tap Mini Cover Strip (4-6 occasion designs) */}
+          <div className="flex-1 min-w-0 w-full space-y-1.5">
+            <div className="flex items-center justify-between text-[11px]">
+              <span className="font-semibold text-stone-700">
+                1-Tap Swap: Quick {occasion} Covers
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsCoverSheetOpen(true)}
+                className="text-amber-800 font-medium hover:underline text-[11px] cursor-pointer"
+              >
+                All designs ({availableCovers.length}) &rarr;
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
+              {availableCovers.slice(0, 6).map((preset) => {
+                const isSelected = cardUrl === preset.imageUrl || cardTitle === preset.title;
+                return (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      if (onSelectCover) {
+                        onSelectCover(preset);
+                      }
+                      trackEvent("step_2_cover_ready", 2, {
+                        presetId: preset.id,
+                        occasion: preset.occasion,
+                        title: preset.title,
+                        swapped_via_mini_strip: true,
+                      });
+                    }}
+                    className={`group relative shrink-0 w-14 sm:w-16 aspect-[17/22] rounded-lg overflow-hidden border transition cursor-pointer text-left ${
+                      isSelected
+                        ? "border-emerald-600 ring-2 ring-emerald-600/40 shadow-sm"
+                        : "border-stone-200 hover:border-amber-400 opacity-80 hover:opacity-100"
+                    }`}
+                    title={preset.title}
+                  >
+                    <img
+                      src={preset.imageUrl}
+                      alt={preset.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                      </div>
+                    )}
+                    <span className="absolute bottom-0 left-0 right-0 bg-stone-900/80 backdrop-blur-xs text-white text-[8px] font-medium px-1 py-0.5 truncate text-center block">
+                      {preset.title}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* MAIN LAYOUT: SIDE-BY-SIDE ON DESKTOP, STACKED ON MOBILE */}

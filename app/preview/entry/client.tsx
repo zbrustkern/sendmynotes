@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { CARD_PRESETS, OCCASIONS, CardPreset, matchOccasionToPreset, getTopPresetForOccasion } from "@/lib/card-presets";
+import { CARD_PRESETS, OCCASIONS, CardPreset, matchOccasionToPreset, getTopPresetForOccasion, canonicalOccasion } from "@/lib/card-presets";
 import { useDraft, AddressDraft } from "@/lib/draft";
 import {
   FlowHeader,
@@ -111,6 +111,10 @@ export function EntryPrototypeClient({
     }
     return undefined;
   }, [presetParam, occasionParam, isAutoSelectMode]);
+
+  const targetOccasionSlug = useMemo(() => {
+    return canonicalOccasion(occasionParam || scenarioSlug || initialPreset?.occasion);
+  }, [occasionParam, scenarioSlug, initialPreset?.occasion]);
 
   const resolvedInitialPresetId = scenarioSlug || initialPreset?.id || CARD_PRESETS[0].id;
   const resolvedInitialPresetTitle =
@@ -248,7 +252,15 @@ export function EntryPrototypeClient({
       setStep("note");
     }
 
-    if (!draft.selectedDesign && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
+    const currentDesignOccasion = canonicalOccasion(draft.selectedDesign?.occasion);
+    const isDesignMismatched = Boolean(
+      draft.selectedDesign &&
+      targetOccasionSlug !== "general" &&
+      currentDesignOccasion !== "general" &&
+      currentDesignOccasion !== targetOccasionSlug
+    );
+
+    if ((!draft.selectedDesign || isDesignMismatched) && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
       dispatch({
         type: "SELECT_DESIGN",
         payload: {
@@ -260,6 +272,21 @@ export function EntryPrototypeClient({
           accepted: isAutoSelectMode || Boolean(initialHandwrittenNote),
         },
       });
+
+      if (isDesignMismatched) {
+        const starterNote = parsedScenario?.bodyNote || initialPreset?.defaultHandwrittenNote || "";
+        dispatch({
+          type: "UPDATE_NOTE",
+          payload: {
+            text: starterNote,
+            salutation: parsedScenario?.salutation || "",
+            signOff: parsedScenario?.signOff || "",
+            style: mappedInitialFont,
+          },
+        });
+        if (parsedScenario?.salutation) setSalutation(parsedScenario.salutation);
+        if (parsedScenario?.signOff) setSignOff(parsedScenario.signOff);
+      }
     }
 
     if (draft.note.salutation !== undefined && draft.note.salutation !== "") {
@@ -310,6 +337,8 @@ export function EntryPrototypeClient({
     draft.sender,
     initialPreset,
     resolvedInitialPresetUrl,
+    targetOccasionSlug,
+    mappedInitialFont,
     resolvedInitialPresetTitle,
     resolvedInitialPresetId,
     occasionParam,
@@ -321,13 +350,39 @@ export function EntryPrototypeClient({
     dispatch,
   ]);
 
-  // Hydrate draft from localStorage (smn_active_draft_v2) for Meta in-app browser resilience
+  // Hydrate draft from localStorage (scoped by occasion) for Meta in-app browser resilience
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const saved = localStorage.getItem("smn_active_draft_v2");
+      const scopedKey = `smn_active_draft_v2_${targetOccasionSlug}`;
+      const saved = localStorage.getItem(scopedKey) || localStorage.getItem("smn_active_draft_v2");
       if (!saved) return;
       const parsed = JSON.parse(saved);
+      if (!parsed || typeof parsed !== "object") return;
+
+      const savedOccasion = canonicalOccasion(parsed.canonicalOccasion || parsed.occasionSlug);
+      const isCrossOccasion = Boolean(
+        targetOccasionSlug !== "general" &&
+        savedOccasion !== "general" &&
+        savedOccasion !== targetOccasionSlug
+      );
+
+      // If cross-occasion draft detected:
+      // DO NOT restore note, greeting, sign-off, or cover from foreign occasion!
+      // Only preserve sender/recipient addresses so the user doesn't have to retype them.
+      if (isCrossOccasion) {
+        if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
+          setRecipient(parsed.recipientAddress);
+        }
+        if (parsed.senderAddress && !sender.fullName && !sender.street1) {
+          setSender(parsed.senderAddress);
+        }
+        if (isAutoSelectMode) {
+          setStep("note");
+        }
+        return;
+      }
+
       if (
         parsed &&
         (parsed.insideNoteText || parsed.recipientName || parsed.recipientAddress?.fullName || parsed.senderName)
@@ -368,7 +423,19 @@ export function EntryPrototypeClient({
     } catch {
       // ignore
     }
-  }, [isAutoSelectMode, initialStep, salutation, signOff, draft.note.text, recipient.fullName, recipient.street1, sender.fullName, sender.street1, dispatch]);
+  }, [
+    targetOccasionSlug,
+    isAutoSelectMode,
+    initialStep,
+    salutation,
+    signOff,
+    draft.note.text,
+    recipient.fullName,
+    recipient.street1,
+    sender.fullName,
+    sender.street1,
+    dispatch,
+  ]);
 
   // Current selected card details
   const currentCard = useMemo(() => {
@@ -451,6 +518,7 @@ export function EntryPrototypeClient({
       const draftData = {
         coverId: currentCard.presetId,
         occasionSlug: currentCard.occasion,
+        canonicalOccasion: targetOccasionSlug,
         insideNoteText: draft.note.text,
         salutation,
         signOff,
@@ -463,6 +531,7 @@ export function EntryPrototypeClient({
         addressDeferred: isAddressDeferred,
         updatedAt: Date.now(),
       };
+      localStorage.setItem(`smn_active_draft_v2_${targetOccasionSlug}`, JSON.stringify(draftData));
       localStorage.setItem("smn_active_draft_v2", JSON.stringify(draftData));
     } catch {
       // ignore
@@ -472,6 +541,7 @@ export function EntryPrototypeClient({
     isOrderConfirmed,
     currentCard.presetId,
     currentCard.occasion,
+    targetOccasionSlug,
     draft.note.text,
     draft.note.style,
     salutation,
@@ -928,6 +998,7 @@ export function EntryPrototypeClient({
 
     if (typeof window !== "undefined") {
       try {
+        localStorage.removeItem(`smn_active_draft_v2_${targetOccasionSlug}`);
         localStorage.removeItem("smn_active_draft_v2");
         sessionStorage.setItem("smn_completed_order_id", completedOrderId);
         if (finalToken) {
@@ -979,6 +1050,8 @@ export function EntryPrototypeClient({
 
     if (typeof window !== "undefined") {
       try {
+        localStorage.removeItem(`smn_active_draft_v2_${targetOccasionSlug}`);
+        localStorage.removeItem("smn_active_draft_v2");
         sessionStorage.removeItem("smn_checkout_order_id");
         sessionStorage.removeItem("smn_checkout_view_token");
         sessionStorage.removeItem("smn_completed_order_id");

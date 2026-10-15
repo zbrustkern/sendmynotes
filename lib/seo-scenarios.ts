@@ -35,10 +35,10 @@ export const OCCASION_METADATA: Record<
     name: "Thank You",
     headline: "Send a Real Handwritten Thank You Card",
     description:
-      "Show genuine gratitude to interviewers, mentors, and clients with physical cards penned in real ballpoint ink and delivered via USPS First Class.",
+      "Express heartfelt gratitude to friends, gracious hosts, and family with physical cards penned in real ballpoint ink and delivered via USPS First Class.",
     metaTitle: "Send a Real Handwritten Thank You Card | Mailed for You ($9)",
     metaDescription:
-      "Send authentic handwritten thank-you cards for job interviews, mentors, and client closings. Real pen and ink on heavy cardstock with stamped mail delivery.",
+      "Send authentic handwritten thank-you cards for kindness, hospitality, and support. Real pen and ink on heavy cardstock with stamped mail delivery.",
   },
   sympathy: {
     name: "Sympathy & Support",
@@ -97,7 +97,67 @@ export const OCCASION_METADATA: Record<
 };
 
 export const SEO_SCENARIOS: ScenarioConfig[] = [
-  // 1. CAREER: Post Job Interview Thank You
+  // 1. PERSONAL: Warm Gratitude for Kindness, Hospitality, or Support (#1 Thank You Default)
+  {
+    slug: "kindness-and-support",
+    aliases: [
+      "thank-you-note",
+      "personal-thank-you",
+      "warm-thank-you",
+      "hospitality-thank-you",
+      "kindness-thank-you",
+      "generosity-thank-you",
+      "thank-you-for-hospitality",
+      "thank-you-friend",
+    ],
+    occasionSlug: "thank-you",
+    occasionName: "Thank You",
+    category: "gratitude",
+    badgeText: "Heartfelt Gratitude",
+    h1Title: "Send a Warm Handwritten Thank You Note",
+    heroTagline: "Thank a dear friend, gracious host, or family member with a tangible, real pen-on-paper card mailed directly to their door.",
+    metaTitle: "Send a Warm Handwritten Thank You Note | Real Pen Mail ($9)",
+    metaDescription: "Express heartfelt gratitude to a friend, gracious host, or family member for their kindness, hospitality, or support. Real ballpoint ink on folded cardstock.",
+    keywords: [
+      "warm handwritten thank you note",
+      "personal thank you card",
+      "thank you for hospitality card",
+      "thank you for kindness note",
+      "mail a physical thank you card",
+    ],
+    coverUrl: "/presets/thank-you-botanical.jpg",
+    coverPrompt: "Warm botanical gouache painting of blooming lavender and chamomile wildflowers in a sunlit meadow",
+    printedGreeting: "With deepest gratitude and appreciation.",
+    handwrittenNote: "Dear [Name],\n\nThank you so much for your generosity, kindness, and wonderful hospitality. Having you in my corner truly meant the world to me, and I am so grateful for your friendship and thoughtfulness!\n\nWarmly,\n[Your Name]",
+    fontStyleId: "1",
+    fontName: "Warm Cursive",
+    etiquetteTips: [
+      {
+        title: "Name the Specific Kindness",
+        content: "Mention a specific dinner, kind gesture, or moment of support that made a difference. Specificity makes your gratitude feel deeply authentic.",
+      },
+      {
+        title: "Send Promptly",
+        content: "Mailing a physical note within a few days of a gathering, gift, or kind deed shows intentionality and gracious etiquette.",
+      },
+      {
+        title: "Keep it Heartfelt and Genuine",
+        content: "A short, genuine message from the heart is always more meaningful than long, formal boilerplate. Write like you speak.",
+      },
+    ],
+    faq: [
+      {
+        question: "When should I send a personal thank you card?",
+        answer: "Send a card after staying as a houseguest, receiving a thoughtful gift, after a dinner party, or simply to tell someone how much you appreciate their presence in your life.",
+      },
+      {
+        question: "Does SendMyNotes mail the card directly to them?",
+        answer: "Yes! We write your card using a real ballpoint pen and ink robot, seal it in a stamped envelope, and deliver it via USPS First Class.",
+      },
+    ],
+  },
+
+  // 2. CAREER: Post Job Interview Thank You
   {
     slug: "after-job-interview",
     aliases: [
