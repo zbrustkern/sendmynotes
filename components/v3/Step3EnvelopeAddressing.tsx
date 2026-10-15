@@ -174,6 +174,32 @@ export function Step3EnvelopeAddressing({
         </button>
       </div>
 
+      {/* 1. TOP UNMISTAKABLE ADDRESS DEFERRAL CARD */}
+      <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
+        <div className="flex items-start gap-3">
+          <input
+            id="defer-address-toggle"
+            type="checkbox"
+            checked={isAddressDeferred}
+            onChange={(e) => onChangeAddressDeferred?.(e.target.checked)}
+            className="mt-1 h-5 w-5 rounded border-amber-400 text-emerald-700 focus:ring-emerald-600 cursor-pointer shrink-0"
+          />
+          <label htmlFor="defer-address-toggle" className="text-xs sm:text-sm text-stone-900 cursor-pointer select-none">
+            <strong className="block text-amber-950 font-bold text-sm sm:text-base mb-0.5">
+              Don&apos;t have their street address handy? Lock in your card now &amp; add address later
+            </strong>
+            <span className="text-stone-700 block text-xs sm:text-sm leading-relaxed">
+              We&apos;ll hold your card in queue and immediately text/email you a secure link to enter the mailing address whenever you&apos;re ready.
+            </span>
+          </label>
+        </div>
+        {isAddressDeferred && (
+          <div className="p-2.5 bg-amber-100/80 rounded-xl border border-amber-200 text-xs text-amber-950 font-medium flex items-center gap-2">
+            <span>✨ Address deferred! You only need to provide recipient &amp; sender names to proceed. Postal dispatch is held until you submit the recipient address via magic link.</span>
+          </div>
+        )}
+      </div>
+
       {/* FORM SECTIONS: RECIPIENT ("Send to") & SENDER ("From you") LEAD FIRST */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* SECTION 1: RECIPIENT ("Send to") */}
@@ -205,32 +231,6 @@ export function Step3EnvelopeAddressing({
               placeholder="First and last name"
               className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans"
             />
-          </div>
-
-          {/* THE "DON'T HAVE THEIR ADDRESS YET?" BYPASS CARD */}
-          <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/60 rounded-xl border border-amber-200/90 shadow-2xs space-y-2">
-            <div className="flex items-start gap-2.5">
-              <input
-                id="defer-address-toggle"
-                type="checkbox"
-                checked={isAddressDeferred}
-                onChange={(e) => onChangeAddressDeferred?.(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-amber-400 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
-              />
-              <label htmlFor="defer-address-toggle" className="text-xs text-stone-900 cursor-pointer select-none">
-                <strong className="block text-amber-950 font-bold text-[13px] mb-0.5">
-                  Don&apos;t have their street address handy right now?
-                </strong>
-                <span className="text-stone-700 block text-xs">
-                  Lock in my card now ($9.00) &amp; text/email me a link to add their address later.
-                </span>
-              </label>
-            </div>
-            {isAddressDeferred && (
-              <p className="text-[11px] text-amber-900 font-medium bg-amber-100/70 rounded-lg p-2 border border-amber-200/60">
-                ✨ Perfect! We&apos;ll hold postal dispatch and send you a secure magic link immediately after checkout. Enter their address whenever you get it.
-              </p>
-            )}
           </div>
 
           {/* Recipient Street Fields (Hidden/Collapsed if Address is Deferred) */}

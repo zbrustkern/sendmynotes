@@ -2,17 +2,14 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import {
-  PenTool,
   Sparkles,
   ArrowRight,
-  ArrowLeft,
   Check,
   AlertTriangle,
   AlertCircle,
-  ChevronDown,
-  ChevronUp,
   Eye,
   Undo2,
+  Layers,
 } from "lucide-react";
 import { OCCASION_MESSAGE_BANK, MessageInspiration, CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { Sheet } from "@/components/flow/Sheet";
@@ -28,16 +25,16 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
   const occ = (occasion || "").toLowerCase();
   const slug = (scenarioSlug || "").toLowerCase();
 
-  // 1. Pet Loss / Pet Sympathy
+  // 1. Pet Loss / Pet Sympathy (100% bracket-free)
   if (slug.includes("pet") || occ.includes("pet") || (occ.includes("sympathy") && slug.includes("loss"))) {
     return [
       {
         label: "1. Warm & Short",
-        template: "Sending you so much love and gentle strength today. Sweet [Pet's Name] was so deeply loved and had the most wonderful life by your side.",
+        template: "I was so deeply heartbroken to hear about the loss of your sweet companion. They brought so much pure joy into your life, and I am grateful you gave them such a wonderful home filled with love. Sending you the warmest hugs and strength right now.",
       },
       {
-        label: "2. Rainbow Bridge / Fond Memories",
-        template: "May the joyful memories of sweet [Pet's Name] bring comfort across the rainbow bridge. Thinking of you and honoring the unconditional love you shared.",
+        label: "2. Rainbow Bridge",
+        template: "May the joyful memories of your sweet companion bring comfort across the rainbow bridge. Thinking of you and honoring the unconditional love you shared.",
       },
       {
         label: "3. Thinking of Your Family",
@@ -46,7 +43,7 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
     ];
   }
 
-  // 2. Sympathy & Support
+  // 2. Sympathy & Support (100% bracket-free)
   if (occ.includes("sympathy") || occ.includes("support") || occ.includes("condolence")) {
     return [
       {
@@ -64,7 +61,7 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
     ];
   }
 
-  // 3. Birthday
+  // 3. Birthday (100% bracket-free)
   if (occ.includes("birthday") || occ.includes("bday")) {
     return [
       {
@@ -72,17 +69,17 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
         template: "Happy Birthday! Wishing you a joyful day filled with sunshine, laughter, and all your favorite things.",
       },
       {
-        label: "2. Rainbow Year / Milestones",
+        label: "2. Golden Milestones",
         template: "Celebrating you today and so proud of everything you’ve achieved this year. Here’s to an extraordinary year ahead!",
       },
       {
-        label: "3. Thinking of You / Cheers",
+        label: "3. Cheers & Hugs",
         template: "Sending you the biggest birthday hugs from across the miles. Can’t wait to celebrate together very soon!",
       },
     ];
   }
 
-  // 4. Thank You
+  // 4. Thank You (100% bracket-free)
   if (occ.includes("thank")) {
     return [
       {
@@ -100,7 +97,7 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
     ];
   }
 
-  // 5. Congratulations
+  // 5. Congratulations (100% bracket-free)
   if (occ.includes("congrat")) {
     return [
       {
@@ -112,13 +109,13 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
         template: "Your hard work and dedication paid off in the most wonderful way. So immensely proud of you!",
       },
       {
-        label: "3. Thinking of Your Future",
+        label: "3. New Horizons",
         template: "Here’s to this exciting new chapter and bright horizons ahead. You earned every bit of this success!",
       },
     ];
   }
 
-  // 6. Anniversary / Love
+  // 6. Anniversary / Love (100% bracket-free)
   if (occ.includes("anniversary") || occ.includes("love") || occ.includes("romance")) {
     return [
       {
@@ -130,13 +127,13 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
         template: "Thank you for another wonderful year of laughter, partnership, and adventures. Here is to a lifetime more together.",
       },
       {
-        label: "3. Thinking of Our Journey",
+        label: "3. My Steady Anchor",
         template: "In a world of constant noise, your love is my steady anchor and favorite home. Happy Anniversary!",
       },
     ];
   }
 
-  // Default / Thinking of You / Just Because
+  // Default / Thinking of You / Just Because (100% bracket-free)
   return [
     {
       label: "1. Warm & Short",
@@ -147,7 +144,7 @@ export function getStarterPrompts(occasion: string, scenarioSlug?: string): Star
       template: "You crossed my mind today and I wanted to send a reminder of how much you are loved. Grateful for our friendship!",
     },
     {
-      label: "3. Thinking of You",
+      label: "3. Big Hugs",
       template: "Sending you warmth, strength, and big hugs from afar. Can’t wait to catch up very soon!",
     },
   ];
@@ -157,6 +154,7 @@ export interface HandwritingStyle {
   id: string;
   name: string;
   fontClass: string;
+  fontFamily: string;
   description: string;
   sample: string;
 }
@@ -166,6 +164,7 @@ export const HANDWRITING_STYLES: HandwritingStyle[] = [
     id: "hwDavid",
     name: "Casual David",
     fontClass: "font-hwDavid",
+    fontFamily: "var(--font-hw-david), 'HandwryttenDavid', cursive",
     description: "Clean, natural everyday print with effortless charm.",
     sample: "Wishing you a wonderful day and a happy year ahead!",
   },
@@ -173,6 +172,7 @@ export const HANDWRITING_STYLES: HandwritingStyle[] = [
     id: "hwKate",
     name: "Carefree Kate",
     fontClass: "font-hwKate",
+    fontFamily: "var(--font-hw-kate), 'HandwryttenKate', cursive",
     description: "Graceful, rounded cursive with flowing warmth.",
     sample: "Wishing you a wonderful day and a happy year ahead!",
   },
@@ -180,6 +180,7 @@ export const HANDWRITING_STYLES: HandwritingStyle[] = [
     id: "hwAdam",
     name: "Executive Adam",
     fontClass: "font-hwAdam",
+    fontFamily: "var(--font-hw-adam), 'HandwryttenAdam', cursive",
     description: "Strong upright architectural lettering.",
     sample: "Wishing you a wonderful day and a happy year ahead!",
   },
@@ -187,10 +188,19 @@ export const HANDWRITING_STYLES: HandwritingStyle[] = [
     id: "hwChase",
     name: "Charming Chase",
     fontClass: "font-hwChase",
+    fontFamily: "var(--font-hw-chase), 'HandwryttenChase', cursive",
     description: "Expressive, stylish modern handwriting.",
     sample: "Wishing you a wonderful day and a happy year ahead!",
   },
 ];
+
+export const STUDIO_OCCASION_PILLS = [
+  { label: "Thinking of You", occasion: "Thinking of You", presetId: "preset-thinking-coffee" },
+  { label: "Thank You", occasion: "Thank You", presetId: "preset-thankyou-botanical" },
+  { label: "Birthday", occasion: "Birthday", presetId: "preset-bday-balloons" },
+  { label: "Sympathy", occasion: "Sympathy & Support", presetId: "preset-sympathy-olive" },
+  { label: "Pet Loss", occasion: "Sympathy & Support", presetId: "preset-sympathy-rainbow", scenarioSlug: "loss-of-beloved-pet" },
+] as const;
 
 interface Step2NoteCompositionProps {
   salutation: string;
@@ -202,6 +212,7 @@ interface Step2NoteCompositionProps {
   fontStyleId: string;
   onChangeFontStyleId: (id: string) => void;
   occasion: string;
+  onChangeOccasion?: (occ: string, defaultPreset?: CardPreset) => void;
   onBack: () => void;
   onContinue: () => void;
   hideFixedActionBar?: boolean;
@@ -221,6 +232,7 @@ export function Step2NoteComposition({
   fontStyleId,
   onChangeFontStyleId,
   occasion,
+  onChangeOccasion,
   onBack,
   onContinue,
   hideFixedActionBar = false,
@@ -229,24 +241,20 @@ export function Step2NoteComposition({
   scenarioSlug,
   onSelectCover,
 }: Step2NoteCompositionProps) {
-  // Handwriting style drawer state
-  const [isFontSheetOpen, setIsFontSheetOpen] = useState(false);
-
-  // Quick cover switcher sheet state
+  // Quick cover switcher sheet state (for "See All 12")
   const [isCoverSheetOpen, setIsCoverSheetOpen] = useState(false);
 
-  // Card preview sheet state for mobile
+  // Card preview sheet state for full inspection modal
   const [isPreviewCardOpen, setIsPreviewCardOpen] = useState(false);
-
-  // Inspiration drawer state
-  const [isInspirationOpen, setIsInspirationOpen] = useState(false);
-  const [selectedToneTab, setSelectedToneTab] = useState<"Warm" | "Heartfelt" | "Playful" | "Literary">("Warm");
-
-  // Confirmation before replacing text
-  const [pendingInspiration, setPendingInspiration] = useState<string | null>(null);
 
   // Undo memory for starter insertion
   const [previousBodyNote, setPreviousBodyNote] = useState<string | null>(null);
+
+  // Hard safety guard state for leftover bracket placeholders
+  const [bracketWarning, setBracketWarning] = useState<string | null>(null);
+
+  // Salutation input ref for auto-highlighting "Friend" on focus
+  const salutationInputRef = useRef<HTMLInputElement>(null);
 
   // Active font object
   const currentFont = useMemo(() => {
@@ -264,36 +272,6 @@ export function Step2NoteComposition({
   const isApproachingLimit = charCount >= WARN_CHARS && charCount < MAX_CHARS;
   const isAtLimit = charCount >= MAX_CHARS;
 
-  // Retrieve message bank for occasion
-  const messageBank: MessageInspiration[] = useMemo(() => {
-    return OCCASION_MESSAGE_BANK[occasion] || OCCASION_MESSAGE_BANK["Birthday"] || [];
-  }, [occasion]);
-
-  // Filter messages by selected tone tab
-  const filteredMessages = useMemo(() => {
-    if (selectedToneTab === "Warm") {
-      return messageBank.filter((m) => m.tone === "warm");
-    }
-    if (selectedToneTab === "Heartfelt") {
-      return messageBank.filter((m) => m.tag === "Heartfelt" || m.tone === "warm");
-    }
-    if (selectedToneTab === "Playful") {
-      return messageBank.filter((m) => m.tone === "funny" || m.tag === "Playful");
-    }
-    if (selectedToneTab === "Literary") {
-      return messageBank.filter((m) => m.tone === "poetic" || m.tag === "Literary");
-    }
-    return messageBank;
-  }, [messageBank, selectedToneTab]);
-
-  const handleInspirationClick = (text: string) => {
-    if (bodyNote.trim() && bodyNote.trim() !== text.trim()) {
-      setPendingInspiration(text);
-    } else {
-      applyInspirationText(text);
-    }
-  };
-
   // Track initial values on mount to differentiate between pre-filled default template and real edits
   const initialValuesRef = useRef({
     salutation,
@@ -304,7 +282,6 @@ export function Step2NoteComposition({
   const firedStep3Ref = useRef(false);
 
   // Emit default_template_loaded on passive mount if initial note is pre-populated
-  // Never fire step_3_note_typed passively!
   useEffect(() => {
     if (bodyNote.trim().length > 0) {
       trackEvent("default_template_loaded", 2, {
@@ -314,7 +291,7 @@ export function Step2NoteComposition({
         noteEdited: false,
       });
     }
-  }, []); // Run once on component mount
+  }, []);
 
   // Fire step_3_note_typed ONLY when the user actively interacts
   const markNoteAsEditedAndFireStep3 = useCallback(
@@ -342,17 +319,19 @@ export function Step2NoteComposition({
     } else {
       onChangeBodyNote(text);
     }
-    setPendingInspiration(null);
+    if (bracketWarning && !/\[.*?\]/.test(text)) {
+      setBracketWarning(null);
+    }
     markNoteAsEditedAndFireStep3(text.length, false, "inspiration");
   };
 
-  // Available covers for quick switcher (at least 6 designs)
+  // Available covers for quick switcher (all 12 presets)
   const availableCovers = useMemo(() => {
     const occasionLower = (occasion || "").toLowerCase();
     const matched = CARD_PRESETS.filter((p) => p.occasion.toLowerCase() === occasionLower);
     const others = CARD_PRESETS.filter((p) => p.occasion.toLowerCase() !== occasionLower);
     const combined = [...matched, ...others];
-    return combined.slice(0, Math.max(6, Math.min(12, combined.length)));
+    return combined.slice(0, Math.max(12, combined.length));
   }, [occasion]);
 
   // Starter prompts bank for occasion / scenario
@@ -369,11 +348,6 @@ export function Step2NoteComposition({
       promptNumber,
     });
     markNoteAsEditedAndFireStep3(prompt.template.length, true, "starterPrompt");
-  };
-
-  const handleUseStarter = (starterText: string) => {
-    setPreviousBodyNote(bodyNote);
-    applyInspirationText(starterText);
   };
 
   const handleUndoStarter = () => {
@@ -397,291 +371,405 @@ export function Step2NoteComposition({
       }
     }
 
+    if (bracketWarning && !/\[.*?\]/.test(`${salutation} ${newBody} ${signOff}`)) {
+      setBracketWarning(null);
+    }
+
     if (newBody !== initialValuesRef.current.bodyNote) {
       markNoteAsEditedAndFireStep3(newBody.length, false, "body");
     }
   };
 
+  // Smart greeting focus handler: highlight the word "Friend" if present so typing replaces it in 1 keystroke
+  const handleGreetingFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const friendIdx = val.indexOf("Friend");
+    if (friendIdx !== -1) {
+      e.target.setSelectionRange(friendIdx, friendIdx + "Friend".length);
+    }
+  };
+
+  // 1-Tap Occasion Switcher handler
+  const handleOccasionSwitch = (item: (typeof STUDIO_OCCASION_PILLS)[number]) => {
+    const targetPreset = CARD_PRESETS.find((p) => p.id === item.presetId) || CARD_PRESETS[0];
+    if (onSelectCover) {
+      onSelectCover(targetPreset);
+    }
+    if (onChangeOccasion) {
+      onChangeOccasion(item.occasion, targetPreset);
+    }
+    // Switch starter notes to the new occasion's top template
+    const newPrompts = getStarterPrompts(item.occasion, item.label === "Pet Loss" ? "loss-of-beloved-pet" : undefined);
+    if (newPrompts.length > 0) {
+      applyInspirationText(newPrompts[0].template);
+    }
+    if (!salutation || salutation.toLowerCase().includes("friend") || salutation.toLowerCase().includes("dear")) {
+      onChangeSalutation("Dear Friend,");
+    }
+    if (!signOff || signOff.toLowerCase().includes("warmly")) {
+      onChangeSignOff("Warmly,");
+    }
+    setBracketWarning(null);
+    trackEvent("cover_preset_selected", 2, {
+      occasion: item.occasion,
+      presetId: targetPreset.id,
+      title: targetPreset.title,
+    });
+  };
+
+  // Hard safety guard validation before advancing to Address step
+  const handleProceedToAddress = () => {
+    const combined = `${salutation} ${bodyNote} ${signOff}`;
+    const hasBracket = /\[.*?\]/.test(combined);
+    if (hasBracket) {
+      setBracketWarning("Quick check: Replace [bracketed text] with a real name before continuing.");
+      trackEvent("inside_note_edited", 2, {
+        has_unresolved_bracket: true,
+        salutation,
+        signOff,
+      });
+      return;
+    }
+    setBracketWarning(null);
+    onContinue();
+  };
+
+  // Detect which occasion pill is currently active
+  const activeOccasionKey = useMemo(() => {
+    if (scenarioSlug?.includes("pet")) return "pet loss";
+    const occ = (occasion || "").toLowerCase();
+    if (occ.includes("pet")) return "pet loss";
+    if (occ.includes("sympathy") || occ.includes("support") || occ.includes("condolence")) return "sympathy";
+    if (occ.includes("thank")) return "thank you";
+    if (occ.includes("birthday") || occ.includes("bday")) return "birthday";
+    return "thinking of you";
+  }, [occasion, scenarioSlug]);
+
   return (
-    <div className="space-y-6 pb-28 md:pb-12">
-      {/* STEP HEADER */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200/80 pb-3">
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-2">
-            <span className="w-5 h-5 rounded-full bg-emerald-700 text-white font-bold text-xs flex items-center justify-center">
-              2
-            </span>
-            <h1 className="font-serif text-lg sm:text-xl font-bold text-stone-900 tracking-tight">
-              Write your note
-            </h1>
+    <div className="w-full space-y-4">
+      {/* 1. MOBILE-ONLY COMPACT TOP PREVIEW HEADER (< lg): SLEEK SIDE-BY-SIDE MINI PREVIEW BAR (h-28) */}
+      <div className="lg:hidden bg-[#F9F6F0] rounded-2xl p-2.5 sm:p-3 border border-stone-200/90 shadow-2xs flex items-center justify-between gap-3 h-28">
+        {/* Left: Mini Front Cover Artwork Thumbnail */}
+        <div
+          onClick={() => setIsPreviewCardOpen(true)}
+          className="relative w-18 h-full aspect-[17/22] rounded-lg overflow-hidden shadow-sm border border-stone-300 bg-stone-100 shrink-0 cursor-pointer group"
+          title="Tap to preview full card"
+        >
+          <img
+            src={cardUrl || availableCovers[0]?.imageUrl}
+            alt={cardTitle || "Front Cover Artwork"}
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+          />
+          <div className="absolute inset-x-0 bottom-0 bg-stone-900/80 text-white text-[8px] font-bold text-center py-0.5 px-0.5 truncate">
+            Front
           </div>
-          <p className="text-xs text-stone-600">
-            Your words, written in real pen ink.
-          </p>
         </div>
 
-        {/* Back navigation button */}
+        {/* Center: Live Ink Snippet Preview */}
+        <div className="flex-1 min-w-0 flex flex-col justify-center px-1 space-y-0.5">
+          <div className="flex items-center gap-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
+            <span className="text-[11px] font-bold text-stone-900 truncate">
+              {cardTitle || "Featured Design"}
+            </span>
+          </div>
+          <p className={`text-xs text-[#1B3B6F] line-clamp-2 leading-relaxed ${currentFont.fontClass}`}>
+            &ldquo;{salutation ? `${salutation} ` : ""}{bodyNote || "Your handwritten message..."}&rdquo;
+          </p>
+          <span className="text-[10px] text-stone-500 font-medium">
+            Blue ballpoint ink &bull; {currentFont.name}
+          </span>
+        </div>
+
+        {/* Right: Tap to Enlarge / All Covers Modal */}
         <button
           type="button"
-          onClick={onBack}
-          className="self-start sm:self-auto px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer"
+          onClick={() => setIsCoverSheetOpen(true)}
+          className="self-center px-2.5 py-2 bg-white hover:bg-stone-50 active:bg-stone-100 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 shadow-2xs flex flex-col items-center justify-center gap-0.5 shrink-0 cursor-pointer min-w-[72px]"
         >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Change card</span>
+          <Layers className="w-3.5 h-3.5 text-amber-700" />
+          <span className="text-[11px] leading-tight">All Covers</span>
+          <span className="text-[9px] text-stone-500 font-normal">({availableCovers.length})</span>
         </button>
       </div>
 
-      {/* HIGH-VISIBILITY CARD COVER SHOWCASE & 1-TAP MINI COVER STRIP */}
-      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs space-y-3">
-        {/* COMPACT "SWAP COVER DESIGN" PILL VISIBLE AT TOP */}
-        <div className="bg-amber-50/70 border border-amber-200/90 rounded-xl px-3.5 py-2 flex items-center justify-between gap-3 text-xs shadow-2xs">
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
-            <span className="text-stone-700 truncate">
-              Selected Cover:{" "}
-              <strong className="text-stone-900 font-semibold">{cardTitle || "Featured Design"}</strong>
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => setIsCoverSheetOpen(true)}
-            className="inline-flex items-center gap-1 font-semibold text-amber-900 hover:text-amber-950 bg-white hover:bg-amber-100/80 border border-amber-300/80 px-2.5 py-1 rounded-lg shadow-2xs transition cursor-pointer shrink-0"
-          >
-            <span>Swap Cover Design</span>
-            <span className="text-[11px] text-amber-800 font-normal">({availableCovers.length}) &rarr;</span>
-          </button>
-        </div>
-
-        {/* Selected Cover Visual Showcase + 1-Tap Mini Strip */}
-        <div className="flex flex-col sm:flex-row items-center sm:items-stretch gap-4 pt-0.5">
-          {/* Active Front Cover Preview Thumbnail */}
-          <div className="flex items-center gap-3 shrink-0">
-            <div
-              className="relative w-20 sm:w-24 aspect-[17/22] rounded-xl overflow-hidden shadow-md border border-stone-200/80 bg-stone-100 cursor-pointer group"
-              onClick={() => setIsPreviewCardOpen(true)}
-              title="Click to preview full folded card"
-            >
-              {cardUrl ? (
-                <img
-                  src={cardUrl}
-                  alt={cardTitle || "Selected Card Front"}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-stone-100 text-stone-400">
-                  <Eye className="w-5 h-5" />
-                </div>
-              )}
-              <span className="absolute bottom-1 left-1 right-1 bg-stone-900/80 backdrop-blur-xs text-white text-[9px] font-medium text-center py-0.5 rounded px-1 truncate">
-                Physical Front
+      {/* 2. MAIN TWO-COLUMN SPLIT-SCREEN WORKBENCH (lg:grid-cols-12) */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-10 lg:items-start">
+        {/* LEFT COLUMN (lg:col-span-6 — The Tactile Stationery Desk) */}
+        <div className="hidden lg:block lg:col-span-6 lg:sticky lg:top-6">
+          <div className="bg-[#F9F6F0] rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-4">
+            {/* Elevated Desk Header */}
+            <div className="flex items-center justify-between border-b border-stone-200/70 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse" />
+                <h3 className="font-serif font-bold text-sm text-stone-900">
+                  Tactile Stationery Desk
+                </h3>
+              </div>
+              <span className="text-[11px] font-medium text-stone-500 bg-white/80 border border-stone-200 px-2 py-0.5 rounded-full">
+                1:1 Real Ballpoint Pen Inking
               </span>
             </div>
 
-            <div className="space-y-1">
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200/60">
-                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                Front Cover
-              </span>
-              <h4 className="text-xs sm:text-sm font-serif font-bold text-stone-900 line-clamp-1">
-                {cardTitle || "Featured Design"}
-              </h4>
-              <p className="text-[11px] text-stone-500 line-clamp-1">
-                Heavy folded cardstock &bull; Real ink
-              </p>
+            {/* Desktop "Corner Peek / Side-by-Side" Live Preview */}
+            <div className="relative w-full max-w-[340px] mx-auto aspect-[17/22] rounded-2xl overflow-hidden shadow-xl border border-stone-200 bg-[#FDFCF7] paper-texture select-none group">
+              {/* Blind-Deboss Inset Micro-Rule (Traditional letterpress border) */}
+              <div className="absolute inset-3.5 rounded-xl border border-stone-300/40 pointer-events-none" />
+
+              {/* Realistic Left Spine Fold Shadow (Folded card hinge) */}
+              <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/25 via-stone-300/10 to-transparent pointer-events-none z-10" />
+
+              {/* 1:1 Live Ballpoint Ink Inside Page */}
+              <div className="relative z-10 w-full h-full p-6 pt-10 flex flex-col justify-start overflow-hidden">
+                <div className={`text-[#1B3B6F] whitespace-pre-line text-sm sm:text-base leading-relaxed ${currentFont.fontClass}`}>
+                  {salutation && <p className="mb-2 font-medium">{salutation}</p>}
+                  <p className="mb-3 min-h-[70px]">
+                    {bodyNote || "Your personal note written in real ballpoint ink will appear here..."}
+                  </p>
+                  {signOff && <p className="font-medium">{signOff}</p>}
+                </div>
+              </div>
+
+              {/* FRONT COVER ARTWORK CORNER PEEK (Tucked visibly at top-left corner) */}
+              <div
+                onClick={() => setIsPreviewCardOpen(true)}
+                title="Click to inspect full card inside and out"
+                className="absolute top-3 left-3 z-20 w-24 sm:w-28 aspect-[17/22] rounded-xl overflow-hidden shadow-2xl border-2 border-white bg-stone-100 cursor-pointer transform -rotate-3 hover:rotate-0 hover:scale-105 transition-all duration-200 group/peek"
+              >
+                <img
+                  src={cardUrl || availableCovers[0]?.imageUrl}
+                  alt={cardTitle || "Front Cover Artwork"}
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-x-0 bottom-0 bg-stone-900/85 backdrop-blur-xs text-white text-[8px] font-bold text-center py-0.5 px-1 truncate">
+                  Front Artwork
+                </div>
+              </div>
+
+              {/* Expand Full Spread Button (Bottom right hover) */}
               <button
                 type="button"
                 onClick={() => setIsPreviewCardOpen(true)}
-                className="text-[11px] font-semibold text-amber-800 hover:text-amber-950 inline-flex items-center gap-1 cursor-pointer underline"
+                className="absolute bottom-2.5 right-2.5 z-20 px-2.5 py-1 bg-white/90 hover:bg-white text-stone-700 text-[10px] font-semibold rounded-lg shadow-xs border border-stone-200 flex items-center gap-1 backdrop-blur-xs transition cursor-pointer"
               >
-                <Eye className="w-3 h-3" />
-                <span>View inside &amp; out</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Vertical Divider on Desktop */}
-          <div className="hidden sm:block w-px bg-stone-200/90 my-1 shrink-0" />
-
-          {/* 1-Tap Mini Cover Strip (4-6 occasion designs) */}
-          <div className="flex-1 min-w-0 w-full space-y-1.5">
-            <div className="flex items-center justify-between text-[11px]">
-              <span className="font-semibold text-stone-700">
-                1-Tap Swap: Quick {occasion} Covers
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsCoverSheetOpen(true)}
-                className="text-amber-800 font-medium hover:underline text-[11px] cursor-pointer"
-              >
-                All designs ({availableCovers.length}) &rarr;
+                <Eye className="w-3 h-3 text-stone-600" />
+                <span>Full Card Spread</span>
               </button>
             </div>
 
-            <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5 scrollbar-thin">
-              {availableCovers.slice(0, 6).map((preset) => {
-                const isSelected = cardUrl === preset.imageUrl || cardTitle === preset.title;
-                return (
-                  <button
-                    key={preset.id}
-                    type="button"
-                    onClick={() => {
-                      if (onSelectCover) {
-                        onSelectCover(preset);
-                      }
-                      trackEvent("step_2_cover_ready", 2, {
-                        presetId: preset.id,
-                        occasion: preset.occasion,
-                        title: preset.title,
-                        swapped_via_mini_strip: true,
-                      });
-                    }}
-                    className={`group relative shrink-0 w-14 sm:w-16 aspect-[17/22] rounded-lg overflow-hidden border transition cursor-pointer text-left ${
-                      isSelected
-                        ? "border-emerald-600 ring-2 ring-emerald-600/40 shadow-sm"
-                        : "border-stone-200 hover:border-amber-400 opacity-80 hover:opacity-100"
-                    }`}
-                    title={preset.title}
-                  >
-                    <img
-                      src={preset.imageUrl}
-                      alt={preset.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                    />
-                    {isSelected && (
-                      <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                        <Check className="w-2.5 h-2.5 stroke-[3]" />
-                      </div>
-                    )}
-                    <span className="absolute bottom-0 left-0 right-0 bg-stone-900/80 backdrop-blur-xs text-white text-[8px] font-medium px-1 py-0.5 truncate text-center block">
-                      {preset.title}
-                    </span>
-                  </button>
-                );
-              })}
+            {/* 1-Tap Handwriting Style Selector Pills */}
+            <div className="space-y-1.5 pt-1 border-t border-stone-200/70">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-stone-800">Handwriting Style:</span>
+                <span className="text-[11px] text-stone-500 font-medium">{currentFont.description}</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {HANDWRITING_STYLES.map((style) => {
+                  const isSelected = fontStyleId === style.id;
+                  return (
+                    <button
+                      key={style.id}
+                      type="button"
+                      onClick={() => onChangeFontStyleId(style.id)}
+                      className={`px-2.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer text-center truncate ${
+                        isSelected
+                          ? "bg-emerald-800 text-white shadow-xs ring-2 ring-emerald-600/30"
+                          : "bg-white text-stone-700 border border-stone-200 hover:bg-stone-50 hover:border-stone-300"
+                      }`}
+                    >
+                      {style.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* ONE Visual Cover Thumbnail Strip with "See All 12" */}
+            <div className="space-y-1.5 pt-1 border-t border-stone-200/70">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-stone-800">Card Front Design:</span>
+                <span className="text-[11px] text-stone-600 truncate max-w-[200px]">{cardTitle}</span>
+              </div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
+                {availableCovers.slice(0, 6).map((preset) => {
+                  const isSelected = cardUrl === preset.imageUrl || cardTitle === preset.title;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => onSelectCover?.(preset)}
+                      className={`group relative shrink-0 w-14 sm:w-16 aspect-[17/22] rounded-xl overflow-hidden border transition cursor-pointer text-left ${
+                        isSelected
+                          ? "border-emerald-600 ring-2 ring-emerald-600/50 shadow-sm"
+                          : "border-stone-200 hover:border-amber-400 opacity-80 hover:opacity-100 bg-stone-100"
+                      }`}
+                      title={preset.title}
+                    >
+                      <img
+                        src={preset.imageUrl}
+                        alt={preset.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      />
+                      {isSelected && (
+                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </div>
+                      )}
+                      <span className="absolute bottom-0 left-0 right-0 bg-stone-900/85 backdrop-blur-xs text-white text-[8px] font-medium px-0.5 py-0.5 truncate text-center block">
+                        {preset.title}
+                      </span>
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setIsCoverSheetOpen(true)}
+                  className="shrink-0 w-14 sm:w-16 aspect-[17/22] rounded-xl border-2 border-dashed border-stone-300 hover:border-emerald-600 bg-white hover:bg-stone-50 flex flex-col items-center justify-center p-1 text-center cursor-pointer transition text-stone-600 hover:text-emerald-800"
+                >
+                  <span className="text-[11px] font-bold leading-tight">See All</span>
+                  <span className="text-[10px] text-stone-500 font-semibold">{availableCovers.length} &rarr;</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* MAIN LAYOUT: SIDE-BY-SIDE ON DESKTOP, STACKED ON MOBILE */}
-      <div className="lg:grid lg:grid-cols-12 lg:gap-8 items-start">
-        {/* COMPOSITION FORM (Left Column) */}
-        <div className="lg:col-span-7 space-y-4">
-          <div className="bg-[#FAF8F5] rounded-2xl p-4 sm:p-6 border border-stone-200 shadow-xs space-y-4">
-            {/* 1. Salutation / Recipient Input */}
+        {/* RIGHT COLUMN (lg:col-span-6 — The Guided Note & Action Column) */}
+        <div className="lg:col-span-6 space-y-4">
+          <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-sm space-y-4">
+            {/* 1. 1-TAP OCCASION SWITCHER PILLS AT VERY TOP */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold uppercase tracking-wider text-stone-500 text-[10px]">
+                  Select Occasion
+                </span>
+                <span className="text-[11px] text-stone-400">1-Tap Card &amp; Message Switch</span>
+              </div>
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {STUDIO_OCCASION_PILLS.map((item) => {
+                  const isActive = activeOccasionKey === item.label.toLowerCase();
+                  return (
+                    <button
+                      key={item.label}
+                      type="button"
+                      onClick={() => handleOccasionSwitch(item)}
+                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer shrink-0 ${
+                        isActive
+                          ? "bg-stone-900 text-white shadow-xs"
+                          : "bg-stone-100 text-stone-700 hover:bg-stone-200 border border-stone-200/70"
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. GREETING INPUT */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
                 Greeting (optional)
               </label>
               <input
+                ref={salutationInputRef}
                 type="text"
                 value={salutation}
+                onFocus={handleGreetingFocus}
                 onChange={(e) => {
                   const val = e.target.value;
                   const projected = [val, bodyNote, signOff].filter(Boolean).join("\n\n");
                   if (projected.length <= MAX_CHARS) {
                     onChangeSalutation(val);
                   }
+                  if (bracketWarning && !/\[.*?\]/.test(`${val} ${bodyNote} ${signOff}`)) {
+                    setBracketWarning(null);
+                  }
                   if (val !== initialValuesRef.current.salutation) {
                     markNoteAsEditedAndFireStep3(bodyNote.length, false, "greeting");
                   }
                 }}
-                placeholder="e.g. Dear Eleanor,"
-                className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-2xs font-sans"
+                placeholder="e.g. Dear Sarah,"
+                className={`w-full px-3.5 py-2.5 bg-stone-50 border rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans ${
+                  bracketWarning && /\[.*?\]/.test(salutation)
+                    ? "border-amber-400 bg-amber-50/40 ring-2 ring-amber-300"
+                    : "border-stone-300"
+                }`}
               />
               <p className="text-[11px] text-stone-500 mt-1">
-                We&apos;ll carry this name into the address step.
+                We&apos;ll automatically pre-fill this name into the recipient address step.
               </p>
             </div>
 
-            {/* 2. Message Textarea */}
+            {/* 3. YOUR MESSAGE TEXTAREA + STARTER INSPIRATION CHIPS */}
             <div>
               <div className="flex items-center justify-between mb-1">
-                <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600">
+                <label className="block text-xs font-semibold text-stone-700">
                   Your message
                 </label>
-                <span className="text-[11px] text-stone-500 font-medium">
-                  Style: {currentFont.name}
-                </span>
-              </div>
-
-              {/* 1-Tap Starter Note Prompts (Blank-Page Cure) */}
-              <div className="mb-2.5 space-y-1.5">
-                <div className="flex items-center justify-between text-xs font-semibold text-stone-700">
-                  <span className="flex items-center gap-1.5 text-stone-900 font-semibold">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Need inspiration? Tap to insert &amp; edit:</span>
-                  </span>
-                </div>
-                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 overflow-x-auto pb-1">
-                  {starterPrompts.map((p, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
-                      onClick={() => handleUseStarterPrompt(p, idx + 1)}
-                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100/90 active:bg-amber-200 border border-amber-200/90 hover:border-amber-400 rounded-full text-xs font-medium text-amber-950 transition shadow-2xs whitespace-nowrap cursor-pointer shrink-0"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Undo chip if starter just used */}
-              {previousBodyNote !== null && (
-                <div className="mb-2 flex items-center justify-between bg-stone-100 rounded-lg px-3 py-1.5 text-xs text-stone-700">
-                  <span>Starter applied</span>
-                  <button
-                    type="button"
-                    onClick={handleUndoStarter}
-                    className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 flex items-center gap-1 cursor-pointer"
-                  >
-                    <Undo2 className="w-3.5 h-3.5" />
-                    <span>Undo</span>
-                  </button>
-                </div>
-              )}
-
-              <div className="relative rounded-2xl border border-stone-300 overflow-hidden bg-white shadow-2xs">
-                {/* Lined stationery ruling effect */}
-                <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(transparent_31px,#94A3B8_32px)] bg-[length:100%_32px]" />
-
-                <textarea
-                  rows={6}
-                  value={bodyNote}
-                  onChange={handleBodyChange}
-                  placeholder="Write your note from the heart..."
-                  className="w-full p-4 sm:p-5 bg-transparent relative z-10 text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-base sm:text-lg leading-[32px] tracking-normal resize-y min-h-[170px] font-sans"
-                />
-              </div>
-
-              {/* Character count and limit warning directly under textarea */}
-              <div className="mt-1.5 flex items-center justify-between text-xs text-stone-500">
-                <div>
-                  {isAtLimit ? (
-                    <span className="text-rose-600 font-semibold flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                      Message limit reached (450 characters)
-                    </span>
-                  ) : isApproachingLimit ? (
-                    <span className="text-amber-700 font-medium flex items-center gap-1">
-                      <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                      Getting close to the message limit
-                    </span>
-                  ) : null}
-                </div>
-                <div className="font-mono text-stone-500 font-medium ml-auto">
+                <div className="font-mono text-stone-500 text-xs">
                   <span className={isAtLimit ? "text-rose-600 font-bold" : isApproachingLimit ? "text-amber-700 font-bold" : "text-stone-700"}>
                     {charCount}
                   </span>
-                  <span> / {MAX_CHARS} characters</span>
+                  <span> / {MAX_CHARS}</span>
                 </div>
               </div>
+
+              {/* 1-Tap Starter Note Chips (Blank-Page Cure) */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 mb-1.5">
+                <span className="flex items-center gap-1 text-[11px] font-semibold text-amber-900 shrink-0">
+                  <Sparkles className="w-3 h-3 text-amber-600" />
+                  <span>Starters:</span>
+                </span>
+                {starterPrompts.map((p, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleUseStarterPrompt(p, idx + 1)}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 text-amber-950 border border-amber-200/90 rounded-full text-xs font-medium whitespace-nowrap cursor-pointer transition shrink-0"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+                {previousBodyNote !== null && (
+                  <button
+                    type="button"
+                    onClick={handleUndoStarter}
+                    className="px-2 py-1 text-xs text-stone-500 hover:text-stone-800 font-medium flex items-center gap-1 shrink-0 cursor-pointer"
+                  >
+                    <Undo2 className="w-3 h-3" />
+                    <span>Undo</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Stationery Lined Textarea */}
+              <div className={`relative rounded-2xl border overflow-hidden bg-white shadow-2xs ${
+                bracketWarning && /\[.*?\]/.test(bodyNote)
+                  ? "border-amber-400 bg-amber-50/30 ring-2 ring-amber-300"
+                  : "border-stone-300"
+              }`}>
+                <div className="absolute inset-0 pointer-events-none opacity-20 bg-[linear-gradient(transparent_31px,#94A3B8_32px)] bg-[length:100%_32px]" />
+                <textarea
+                  rows={5}
+                  value={bodyNote}
+                  onChange={handleBodyChange}
+                  placeholder="Write your note from the heart..."
+                  className="w-full p-4 bg-transparent relative z-10 text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 text-base leading-[32px] resize-y min-h-[150px] font-sans"
+                />
+              </div>
+
+              {isAtLimit && (
+                <p className="text-xs text-rose-600 font-medium mt-1 flex items-center gap-1">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  <span>Maximum card message length reached (450 characters).</span>
+                </p>
+              )}
             </div>
 
-            {/* 3. Closing & Sign-off Input */}
+            {/* 4. SIGN-OFF INPUT */}
             <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1">
+              <label className="block text-xs font-semibold text-stone-700 mb-1">
                 Sign-off / Your name
               </label>
               <input
@@ -693,313 +781,106 @@ export function Step2NoteComposition({
                   if (projected.length <= MAX_CHARS) {
                     onChangeSignOff(val);
                   }
+                  if (bracketWarning && !/\[.*?\]/.test(`${salutation} ${bodyNote} ${val}`)) {
+                    setBracketWarning(null);
+                  }
                   if (val !== initialValuesRef.current.signOff) {
                     markNoteAsEditedAndFireStep3(bodyNote.length, false, "signOff");
                   }
                 }}
-                placeholder="e.g. Warmly, Thomas"
-                className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 shadow-2xs font-sans"
+                placeholder="e.g. Warmly, Ezekiel"
+                className={`w-full px-3.5 py-2.5 bg-stone-50 border rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans ${
+                  bracketWarning && /\[.*?\]/.test(signOff)
+                    ? "border-amber-400 bg-amber-50/40 ring-2 ring-amber-300"
+                    : "border-stone-300"
+                }`}
               />
               <p className="text-[11px] text-stone-500 mt-1">
-                We&apos;ll use your name on the envelope.
+                We&apos;ll automatically pre-fill your name for your return address.
               </p>
             </div>
-          </div>
 
-          {/* COMPACT CONTROLS ROW: HANDWRITING SELECTOR, COVER SWITCHER & MOBILE PREVIEW BUTTON */}
-          <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-stone-200/90 shadow-2xs">
-            {/* Quick Cover Switcher for mobile & compact view */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-stone-500">Cover:</span>
-              <button
-                type="button"
-                onClick={() => setIsCoverSheetOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-900 font-medium text-xs transition cursor-pointer"
-              >
-                <span className="font-semibold truncate max-w-[130px]">{cardTitle || "Design"}</span>
-                <span className="text-amber-800 font-semibold">· Swap ({availableCovers.length})</span>
-              </button>
-            </div>
-
-            {/* Collapsed Handwriting Selector */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-stone-500">Handwriting:</span>
-              <button
-                type="button"
-                onClick={() => setIsFontSheetOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-900 font-medium text-xs transition cursor-pointer"
-              >
-                <span className="font-semibold">{currentFont.name}</span>
-                <span className="text-stone-500">· Change</span>
-              </button>
-            </div>
-
-            {/* Mobile "Preview your card" Button */}
-            <button
-              type="button"
-              onClick={() => setIsPreviewCardOpen(true)}
-              className="lg:hidden inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-medium text-xs border border-emerald-200/70 transition cursor-pointer"
-            >
-              <Eye className="w-3.5 h-3.5 text-emerald-700" />
-              <span>Preview your card</span>
-            </button>
-          </div>
-
-          {/* SUBORDINATE INSPIRATION DRAWER */}
-          <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
-            <button
-              type="button"
-              onClick={() => setIsInspirationOpen(!isInspirationOpen)}
-              className="w-full p-4 flex items-center justify-between text-left hover:bg-stone-50 transition cursor-pointer"
-            >
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center text-amber-800">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </div>
-                <div>
-                  <span className="text-xs font-semibold text-stone-800 block">
-                    Need a little inspiration?
-                  </span>
-                  <span className="text-[11px] text-stone-500">
-                    Browse suggested messages for {occasion}.
-                  </span>
-                </div>
-              </div>
-              {isInspirationOpen ? (
-                <ChevronUp className="w-4 h-4 text-stone-400" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-stone-400" />
-              )}
-            </button>
-
-            {isInspirationOpen && (
-              <div className="p-4 pt-1 border-t border-stone-100 bg-[#FAF8F5] space-y-3">
-                {/* Tone filter tabs */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                  {(["Warm", "Heartfelt", "Playful", "Literary"] as const).map((tone) => (
-                    <button
-                      key={tone}
-                      type="button"
-                      onClick={() => setSelectedToneTab(tone)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition cursor-pointer shrink-0 ${
-                        selectedToneTab === tone
-                          ? "bg-stone-900 text-white shadow-xs"
-                          : "bg-white text-stone-600 border border-stone-200 hover:bg-stone-100"
-                      }`}
-                    >
-                      {tone}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Message ideas */}
-                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {filteredMessages.length === 0 ? (
-                    <p className="text-xs text-stone-500 py-3 text-center">
-                      Select another tone tab to view messages for {occasion}.
-                    </p>
-                  ) : (
-                    filteredMessages.map((msg, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => handleInspirationClick(msg.handwritten)}
-                        className="p-3 bg-white hover:bg-amber-50/70 border border-stone-200/80 hover:border-amber-300 rounded-xl transition cursor-pointer group space-y-1 shadow-2xs"
-                      >
-                        <div className="flex items-center justify-between text-[10px] text-stone-400 font-medium">
-                          <span className="uppercase tracking-wider text-emerald-800 font-semibold">
-                            {msg.tag || selectedToneTab}
-                          </span>
-                          <span className="text-emerald-700 opacity-0 group-hover:opacity-100 transition font-semibold">
-                            Click to use →
-                          </span>
-                        </div>
-                        <p className={`text-sm text-stone-800 leading-relaxed ${currentFont.fontClass}`}>
-                          &ldquo;{msg.handwritten}&rdquo;
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
+            {/* BRACKET SAFETY GUARD NOTIFICATION (Warm Amber) */}
+            {bracketWarning && (
+              <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 font-semibold flex items-center gap-2 animate-in fade-in">
+                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{bracketWarning}</span>
               </div>
             )}
-          </div>
 
-          {/* INKING NOTICE CALLOUT */}
-          <div className="p-3.5 bg-stone-100/70 rounded-2xl border border-stone-200/70 flex items-start gap-2.5">
-            <PenTool className="w-4 h-4 text-stone-700 shrink-0 mt-0.5" />
-            <p className="text-xs text-stone-600 leading-relaxed">
-              <strong className="text-stone-900 font-semibold">Real Pen Inking:</strong>{" "}
-              All interior text is written with real ballpoint pen ink—never printed digital imitation fonts or toner.
-            </p>
-          </div>
-        </div>
-
-        {/* DESKTOP SIDE-BY-SIDE CARD PREVIEW (Right Column) */}
-        <div className="hidden lg:block lg:col-span-5 sticky top-24 space-y-3">
-          <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200/80 shadow-2xs">
-            {/* Tactile Header Pill above card preview */}
-            <button
-              type="button"
-              onClick={() => setIsCoverSheetOpen(true)}
-              className="w-full mb-3 px-3.5 py-2.5 bg-white hover:bg-stone-50 border border-stone-200/90 hover:border-amber-400 rounded-xl shadow-2xs text-left flex items-center justify-between text-xs transition cursor-pointer group"
-            >
-              <div className="flex items-center gap-2 truncate">
-                <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
-                <span className="font-semibold text-stone-900 truncate">
-                  Cover: {cardTitle || "Featured Design"}
-                </span>
+            {/* MOBILE ONLY: QUICK HANDWRITING SELECTOR PILLS */}
+            <div className="lg:hidden space-y-1.5 pt-2 border-t border-stone-200">
+              <div className="flex items-center justify-between text-xs text-stone-700">
+                <span className="font-semibold">Handwriting:</span>
+                <span className="text-[11px] text-stone-500">{currentFont.name}</span>
               </div>
-              <span className="text-amber-800 font-semibold shrink-0 group-hover:underline">
-                Swap Cover Design ({availableCovers.length}) →
-              </span>
-            </button>
-
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold uppercase tracking-wider text-stone-700">
-                Card Preview
-              </span>
-              <span className="text-[11px] text-stone-500">
-                {cardTitle || "Folded Greeting Card"}
-              </span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {HANDWRITING_STYLES.map((style) => (
+                  <button
+                    key={style.id}
+                    type="button"
+                    onClick={() => onChangeFontStyleId(style.id)}
+                    className={`px-2 py-1.5 rounded-lg text-xs font-semibold text-center truncate ${
+                      fontStyleId === style.id
+                        ? "bg-emerald-800 text-white shadow-xs"
+                        : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                    }`}
+                  >
+                    {style.name}
+                  </button>
+                ))}
+              </div>
             </div>
-            <CardPreview
-              coverUrl={cardUrl || ""}
-              printedGreeting={salutation}
-              handwrittenNote={[bodyNote, signOff].filter(Boolean).join("\n\n")}
-              fontStyleId={fontStyleId}
-              occasion={occasion}
-              currentStep={2}
-            />
+
+            {/* 5. ALWAYS-VISIBLE PRIMARY FORWARD CTA BUTTON (DESKTOP WORKBENCH) */}
+            <div className="hidden lg:block pt-3 border-t border-stone-200/80">
+              <button
+                type="button"
+                onClick={handleProceedToAddress}
+                className="w-full py-3.5 px-6 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold rounded-xl text-base transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Continue to Recipient Address — $9.00 All-In</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <p className="text-[11px] text-stone-500 text-center leading-relaxed mt-2">
+                Includes heavy 120lb cotton card, real pen handwriting &amp; First-Class USPS stamp. Don&apos;t know their address yet? You can add it after checkout.
+              </p>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* CONFIRMATION MODAL BEFORE REPLACING USER TEXT */}
-      {pendingInspiration && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-2xl max-w-sm w-full p-5 space-y-4 shadow-xl border border-stone-200">
-            <div className="flex items-center gap-2.5 text-stone-900">
-              <AlertTriangle className="w-5 h-5 text-amber-700 shrink-0" />
-              <h3 className="font-serif font-bold text-base text-stone-900">
-                Replace your existing note?
-              </h3>
+      {/* 3. MOBILE PINNED STICKY BOTTOM ACTION BAR (< lg) */}
+      {!hideFixedActionBar && (
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/90 p-3 shadow-lg safe-area-inset-bottom">
+          {bracketWarning && (
+            <div className="mb-2 p-2 bg-amber-50 border border-amber-300 rounded-lg text-[11px] text-amber-900 font-semibold flex items-center gap-1.5">
+              <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+              <span>{bracketWarning}</span>
             </div>
-            <p className="text-xs text-stone-600 leading-relaxed">
-              You have already written text in your note. Using this message will replace what you typed.
-            </p>
-            <div className="p-3 bg-stone-50 rounded-xl text-xs text-stone-700 italic border border-stone-200 line-clamp-3">
-              &ldquo;{pendingInspiration}&rdquo;
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setPendingInspiration(null)}
-                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-stone-600 hover:bg-stone-100 transition cursor-pointer"
-              >
-                Keep my note
-              </button>
-              <button
-                type="button"
-                onClick={() => applyInspirationText(pendingInspiration)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition cursor-pointer"
-              >
-                Use this message
-              </button>
-            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={handleProceedToAddress}
+              className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>Continue to Address ($9.00 All-In)</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
+          <p className="text-[10px] text-stone-500 text-center mt-1">
+            USPS First-Class stamp included &bull; Add street address later if needed
+          </p>
         </div>
       )}
 
-      {/* HANDWRITING STYLE SELECTION SHEET */}
-      <Sheet
-        isOpen={isFontSheetOpen}
-        onClose={() => setIsFontSheetOpen(false)}
-        title="Handwriting"
-        description="Choose how your note looks."
-      >
-        <div className="space-y-3">
-          {HANDWRITING_STYLES.map((style) => {
-            const isSelected = fontStyleId === style.id;
-            return (
-              <button
-                key={style.id}
-                type="button"
-                onClick={() => {
-                  onChangeFontStyleId(style.id);
-                  setIsFontSheetOpen(false);
-                }}
-                className={`w-full text-left p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between ${
-                  isSelected
-                    ? "bg-emerald-50/70 border-emerald-600 ring-2 ring-emerald-600/20 shadow-xs"
-                    : "bg-white border-stone-200 hover:border-stone-300 hover:bg-stone-50"
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-semibold text-xs text-stone-900">
-                    {style.name}
-                  </span>
-                  {isSelected && (
-                    <span className="w-4 h-4 rounded-full bg-emerald-700 text-white flex items-center justify-center text-[10px]">
-                      <Check className="w-3 h-3 stroke-[3]" />
-                    </span>
-                  )}
-                </div>
-
-                <p className={`text-base text-stone-800 my-1 truncate ${style.fontClass}`}>
-                  {style.sample}
-                </p>
-
-                <p className="text-[11px] text-stone-500 mt-0.5">
-                  {style.description}
-                </p>
-              </button>
-            );
-          })}
-        </div>
-      </Sheet>
-
-      {/* MOBILE CARD PREVIEW SHEET */}
-      <Sheet
-        isOpen={isPreviewCardOpen}
-        onClose={() => setIsPreviewCardOpen(false)}
-        title="Card Preview"
-        description={cardTitle || "Folded Greeting Card"}
-      >
-        <div className="py-2">
-          {/* Tactile Header Pill inside mobile preview sheet */}
-          <button
-            type="button"
-            onClick={() => {
-              setIsPreviewCardOpen(false);
-              setIsCoverSheetOpen(true);
-            }}
-            className="w-full mb-3 px-3.5 py-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl shadow-2xs text-left flex items-center justify-between text-xs transition cursor-pointer"
-          >
-            <span className="font-semibold text-stone-900 truncate">
-              Cover: {cardTitle || "Featured Design"}
-            </span>
-            <span className="text-amber-800 font-semibold shrink-0">
-              Swap Design ({availableCovers.length}) →
-            </span>
-          </button>
-
-          <CardPreview
-            coverUrl={cardUrl || ""}
-            printedGreeting={salutation}
-            handwrittenNote={[bodyNote, signOff].filter(Boolean).join("\n\n")}
-            fontStyleId={fontStyleId}
-            occasion={occasion}
-            currentStep={2}
-          />
-        </div>
-      </Sheet>
-
-      {/* QUICK COVER SWITCHER BOTTOM-SHEET / MODAL */}
+      {/* 4. FULL "SEE ALL 12" COVER DESIGNS SHEET */}
       <Sheet
         isOpen={isCoverSheetOpen}
         onClose={() => setIsCoverSheetOpen(false)}
-        title="Swap Card Design"
-        description={`Select a cover design for your ${occasion} card. Your written note is completely preserved.`}
+        title="Select Card Front Design"
+        description={`Choose from all ${availableCovers.length} original greeting cards. Your written note is completely preserved.`}
       >
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2 max-h-[70vh] overflow-y-auto">
           {availableCovers.map((preset) => {
@@ -1046,55 +927,24 @@ export function Step2NoteComposition({
         </div>
       </Sheet>
 
-      {/* DESKTOP ADVANCE BAR */}
-      <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-semibold flex items-center gap-1.5 transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>← Back to card</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onContinue}
-          className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
-        >
-          <span>Add mailing address →</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
-      </div>
-
-      {/* MOBILE STICKY BOTTOM ACTION BAR */}
-      {!hideFixedActionBar && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/90 p-3 shadow-lg flex items-center justify-between gap-3 safe-area-inset-bottom">
-          <button
-            type="button"
-            onClick={onBack}
-            className="px-3 py-2 text-stone-600 hover:text-stone-900 text-xs font-semibold flex items-center gap-1"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Card</span>
-          </button>
-
-          <div className="text-center">
-            <span className="text-[11px] font-mono text-stone-500">
-              {charCount}/{MAX_CHARS}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={onContinue}
-            className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition shadow-sm flex items-center gap-1.5 cursor-pointer"
-          >
-            <span>Add mailing address →</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </button>
+      {/* 5. FULL ENLARGED CARD INSPECTION SHEET */}
+      <Sheet
+        isOpen={isPreviewCardOpen}
+        onClose={() => setIsPreviewCardOpen(false)}
+        title="Card Preview"
+        description={cardTitle || "Folded Greeting Card"}
+      >
+        <div className="py-2">
+          <CardPreview
+            coverUrl={cardUrl || ""}
+            printedGreeting={salutation}
+            handwrittenNote={[bodyNote, signOff].filter(Boolean).join("\n\n")}
+            fontStyleId={fontStyleId}
+            occasion={occasion}
+            currentStep={2}
+          />
         </div>
-      )}
+      </Sheet>
     </div>
   );
 }

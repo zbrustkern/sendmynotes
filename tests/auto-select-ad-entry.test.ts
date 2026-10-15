@@ -93,8 +93,8 @@ assert(
   `loss-of-pet occasionName is 'Sympathy & Support' (got '${petLoss?.occasionName}')`
 );
 assert(
-  petLoss?.handwrittenNote.includes("sweet [Pet's Name]"),
-  "loss-of-pet contains pre-seeded pet loss note"
+  Boolean(petLoss?.handwrittenNote.includes("sweet companion") && !petLoss?.handwrittenNote.includes("[")),
+  "loss-of-pet contains natural, bracket-free pre-seeded pet loss note"
 );
 
 // --- 4. Test Telemetry Schema Allows auto_selected ---

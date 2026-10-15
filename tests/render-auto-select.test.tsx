@@ -44,27 +44,27 @@ const htmlGeneral = renderToString(
   />
 );
 
-assert(htmlGeneral.includes("Write your note"), "Step 2 heading 'Write your note' is rendered");
+assert(htmlGeneral.includes("Tactile Stationery Desk"), "Tactile Stationery Desk surface is rendered");
 assert(
-  htmlGeneral.includes("Swap Cover Design"),
-  "Compact 'Swap Cover Design' pill is present and visible at the top"
+  htmlGeneral.includes("1:1 Real Ballpoint Pen Inking"),
+  "1:1 Real Ballpoint Pen Inking badge is present"
 );
-assert(htmlGeneral.includes(generalPreset.title), `Selected cover title '${generalPreset.title}' is displayed`);
+assert(htmlGeneral.includes("Front Artwork"), "Front Artwork corner-peek preview is rendered");
 assert(
-  htmlGeneral.includes("Selected Cover:"),
-  "Selected Cover label is prominently displayed"
-);
-assert(
-  htmlGeneral.includes("Physical Front"),
-  "High-visibility front cover preview badge 'Physical Front' is rendered"
+  htmlGeneral.includes("Continue to Recipient Address — $9.00 All-In"),
+  "Desktop forward CTA 'Continue to Recipient Address — $9.00 All-In →' is rendered"
 );
 assert(
-  htmlGeneral.includes("Front Cover"),
-  "Front Cover label is prominently displayed alongside card preview"
+  htmlGeneral.includes("See All"),
+  "Visual cover thumbnail strip with 'See All' button is rendered"
 );
 assert(
-  htmlGeneral.includes("1-Tap Swap: Quick"),
-  "1-Tap Mini Cover Strip is present and rendered"
+  !htmlGeneral.includes("Swap Cover Design"),
+  "Redundant text button 'Swap Cover Design' is deleted"
+);
+assert(
+  !htmlGeneral.includes("Selected Cover:"),
+  "Redundant yellow banner 'Selected Cover:' is deleted"
 );
 
 // --- 2. Test Step2NoteComposition with Pet Loss Sympathy Scenario ---
@@ -94,14 +94,18 @@ const htmlPetLoss = renderToString(
 );
 
 assert(
-  htmlPetLoss.includes("Swap Cover Design"),
-  "Pet loss editor displays compact 'Swap Cover Design' pill at top"
+  htmlPetLoss.includes("Tactile Stationery Desk"),
+  "Pet loss editor displays tactile desk"
 );
 assert(
-  htmlPetLoss.includes("Rainbow Bridge / Fond Memories"),
-  "Pet loss starter prompts include 'Rainbow Bridge / Fond Memories'"
+  htmlPetLoss.includes("1. Warm"),
+  "Pet loss starter prompts include natural '1. Warm & Short'"
 );
 assert(htmlPetLoss.includes("Dear Sarah,"), "Salutation rendered in preview/form");
+assert(
+  !htmlPetLoss.includes("Swap Cover Design"),
+  "Redundant 'Swap Cover Design' text buttons are gone from pet loss editor"
+);
 
 // --- 3. Test Category Preset Matching Consistency ---
 console.log("\n--- 3. Testing Category Preset Matching Consistency ---");

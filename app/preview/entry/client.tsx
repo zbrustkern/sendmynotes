@@ -739,6 +739,40 @@ export function EntryPrototypeClient({
         value: 9.0,
       });
     } else if (nextStep === "address") {
+      // Auto-carry names from salutation and sign-off into recipient and sender
+      const extractedRec = extractRecipientName(salutation);
+      if (extractedRec && (!recipient.fullName.trim() || recipient.fullName.toLowerCase() === "friend")) {
+        setRecipient((prev) => ({ ...prev, fullName: extractedRec }));
+        dispatch({
+          type: "UPDATE_RECIPIENT",
+          payload: {
+            name: extractedRec,
+            addressLine1: recipient.street1,
+            addressLine2: recipient.street2,
+            city: recipient.city,
+            state: recipient.state,
+            zip: recipient.zip,
+            country: "USA",
+          },
+        });
+      }
+
+      const extractedSnd = extractSenderName(signOff);
+      if (extractedSnd && (!sender.fullName.trim() || sender.fullName.toLowerCase() === "friend")) {
+        setSender((prev) => ({ ...prev, fullName: extractedSnd }));
+        dispatch({
+          type: "UPDATE_SENDER",
+          payload: {
+            name: extractedSnd,
+            addressLine1: sender.street1,
+            city: sender.city,
+            state: sender.state,
+            zip: sender.zip,
+            country: "USA",
+          },
+        });
+      }
+
       trackEvent("note_completed", 2, {
         charCount: draft.note.text.length,
         fontId: draft.note.style || "hwDavid",
@@ -1155,9 +1189,9 @@ export function EntryPrototypeClient({
         )}
 
         {step === "note" && (
-          <div className="max-w-4xl mx-auto px-4 py-6 pb-32">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step2NoteComposition
-              hideFixedActionBar={true}
+              hideFixedActionBar={false}
               salutation={salutation}
               onChangeSalutation={handleSalutationChange}
               bodyNote={draft.note.text}
@@ -1171,6 +1205,20 @@ export function EntryPrototypeClient({
               cardUrl={currentCard.imageUrl}
               scenarioSlug={scenarioSlug}
               onSelectCover={(preset) => handleSelectPreset(preset)}
+              onChangeOccasion={(newOccasion, preset) => {
+                const targetPreset = preset || CARD_PRESETS.find((p) => p.occasion === newOccasion) || CARD_PRESETS[0];
+                dispatch({
+                  type: "SELECT_DESIGN",
+                  payload: {
+                    presetId: targetPreset.id,
+                    imageUrl: targetPreset.imageUrl,
+                    title: targetPreset.title,
+                    occasion: newOccasion,
+                    source: "preset",
+                    accepted: true,
+                  },
+                });
+              }}
               onBack={() => {
                 setStep("card");
                 dispatch({ type: "SET_STEP", payload: "card" });
@@ -1256,46 +1304,32 @@ export function EntryPrototypeClient({
         )}
       </main>
 
-      {/* 4. PERSISTENT BOTTOM ACTION BAR (Steps 1 to 3) */}
-      {step !== "pay" && (
+      {/* 4. PERSISTENT BOTTOM ACTION BAR (Steps 1 and 3) */}
+      {step !== "pay" && step !== "note" && (
         <ActionBar
           priceDisplay="$9 total"
           priceSubtext="USPS mailing included"
-          primaryLabel={
-            step === "card"
-              ? "Write your note"
-              : step === "note"
-              ? "Add mailing address"
-              : "Review & pay"
-          }
+          primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
-          isDisabled={step === "note" && !draft.note.text.trim()}
+          isDisabled={false}
           onPrimaryClick={() => {
             if (step === "card") {
               handleStepTransition("note");
-            } else if (step === "note") {
-              handleStepTransition("address");
             } else if (step === "address") {
               handleAddressSubmit();
             }
           }}
           secondaryAction={
-            step !== "card" ? (
+            step === "address" ? (
               <button
                 type="button"
                 onClick={() => {
-                  if (step === "note") {
-                    setStep("card");
-                    dispatch({ type: "SET_STEP", payload: "card" });
-                  }
-                  if (step === "address") {
-                    setStep("note");
-                    dispatch({ type: "SET_STEP", payload: "note" });
-                  }
+                  setStep("note");
+                  dispatch({ type: "SET_STEP", payload: "note" });
                 }}
                 className="text-xs text-stone-600 hover:text-stone-900 font-medium px-3 py-2 rounded-lg hover:bg-stone-100 transition cursor-pointer"
               >
-                {step === "note" ? "Change card" : "Edit note"}
+                Edit note
               </button>
             ) : undefined
           }

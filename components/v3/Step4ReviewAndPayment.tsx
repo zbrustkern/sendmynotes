@@ -694,22 +694,24 @@ function InnerPaymentForm({
               )}
 
               {/* EXPRESS CHECKOUT ELEMENT (Apple Pay / Google Pay / Link) */}
-              <div className={walletAvailable ? "space-y-3" : "hidden"}>
+              <div className={walletAvailable ? "space-y-3" : "h-0 overflow-hidden opacity-0 pointer-events-none"}>
                 <ExpressCheckoutElement
                   onConfirm={handleExpressConfirm}
                   onReady={handleExpressReady}
                   options={{ buttonHeight: 44 }}
                 />
-                <div className="relative my-3">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-stone-200" />
+                {walletAvailable && (
+                  <div className="relative my-3">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-stone-200" />
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="bg-white px-3 text-stone-400 font-medium">
+                        — Or pay with card —
+                      </span>
+                    </div>
                   </div>
-                  <div className="relative flex justify-center text-xs">
-                    <span className="bg-white px-3 text-stone-400 font-medium">
-                      — Or pay with card —
-                    </span>
-                  </div>
-                </div>
+                )}
               </div>
 
               {/* CARD ELEMENT FALLBACK */}

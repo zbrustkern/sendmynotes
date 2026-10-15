@@ -128,7 +128,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/thank-you-botanical.jpg",
     coverPrompt: "Warm botanical gouache painting of blooming lavender and chamomile wildflowers in a sunlit meadow",
     printedGreeting: "With deepest gratitude and appreciation.",
-    handwrittenNote: "Dear [Name],\n\nThank you so much for your generosity, kindness, and wonderful hospitality. Having you in my corner truly meant the world to me, and I am so grateful for your friendship and thoughtfulness!\n\nWarmly,\n[Your Name]",
+    handwrittenNote: "Dear Friend,\n\nThank you so much for your generosity, kindness, and wonderful hospitality. Having you in my corner truly meant the world to me, and I am so grateful for your friendship and thoughtfulness!\n\nWarmly,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -188,7 +188,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/thank-you-laurel-wreath.jpg",
     coverPrompt: "Classical botanical garland wreath of lush green olive branches, golden bay laurel leaves, and delicate ivory blossom accents on warm cream",
     printedGreeting: "With sincere appreciation for your time and conversation.",
-    handwrittenNote: "Dear [Interviewer Name],\n\nThank you so much for taking the time to speak with me today about the [Job Title] role. I really enjoyed learning more about [specific topic or initiative discussed] and feel even more energized about how my experience in [your key skill/experience] could help the team reach its goals.\n\nThank you again for the opportunity, and I look forward to staying in touch!\n\nBest regards,\n[Your Name]",
+    handwrittenNote: "Dear Interviewer,\n\nThank you so much for taking the time to speak with me today about the role. I really enjoyed learning more about the team's upcoming initiatives and feel even more energized about how my experience could help reach our shared goals.\n\nThank you again for the opportunity, and I look forward to staying in touch!\n\nBest regards,",
     fontStyleId: "4",
     fontName: "Executive Fountain Pen",
     etiquetteTips: [
@@ -250,7 +250,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/thank-you-laurel-wreath.jpg",
     coverPrompt: "Classical botanical garland wreath of lush green olive branches, golden bay laurel leaves, and delicate ivory blossom accents on warm cream",
     printedGreeting: "With deep gratitude for your wisdom and guidance.",
-    handwrittenNote: "Dear [Mentor Name],\n\nI wanted to send a note of sincere thanks for your guidance, encouragement, and perspective over the past [months/year]. Your advice regarding [specific career milestone or challenge] made an enormous impact on how I navigated things.\n\nThank you for always taking the time to invest in me. I am truly grateful for your mentorship!\n\nWarmly,\n[Your Name]",
+    handwrittenNote: "Dear Mentor,\n\nI wanted to send a note of sincere thanks for your guidance, encouragement, and perspective over the past year. Your advice and wisdom have made an enormous impact on how I navigate my career.\n\nThank you for always taking the time to invest in me. I am truly grateful for your mentorship!\n\nWarmly,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -300,7 +300,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/thank-you-botanical.jpg",
     coverPrompt: "Modern botanical gouache painting of blooming lavender and chamomile wildflowers in a sunlit meadow",
     printedGreeting: "Congratulations on a wonderful new beginning.",
-    handwrittenNote: "Dear [Client Names],\n\nCongratulations on successfully closing on [Property / Project Name]! It was an absolute honor and pleasure to work alongside you throughout this journey.\n\nThank you for trusting me with this important milestone. Wishing you immense happiness and success in the years ahead!\n\nBest regards,\n[Your Name]",
+    handwrittenNote: "Dear Friends,\n\nCongratulations on successfully closing on your wonderful new home! It was an absolute honor and pleasure to work alongside you throughout this journey.\n\nThank you for trusting me with this important milestone. Wishing you immense happiness and success in the years ahead!\n\nBest regards,",
     fontStyleId: "3",
     fontName: "Architect Print",
     etiquetteTips: [
@@ -351,7 +351,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/sympathy-typography.jpg",
     coverPrompt: "Quiet, compassionate typography-led card on pale dove-blue ground with charcoal serif 'Here for you' lettering and fine frame rule",
     printedGreeting: "Holding you close in our thoughts during this difficult time.",
-    handwrittenNote: "Dear [Name],\n\nI am so deeply sorry for your loss. Please know that I am holding you and your family close in my thoughts and heart. Sending you gentle comfort, quiet strength, and peace in the days ahead. I am always here for you.\n\nWith love and sympathy,\n[Your Name]",
+    handwrittenNote: "Dear Friend,\n\nI am so deeply sorry for your loss. Please know that I am holding you and your family close in my thoughts and heart. Sending you gentle comfort, quiet strength, and peace in the days ahead. I am always here for you.\n\nWith love and sympathy,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -409,7 +409,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/pet-sympathy-rainbow.jpg",
     coverPrompt: "Delicate botanical watercolor meadow with wildflowers, lavender, faint golden paw prints leading toward an ethereal pastel rainbow in soft morning mist",
     printedGreeting: "Holding you close in this heartbreaking time.",
-    handwrittenNote: "Dear [Friend's Name],\n\nI was so deeply heartbroken to hear about the passing of sweet [Pet's Name]. [He/She] was such an extraordinary, loyal companion and brought so much pure joy into your life.\n\nThank you for giving [Pet's Name] such a beautiful life filled with endless love and adventures. Sending you the warmest hugs and strength right now.\n\nWith all my love,\n[Your Name]",
+    handwrittenNote: "Dear Friend,\n\nI was so deeply heartbroken to hear about the loss of your sweet companion. They brought so much pure joy into your life, and I am grateful you gave them such a wonderful home filled with love. Sending you the warmest hugs and strength right now.\n\nWith all my love,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -460,7 +460,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/sympathy-gentle-light.jpg",
     coverPrompt: "Solitary warm glowing lantern resting beside a serene mountain lake at twilight with quiet pine boughs and starry sky in delicate gouache and ink",
     printedGreeting: "Those we love never truly leave us.",
-    handwrittenNote: "Dear [Friend's Name],\n\nMy heart aches for you and your family as you mourn the loss of your wonderful [Mother / Father]. [He/She] was such a remarkable person, and the kindness, strength, and love they shared lives on so brightly in you.\n\nPlease know I am thinking of you constantly and holding you close during this heartbreaking journey. I am here for you for anything you need.\n\nWith deepest sympathy,\n[Your Name]",
+    handwrittenNote: "Dear Friend,\n\nMy heart aches for you and your family as you mourn the loss of your wonderful parent. They were such a remarkable person, and the kindness, strength, and love they shared lives on so brightly in you.\n\nPlease know I am thinking of you constantly and holding you close during this heartbreaking journey. I am here for you for anything you need.\n\nWith deepest sympathy,",
     fontStyleId: "2",
     fontName: "Classic Cursive",
     etiquetteTips: [
@@ -510,7 +510,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/congrats-new-home.jpg",
     coverPrompt: "Sunlit sage green front door in warm artisanal gouache with terracotta brick, welcoming botanical boxwood wreath, and potted lemon topiary",
     printedGreeting: "May your new home be filled with laughter and love.",
-    handwrittenNote: "Dear [Names],\n\nHappy New Home! So thrilled for you both as you settle into this wonderful new space. May your home be filled with joyful memories, cozy evenings, and wonderful dinner parties.\n\nCan't wait to visit and celebrate properly soon! Huge congratulations on this exciting milestone.\n\nWarmest wishes,\n[Your Name]",
+    handwrittenNote: "Dear Friends,\n\nHappy New Home! So thrilled for you as you settle into this wonderful new space. May your home be filled with joyful memories, cozy evenings, and wonderful dinner parties.\n\nCan't wait to visit and celebrate properly soon! Huge congratulations on this exciting milestone.\n\nWarmest wishes,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -559,7 +559,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/congrats-champagne.jpg",
     coverPrompt: "Golden effervescent champagne bubbles rising in vintage crystal coupe, celebratory starbursts, festive modern artwork",
     printedGreeting: "Cheers to your well-deserved achievement!",
-    handwrittenNote: "Dear [Name],\n\nHuge congratulations on your promotion to [New Title]! Nobody deserves this recognition more than you—your hard work, creativity, and leadership have set such an incredible example.\n\nHere's to celebrating all that you've accomplished and to the exciting journey ahead! Pop the bubbly!\n\nCheers,\n[Your Name]",
+    handwrittenNote: "Dear Friend,\n\nHuge congratulations on your new promotion! Nobody deserves this recognition more than you—your hard work, creativity, and leadership have set such an incredible example.\n\nHere's to celebrating all that you've accomplished and to the exciting journey ahead! Pop the bubbly!\n\nCheers,",
     fontStyleId: "3",
     fontName: "Architect Print",
     etiquetteTips: [
@@ -604,7 +604,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/birthday-cake.jpg",
     coverPrompt: "Sophisticated cut-paper collage of a round birthday cake on cobalt-blue pedestal with five lit candles, confetti accents, and 'Happy Birthday' lettering",
     printedGreeting: "Wishing you a year filled with joy and wonderful adventures.",
-    handwrittenNote: "Dear [Name],\n\nHappy Birthday! Wishing you a year filled with magic, laughter, and milestones together. So proud of everything you have accomplished this year, and hope you have the most wonderful celebration today!\n\nWarmly,\n[Your Name]",
+    handwrittenNote: "Dear Friend,\n\nHappy Birthday! Wishing you a year filled with magic, laughter, and milestones together. So proud of everything you have accomplished this year, and hope you have the most wonderful celebration today!\n\nWarmly,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -657,7 +657,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/birthday-balloons.jpg",
     coverPrompt: "Golden balloons floating into pastel sunset sky, gold foil flecks, elegant celebratory artwork",
     printedGreeting: "Celebrating an extraordinary life and journey.",
-    handwrittenNote: "Happy [50th/60th/70th] Birthday, [Name]!\n\nWhat an incredible milestone to celebrate! Thank you for the endless wisdom, laughter, and warmth you bring into every room you enter. Looking back on the legacy you've built and the countless lives you've touched fills all of us with admiration.\n\nWishing you a magnificent year ahead filled with health, joy, and wonderful adventures!\n\nWith love and admiration,\n[Your Name]",
+    handwrittenNote: "Happy Birthday!\n\nWhat an incredible milestone to celebrate! Thank you for the endless wisdom, laughter, and warmth you bring into every room you enter. Looking back on the legacy you've built and the countless lives you've touched fills all of us with admiration.\n\nWishing you a magnificent year ahead filled with health, joy, and wonderful adventures!\n\nWith love and admiration,",
     fontStyleId: "2",
     fontName: "Classic Cursive",
     etiquetteTips: [
@@ -702,7 +702,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/love-roses.jpg",
     coverPrompt: "Vintage airmail watercolor envelope with gentle garden roses, pastel aesthetic, warm long distance friendship theme",
     printedGreeting: "Distance means nothing when friendship means everything.",
-    handwrittenNote: "Happy Birthday to my favorite human on Earth!\n\nEven though we're [number] miles apart, you are still the first person I want to text every single day. Thank you for being the most loyal, hilarious, and understanding friend anyone could ask for.\n\nHave the best day ever—drinks and dinner are 100% on me next time we're reunited! Love you so much!\n\n[Your Name]",
+    handwrittenNote: "Happy Birthday to my favorite human on Earth!\n\nEven across all the miles between us, you are still the first person I want to text every single day. Thank you for being the most loyal, hilarious, and understanding friend anyone could ask for.\n\nHave the best day ever—drinks and dinner are 100% on me next time we're reunited! Love you so much!\n\nWarmly,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -752,7 +752,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/anniversary-monstera.jpg",
     coverPrompt: "Lush deep emerald monstera and eucalyptus leaves with delicate golden geometry, intimate botanical artwork",
     printedGreeting: "Another year of choosing you, every single day.",
-    handwrittenNote: "Happy Anniversary, my love.\n\nLooking back on another year together fills my heart with so much gratitude. Thank you for your kindness, your partnership, and the quiet comfort of building this life by your side.\n\nThrough every season and adventure, I would choose you all over again in a heartbeat. Here's to us, forever.\n\nWith all my love,\n[Your Name]",
+    handwrittenNote: "Happy Anniversary, my love.\n\nLooking back on another year together fills my heart with so much gratitude. Thank you for your kindness, your partnership, and the quiet comfort of building this life by your side.\n\nThrough every season and adventure, I would choose you all over again in a heartbeat. Here's to us, forever.\n\nWith all my love,",
     fontStyleId: "2",
     fontName: "Classic Cursive",
     etiquetteTips: [
@@ -798,7 +798,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/thinking-of-you-healing.jpg",
     coverPrompt: "Soft herbal botanical watercolor of blooming wild chamomile blossoms, eucalyptus sprigs, and clover in warm honey and sage tones with healing natural sunlight",
     printedGreeting: "Sending you gentle wishes for healing and rest.",
-    handwrittenNote: "Dear [Name],\n\nSending you so much love and gentle healing thoughts as you recover from surgery! Please give yourself full permission to rest, sleep, and let everyone take care of you right now.\n\nWe are all rooting for your steady recovery and cannot wait to see you back on your feet when the time is right. Sending big hugs from afar!\n\nWarmly,\n[Your Name]",
+    handwrittenNote: "Dear Friend,\n\nSending you so much love and gentle healing thoughts as you recover from surgery! Please give yourself full permission to rest, sleep, and let everyone take care of you right now.\n\nWe are all rooting for your steady recovery and cannot wait to see you back on your feet when the time is right. Sending big hugs from afar!\n\nWarmly,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -844,7 +844,7 @@ export const SEO_SCENARIOS: ScenarioConfig[] = [
     coverUrl: "/presets/sympathy-gentle-light.jpg",
     coverPrompt: "Solitary warm glowing lantern resting beside a serene mountain lake at twilight with quiet pine boughs and starry sky in delicate gouache and ink",
     printedGreeting: "Holding you in my thoughts today and always.",
-    handwrittenNote: "Dear [Name],\n\nI just wanted to send a little reminder that you have been in my thoughts so much lately. I know things have felt heavy and uncertain, and there are no easy words—but please know that you are deeply loved and not alone.\n\nNo need to text or reply to this. Just wanted a little piece of sunshine and love to land on your doorstep today.\n\nAlways here for you,\n[Your Name]",
+    handwrittenNote: "Dear Friend,\n\nI just wanted to send a little reminder that you have been in my thoughts so much lately. I know things have felt heavy and uncertain, and there are no easy words—but please know that you are deeply loved and not alone.\n\nNo need to text or reply to this. Just wanted a little piece of sunshine and love to land on your doorstep today.\n\nAlways here for you,",
     fontStyleId: "1",
     fontName: "Warm Cursive",
     etiquetteTips: [
@@ -1067,9 +1067,23 @@ export function parseScenarioNote(rawNote: string): {
     }
   }
 
+  // Sanitize any remaining bracket tokens
+  if (salutation.includes("[") && salutation.includes("]")) {
+    salutation = salutation.replace(/\[.*?\]/g, "Friend").replace(/\s+/g, " ");
+  }
+  if (signOff.includes("[") && signOff.includes("]")) {
+    signOff = signOff.replace(/\[.*?\]/g, "").replace(/\n\s*$/, "").trim();
+  }
+
+  // Ensure bodyNote has zero leftover brackets
+  let cleanBody = bodyParagraphs.join("\n\n");
+  if (cleanBody.includes("[") && cleanBody.includes("]")) {
+    cleanBody = cleanBody.replace(/\[.*?\]/g, "").replace(/\s+/g, " ").trim();
+  }
+
   return {
     salutation,
-    bodyNote: bodyParagraphs.join("\n\n"),
+    bodyNote: cleanBody,
     signOff,
   };
 }
