@@ -12,6 +12,7 @@ export interface MailingAddress {
 export type OrderStatus =
   | "PENDING_PAYMENT"
   | "PAYMENT_RECEIVED"
+  | "AWAITING_RECIPIENT_ADDRESS"
   | "DISPATCHING"
   | "PROCESSING_HANDWRYTTEN"
   | "QUEUED_FOR_FULFILLMENT"
@@ -98,6 +99,10 @@ export interface Order {
   recipientAddress: MailingAddress;
   returnAddress: MailingAddress;
   status: OrderStatus;
+  fulfillmentStatus?: string;
+  addressDeferred?: boolean;
+  address_deferred?: boolean;
+  senderPhone?: string;
   handwryttenOrderId?: string;
   handwryttenStatus?: string; // e.g. "writing", "mailed", "processing"
   handwryttenTrackingNumber?: string;
@@ -245,6 +250,15 @@ export type TelemetryEventName =
   | "payment_succeeded"
   | "payment_failed"
   | "card_abandoned"
+  // Granular 7-Stage Funnel Events:
+  | "step_1_landed"
+  | "step_2_cover_ready"
+  | "step_3_note_typed"
+  | "step_4a_address_viewed"
+  | "step_4b_address_completed"
+  | "step_5_checkout_initiated"
+  | "step_6_paid_order"
+  | "starter_prompt_used"
   // Source plan §10 additions:
   | "landing_viewed"
   | "builder_started"
@@ -423,6 +437,11 @@ export interface VisitorSessionRecord {
   googleClientId?: string;
   userAgent?: string;
   isBot?: boolean;
+  inAppBrowser?: boolean;
+  usedAddressDeferral?: boolean;
+  lastValidationError?: string;
+  noteLength?: number;
+  isFounder?: boolean;
 }
 
 export interface FunnelStepLeak {
@@ -487,6 +506,10 @@ export interface AdminMetrics {
   adSpendCents?: number;
   valuationAssumptions?: ValuationHeuristicAssumptions;
   recentOrders: Order[];
+  filterDateRange?: string;
+  filterChannel?: string;
+  excludeFounder?: boolean;
+  highIntentAbandoners?: VisitorSessionRecord[];
 }
 
 export interface FeatureFlagsMap {

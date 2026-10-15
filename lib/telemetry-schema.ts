@@ -58,6 +58,15 @@ export const ALLOWED_BROWSER_EVENT_NAMES = new Set<TelemetryEventName>([
   "payment_failed",
   "reminder_opt_in",
   "card_abandoned",
+  // Granular 7-Stage Funnel Events:
+  "step_1_landed",
+  "step_2_cover_ready",
+  "step_3_note_typed",
+  "step_4a_address_viewed",
+  "step_4b_address_completed",
+  "step_5_checkout_initiated",
+  "step_6_paid_order",
+  "starter_prompt_used",
 ]);
 
 export type AllowedFieldType = "string" | "number" | "boolean";
@@ -74,6 +83,9 @@ export const COMMON_METADATA_RULES: Record<string, FieldRule> = {
   experienceVersion: { type: "string", maxLength: 50 },
   draftRevision: { type: "number" },
   elapsedMs: { type: "number" },
+  in_app_browser: { type: "boolean" },
+  used_address_deferral: { type: "boolean" },
+  last_validation_error: { type: "string", maxLength: 200 },
 };
 
 /**
@@ -204,6 +216,52 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
   card_abandoned: {
     lastStep: { type: "number" },
     reason: { type: "string", maxLength: 50 },
+  },
+  // Granular 7-Stage Funnel Schemas:
+  step_1_landed: {
+    landingPath: { type: "string", maxLength: 100 },
+    in_app_browser: { type: "boolean" },
+    autoSelected: { type: "boolean" },
+  },
+  step_2_cover_ready: {
+    presetId: { type: "string", maxLength: 100 },
+    occasion: { type: "string", maxLength: 50 },
+    title: { type: "string", maxLength: 100 },
+    autoSelected: { type: "boolean" },
+    in_app_browser: { type: "boolean" },
+  },
+  step_3_note_typed: {
+    charCount: { type: "number" },
+    fontId: { type: "string", maxLength: 50 },
+    usedStarterPrompt: { type: "boolean" },
+    in_app_browser: { type: "boolean" },
+  },
+  step_4a_address_viewed: {
+    in_app_browser: { type: "boolean" },
+    last_validation_error: { type: "string", maxLength: 200 },
+  },
+  step_4b_address_completed: {
+    used_address_deferral: { type: "boolean" },
+    in_app_browser: { type: "boolean" },
+    hasReturnAddress: { type: "boolean" },
+  },
+  step_5_checkout_initiated: {
+    orderId: { type: "string", maxLength: 100 },
+    amount: { type: "number" },
+    used_address_deferral: { type: "boolean" },
+    in_app_browser: { type: "boolean" },
+  },
+  step_6_paid_order: {
+    orderId: { type: "string", maxLength: 100 },
+    amountInCents: { type: "number" },
+    in_app_browser: { type: "boolean" },
+    used_address_deferral: { type: "boolean" },
+  },
+  starter_prompt_used: {
+    promptLabel: { type: "string", maxLength: 100 },
+    occasion: { type: "string", maxLength: 50 },
+    promptNumber: { type: "number" },
+    in_app_browser: { type: "boolean" },
   },
   // Server-only authority event schemas (for recordServerTelemetry)
   purchase_verified: {

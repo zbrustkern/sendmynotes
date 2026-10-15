@@ -94,6 +94,13 @@ export default function AdminDashboardPage() {
 
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [loading, setLoading] = useState(false);
+  const [filterDateRange, setFilterDateRange] = useState<string>("oct13");
+  const [excludeFounder, setExcludeFounder] = useState<boolean>(true);
+  const [filterChannel, setFilterChannel] = useState<string>("all");
+  const [customFrom, setCustomFrom] = useState<string>("");
+  const [customTo, setCustomTo] = useState<string>("");
+  const [isMarkingFounder, setIsMarkingFounder] = useState<boolean>(false);
+  const [founderMarkedSuccess, setFounderMarkedSuccess] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -244,10 +251,23 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const fetchMetrics = async () => {
+  const fetchMetrics = async (
+    range = filterDateRange,
+    exFounder = excludeFounder,
+    chan = filterChannel,
+    cFrom = customFrom,
+    cTo = customTo
+  ) => {
     setLoading(true);
     try {
-      const res = await fetch("/api/admin/metrics");
+      const params = new URLSearchParams();
+      params.set("dateRange", range);
+      params.set("excludeFounder", exFounder ? "true" : "false");
+      params.set("channel", chan);
+      if (cFrom) params.set("from", String(new Date(cFrom).getTime()));
+      if (cTo) params.set("to", String(new Date(cTo).getTime()));
+
+      const res = await fetch(`/api/admin/metrics?${params.toString()}`);
       if (res.status === 401) {
         setIsAuthenticated(false);
         return;
@@ -263,6 +283,62 @@ export default function AdminDashboardPage() {
       console.error("Error loading admin metrics:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDateRangeChange = (range: string) => {
+    setFilterDateRange(range);
+    fetchMetrics(range, excludeFounder, filterChannel, customFrom, customTo);
+  };
+
+  const handleExcludeFounderChange = (exclude: boolean) => {
+    setExcludeFounder(exclude);
+    fetchMetrics(filterDateRange, exclude, filterChannel, customFrom, customTo);
+  };
+
+  const handleChannelChange = (chan: string) => {
+    setFilterChannel(chan);
+    fetchMetrics(filterDateRange, excludeFounder, chan, customFrom, customTo);
+  };
+
+  const handleCustomDateChange = (from: string, to: string) => {
+    setCustomFrom(from);
+    setCustomTo(to);
+    if (from && to) {
+      fetchMetrics(filterDateRange, excludeFounder, filterChannel, from, to);
+    }
+  };
+
+  const handleMarkFounderDevice = async () => {
+    setIsMarkingFounder(true);
+    try {
+      let storedSessionId = "";
+      try {
+        const rawDraft = localStorage.getItem("smn_active_draft_v2");
+        if (rawDraft) {
+          const parsed = JSON.parse(rawDraft);
+          storedSessionId = parsed.sessionId || "";
+        }
+      } catch {}
+
+      const res = await fetch("/api/admin/mark-founder-device", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId: storedSessionId }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        localStorage.setItem("smn_founder_device", "1");
+        setFounderMarkedSuccess(true);
+        setTimeout(() => setFounderMarkedSuccess(false), 5000);
+        await fetchMetrics();
+      } else {
+        alert(data.error || "Failed to mark browser as founder device.");
+      }
+    } catch {
+      alert("Error marking browser as founder device.");
+    } finally {
+      setIsMarkingFounder(false);
     }
   };
 
@@ -1360,7 +1436,22 @@ export default function AdminDashboardPage() {
             <HighIntentCartsWidget metrics={metrics} />
 
             {/* ENRICHED VISITOR TELEMETRY & DROP-OFF WATERFALL */}
-            <VisitorTelemetryDashboard metrics={metrics} />
+            <VisitorTelemetryDashboard
+              metrics={metrics}
+              filterDateRange={filterDateRange}
+              onDateRangeChange={handleDateRangeChange}
+              excludeFounder={excludeFounder}
+              onExcludeFounderChange={handleExcludeFounderChange}
+              filterChannel={filterChannel}
+              onChannelChange={handleChannelChange}
+              customFrom={customFrom}
+              customTo={customTo}
+              onCustomDateChange={handleCustomDateChange}
+              onRefresh={() => fetchMetrics()}
+              isMarkingFounder={isMarkingFounder}
+              onMarkFounderDevice={handleMarkFounderDevice}
+              founderMarkedSuccess={founderMarkedSuccess}
+            />
 
             {/* COHORT & HANDWRITING STYLE ANALYTICS */}
             <CohortAnalytics metrics={metrics} />

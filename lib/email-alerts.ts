@@ -263,3 +263,124 @@ SendMyNotes | sendmynotes.com
   console.log(`[Reminder Email Sim] (RESEND_API_KEY not configured) -> Would send reminder to: ${toEmail} for ${occasionTitle} (${occasionDateFormatted})`);
   return { success: true };
 }
+
+export interface SendAddressDeferredEmailParams {
+  to: string;
+  orderId: string;
+  viewToken: string;
+  recipientName: string;
+}
+
+/**
+ * Dispatches an automated transactional email with a magic link to complete a deferred recipient address.
+ */
+export async function sendAddressDeferredEmail({
+  to,
+  orderId,
+  viewToken,
+  recipientName,
+}: SendAddressDeferredEmailParams): Promise<{ success: boolean; error?: string }> {
+  if (!to || !to.includes("@")) {
+    return { success: false, error: "Invalid recipient email address" };
+  }
+
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://sendmynotes.com";
+  const completeUrl = `${appUrl}/orders/${orderId}/complete-address?token=${encodeURIComponent(viewToken)}`;
+
+  const subject = `📬 Action needed: Add the mailing address for your card to ${recipientName}`;
+
+  const textBody = `
+SendMyNotes - Add Recipient Address
+====================================
+Your card for ${recipientName} is reserved and confirmed!
+
+Whenever you're ready, simply click the secure link below to enter their street address. 
+As soon as you enter it, our robotic pens will pen your handwritten note in real ballpoint ink and mail it via USPS First-Class.
+
+Add address now:
+${completeUrl}
+
+Order ID: ${orderId}
+
+Warm regards,
+SendMyNotes Studio
+`.trim();
+
+  const htmlBody = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #FAF8F5; margin: 0; padding: 24px; color: #2D2823; }
+    .card { background: #FFFFFF; border: 1px solid #E6E0D6; border-radius: 16px; max-width: 560px; margin: 0 auto; padding: 36px; box-shadow: 0 4px 16px rgba(0,0,0,0.04); }
+    .badge { display: inline-block; background-color: #ECFDF5; color: #065F46; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 9999px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .title { font-family: Georgia, serif; font-size: 22px; font-weight: 700; color: #1C1917; margin: 14px 0 8px 0; }
+    .content { font-size: 14px; line-height: 1.6; color: #57534E; margin: 16px 0; }
+    .highlight-box { background-color: #FAF8F5; border-left: 3px solid #059669; padding: 14px 18px; border-radius: 8px; margin: 20px 0; font-size: 14px; color: #44403C; }
+    .btn { display: inline-block; background-color: #047857; color: #FFFFFF; font-weight: 600; font-size: 14px; padding: 12px 24px; border-radius: 12px; text-decoration: none; margin-top: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
+    .footer { font-size: 11px; color: #A8A29E; margin-top: 32px; border-top: 1px solid #F5F0E6; padding-top: 16px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <span class="badge">Order Confirmed</span>
+    <h1 class="title">Your card for ${escapeHtml(recipientName)} is reserved</h1>
+    
+    <div class="content">
+      <p>Hello,</p>
+      <p>Thank you for your order! Your card and custom handwritten note for <strong>${escapeHtml(recipientName)}</strong> are locked in.</p>
+      
+      <div class="highlight-box">
+        <strong>📮 Next Step:</strong> Whenever you have their mailing address handy, click the button below to add it. We&apos;ll immediately ink your card in real ballpoint pen and dispatch it via USPS First-Class Mail.
+      </div>
+      
+      <a href="${escapeHtml(completeUrl)}" class="btn" style="color: #ffffff;">Add Recipient Address &rarr;</a>
+    </div>
+
+    <div class="footer">
+      Order ID: <code>${escapeHtml(orderId)}</code>
+      <br/>SendMyNotes &bull; Real ballpoint pen handwritten cards, stamped & mailed for you.
+    </div>
+  </div>
+</body>
+</html>
+`.trim();
+
+  const resendApiKey =
+    process.env.RESEND_API_KEY ||
+    process.env["RESEND_API_KEY"] ||
+    process.env["resend-api-key"];
+
+  if (resendApiKey) {
+    try {
+      const fromEmail =
+        process.env.RESEND_FROM_EMAIL || "orders@sendmynotes.com";
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${resendApiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from: `SendMyNotes <${fromEmail}>`,
+          to: [to],
+          subject,
+          text: textBody,
+          html: htmlBody,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        return { success: false, error: data.message || "Resend error" };
+      }
+      return { success: true };
+    } catch (err: unknown) {
+      return { success: false, error: err instanceof Error ? err.message : String(err) };
+    }
+  }
+
+  console.log(`[Address Deferred Email Sim] (RESEND_API_KEY not configured) -> Would send magic link to: ${to} for order ${orderId}`);
+  return { success: true };
+}

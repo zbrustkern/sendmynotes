@@ -297,6 +297,7 @@ export const OCCASION_MESSAGE_BANK: Record<string, MessageInspiration[]> = {
 };
 
 export const CARD_PRESETS: CardPreset[] = [
+  // --- Birthday ---
   {
     id: "preset-bday-balloons",
     occasion: "Birthday",
@@ -307,6 +308,17 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultHandwrittenNote: "Happy Birthday! Wishing you a year filled with magic, laughter, and milestones together. So proud of everything you have accomplished this year!",
   },
   {
+    id: "preset-bday-balloons-arch",
+    occasion: "Birthday",
+    title: "Golden Celebration",
+    prompt: "Golden party balloons floating into a pastel sunset sky with shimmering celebratory accents",
+    imageUrl: "/presets/birthday-balloons.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Wishing you the happiest of birthdays and an unforgettable year ahead! May all your wishes come true.",
+  },
+
+  // --- Thank You ---
+  {
     id: "preset-thankyou-botanical",
     occasion: "Thank You",
     title: "Wildflower Meadow",
@@ -315,6 +327,17 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultPrintedMessage: "",
     defaultHandwrittenNote: "Thank you so much for your generosity, kindness, and support. It truly meant the world to me and I am so grateful to have you in my corner!",
   },
+  {
+    id: "preset-thankyou-executive",
+    occasion: "Thank You",
+    title: "With Sincere Gratitude",
+    prompt: "Refined minimalist gouache composition with warm ivory and slate blue tones, vintage brass fountain pen, and subtle botanical geometry",
+    imageUrl: "/presets/thank-you-executive.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Thank you so much for your time, invaluable mentorship, and generosity. I am deeply grateful for your perspective and support.",
+  },
+
+  // --- Thinking of You ---
   {
     id: "preset-thinking-coffee",
     occasion: "Thinking of You",
@@ -325,6 +348,26 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultHandwrittenNote: "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!",
   },
   {
+    id: "preset-thinking-healing",
+    occasion: "Thinking of You",
+    title: "Gentle Healing & Wild Chamomile",
+    prompt: "Soft herbal botanical watercolor of blooming chamomile blossoms, eucalyptus sprigs, and clover in warm honey and sage tones",
+    imageUrl: "/presets/thinking-of-you-healing.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Sending you so much love, peace, and healing energy today. Please take all the gentle time you need to rest and recover.",
+  },
+  {
+    id: "preset-thinking-warmth",
+    occasion: "Thinking of You",
+    title: "Morning Warmth",
+    prompt: "Quiet contemporary oil still life of a steaming coffee cup resting on warm wooden table in morning sunlight",
+    imageUrl: "/presets/thinking-of-you-coffee.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "You crossed my mind today and I wanted to send a warm reminder of how much you are appreciated. Thinking of you and sending big hugs!",
+  },
+
+  // --- Congratulations ---
+  {
     id: "preset-congrats-champagne",
     occasion: "Congratulations",
     title: "A Big Moment",
@@ -333,6 +376,26 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultPrintedMessage: "",
     defaultHandwrittenNote: "Huge congratulations! Your hard work and relentless dedication have paid off in the most wonderful way. So proud of you—pop the bubbly!",
   },
+  {
+    id: "preset-congrats-newhome",
+    occasion: "Congratulations",
+    title: "Welcome Home",
+    prompt: "Sunlit sage green front door in warm artisanal gouache with terracotta brick, welcoming botanical boxwood wreath, and potted lemon topiary",
+    imageUrl: "/presets/congrats-new-home.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Congratulations on your beautiful new home! Wishing you countless cozy evenings, joyful memories, and happy celebrations in your new space.",
+  },
+  {
+    id: "preset-congrats-celebration",
+    occasion: "Congratulations",
+    title: "Pop the Bubbly",
+    prompt: "Effervescent golden champagne coupe with rising celebration bubbles and starburst confetti on festive ivory ground",
+    imageUrl: "/presets/congrats-champagne.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Huge congratulations! Your dedication, talent, and hard work have paid off in the most wonderful way. Cheers to you!",
+  },
+
+  // --- Anniversary ---
   {
     id: "preset-anniv-monstera",
     occasion: "Anniversary",
@@ -343,6 +406,17 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultHandwrittenNote: "Happy Anniversary my love! Every single day with you is a gift. Thank you for being my rock, my best friend, and my favorite adventure.",
   },
   {
+    id: "preset-anniv-monstera-botanical",
+    occasion: "Anniversary",
+    title: "Botanical Pair",
+    prompt: "Lush deep emerald monstera and eucalyptus leaves with delicate golden geometry on textured ivory",
+    imageUrl: "/presets/anniversary-monstera.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Happy Anniversary! Another year of choosing each other and growing side by side. Wishing you many more years of joy and love.",
+  },
+
+  // --- Love & Romance ---
+  {
     id: "preset-love-roses",
     occasion: "Love & Romance",
     title: "Velvet Blossoms",
@@ -351,6 +425,8 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultPrintedMessage: "",
     defaultHandwrittenNote: "Just a little reminder of how deeply you are loved. You make life so much brighter, richer, and sweeter every single day. Forever grateful for you.",
   },
+
+  // --- Sympathy & Support ---
   {
     id: "preset-sympathy-olive",
     occasion: "Sympathy & Support",
@@ -361,6 +437,35 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultHandwrittenNote: "Sending you strength, comfort, and peace during this difficult time. Holding you close in my thoughts, and here for you always.",
   },
   {
+    id: "preset-sympathy-rainbow",
+    occasion: "Sympathy & Support",
+    title: "Rainbow Meadow & Paws",
+    prompt: "Delicate botanical watercolor meadow with wildflowers, lavender, faint golden paw prints leading toward an ethereal pastel rainbow in soft morning mist",
+    imageUrl: "/presets/pet-sympathy-rainbow.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Sending you gentle love and deepest sympathy on the loss of your sweet pet. Thank you for giving them such a wonderful life filled with unconditional love.",
+  },
+  {
+    id: "preset-sympathy-gentle-light",
+    occasion: "Sympathy & Support",
+    title: "Gentle Solace",
+    prompt: "Solitary warm glowing lantern resting beside a serene mountain lake at twilight with quiet pine boughs and starry sky in delicate gouache and ink",
+    imageUrl: "/presets/sympathy-gentle-light.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Holding you close in thought and prayer during this difficult season. May peaceful memories bring you quiet comfort in the days ahead.",
+  },
+  {
+    id: "preset-sympathy-olive-branch",
+    occasion: "Sympathy & Support",
+    title: "Peaceful Olive Branch",
+    prompt: "Serene botanical watercolor of delicate olive branches and leafy sprigs on calm textured ivory background",
+    imageUrl: "/presets/sympathy-olive.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Sending you peace, strength, and heartfelt sympathy. Holding you and your family close in my thoughts and heart.",
+  },
+
+  // --- Just Because ---
+  {
     id: "preset-justbecause-teacup",
     occasion: "Just Because",
     title: "Wildflower Posy",
@@ -369,6 +474,8 @@ export const CARD_PRESETS: CardPreset[] = [
     defaultPrintedMessage: "",
     defaultHandwrittenNote: "No special occasion needed—just wanted to send some love your way and say I appreciate you more than you know! Hope your week is wonderful.",
   },
+
+  // --- Seasonal & Holidays ---
   {
     id: "preset-holiday-evergreen",
     occasion: "Christmas & Holidays",

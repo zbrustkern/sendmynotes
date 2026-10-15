@@ -111,11 +111,30 @@ export function EntryPrototypeClient({
     initialFontStyleId: mappedInitialFont,
   });
 
-  // Current active step (curated etiquette landing pages default to 'note' for immediate personalisation)
+  // Deep link auto-selection detection: occasion routes, scenario slug, auto_select=1, or paid traffic UTMs
+  const isAutoSelectMode = useMemo(() => {
+    const utmSource = searchParams?.get("utm_source")?.toLowerCase();
+    const autoParam = searchParams?.get("auto_select");
+    return Boolean(
+      scenarioSlug ||
+      initialHandwrittenNote ||
+      autoParam === "1" ||
+      utmSource === "google" ||
+      utmSource === "meta" ||
+      (occasionParam && !presetParam)
+    );
+  }, [scenarioSlug, initialHandwrittenNote, searchParams, occasionParam, presetParam]);
+
+  // Current active step (curated deep links & paid ads default directly to 'note' studio)
   const [step, setStep] = useState<FlowStep>(
-    initialStep || (initialHandwrittenNote ? "note" : "card")
+    initialStep || (isAutoSelectMode ? "note" : "card")
   );
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
+
+  // Address deferral bypass & mobile keyboard/validation states
+  const [isAddressDeferred, setIsAddressDeferred] = useState(false);
+  const [addressValidationError, setAddressValidationError] = useState<string | null>(null);
+  const [restoredToast, setRestoredToast] = useState(false);
 
   // Custom AI drawer state
   const [isCustomAiOpen, setIsCustomAiOpen] = useState(false);
@@ -288,9 +307,50 @@ export function EntryPrototypeClient({
     dispatch,
   ]);
 
+  // Hydrate draft from localStorage (smn_active_draft_v2) for Meta in-app browser resilience
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem("smn_active_draft_v2");
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      if (
+        parsed &&
+        (parsed.insideNoteText || parsed.recipientName || parsed.recipientAddress?.fullName || parsed.senderName)
+      ) {
+        if (parsed.salutation && !salutation) setSalutation(parsed.salutation);
+        if (parsed.signOff && !signOff) setSignOff(parsed.signOff);
+        if (parsed.insideNoteText && !draft.note.text) {
+          dispatch({ type: "UPDATE_NOTE", payload: { text: parsed.insideNoteText } });
+        }
+        if (parsed.addressDeferred !== undefined) {
+          setIsAddressDeferred(Boolean(parsed.addressDeferred));
+        }
+        if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
+          setRecipient(parsed.recipientAddress);
+        }
+        if (parsed.senderAddress && !sender.fullName && !sender.street1) {
+          setSender(parsed.senderAddress);
+        }
+        if (parsed.currentStep && parsed.currentStep !== "confirmation" && !initialStep) {
+          setStep(parsed.currentStep as FlowStep);
+        }
+        setRestoredToast(true);
+        const t = setTimeout(() => setRestoredToast(false), 4500);
+        return () => clearTimeout(t);
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
   // Telemetry on initial load
   useEffect(() => {
     trackEvent("session_start", 1, { experience: "candidate_v1" });
+    trackEvent("step_1_landed", 1);
+    if (isAutoSelectMode) {
+      trackEvent("step_2_cover_ready", 1, { autoSelected: true });
+    }
     trackGA4ViewItem({
       itemId: CARD_PRESETS[0].id,
       itemName: CARD_PRESETS[0].title,
@@ -303,7 +363,7 @@ export function EntryPrototypeClient({
       contentCategory: CARD_PRESETS[0].occasion,
       value: 9.0,
     });
-  }, []);
+  }, [isAutoSelectMode]);
 
   // Current selected card details
   const currentCard = useMemo(() => {
@@ -339,6 +399,44 @@ export function EntryPrototypeClient({
     const styleId = draft.note.style || "hwDavid";
     return HANDWRITING_STYLES.find((f) => f.id === styleId) || HANDWRITING_STYLES[0];
   }, [draft.note.style]);
+
+  // Keystroke-level localStorage persistence (Meta In-App Browser Rescue)
+  useEffect(() => {
+    if (typeof window === "undefined" || !isLoaded || isOrderConfirmed) return;
+    try {
+      const draftData = {
+        coverId: currentCard.presetId,
+        occasionSlug: currentCard.occasion,
+        insideNoteText: draft.note.text,
+        salutation,
+        signOff,
+        fontStyleId: draft.note.style || "hwDavid",
+        senderName: sender.fullName,
+        recipientName: recipient.fullName,
+        recipientAddress: recipient,
+        senderAddress: sender,
+        currentStep: step,
+        addressDeferred: isAddressDeferred,
+        updatedAt: Date.now(),
+      };
+      localStorage.setItem("smn_active_draft_v2", JSON.stringify(draftData));
+    } catch {
+      // ignore
+    }
+  }, [
+    isLoaded,
+    isOrderConfirmed,
+    currentCard.presetId,
+    currentCard.occasion,
+    draft.note.text,
+    draft.note.style,
+    salutation,
+    signOff,
+    sender,
+    recipient,
+    step,
+    isAddressDeferred,
+  ]);
 
   // Handle card selection from grid
   const handleSelectPreset = (preset: CardPreset) => {
@@ -524,6 +622,10 @@ export function EntryPrototypeClient({
         presetId: draft.selectedDesign?.presetId,
         cardType: draft.selectedDesign?.source || "preset",
       });
+      trackEvent("step_2_cover_ready", 1, {
+        presetId: draft.selectedDesign?.presetId || currentCard.presetId,
+        occasion: currentCard.occasion,
+      });
       trackMetaAddToCart({
         contentId: currentCard.presetId || "card",
         contentName: currentCard.title,
@@ -534,6 +636,7 @@ export function EntryPrototypeClient({
         charCount: draft.note.text.length,
         fontId: draft.note.style || "hwDavid",
       });
+      trackEvent("step_4a_address_viewed", 4);
       trackGA4BeginCheckout({
         itemId: currentCard.presetId || "card",
         itemName: currentCard.title,
@@ -550,6 +653,49 @@ export function EntryPrototypeClient({
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
+  };
+
+  // Validate address and transition to checkout (never disable button silently without explanation)
+  const handleAddressSubmit = () => {
+    trackEvent("step_4a_address_viewed", 4);
+    if (!recipient.fullName.trim()) {
+      const err = "Please provide the recipient's full name.";
+      setAddressValidationError(err);
+      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      return;
+    }
+    if (!isAddressDeferred) {
+      if (!recipient.street1.trim()) {
+        const err = "Please provide the recipient's street address.";
+        setAddressValidationError(err);
+        trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+        return;
+      }
+      if (!recipient.city.trim() || !recipient.state.trim() || !recipient.zip.trim()) {
+        const err = "Please complete the recipient's City, State, and ZIP code.";
+        setAddressValidationError(err);
+        trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+        return;
+      }
+    }
+    if (!sender.fullName.trim()) {
+      const err = "Please provide your name for your return address.";
+      setAddressValidationError(err);
+      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      return;
+    }
+    if (!isAddressDeferred && (!sender.city.trim() || !sender.state.trim())) {
+      const err = "Please provide your city and state for your return address.";
+      setAddressValidationError(err);
+      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      return;
+    }
+
+    setAddressValidationError(null);
+    trackEvent("step_4b_address_completed", 4, {
+      used_address_deferral: isAddressDeferred,
+    });
+    initializeCheckout();
   };
 
   // Initialize PaymentIntent when advancing from address to pay
@@ -584,6 +730,8 @@ export function EntryPrototypeClient({
           printedMessage: "",
           handwrittenNote: fullHandwrittenMessage,
           fontStyleId: draft.note.style || "hwDavid",
+          addressDeferred: isAddressDeferred,
+          address_deferred: isAddressDeferred,
           recipientAddress: {
             firstName: recipientFirstName,
             lastName: recipientLastName,
@@ -648,6 +796,12 @@ export function EntryPrototypeClient({
 
       trackEvent("address_completed", 3, {
         hasReturnAddress: Boolean(sender.street1 && sender.city),
+        usedAddressDeferral: isAddressDeferred,
+      });
+      trackEvent("step_5_checkout_initiated", 5, {
+        isMock: Boolean(data.isMock),
+        isFree: Boolean(data.isFree),
+        amountInCents: data.finalAmountInCents ?? data.amountInCents ?? 900,
       });
       trackGA4AddShippingInfo({
         itemId: currentCard.presetId || "card",
@@ -724,8 +878,13 @@ export function EntryPrototypeClient({
     setIsOrderConfirmed(true);
     dispatch({ type: "MARK_COMPLETED" });
 
+    trackEvent("step_6_paid_order", 6, {
+      orderId: completedOrderId,
+    });
+
     if (typeof window !== "undefined") {
       try {
+        localStorage.removeItem("smn_active_draft_v2");
         sessionStorage.setItem("smn_completed_order_id", completedOrderId);
         if (finalToken) {
           sessionStorage.setItem("smn_completed_view_token", finalToken);
@@ -742,6 +901,8 @@ export function EntryPrototypeClient({
     clearDraft();
     setIsOrderConfirmed(false);
     setStep("card");
+    setIsAddressDeferred(false);
+    setAddressValidationError(null);
     setSalutation("");
     setSignOff("");
     setRecipient({
@@ -800,18 +961,20 @@ export function EntryPrototypeClient({
   }, [isLoaded, step, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed]);
 
   // Check if address is valid for advancing
-  const isAddressValid = Boolean(
-    recipient.fullName.trim() &&
-      recipient.street1.trim() &&
-      recipient.city.trim() &&
-      recipient.state.trim() &&
-      recipient.zip.trim().length >= 5 &&
-      sender.fullName.trim() &&
-      sender.street1.trim() &&
-      sender.city.trim() &&
-      sender.state.trim() &&
-      sender.zip.trim().length >= 5
-  );
+  const isAddressValid = isAddressDeferred
+    ? Boolean(recipient.fullName.trim() && sender.fullName.trim())
+    : Boolean(
+        recipient.fullName.trim() &&
+          recipient.street1.trim() &&
+          recipient.city.trim() &&
+          recipient.state.trim() &&
+          recipient.zip.trim().length >= 5 &&
+          sender.fullName.trim() &&
+          sender.street1.trim() &&
+          sender.city.trim() &&
+          sender.state.trim() &&
+          sender.zip.trim().length >= 5
+      );
 
   if (!isLoaded) {
     return (
@@ -855,7 +1018,14 @@ export function EntryPrototypeClient({
   }
 
   return (
-    <div className={`min-h-screen bg-white text-stone-900 flex flex-col antialiased ${embedded ? "rounded-3xl border border-stone-200/90 shadow-xs overflow-hidden" : ""}`}>
+    <div className={`min-h-screen bg-white text-stone-900 flex flex-col antialiased relative ${embedded ? "rounded-3xl border border-stone-200/90 shadow-xs overflow-hidden" : ""}`}>
+      {/* RESTORED DRAFT HYDRATION TOAST */}
+      {restoredToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 text-white px-4 py-2.5 rounded-full shadow-lg text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
+          <span>✨ Welcome back — your handwritten note was saved.</span>
+        </div>
+      )}
+
       {/* 1. COMPACT SENDMYNOTES FLOW HEADER (suppressed when embedded in an occasion/scenario landing page with its own navbar) */}
       {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} />}
 
@@ -889,6 +1059,8 @@ export function EntryPrototypeClient({
               occasion={currentCard.occasion}
               cardTitle={currentCard.title}
               cardUrl={currentCard.imageUrl}
+              scenarioSlug={scenarioSlug}
+              onSelectCover={(preset) => handleSelectPreset(preset)}
               onBack={() => {
                 setStep("card");
                 dispatch({ type: "SET_STEP", payload: "card" });
@@ -900,6 +1072,12 @@ export function EntryPrototypeClient({
 
         {step === "address" && (
           <div className="max-w-4xl mx-auto px-4 py-6 pb-32 space-y-4">
+            {addressValidationError && (
+              <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-xs text-amber-900 shadow-xs animate-in fade-in">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>{addressValidationError}</span>
+              </div>
+            )}
             {checkoutInitError && (
               <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-center justify-between gap-4 text-xs text-rose-900 shadow-xs animate-in fade-in">
                 <div className="flex items-center gap-2.5">
@@ -923,11 +1101,14 @@ export function EntryPrototypeClient({
               sender={sender}
               onChangeSender={handleUpdateSender}
               fontClass={activeFont.fontClass}
+              isAddressDeferred={isAddressDeferred}
+              onChangeAddressDeferred={setIsAddressDeferred}
+              onValidationError={(err) => setAddressValidationError(err)}
               onBack={() => {
                 setStep("note");
                 dispatch({ type: "SET_STEP", payload: "note" });
               }}
-              onContinue={() => initializeCheckout()}
+              onContinue={handleAddressSubmit}
             />
           </div>
         )}
@@ -978,17 +1159,14 @@ export function EntryPrototypeClient({
               : "Review & pay"
           }
           isLoading={isInitializingCheckout}
-          isDisabled={
-            (step === "note" && !draft.note.text.trim()) ||
-            (step === "address" && !isAddressValid)
-          }
+          isDisabled={step === "note" && !draft.note.text.trim()}
           onPrimaryClick={() => {
             if (step === "card") {
               handleStepTransition("note");
             } else if (step === "note") {
               handleStepTransition("address");
             } else if (step === "address") {
-              initializeCheckout();
+              handleAddressSubmit();
             }
           }}
           secondaryAction={

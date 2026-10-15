@@ -84,6 +84,9 @@ interface Step3EnvelopeAddressingProps {
   onBack: () => void;
   onContinue: () => void;
   hideFixedActionBar?: boolean;
+  isAddressDeferred?: boolean;
+  onChangeAddressDeferred?: (deferred: boolean) => void;
+  onValidationError?: (error: string) => void;
 }
 
 export function Step3EnvelopeAddressing({
@@ -95,6 +98,9 @@ export function Step3EnvelopeAddressing({
   onBack,
   onContinue,
   hideFixedActionBar = false,
+  isAddressDeferred = false,
+  onChangeAddressDeferred,
+  onValidationError,
 }: Step3EnvelopeAddressingProps) {
   const [showRecipientApt, setShowRecipientApt] = useState(Boolean(recipient.street2));
   const [showSenderApt, setShowSenderApt] = useState(Boolean(sender.street2));
@@ -104,19 +110,35 @@ export function Step3EnvelopeAddressing({
   // Validation before proceeding
   const handleProceed = () => {
     if (!recipient.fullName.trim()) {
-      setFormError("Please provide the recipient's full name.");
+      const err = "Please provide the recipient's full name.";
+      setFormError(err);
+      onValidationError?.(err);
       return;
     }
-    if (!recipient.street1.trim()) {
-      setFormError("Please provide the recipient's street address.");
+    if (!isAddressDeferred) {
+      if (!recipient.street1.trim()) {
+        const err = "Please provide the recipient's street address.";
+        setFormError(err);
+        onValidationError?.(err);
+        return;
+      }
+      if (!recipient.city.trim() || !recipient.state.trim() || !recipient.zip.trim()) {
+        const err = "Please complete the recipient's City, State, and ZIP code.";
+        setFormError(err);
+        onValidationError?.(err);
+        return;
+      }
+    }
+    if (!sender.fullName.trim()) {
+      const err = "Please provide your name for your return address.";
+      setFormError(err);
+      onValidationError?.(err);
       return;
     }
-    if (!recipient.city.trim() || !recipient.state.trim() || !recipient.zip.trim()) {
-      setFormError("Please complete the recipient's City, State, and ZIP code.");
-      return;
-    }
-    if (!sender.fullName.trim() || !sender.city.trim() || !sender.state.trim()) {
-      setFormError("Please provide your name, city, and state for your return address.");
+    if (!isAddressDeferred && (!sender.city.trim() || !sender.state.trim())) {
+      const err = "Please provide your city and state for your return address.";
+      setFormError(err);
+      onValidationError?.(err);
       return;
     }
 
@@ -185,121 +207,157 @@ export function Step3EnvelopeAddressing({
             />
           </div>
 
-          {/* Street Address */}
-          <div>
-            <label htmlFor="shipping-street1" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
-              Street address
-            </label>
-            <input
-              id="shipping-street1"
-              type="text"
-              name="shippingStreet1"
-              autoComplete="shipping address-line1"
-              autoCapitalize="words"
-              autoCorrect="off"
-              spellCheck={false}
-              value={recipient.street1}
-              onChange={(e) => onChangeRecipient("street1", e.target.value)}
-              placeholder="Street address (e.g. 456 Colorado Blvd)"
-              className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans"
-            />
+          {/* THE "DON'T HAVE THEIR ADDRESS YET?" BYPASS CARD */}
+          <div className="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50/60 rounded-xl border border-amber-200/90 shadow-2xs space-y-2">
+            <div className="flex items-start gap-2.5">
+              <input
+                id="defer-address-toggle"
+                type="checkbox"
+                checked={isAddressDeferred}
+                onChange={(e) => onChangeAddressDeferred?.(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-amber-400 text-emerald-700 focus:ring-emerald-600 cursor-pointer"
+              />
+              <label htmlFor="defer-address-toggle" className="text-xs text-stone-900 cursor-pointer select-none">
+                <strong className="block text-amber-950 font-bold text-[13px] mb-0.5">
+                  Don&apos;t have their street address handy right now?
+                </strong>
+                <span className="text-stone-700 block text-xs">
+                  Lock in my card now ($9.00) &amp; text/email me a link to add their address later.
+                </span>
+              </label>
+            </div>
+            {isAddressDeferred && (
+              <p className="text-[11px] text-amber-900 font-medium bg-amber-100/70 rounded-lg p-2 border border-amber-200/60">
+                ✨ Perfect! We&apos;ll hold postal dispatch and send you a secure magic link immediately after checkout. Enter their address whenever you get it.
+              </p>
+            )}
           </div>
 
-          {/* Apt/Suite Toggle & Field */}
-          {showRecipientApt ? (
-            <div>
-              <label htmlFor="shipping-street2" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
-                Apartment, Suite, Unit
-              </label>
-              <input
-                id="shipping-street2"
-                type="text"
-                name="shippingStreet2"
-                autoComplete="shipping address-line2"
-                autoCapitalize="words"
-                autoCorrect="off"
-                spellCheck={false}
-                value={recipient.street2 || ""}
-                onChange={(e) => onChangeRecipient("street2", e.target.value)}
-                placeholder="Apt, Suite, Unit (optional)"
-                className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans"
-              />
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowRecipientApt(true)}
-              className="text-xs text-emerald-800 hover:text-emerald-950 font-semibold flex items-center gap-1 transition cursor-pointer"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>+ Add Apt / Suite / Unit</span>
-            </button>
-          )}
-
-          {/* Responsive City, State, ZIP Layout: City full width, State & ZIP below */}
-          <div className="space-y-3">
-            <div>
-              <label htmlFor="shipping-city" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
-                City
-              </label>
-              <input
-                id="shipping-city"
-                type="text"
-                name="shippingCity"
-                autoComplete="shipping address-level2"
-                autoCapitalize="words"
-                autoCorrect="off"
-                spellCheck={false}
-                value={recipient.city}
-                onChange={(e) => onChangeRecipient("city", e.target.value)}
-                placeholder="City (e.g. Denver)"
-                className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans"
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
+          {/* Recipient Street Fields (Hidden/Collapsed if Address is Deferred) */}
+          {!isAddressDeferred ? (
+            <>
+              {/* Street Address */}
               <div>
-                <label htmlFor="shipping-state" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
-                  State
-                </label>
-                <select
-                  id="shipping-state"
-                  name="shippingState"
-                  autoComplete="shipping address-level1"
-                  value={recipient.state}
-                  onChange={(e) => onChangeRecipient("state", e.target.value)}
-                  className="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-medium"
-                >
-                  <option value="">Select</option>
-                  {US_STATES.map((s) => (
-                    <option key={s.code} value={s.code}>
-                      {s.code} - {s.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label htmlFor="shipping-zip" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
-                  ZIP Code
+                <label htmlFor="shipping-street1" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
+                  Street address
                 </label>
                 <input
-                  id="shipping-zip"
+                  id="shipping-street1"
                   type="text"
-                  name="shippingZip"
-                  autoComplete="shipping postal-code"
-                  inputMode="numeric"
+                  name="shippingStreet1"
+                  autoComplete="shipping address-line1"
+                  autoCapitalize="words"
                   autoCorrect="off"
                   spellCheck={false}
-                  value={recipient.zip}
-                  onChange={(e) => onChangeRecipient("zip", e.target.value)}
-                  placeholder="80206"
-                  maxLength={10}
-                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-mono"
+                  value={recipient.street1}
+                  onChange={(e) => onChangeRecipient("street1", e.target.value)}
+                  placeholder="Street address (e.g. 456 Colorado Blvd)"
+                  className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans"
                 />
               </div>
+
+              {/* Apt/Suite Toggle & Field */}
+              {showRecipientApt ? (
+                <div>
+                  <label htmlFor="shipping-street2" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
+                    Apartment, Suite, Unit
+                  </label>
+                  <input
+                    id="shipping-street2"
+                    type="text"
+                    name="shippingStreet2"
+                    autoComplete="shipping address-line2"
+                    autoCapitalize="words"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={recipient.street2 || ""}
+                    onChange={(e) => onChangeRecipient("street2", e.target.value)}
+                    placeholder="Apt, Suite, Unit (optional)"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans"
+                  />
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowRecipientApt(true)}
+                  className="text-xs text-emerald-800 hover:text-emerald-950 font-semibold flex items-center gap-1 transition cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>+ Add Apt / Suite / Unit</span>
+                </button>
+              )}
+
+              {/* Responsive City, State, ZIP Layout: City full width, State & ZIP below */}
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="shipping-city" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
+                    City
+                  </label>
+                  <input
+                    id="shipping-city"
+                    type="text"
+                    name="shippingCity"
+                    autoComplete="shipping address-level2"
+                    autoCapitalize="words"
+                    autoCorrect="off"
+                    spellCheck={false}
+                    value={recipient.city}
+                    onChange={(e) => onChangeRecipient("city", e.target.value)}
+                    placeholder="City (e.g. Denver)"
+                    className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="shipping-state" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
+                      State
+                    </label>
+                    <select
+                      id="shipping-state"
+                      name="shippingState"
+                      autoComplete="shipping address-level1"
+                      value={recipient.state}
+                      onChange={(e) => onChangeRecipient("state", e.target.value)}
+                      className="w-full px-3 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-medium"
+                    >
+                      <option value="">Select</option>
+                      {US_STATES.map((s) => (
+                        <option key={s.code} value={s.code}>
+                          {s.code} - {s.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="shipping-zip" className="block text-xs font-semibold text-stone-700 mb-1 cursor-pointer">
+                      ZIP Code
+                    </label>
+                    <input
+                      id="shipping-zip"
+                      type="text"
+                      name="shippingZip"
+                      autoComplete="shipping postal-code"
+                      inputMode="numeric"
+                      autoCorrect="off"
+                      spellCheck={false}
+                      value={recipient.zip}
+                      onChange={(e) => onChangeRecipient("zip", e.target.value)}
+                      placeholder="80206"
+                      maxLength={10}
+                      className="w-full px-3.5 py-2.5 bg-stone-50 border border-stone-300 rounded-xl text-base text-stone-900 placeholder:text-stone-400 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-mono"
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="p-3 bg-stone-50 rounded-xl border border-stone-200 text-xs text-stone-600 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+              <span>Street address will be requested via magic link text/email before dispatch.</span>
             </div>
-          </div>
+          )}
         </div>
 
         {/* SECTION 2: SENDER ("From you") */}
@@ -579,14 +637,22 @@ export function Step3EnvelopeAddressing({
                   <p className="font-semibold text-lg sm:text-2xl text-[#1e3a8a]">
                     {recipient.fullName || "Recipient Name"}
                   </p>
-                  <p>
-                    {recipient.street1 || "Street Address"}
-                    {recipient.street2 ? `, ${recipient.street2}` : ""}
-                  </p>
-                  <p>
-                    {recipient.city || "City"},{" "}
-                    {recipient.state || "State"} {recipient.zip || "ZIP"}
-                  </p>
+                  {isAddressDeferred ? (
+                    <p className="text-xs sm:text-sm text-stone-500 italic mt-1 font-sans">
+                      [ Street address to be added via link after checkout ]
+                    </p>
+                  ) : (
+                    <>
+                      <p>
+                        {recipient.street1 || "Street Address"}
+                        {recipient.street2 ? `, ${recipient.street2}` : ""}
+                      </p>
+                      <p>
+                        {recipient.city || "City"},{" "}
+                        {recipient.state || "State"} {recipient.zip || "ZIP"}
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 

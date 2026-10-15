@@ -17,18 +17,57 @@ import {
   Globe,
   Compass,
   Bot,
+  Calendar,
+  ShieldCheck,
+  ShieldAlert,
+  Laptop,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { AdminMetrics, VisitorSessionRecord } from "@/lib/types";
 
 interface VisitorTelemetryDashboardProps {
   metrics: AdminMetrics | null;
+  filterDateRange?: string;
+  onDateRangeChange?: (range: string) => void;
+  excludeFounder?: boolean;
+  onExcludeFounderChange?: (exclude: boolean) => void;
+  filterChannel?: string;
+  onChannelChange?: (channel: string) => void;
+  customFrom?: string;
+  customTo?: string;
+  onCustomDateChange?: (from: string, to: string) => void;
+  onRefresh?: () => void;
+  isMarkingFounder?: boolean;
+  onMarkFounderDevice?: () => void;
+  founderMarkedSuccess?: boolean;
 }
 
-export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboardProps) {
+export function VisitorTelemetryDashboard({
+  metrics,
+  filterDateRange = "oct13",
+  onDateRangeChange,
+  excludeFounder = true,
+  onExcludeFounderChange,
+  filterChannel = "all",
+  onChannelChange,
+  customFrom = "",
+  customTo = "",
+  onCustomDateChange,
+  onRefresh,
+  isMarkingFounder = false,
+  onMarkFounderDevice,
+  founderMarkedSuccess = false,
+}: VisitorTelemetryDashboardProps) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [sessionSearch, setSessionSearch] = useState("");
 
   if (!metrics) return null;
+
+  const isFounderDeviceSaved =
+    typeof window !== "undefined" &&
+    (localStorage.getItem("smn_founder_device") === "1" ||
+      document.cookie.includes("smn_founder_device=1"));
 
   const telemetry = metrics.visitorTelemetry;
   const funnelLeaks = telemetry?.funnelLeaks || [];
@@ -43,6 +82,7 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
   };
   const topLocations = telemetry?.topLocations || [];
   const recentSessions = telemetry?.recentSessions || [];
+  const highIntentAbandoners = metrics.highIntentAbandoners || [];
   const botVisitors = telemetry?.botVisitors || 0;
   const humanVisitors = telemetry?.humanVisitors !== undefined ? telemetry.humanVisitors : (metrics.funnel?.totalSessions || 1);
 
@@ -71,13 +111,142 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
 
   return (
     <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-6 sm:space-y-8 w-full min-w-0 overflow-hidden">
+      {/* 0. STICKY TOP FILTER CONTROL BAR */}
+      <div className="sticky top-0 z-30 bg-stone-900 text-stone-100 rounded-2xl p-3.5 sm:p-5 shadow-lg border border-stone-800 space-y-3.5">
+        {/* Row 1: Date Range & Founder Device Management */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider mr-1 flex items-center gap-1">
+              <Calendar className="w-3.5 h-3.5 text-amber-500" />
+              Window:
+            </span>
+            {[
+              { id: "oct13", label: "Since UX Overhaul (Oct 13+)" },
+              { id: "today", label: "Today" },
+              { id: "last7", label: "Last 7 Days" },
+              { id: "all", label: "All Time" },
+              { id: "custom", label: "Custom" },
+            ].map((btn) => (
+              <button
+                key={btn.id}
+                type="button"
+                onClick={() => onDateRangeChange?.(btn.id)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition cursor-pointer ${
+                  filterDateRange === btn.id
+                    ? "bg-amber-500 text-stone-950 shadow-xs font-bold"
+                    : "bg-stone-800/90 text-stone-300 hover:bg-stone-700 hover:text-white"
+                }`}
+              >
+                {btn.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto justify-between lg:justify-end">
+            <button
+              type="button"
+              onClick={() => onExcludeFounderChange?.(!excludeFounder)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition border cursor-pointer ${
+                excludeFounder
+                  ? "bg-emerald-950/80 text-emerald-300 border-emerald-600/70"
+                  : "bg-stone-800 text-stone-400 border-stone-700 hover:text-stone-200"
+              }`}
+              title="Exclude founder browser test checkouts and developer sessions"
+            >
+              <span className={`w-2 h-2 rounded-full ${excludeFounder ? "bg-emerald-400" : "bg-stone-500"}`} />
+              <span>{excludeFounder ? "✓ Exclude Founder & Test Sessions" : "Include Founder & Test Sessions"}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={onMarkFounderDevice}
+              disabled={isMarkingFounder}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium transition border cursor-pointer ${
+                isFounderDeviceSaved || founderMarkedSuccess
+                  ? "bg-stone-800 text-emerald-300 border-emerald-500/50"
+                  : "bg-stone-800 text-stone-300 border-stone-700 hover:bg-stone-700 hover:text-white"
+              }`}
+              title="Tag this browser as founder device so test checkouts and sessions are cleanly excluded"
+            >
+              {isMarkingFounder ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
+              ) : isFounderDeviceSaved || founderMarkedSuccess ? (
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              ) : (
+                <Laptop className="w-3.5 h-3.5 text-stone-400" />
+              )}
+              <span>{isFounderDeviceSaved || founderMarkedSuccess ? "Founder Device Marked" : "Mark My Current Browser as Founder Device"}</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Custom Date Pickers */}
+        {filterDateRange === "custom" && (
+          <div className="flex items-center gap-2 pt-2 border-t border-stone-800 text-xs">
+            <span className="text-stone-400">From:</span>
+            <input
+              type="date"
+              value={customFrom}
+              onChange={(e) => onCustomDateChange?.(e.target.value, customTo)}
+              className="px-2 py-1 rounded bg-stone-800 text-white border border-stone-700 text-xs"
+            />
+            <span className="text-stone-400">To:</span>
+            <input
+              type="date"
+              value={customTo}
+              onChange={(e) => onCustomDateChange?.(customFrom, e.target.value)}
+              className="px-2 py-1 rounded bg-stone-800 text-white border border-stone-700 text-xs"
+            />
+          </div>
+        )}
+
+        {/* Row 2: Channel Filter Pills */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-stone-800/80">
+          <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider mr-1 flex items-center gap-1">
+            <Compass className="w-3.5 h-3.5 text-indigo-400" />
+            Channel:
+          </span>
+          {[
+            { id: "all", label: "All Traffic" },
+            { id: "paid", label: "Paid Only (Google + Meta)" },
+            { id: "google_cpc", label: "Google CPC" },
+            { id: "meta_paid", label: "Meta Paid" },
+            { id: "organic_direct", label: "Organic / Direct" },
+          ].map((chan) => (
+            <button
+              key={chan.id}
+              type="button"
+              onClick={() => onChannelChange?.(chan.id)}
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold transition cursor-pointer ${
+                filterChannel === chan.id
+                  ? "bg-indigo-500 text-white shadow-xs font-bold"
+                  : "bg-stone-800/70 text-stone-400 hover:bg-stone-700 hover:text-stone-200"
+              }`}
+            >
+              {chan.label}
+            </button>
+          ))}
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              className="ml-auto text-[11px] text-stone-400 hover:text-stone-200 flex items-center gap-1 transition cursor-pointer"
+              title="Refresh Telemetry Metrics"
+            >
+              <RefreshCw className="w-3 h-3" />
+              <span>Refresh</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* 1. Header & Live Indicator */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
         <div>
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
               <TrendingUp className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Traffic Acquisition &amp; Micro-Funnel Drop-Offs</span>
+              <span>Conversion Waterfall &amp; Real Visitor Telemetry</span>
             </h2>
             <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -94,7 +263,7 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
             )}
           </div>
           <p className="text-xs text-stone-500 mt-1">
-            Pinpoints visitor origin, Google Analytics Client IDs, device specs, and exact drop-off steps.
+            Monotonically validated 7-stage conversion progression with single-glance founder exclusion.
           </p>
         </div>
 
@@ -115,27 +284,29 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
         </div>
       </div>
 
-      {/* 2. Micro-Funnel Waterfall Leak Detector */}
+      {/* 2. Micro-Funnel Waterfall Leak Detector (7 Stages) */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="text-xs font-bold uppercase tracking-wider text-stone-500 flex items-center gap-1.5">
             <Activity className="w-3.5 h-3.5 text-stone-400" />
-            Step-by-Step Drop-Off Waterfall
+            7-Stage Drop-Off Waterfall (Strict Cohort Math)
           </h3>
           <span className="text-[11px] text-stone-400">
             Leak % indicates visitors who abandoned before advancing to next step
           </span>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2.5 sm:gap-3">
           {funnelLeaks.map((step, idx) => {
             const isLast = idx === funnelLeaks.length - 1;
             const hasHighLeak = step.leakToNext >= 40 && !isLast;
+            const stepLabel = step.stepName.split(".")[0];
+            const title = step.stepName.replace(/^\d+[A-Za-z]?\.\s*/, "");
 
             return (
               <div
                 key={idx}
-                className={`p-4 rounded-2xl border transition-all relative flex flex-col justify-between ${
+                className={`p-3.5 sm:p-4 rounded-2xl border transition-all relative flex flex-col justify-between ${
                   isLast
                     ? "bg-emerald-50/70 border-emerald-200 text-emerald-950"
                     : hasHighLeak
@@ -145,15 +316,15 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
               >
                 <div>
                   <div className="flex items-center justify-between text-[10px] uppercase font-bold text-stone-400 tracking-wider">
-                    <span>Step {step.stepNumber}</span>
-                    {step.stepNumber > 1 && (
+                    <span>Step {stepLabel}</span>
+                    {idx > 0 && (
                       <span className="text-stone-500 font-mono font-medium">
                         {step.conversionFromPrior}% retained
                       </span>
                     )}
                   </div>
-                  <span className="block font-semibold text-xs text-stone-800 mt-0.5 truncate">
-                    {step.stepName.replace(/^\d+\.\s*/, "")}
+                  <span className="block font-semibold text-xs text-stone-800 mt-0.5 truncate" title={title}>
+                    {title}
                   </span>
                   <div className="font-serif text-2xl font-bold my-1 text-stone-900">
                     {step.visitors}
@@ -163,7 +334,7 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
                 <div className="pt-2 border-t border-stone-200/50 mt-2">
                   {isLast ? (
                     <div className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700">
-                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
                       <span>Converted Orders</span>
                     </div>
                   ) : (
@@ -188,6 +359,168 @@ export function VisitorTelemetryDashboard({ metrics }: VisitorTelemetryDashboard
             );
           })}
         </div>
+      </div>
+
+      {/* 2.5 HIGH-INTENT ABANDONERS LIVE INSPECTOR TABLE */}
+      <div className="space-y-3 pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-stone-200">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-stone-800 flex items-center gap-1.5">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-600" />
+                High-Intent Abandoners (Reached Note or Address)
+              </h3>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                {highIntentAbandoners.length} Sessions
+              </span>
+            </div>
+            <p className="text-[11px] text-stone-500 mt-0.5">
+              Last 25 visitors who wrote a note or reached the address form but abandoned before payment completion.
+            </p>
+          </div>
+        </div>
+
+        {highIntentAbandoners.length === 0 ? (
+          <div className="text-center py-8 bg-stone-50/50 rounded-2xl border border-stone-200/80">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 mx-auto mb-1.5 opacity-80" />
+            <p className="text-xs font-semibold text-stone-700">No High-Intent Abandoners Detected</p>
+            <p className="text-[11px] text-stone-400 mt-0.5">
+              Zero visitors who reached Step 3 (Note Typed) or Step 4A (Address Form) abandoned under the current filter window.
+            </p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-stone-200 bg-white shadow-2xs">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-stone-50/90 border-b border-stone-200 text-stone-500 text-[10px] uppercase font-bold tracking-wider">
+                <tr>
+                  <th className="py-2.5 px-3">Time Ago</th>
+                  <th className="py-2.5 px-3">Source / Campaign (UTM)</th>
+                  <th className="py-2.5 px-3">Device / Browser</th>
+                  <th className="py-2.5 px-3">Landing Path</th>
+                  <th className="py-2.5 px-3">Furthest Step Reached</th>
+                  <th className="py-2.5 px-3">Note Length</th>
+                  <th className="py-2.5 px-3">Validation Error Hit</th>
+                  <th className="py-2.5 px-3 text-right">Session ID</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-stone-100">
+                {highIntentAbandoners.map((session, idx) => {
+                  const timeAgo = formatTimeAgo(session.lastSeenAt);
+
+                  return (
+                    <tr key={idx} className="hover:bg-amber-50/20 transition-colors">
+                      {/* Time Ago */}
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <span className="font-mono text-stone-700 font-medium">{timeAgo}</span>
+                      </td>
+
+                      {/* Source / Campaign */}
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-semibold text-stone-900">{session.source}</span>
+                          <span className="text-stone-400">/ {session.medium}</span>
+                          {session.gclid && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-blue-50 text-blue-700 border border-blue-200">
+                              gclid
+                            </span>
+                          )}
+                          {session.fbclid && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-indigo-50 text-indigo-700 border border-indigo-200">
+                              fbclid
+                            </span>
+                          )}
+                        </div>
+                        {session.campaign && (
+                          <span className="text-[10px] text-stone-500 block truncate max-w-[150px]">
+                            {session.campaign}
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Device / Browser */}
+                      <td className="py-2.5 px-3">
+                        <div className="flex items-center gap-1 text-stone-700 capitalize">
+                          {session.deviceType === "mobile" && <Smartphone className="w-3 h-3 text-stone-400 shrink-0" />}
+                          {session.deviceType === "desktop" && <Monitor className="w-3 h-3 text-stone-400 shrink-0" />}
+                          {session.deviceType === "tablet" && <Tablet className="w-3 h-3 text-stone-400 shrink-0" />}
+                          <span>{session.deviceType}</span>
+                        </div>
+                        {session.inAppBrowser ? (
+                          <span className="mt-0.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                            Instagram / FB Webview
+                          </span>
+                        ) : session.screenResolution ? (
+                          <span className="text-[10px] font-mono text-stone-400 block">
+                            {session.screenResolution}
+                          </span>
+                        ) : null}
+                      </td>
+
+                      {/* Landing Path */}
+                      <td className="py-2.5 px-3">
+                        <span className="font-mono text-[11px] text-stone-700 truncate max-w-[140px] block" title={session.landingPath}>
+                          {session.landingPath || "/"}
+                        </span>
+                      </td>
+
+                      {/* Furthest Step Reached */}
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-stone-100 text-stone-800 border border-stone-200">
+                          Step {session.highestStep}: {session.highestStepName}
+                        </span>
+                      </td>
+
+                      {/* Note Length */}
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        {session.noteLength !== undefined && session.noteLength > 0 ? (
+                          <span className="font-mono font-medium text-stone-800 text-[11px]">
+                            {session.noteLength} chars
+                          </span>
+                        ) : (
+                          <span className="text-stone-400 text-[11px] italic">Typed / Prompt</span>
+                        )}
+                      </td>
+
+                      {/* Validation Error Hit */}
+                      <td className="py-2.5 px-3">
+                        {session.lastValidationError ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-rose-50 text-rose-700 border border-rose-200 max-w-[180px] truncate" title={session.lastValidationError}>
+                            <AlertTriangle className="w-3 h-3 text-rose-500 shrink-0" />
+                            {session.lastValidationError}
+                          </span>
+                        ) : (
+                          <span className="text-stone-400 text-[11px]">—</span>
+                        )}
+                      </td>
+
+                      {/* Session ID Copy */}
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(session.sessionId, session.sessionId)}
+                          className="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded bg-stone-50 hover:bg-stone-100 border border-stone-200 text-stone-600 transition cursor-pointer"
+                          title="Copy Session ID"
+                        >
+                          {copiedId === session.sessionId ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-600" />
+                              <span className="text-emerald-700">Copied</span>
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3 h-3 text-stone-400" />
+                              <span className="truncate max-w-[70px]">{session.sessionId}</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* 3. Traffic Sources & Technology Row */}

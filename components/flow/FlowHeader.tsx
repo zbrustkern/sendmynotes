@@ -52,8 +52,11 @@ export function FlowHeader({ showClearDraft = false, onClearDraft }: FlowHeaderP
                 Start over
               </button>
             )}
-            <span className="hidden xs:inline-flex items-center text-xs font-medium text-stone-700 bg-stone-100 px-2.5 py-1 rounded-full border border-stone-200">
-              $9 flat • USPS postage included
+            <span className="hidden md:inline-flex items-center text-xs font-medium text-stone-700 bg-stone-100 px-3 py-1 rounded-full border border-stone-200">
+              $9.00 All-In • Written in Real Ballpoint Ink • Free First-Class Stamp Included
+            </span>
+            <span className="inline-flex md:hidden items-center text-[11px] font-medium text-stone-700 bg-stone-100 px-2.5 py-1 rounded-full border border-stone-200">
+              $9.00 All-In • Real Ink • Stamp Included
             </span>
           </div>
         </div>

@@ -67,6 +67,16 @@ export function getScreenResolution(): string {
   }
 }
 
+export function isInAppBrowser(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    const ua = navigator.userAgent || "";
+    return /FBAN|FBAV|Instagram/i.test(ua);
+  } catch {
+    return false;
+  }
+}
+
 export async function trackEvent(
   eventName: TelemetryEventName,
   step?: number,
@@ -87,6 +97,7 @@ export async function trackEvent(
     const googleClientId = getGoogleClientId();
     const deviceType = getDeviceType();
     const screenResolution = getScreenResolution();
+    const inApp = isInAppBrowser();
 
     const rawReferrer = attr?.referrer || (document.referrer ? document.referrer : undefined);
     const cleanReferrer = sanitizeUrlOrPath(rawReferrer);
@@ -98,7 +109,10 @@ export async function trackEvent(
       step,
       sessionId,
       orderId,
-      metadata: metadata || {},
+      metadata: {
+        in_app_browser: inApp,
+        ...(metadata || {}),
+      },
       timestamp: Date.now(),
       path: cleanPath,
       // Visitor acquisition attribution

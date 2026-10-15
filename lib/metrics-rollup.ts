@@ -149,7 +149,8 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
   if (
     event.eventName === "cover_preset_selected" ||
     event.eventName === "ai_generate_succeeded" ||
-    event.eventName === "card_completed"
+    event.eventName === "card_completed" ||
+    event.eventName === "step_2_cover_ready"
   ) {
     if (event.sessionId && !summary.stageSessionIds.coverSelected.includes(event.sessionId)) {
       summary.stageSessionIds.coverSelected.push(event.sessionId);
@@ -158,7 +159,11 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
       }
       summary.coverSelected++;
     }
-  } else if (event.eventName === "note_completed") {
+  } else if (
+    event.eventName === "note_completed" ||
+    event.eventName === "step_3_note_typed" ||
+    event.eventName === "starter_prompt_used"
+  ) {
     if (event.sessionId && !summary.stageSessionIds.noteCompleted.includes(event.sessionId)) {
       summary.stageSessionIds.noteCompleted.push(event.sessionId);
       if (summary.stageSessionIds.noteCompleted.length > 1000) {
@@ -166,7 +171,10 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
       }
       summary.noteCompleted++;
     }
-  } else if (event.eventName === "address_completed") {
+  } else if (
+    event.eventName === "address_completed" ||
+    event.eventName === "step_4b_address_completed"
+  ) {
     if (event.sessionId && !summary.stageSessionIds.addressCompleted.includes(event.sessionId)) {
       summary.stageSessionIds.addressCompleted.push(event.sessionId);
       if (summary.stageSessionIds.addressCompleted.length > 1000) {
@@ -176,7 +184,8 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     }
   } else if (
     event.eventName === "checkout_initiated" ||
-    event.eventName === "payment_viewed"
+    event.eventName === "payment_viewed" ||
+    event.eventName === "step_5_checkout_initiated"
   ) {
     if (event.sessionId && !summary.stageSessionIds.checkoutInitiated.includes(event.sessionId)) {
       summary.stageSessionIds.checkoutInitiated.push(event.sessionId);
@@ -187,7 +196,8 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     }
   } else if (
     event.eventName === "purchase_verified" ||
-    event.eventName === "payment_succeeded"
+    event.eventName === "payment_succeeded" ||
+    event.eventName === "step_6_paid_order"
   ) {
     if (!summary.paidOrderIds) {
       summary.paidOrderIds = [];
@@ -222,17 +232,27 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
   // Determine current step number and label
   let stepNum = event.step || 1;
   let stepName = "Cover Selection";
-  if (event.eventName === "purchase_verified" || event.eventName === "payment_succeeded") {
+  if (
+    event.eventName === "purchase_verified" ||
+    event.eventName === "payment_succeeded" ||
+    event.eventName === "step_6_paid_order"
+  ) {
     stepNum = 5;
     stepName = "Paid & Penned";
   } else if (
     event.eventName === "checkout_initiated" ||
     event.eventName === "payment_viewed" ||
+    event.eventName === "step_5_checkout_initiated" ||
     event.step === 4
   ) {
     stepNum = 4;
     stepName = "Stripe Checkout";
-  } else if (event.eventName === "address_completed" || event.step === 3) {
+  } else if (
+    event.eventName === "address_completed" ||
+    event.eventName === "step_4b_address_completed" ||
+    event.eventName === "step_4a_address_viewed" ||
+    event.step === 3
+  ) {
     stepNum = 3;
     stepName = "Recipient Address";
   } else if (
@@ -240,6 +260,8 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     event.eventName === "inside_note_edited" ||
     event.eventName === "inspiration_applied" ||
     event.eventName === "note_shuffled" ||
+    event.eventName === "step_3_note_typed" ||
+    event.eventName === "starter_prompt_used" ||
     event.step === 2
   ) {
     stepNum = 2;
@@ -248,6 +270,8 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     event.eventName === "card_completed" ||
     event.eventName === "cover_preset_selected" ||
     event.eventName === "ai_generate_succeeded" ||
+    event.eventName === "step_2_cover_ready" ||
+    event.eventName === "step_1_landed" ||
     event.step === 1
   ) {
     stepNum = 1;
@@ -287,6 +311,11 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     }
   }
 
+  const inAppBrowser = Boolean(event.metadata?.in_app_browser);
+  const usedAddressDeferral = Boolean(event.metadata?.used_address_deferral || event.metadata?.usedAddressDeferral);
+  const lastValidationError = (event.metadata?.last_validation_error as string) || (event.metadata?.lastValidationError as string) || undefined;
+  const noteLength = typeof event.metadata?.charCount === "number" ? event.metadata.charCount : undefined;
+
   // Update or insert visitor session record
   let existingSession = summary.recentSessions.find((s) => s.sessionId === event.sessionId);
   if (existingSession) {
@@ -295,7 +324,11 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
       existingSession.highestStep = stepNum;
       existingSession.highestStepName = stepName;
     }
-    if (event.eventName === "purchase_verified" || event.eventName === "payment_succeeded") {
+    if (
+      event.eventName === "purchase_verified" ||
+      event.eventName === "payment_succeeded" ||
+      event.eventName === "step_6_paid_order"
+    ) {
       existingSession.completed = true;
       existingSession.dropOffStep = undefined;
       if (event.orderId) existingSession.orderId = event.orderId;
@@ -310,8 +343,15 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     if (event.utmCampaign) existingSession.campaign = event.utmCampaign;
     if (event.isBot !== undefined) existingSession.isBot = event.isBot;
     if (event.userAgent) existingSession.userAgent = event.userAgent;
+    if (inAppBrowser) existingSession.inAppBrowser = true;
+    if (usedAddressDeferral) existingSession.usedAddressDeferral = true;
+    if (lastValidationError) existingSession.lastValidationError = lastValidationError;
+    if (noteLength !== undefined) existingSession.noteLength = Math.max(existingSession.noteLength || 0, noteLength);
   } else {
-    const isCompleted = event.eventName === "purchase_verified" || event.eventName === "payment_succeeded";
+    const isCompleted =
+      event.eventName === "purchase_verified" ||
+      event.eventName === "payment_succeeded" ||
+      event.eventName === "step_6_paid_order";
     const newSession: VisitorSessionRecord = {
       sessionId: event.sessionId,
       firstSeenAt: Date.now(),
@@ -334,6 +374,10 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
       googleClientId: event.googleClientId,
       userAgent: event.userAgent,
       isBot: event.isBot,
+      inAppBrowser,
+      usedAddressDeferral,
+      lastValidationError,
+      noteLength,
     };
     summary.recentSessions.unshift(newSession);
     if (summary.recentSessions.length > 50) {
@@ -585,25 +629,123 @@ export function isExcludedOrderCohort(o: Partial<Order>): boolean {
   );
 }
 
+export interface AdminDashboardFilterOptions {
+  dateRange?: string; // "oct13" | "today" | "last7" | "all" | "custom"
+  excludeFounder?: boolean; // default: true
+  channel?: string; // "all" | "paid" | "google_cpc" | "meta_paid" | "organic_direct"
+  customFrom?: number;
+  customTo?: number;
+}
+
+export const UX_OVERHAUL_BASELINE_MS = new Date("2026-10-13T00:00:00Z").getTime();
+export const FOUNDER_REGISTRY_CONFIG_KEY = "founder_device_registry";
+
+export function matchesChannelFilter(
+  channel: string,
+  source?: string,
+  medium?: string,
+  campaign?: string,
+  gclid?: string,
+  fbclid?: string
+): boolean {
+  if (channel === "all") return true;
+
+  const s = (source || "").toLowerCase();
+  const m = (medium || "").toLowerCase();
+  const hasGclid = Boolean(gclid);
+  const hasFbclid = Boolean(fbclid);
+  const isGoogle = s.includes("google") || hasGclid;
+  const isMeta = s.includes("meta") || s.includes("facebook") || s.includes("instagram") || hasFbclid;
+  const isPaid = m === "cpc" || m === "paid" || hasGclid || hasFbclid || (isMeta && (m.includes("paid") || m.includes("social") || hasFbclid));
+
+  if (channel === "paid") {
+    return isPaid || (isGoogle && m === "cpc") || isMeta;
+  }
+  if (channel === "google_cpc") {
+    return (isGoogle && (m === "cpc" || hasGclid)) || (s === "google" && m === "cpc");
+  }
+  if (channel === "meta_paid") {
+    return isMeta;
+  }
+  if (channel === "organic_direct") {
+    return !isPaid && !hasGclid && !hasFbclid && !isMeta;
+  }
+  return true;
+}
+
 /**
  * Computes scalable admin dashboard metrics by combining:
- * 1. Pre-aggregated telemetry summary
- * 2. High-performance order queries with limit and status filtering
+ * 1. Granular 7-stage telemetry events with strict cohort funnel progression
+ * 2. High-performance order queries with date range, founder exclusion, and channel attribution filtering
+ * 3. High-intent abandoner session diagnostics
  */
-export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
-  // 1. Fetch latest 50 orders sorted newest first
-  const ordersSnapshot = await getOrdersCollection()
-    .orderBy("createdAt", "desc")
-    .limit(50)
-    .get();
+export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOptions): Promise<AdminMetrics> {
+  const dateRange = options?.dateRange || "oct13";
+  const excludeFounder = options?.excludeFounder !== false; // Default: ON
+  const channel = options?.channel || "all";
 
-  const recentOrders: Order[] = [];
-  ordersSnapshot.forEach((doc) => {
-    recentOrders.push(doc.data() as Order);
+  let fromTime = UX_OVERHAUL_BASELINE_MS;
+  let toTime = Date.now();
+  if (dateRange === "oct13") {
+    fromTime = UX_OVERHAUL_BASELINE_MS;
+  } else if (dateRange === "today") {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    fromTime = d.getTime();
+  } else if (dateRange === "last7") {
+    fromTime = Date.now() - 7 * 86400000;
+  } else if (dateRange === "all") {
+    fromTime = 0;
+  } else if (dateRange === "custom") {
+    fromTime = options?.customFrom || 0;
+    toTime = options?.customTo || Date.now();
+  }
+
+  // Load founder device registry from system config
+  const founderRegistry = (await getSystemConfig<{
+    ips?: string[];
+    sessionIds?: string[];
+    userAgents?: string[];
+  }>(FOUNDER_REGISTRY_CONFIG_KEY)) || { ips: [], sessionIds: [], userAgents: [] };
+  const founderSessionIds = new Set(founderRegistry.sessionIds || []);
+  const founderIps = new Set(founderRegistry.ips || []);
+  const founderUserAgents = new Set(founderRegistry.userAgents || []);
+
+  // 1. Fetch all orders and apply date, founder exclusion, and channel filters
+  const allOrdersSnap = await getOrdersCollection().get();
+  const allOrdersList: Order[] = [];
+  allOrdersSnap.forEach((doc) => {
+    allOrdersList.push(doc.data() as Order);
   });
 
-  // 2. Fetch all orders for status totals (or from summary)
-  const allOrdersSnap = await getOrdersCollection().get();
+  const filteredOrders = allOrdersList.filter((o) => {
+    const orderCreatedAt = o.createdAt || 0;
+    if (dateRange !== "all") {
+      if (orderCreatedAt < fromTime || orderCreatedAt > toTime) {
+        return false;
+      }
+    }
+
+    if (excludeFounder) {
+      if (isExcludedOrderCohort(o)) return false;
+      if (o.sessionId && founderSessionIds.has(o.sessionId)) return false;
+      if (o.customerEmail && (o.customerEmail.toLowerCase().includes("founder") || o.customerEmail.toLowerCase().includes("zeke"))) {
+        return false;
+      }
+    }
+
+    const utmSrc = o.attribution?.utmSource;
+    const utmMed = o.attribution?.utmMedium;
+    const utmCamp = o.attribution?.utmCampaign;
+    const gclid = o.attribution?.gclid;
+    const fbclid = o.attribution?.fbclid;
+    if (!matchesChannelFilter(channel, utmSrc, utmMed, utmCamp, gclid, fbclid)) {
+      return false;
+    }
+
+    return true;
+  });
+
   let totalRevenueCents = 0;
   let pendingCount = 0;
   let processingCount = 0;
@@ -628,14 +770,7 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
   let fulfillmentCogsCents = 0;
   const campaignAgg: Record<string, CampaignAttributionMetric> = {};
 
-  allOrdersSnap.forEach((doc) => {
-    const o = doc.data() as Order;
-
-    // S0-05 & Finding 1: Exclude founder testing, free comps, and synthetic test traffic from customer conversion and revenue metrics
-    if (isExcludedOrderCohort(o)) {
-      return;
-    }
-
+  filteredOrders.forEach((o) => {
     const isPaid =
       o.status === "PROCESSING_HANDWRYTTEN" ||
       o.status === "PAYMENT_RECEIVED" ||
@@ -653,7 +788,6 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
       stripeFeesCents += orderStripeFee;
       fulfillmentCogsCents += orderCogs;
 
-      // Group attribution by Campaign / Source
       const utmCampaign = o.attribution?.utmCampaign?.trim() || "";
       const utmSource = o.attribution?.utmSource?.trim() || "";
       const utmMedium = o.attribution?.utmMedium?.trim() || "";
@@ -694,12 +828,10 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
       failedCount++;
     }
 
-    // Font tally
     const fontId = o.fontStyleId || "hwDavid";
     const fontName = FONT_NAME_MAP[fontId] || fontId;
     fontCounts[fontName] = (fontCounts[fontName] || 0) + 1;
 
-    // Occasion tally
     const noteText = `${o.printedMessage || ""} ${o.handwrittenNote || ""}`.toLowerCase();
     let occasion = "Personal Note";
     if (noteText.includes("birthday") || noteText.includes("bday")) occasion = "Birthday";
@@ -711,7 +843,7 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     occasionCounts[occasion] = (occasionCounts[occasion] || 0) + 1;
   });
 
-  const totalCountForBreakdowns = Math.max(allOrdersSnap.size, 1);
+  const totalCountForBreakdowns = Math.max(filteredOrders.length, 1);
   const fontPopularity = Object.entries(fontCounts)
     .map(([fontName, count]) => ({
       fontId: fontName,
@@ -729,7 +861,6 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     }))
     .sort((a, b) => b.count - a.count);
 
-  // 3. Margin & Unit Economics Summaries
   const paidCardsCount = processingCount;
   const netContributionMarginCents = totalRevenueCents - stripeFeesCents - fulfillmentCogsCents;
   const netContributionMarginPercent =
@@ -761,7 +892,6 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     (a, b) => b.netContributionMarginCents - a.netContributionMarginCents
   );
 
-  // Fetch operator tracked ad spend from system config
   let adSpendCents = 0;
   try {
     const adSpendDoc = await getSystemConfig<{ amountCents: number }>("admin_ad_spend");
@@ -772,7 +902,6 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     console.warn("[Metrics Rollup] Error reading ad spend config:", err);
   }
 
-  // Fetch saved valuation heuristic assumptions if present
   let valuationAssumptions: any = undefined;
   try {
     const valDoc = await getSystemConfig("admin_valuation_assumptions");
@@ -783,25 +912,411 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     console.warn("[Metrics Rollup] Error reading valuation assumptions:", err);
   }
 
-  // 4. Load pre-aggregated telemetry funnel
+  // 2. Fetch telemetry events and construct sessions
   const telemetry = await getTelemetrySummary();
+  const rawEvents: TelemetryEvent[] = [];
+  try {
+    const snap = await firestoreDb.collection(TELEMETRY_COLLECTION).get();
+    snap.forEach((doc) => {
+      rawEvents.push(doc.data() as TelemetryEvent);
+    });
+  } catch (err) {
+    console.warn("[Metrics Rollup] Error loading raw telemetry events:", err);
+  }
 
-  const totalSessions = Math.max(telemetry.totalSessions, allOrdersSnap.size, 1);
-  const coverCount = Math.max(telemetry.coverSelected, allOrdersSnap.size);
-  const noteCount = Math.max(telemetry.noteCompleted, allOrdersSnap.size);
-  const addressCount = Math.max(telemetry.addressCompleted, allOrdersSnap.size);
-  const checkoutCount = Math.max(telemetry.checkoutInitiated, allOrdersSnap.size);
-  const paidCount = Math.max(telemetry.paid, processingCount);
+  const sessionMap = new Map<string, VisitorSessionRecord>();
+  const sessionStages = new Map<
+    string,
+    {
+      hasStage1: boolean;
+      hasStage2: boolean;
+      hasStage3: boolean;
+      hasStage4a: boolean;
+      hasStage4b: boolean;
+      hasStage5: boolean;
+      hasStage6: boolean;
+    }
+  >();
 
-  // 5. Construct enriched visitor telemetry
-  const totalDev =
-    (telemetry.deviceCounts?.mobile || 0) +
-    (telemetry.deviceCounts?.desktop || 0) +
-    (telemetry.deviceCounts?.tablet || 0);
-  const mobCount = telemetry.deviceCounts?.mobile || 0;
-  const deskCount = telemetry.deviceCounts?.desktop || 0;
-  const tabCount = telemetry.deviceCounts?.tablet || 0;
+  // Aggregate raw events into sessions
+  for (const evt of rawEvents) {
+    if (!evt.sessionId) continue;
+    const sId = evt.sessionId;
+    const stages = sessionStages.get(sId) || {
+      hasStage1: false,
+      hasStage2: false,
+      hasStage3: false,
+      hasStage4a: false,
+      hasStage4b: false,
+      hasStage5: false,
+      hasStage6: false,
+    };
 
+    if (
+      evt.eventName === "step_1_landed" ||
+      evt.eventName === "session_start" ||
+      evt.eventName === "landing_viewed" ||
+      evt.eventName === "scenario_landing_viewed" ||
+      evt.eventName === "builder_started"
+    ) {
+      stages.hasStage1 = true;
+    }
+    if (
+      evt.eventName === "step_2_cover_ready" ||
+      evt.eventName === "cover_preset_selected" ||
+      evt.eventName === "ai_generate_succeeded" ||
+      evt.eventName === "card_completed"
+    ) {
+      stages.hasStage1 = true;
+      stages.hasStage2 = true;
+    }
+    if (
+      evt.eventName === "step_3_note_typed" ||
+      evt.eventName === "starter_prompt_used" ||
+      evt.eventName === "note_completed" ||
+      evt.eventName === "inside_note_edited"
+    ) {
+      stages.hasStage1 = true;
+      stages.hasStage2 = true;
+      stages.hasStage3 = true;
+    }
+    if (evt.eventName === "step_4a_address_viewed") {
+      stages.hasStage1 = true;
+      stages.hasStage2 = true;
+      stages.hasStage3 = true;
+      stages.hasStage4a = true;
+    }
+    if (
+      evt.eventName === "step_4b_address_completed" ||
+      evt.eventName === "address_completed"
+    ) {
+      stages.hasStage1 = true;
+      stages.hasStage2 = true;
+      stages.hasStage3 = true;
+      stages.hasStage4a = true;
+      stages.hasStage4b = true;
+    }
+    if (
+      evt.eventName === "step_5_checkout_initiated" ||
+      evt.eventName === "checkout_initiated" ||
+      evt.eventName === "payment_viewed"
+    ) {
+      stages.hasStage1 = true;
+      stages.hasStage2 = true;
+      stages.hasStage3 = true;
+      stages.hasStage4a = true;
+      stages.hasStage4b = true;
+      stages.hasStage5 = true;
+    }
+    if (
+      evt.eventName === "step_6_paid_order" ||
+      evt.eventName === "purchase_verified" ||
+      evt.eventName === "payment_succeeded"
+    ) {
+      stages.hasStage1 = true;
+      stages.hasStage2 = true;
+      stages.hasStage3 = true;
+      stages.hasStage4a = true;
+      stages.hasStage4b = true;
+      stages.hasStage5 = true;
+      stages.hasStage6 = true;
+    }
+    sessionStages.set(sId, stages);
+
+    // Compute step number & names
+    let stepNum = evt.step || 1;
+    let stepName = "Cover Selection";
+    if (stages.hasStage6) {
+      stepNum = 5;
+      stepName = "Paid & Penned";
+    } else if (stages.hasStage5 || evt.step === 4) {
+      stepNum = 4;
+      stepName = "Stripe Checkout";
+    } else if (stages.hasStage4a || stages.hasStage4b || evt.step === 3) {
+      stepNum = 3;
+      stepName = "Recipient Address";
+    } else if (stages.hasStage3 || evt.step === 2) {
+      stepNum = 2;
+      stepName = "Inside Note";
+    }
+
+    const inAppBrowser = Boolean(evt.metadata?.in_app_browser);
+    const usedAddressDeferral = Boolean(evt.metadata?.used_address_deferral || evt.metadata?.usedAddressDeferral);
+    const lastValidationError = (evt.metadata?.last_validation_error as string) || (evt.metadata?.lastValidationError as string) || undefined;
+    const noteLength = typeof evt.metadata?.charCount === "number" ? evt.metadata.charCount : undefined;
+
+    let existing = sessionMap.get(sId);
+    if (existing) {
+      existing.firstSeenAt = Math.min(existing.firstSeenAt, evt.timestamp || existing.firstSeenAt);
+      existing.lastSeenAt = Math.max(existing.lastSeenAt, evt.timestamp || existing.lastSeenAt);
+      if (stepNum > existing.highestStep) {
+        existing.highestStep = stepNum;
+        existing.highestStepName = stepName;
+        if (!existing.completed) existing.dropOffStep = stepName;
+      }
+      if (stages.hasStage6) {
+        existing.completed = true;
+        existing.dropOffStep = undefined;
+      }
+      if (inAppBrowser) existing.inAppBrowser = true;
+      if (usedAddressDeferral) existing.usedAddressDeferral = true;
+      if (lastValidationError) existing.lastValidationError = lastValidationError;
+      if (noteLength !== undefined) existing.noteLength = Math.max(existing.noteLength || 0, noteLength);
+    } else {
+      const isPaid = stages.hasStage6;
+      sessionMap.set(sId, {
+        sessionId: sId,
+        firstSeenAt: evt.timestamp || Date.now(),
+        lastSeenAt: evt.timestamp || Date.now(),
+        highestStep: stepNum,
+        highestStepName: stepName,
+        dropOffStep: isPaid ? undefined : stepName,
+        completed: isPaid,
+        orderId: evt.orderId,
+        source: evt.utmSource || (evt.gclid ? "google" : "direct"),
+        medium: evt.utmMedium || (evt.gclid ? "cpc" : "none"),
+        campaign: evt.utmCampaign,
+        gclid: evt.gclid,
+        fbclid: evt.fbclid,
+        deviceType: evt.deviceType || "desktop",
+        screenResolution: evt.screenResolution,
+        city: evt.ipCity,
+        region: evt.ipRegion,
+        country: evt.ipCountry,
+        landingPath: evt.landingPath || evt.path,
+        googleClientId: evt.googleClientId,
+        userAgent: evt.userAgent,
+        isBot: evt.isBot,
+        inAppBrowser,
+        usedAddressDeferral,
+        lastValidationError,
+        noteLength,
+      });
+    }
+  }
+
+  // Merge any recent sessions from pre-aggregated summary
+  for (const s of telemetry.recentSessions || []) {
+    if (!sessionMap.has(s.sessionId)) {
+      sessionMap.set(s.sessionId, { ...s });
+      sessionStages.set(s.sessionId, {
+        hasStage1: true,
+        hasStage2: s.highestStep >= 1,
+        hasStage3: s.highestStep >= 2,
+        hasStage4a: s.highestStep >= 3,
+        hasStage4b: s.highestStep >= 3 && s.completed,
+        hasStage5: s.highestStep >= 4,
+        hasStage6: s.completed,
+      });
+    }
+  }
+
+  // Cross-reference paid orders to ensure conversion completion
+  for (const o of filteredOrders) {
+    const isPaid =
+      o.status === "PROCESSING_HANDWRYTTEN" ||
+      o.status === "PAYMENT_RECEIVED" ||
+      o.status === "MAILED";
+    if (isPaid && o.sessionId) {
+      const s = sessionStages.get(o.sessionId);
+      if (s) {
+        s.hasStage1 = true;
+        s.hasStage2 = true;
+        s.hasStage3 = true;
+        s.hasStage4a = true;
+        s.hasStage4b = true;
+        s.hasStage5 = true;
+        s.hasStage6 = true;
+      }
+      const rec = sessionMap.get(o.sessionId);
+      if (rec) {
+        rec.completed = true;
+        rec.dropOffStep = undefined;
+        rec.orderId = o.id;
+      }
+    }
+  }
+
+  // Filter sessions by date, founder exclusion, and channel
+  const allSessions = Array.from(sessionMap.values());
+  const filteredSessions = allSessions.filter((s) => {
+    if (dateRange !== "all") {
+      if (s.lastSeenAt < fromTime || s.firstSeenAt > toTime) {
+        return false;
+      }
+    }
+
+    if (excludeFounder) {
+      if (s.isFounder) return false;
+      if (founderSessionIds.has(s.sessionId)) return false;
+      if (s.sessionId.startsWith("test_founder")) return false;
+      if (s.userAgent && founderUserAgents.has(s.userAgent)) return false;
+    }
+
+    if (!matchesChannelFilter(channel, s.source, s.medium, s.campaign, s.gclid, s.fbclid)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  const botSessions = filteredSessions.filter((s) => s.isBot);
+  const humanSessions = filteredSessions.filter((s) => !s.isBot);
+
+  // 3. STRICT COHORT FUNNEL MATH:
+  // Monotonically ordered cohort subsets: S1 >= S2 >= S3 >= S4a >= S4b >= S5 >= S6
+  const U1 = new Set<string>();
+  const U2 = new Set<string>();
+  const U3 = new Set<string>();
+  const U4a = new Set<string>();
+  const U4b = new Set<string>();
+  const U5 = new Set<string>();
+  const U6 = new Set<string>();
+
+  for (const s of humanSessions) {
+    const stages = sessionStages.get(s.sessionId) || {
+      hasStage1: true,
+      hasStage2: s.highestStep >= 1,
+      hasStage3: s.highestStep >= 2,
+      hasStage4a: s.highestStep >= 3,
+      hasStage4b: s.highestStep >= 3 && s.completed,
+      hasStage5: s.highestStep >= 4,
+      hasStage6: s.completed,
+    };
+
+    U1.add(s.sessionId);
+    if (stages.hasStage2 || s.highestStep >= 1) U2.add(s.sessionId);
+    if (stages.hasStage3 || s.highestStep >= 2) U3.add(s.sessionId);
+    if (stages.hasStage4a || s.highestStep >= 3) U4a.add(s.sessionId);
+    if (stages.hasStage4b || (s.highestStep >= 3 && s.completed)) U4b.add(s.sessionId);
+    if (stages.hasStage5 || s.highestStep >= 4) U5.add(s.sessionId);
+    if (stages.hasStage6 || s.completed) U6.add(s.sessionId);
+  }
+
+  // Cohort superset propagation guarantees strict non-increasing monotonic funnel
+  const S6 = new Set(U6);
+  const S5 = new Set([...U5, ...S6]);
+  const S4b = new Set([...U4b, ...S5]);
+  const S4a = new Set([...U4a, ...S4b]);
+  const S3 = new Set([...U3, ...S4a]);
+  const S2 = new Set([...U2, ...S3]);
+  const S1 = new Set([...U1, ...S2]);
+
+  let s1Count = S1.size;
+  let s2Count = S2.size;
+  let s3Count = S3.size;
+  let s4aCount = S4a.size;
+  let s4bCount = S4b.size;
+  let s5Count = S5.size;
+  let s6Count = S6.size;
+
+  // Fallback to pre-aggregated summary if no individual raw events are available
+  if (s1Count === 0 && telemetry.totalSessions > 0 && dateRange === "all") {
+    s6Count = telemetry.paid || 0;
+    s5Count = Math.max(telemetry.checkoutInitiated || 0, s6Count);
+    s4bCount = Math.max(telemetry.addressCompleted || 0, s5Count);
+    s4aCount = s4bCount;
+    s3Count = Math.max(telemetry.noteCompleted || 0, s4aCount);
+    s2Count = Math.max(telemetry.coverSelected || 0, s3Count);
+    s1Count = Math.max(telemetry.totalSessions || 0, s2Count);
+  }
+
+  const funnelLeaks: FunnelStepLeak[] = [
+    {
+      stepNumber: 1,
+      stepName: "1. Landed & Browsing",
+      visitors: s1Count,
+      conversionFromPrior: 100,
+      leakToNext: s1Count > 0 ? Math.max(0, Math.round(((s1Count - s2Count) / s1Count) * 100)) : 0,
+    },
+    {
+      stepNumber: 2,
+      stepName: "2. Cover Ready",
+      visitors: s2Count,
+      conversionFromPrior: s1Count > 0 ? Math.min(100, Math.round((s2Count / s1Count) * 100)) : 0,
+      leakToNext: s2Count > 0 ? Math.max(0, Math.round(((s2Count - s3Count) / s2Count) * 100)) : 0,
+    },
+    {
+      stepNumber: 3,
+      stepName: "3. Note Typed",
+      visitors: s3Count,
+      conversionFromPrior: s2Count > 0 ? Math.min(100, Math.round((s3Count / s2Count) * 100)) : 0,
+      leakToNext: s3Count > 0 ? Math.max(0, Math.round(((s3Count - s4aCount) / s3Count) * 100)) : 0,
+    },
+    {
+      stepNumber: 4,
+      stepName: "4A. Address Viewed",
+      visitors: s4aCount,
+      conversionFromPrior: s3Count > 0 ? Math.min(100, Math.round((s4aCount / s3Count) * 100)) : 0,
+      leakToNext: s4aCount > 0 ? Math.max(0, Math.round(((s4aCount - s4bCount) / s4aCount) * 100)) : 0,
+    },
+    {
+      stepNumber: 5,
+      stepName: "4B. Address Completed / Deferred",
+      visitors: s4bCount,
+      conversionFromPrior: s4aCount > 0 ? Math.min(100, Math.round((s4bCount / s4aCount) * 100)) : 0,
+      leakToNext: s4bCount > 0 ? Math.max(0, Math.round(((s4bCount - s5Count) / s4bCount) * 100)) : 0,
+    },
+    {
+      stepNumber: 6,
+      stepName: "5. Checkout Initiated",
+      visitors: s5Count,
+      conversionFromPrior: s4bCount > 0 ? Math.min(100, Math.round((s5Count / s4bCount) * 100)) : 0,
+      leakToNext: s5Count > 0 ? Math.max(0, Math.round(((s5Count - s6Count) / s5Count) * 100)) : 0,
+    },
+    {
+      stepNumber: 7,
+      stepName: "6. Paid Order ($9.00)",
+      visitors: s6Count,
+      conversionFromPrior: s5Count > 0 ? Math.min(100, Math.round((s6Count / s5Count) * 100)) : 0,
+      leakToNext: 0,
+    },
+  ];
+
+  // 4. HIGH-INTENT ABANDONERS TABLE (Top 25 sessions that reached Step 3 Note or Step 4A Address and abandoned)
+  const highIntentAbandoners: VisitorSessionRecord[] = humanSessions
+    .filter((s) => (S3.has(s.sessionId) || S4a.has(s.sessionId)) && !S6.has(s.sessionId))
+    .sort((a, b) => b.lastSeenAt - a.lastSeenAt)
+    .slice(0, 25);
+
+  // 5. Device, Geo, and Traffic Source Aggregates from active human cohort
+  let mobCount = 0;
+  let deskCount = 0;
+  let tabCount = 0;
+  const geoMap: Record<string, number> = {};
+  const sourceMap: Record<string, { sessions: number; paid: number; dropOffs: Record<string, number> }> = {};
+
+  for (const s of humanSessions) {
+    if (s.deviceType === "mobile") mobCount++;
+    else if (s.deviceType === "tablet") tabCount++;
+    else deskCount++;
+
+    if (s.city) {
+      const locKey = `${s.city}${s.region ? ", " + s.region : ""}`;
+      geoMap[locKey] = (geoMap[locKey] || 0) + 1;
+    }
+
+    const srcKey = `${s.source} / ${s.medium}`;
+    if (!sourceMap[srcKey]) {
+      sourceMap[srcKey] = { sessions: 0, paid: 0, dropOffs: {} };
+    }
+    sourceMap[srcKey].sessions++;
+    if (s.completed || S6.has(s.sessionId)) {
+      sourceMap[srcKey].paid++;
+    } else {
+      const drop = s.dropOffStep || s.highestStepName || "Inside Note";
+      sourceMap[srcKey].dropOffs[drop] = (sourceMap[srcKey].dropOffs[drop] || 0) + 1;
+    }
+  }
+
+  // Fallback to pre-aggregated device counts if humanSessions list is empty
+  if (humanSessions.length === 0 && telemetry.deviceCounts) {
+    mobCount = telemetry.deviceCounts.mobile || 0;
+    deskCount = telemetry.deviceCounts.desktop || 0;
+    tabCount = telemetry.deviceCounts.tablet || 0;
+  }
+
+  const totalDev = mobCount + deskCount + tabCount;
   const deviceBreakdown = {
     mobile: mobCount,
     desktop: deskCount,
@@ -811,7 +1326,7 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     tabletPercent: totalDev > 0 ? Math.round((tabCount / totalDev) * 100) : 0,
   };
 
-  const topLocations = Object.entries(telemetry.geoCounts || {})
+  const topLocations = Object.entries(geoMap)
     .sort(([, a], [, b]) => b - a)
     .slice(0, 10)
     .map(([loc, count]) => {
@@ -823,7 +1338,7 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
       };
     });
 
-  const acquisitionSources: AcquisitionSourceMetric[] = Object.entries(telemetry.sourceCounts || {})
+  const acquisitionSources: AcquisitionSourceMetric[] = Object.entries(sourceMap)
     .map(([key, data]) => {
       const [src, med] = key.split(" / ");
       let topDrop = "None";
@@ -846,81 +1361,38 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     })
     .sort((a, b) => b.sessions - a.sessions);
 
-  const funnelLeaks: FunnelStepLeak[] = [
-    {
-      stepNumber: 1,
-      stepName: "1. Landed & Browsing",
-      visitors: totalSessions,
-      conversionFromPrior: 100,
-      leakToNext: totalSessions > 0 ? Math.max(0, Math.round(((totalSessions - coverCount) / totalSessions) * 100)) : 0,
-    },
-    {
-      stepNumber: 2,
-      stepName: "2. Cover Selected",
-      visitors: coverCount,
-      conversionFromPrior: totalSessions > 0 ? Math.min(100, Math.round((coverCount / totalSessions) * 100)) : 0,
-      leakToNext: coverCount > 0 ? Math.max(0, Math.round(((coverCount - noteCount) / coverCount) * 100)) : 0,
-    },
-    {
-      stepNumber: 3,
-      stepName: "3. Note Written",
-      visitors: noteCount,
-      conversionFromPrior: coverCount > 0 ? Math.min(100, Math.round((noteCount / coverCount) * 100)) : 0,
-      leakToNext: noteCount > 0 ? Math.max(0, Math.round(((noteCount - addressCount) / noteCount) * 100)) : 0,
-    },
-    {
-      stepNumber: 4,
-      stepName: "4. Address Entered",
-      visitors: addressCount,
-      conversionFromPrior: noteCount > 0 ? Math.min(100, Math.round((addressCount / noteCount) * 100)) : 0,
-      leakToNext: addressCount > 0 ? Math.max(0, Math.round(((addressCount - checkoutCount) / addressCount) * 100)) : 0,
-    },
-    {
-      stepNumber: 5,
-      stepName: "5. Checkout Initiated",
-      visitors: checkoutCount,
-      conversionFromPrior: addressCount > 0 ? Math.min(100, Math.round((checkoutCount / addressCount) * 100)) : 0,
-      leakToNext: checkoutCount > 0 ? Math.max(0, Math.round(((checkoutCount - paidCount) / checkoutCount) * 100)) : 0,
-    },
-    {
-      stepNumber: 6,
-      stepName: "6. Paid Order ($9.00)",
-      visitors: paidCount,
-      conversionFromPrior: checkoutCount > 0 ? Math.min(100, Math.round((paidCount / checkoutCount) * 100)) : 0,
-      leakToNext: 0,
-    },
-  ];
-
-  const recentSessions = telemetry.recentSessions || [];
-  const botVisitors = recentSessions.filter((s) => s.isBot).length;
-  const humanVisitors = Math.max(0, totalSessions - botVisitors);
+  const recentSessionsList = [...filteredSessions].sort((a, b) => b.lastSeenAt - a.lastSeenAt).slice(0, 50);
+  const botVisitors = botSessions.length;
+  const humanVisitors = humanSessions.length;
 
   const visitorTelemetry: VisitorTelemetryMetrics = {
-    totalVisitors: totalSessions,
+    totalVisitors: filteredSessions.length,
     humanVisitors,
     botVisitors,
     funnelLeaks,
     acquisitionSources,
     deviceBreakdown,
-    topLocations,
-    recentSessions,
+    topLocations: topLocations.length > 0 ? topLocations : (telemetry.geoCounts ? Object.entries(telemetry.geoCounts).map(([loc, count]) => ({ city: loc.split(", ")[0] || loc, count })).slice(0, 10) : []),
+    recentSessions: recentSessionsList,
   };
+
+  const recentOrdersList = [...filteredOrders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 50);
 
   return {
     totalRevenueCents,
-    totalOrders: allOrdersSnap.size,
+    totalOrders: filteredOrders.length,
     ordersByStatus: {
       pending: pendingCount,
       processing: processingCount,
       failed: failedCount,
     },
     funnel: {
-      totalSessions,
-      coverSelected: coverCount,
-      noteCompleted: noteCount,
-      addressCompleted: addressCount,
-      checkoutInitiated: checkoutCount,
-      paid: paidCount,
+      totalSessions: s1Count,
+      coverSelected: s2Count,
+      noteCompleted: s3Count,
+      addressCompleted: s4bCount,
+      checkoutInitiated: s5Count,
+      paid: s6Count,
     },
     visitorTelemetry,
     fontPopularity,
@@ -929,7 +1401,11 @@ export async function getAdminDashboardMetrics(): Promise<AdminMetrics> {
     campaignAttributions,
     adSpendCents,
     valuationAssumptions,
-    recentOrders,
+    recentOrders: recentOrdersList,
+    filterDateRange: dateRange,
+    filterChannel: channel,
+    excludeFounder,
+    highIntentAbandoners,
   };
 }
 

@@ -12,6 +12,7 @@ import { logIncident } from "./incident-logger";
 import { Order } from "./types";
 import { sendMetaCapiPurchaseEvent } from "./meta-conversions-api";
 import { recordServerTelemetry } from "./metrics-rollup";
+import { sendAddressDeferredEmail } from "./email-alerts";
 
 export interface ProcessPaidOrderResult {
   success: boolean;
@@ -119,7 +120,8 @@ export async function processPaidOrder(
       if (
         (existingOrder.status === "DISPATCHING" && !isStaleLock) ||
         existingOrder.status === "PROCESSING_HANDWRYTTEN" ||
-        existingOrder.status === "MAILED"
+        existingOrder.status === "MAILED" ||
+        existingOrder.status === "AWAITING_RECIPIENT_ADDRESS"
       ) {
         throw new DuplicateDispatchError(
           existingOrder.status,
@@ -128,6 +130,30 @@ export async function processPaidOrder(
       }
 
       const finalEmail = customerEmail || existingOrder.customerEmail;
+
+      if (existingOrder.addressDeferred || (existingOrder as any).address_deferred) {
+        transaction.update(docRef, {
+          status: "AWAITING_RECIPIENT_ADDRESS",
+          fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS",
+          stripePaymentId: paymentIntentId,
+          customerEmail: finalEmail,
+          updatedAt: Date.now(),
+          ...(clientContext?.isTest !== undefined || clientContext?.paymentMode
+            ? {
+                isTest: Boolean(clientContext?.isTest ?? (clientContext?.paymentMode !== "live")),
+                paymentMode: clientContext?.paymentMode || "stripe_test",
+              }
+            : {}),
+        });
+
+        return {
+          ...existingOrder,
+          status: "AWAITING_RECIPIENT_ADDRESS",
+          fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS",
+          stripePaymentId: paymentIntentId,
+          customerEmail: finalEmail,
+        };
+      }
 
       // Atomically transition status to DISPATCHING lock
       transaction.update(docRef, {
@@ -205,6 +231,28 @@ export async function processPaidOrder(
     } catch (discErr) {
       console.warn("[OrderProcessor] Notice recording discount code usage:", discErr);
     }
+  }
+
+  // Address Deferral Bypass: halt automatic Handwrytten dispatch, order is awaiting recipient address from magic link
+  if (order.status === "AWAITING_RECIPIENT_ADDRESS" || order.addressDeferred || (order as any).address_deferred) {
+    try {
+      const finalTo = customerEmail || order.customerEmail;
+      if (finalTo) {
+        await sendAddressDeferredEmail({
+          to: finalTo,
+          orderId,
+          viewToken: order.viewToken || "",
+          recipientName: `${order.recipientAddress?.firstName || ""} ${order.recipientAddress?.lastName || ""}`.trim() || "Recipient",
+        });
+      }
+    } catch (emailErr) {
+      console.warn("[OrderProcessor] Error sending address deferred magic link email:", emailErr);
+    }
+
+    return {
+      success: true,
+      status: "AWAITING_RECIPIENT_ADDRESS",
+    };
   }
 
   // S0-06: Reject orders without a personal sender name and return address before fulfillment

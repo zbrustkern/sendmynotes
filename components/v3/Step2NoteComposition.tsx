@@ -14,9 +14,144 @@ import {
   Eye,
   Undo2,
 } from "lucide-react";
-import { OCCASION_MESSAGE_BANK, MessageInspiration } from "@/lib/card-presets";
+import { OCCASION_MESSAGE_BANK, MessageInspiration, CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
+import { trackEvent } from "@/lib/telemetry";
+
+export interface StarterPrompt {
+  label: string;
+  template: string;
+}
+
+export function getStarterPrompts(occasion: string, scenarioSlug?: string): StarterPrompt[] {
+  const occ = (occasion || "").toLowerCase();
+  const slug = (scenarioSlug || "").toLowerCase();
+
+  // 1. Pet Loss / Pet Sympathy
+  if (slug.includes("pet") || occ.includes("pet") || (occ.includes("sympathy") && slug.includes("loss"))) {
+    return [
+      {
+        label: "1. Warm & Short",
+        template: "Sending you so much love and gentle strength today. Sweet [Pet's Name] was so deeply loved and had the most wonderful life by your side.",
+      },
+      {
+        label: "2. Rainbow Bridge / Fond Memories",
+        template: "May the joyful memories of sweet [Pet's Name] bring comfort across the rainbow bridge. Thinking of you and honoring the unconditional love you shared.",
+      },
+      {
+        label: "3. Thinking of Your Family",
+        template: "Holding you and your family close in our hearts during this heartbreaking time. Here for you whenever you need a listening ear or a quiet hug.",
+      },
+    ];
+  }
+
+  // 2. Sympathy & Support
+  if (occ.includes("sympathy") || occ.includes("support") || occ.includes("condolence")) {
+    return [
+      {
+        label: "1. Warm & Short",
+        template: "Sending you gentle strength, peace, and quiet comfort during this difficult time. Holding you close in my thoughts and heart.",
+      },
+      {
+        label: "2. Fond Memories",
+        template: "May the warmest memories bring solace to your heart today. Honoring a truly beautiful life and the enduring love that lives on.",
+      },
+      {
+        label: "3. Thinking of Your Family",
+        template: "Holding you and your entire family in our thoughts and prayers. We are here for you in every way, always.",
+      },
+    ];
+  }
+
+  // 3. Birthday
+  if (occ.includes("birthday") || occ.includes("bday")) {
+    return [
+      {
+        label: "1. Warm & Short",
+        template: "Happy Birthday! Wishing you a joyful day filled with sunshine, laughter, and all your favorite things.",
+      },
+      {
+        label: "2. Rainbow Year / Milestones",
+        template: "Celebrating you today and so proud of everything you’ve achieved this year. Here’s to an extraordinary year ahead!",
+      },
+      {
+        label: "3. Thinking of You / Cheers",
+        template: "Sending you the biggest birthday hugs from across the miles. Can’t wait to celebrate together very soon!",
+      },
+    ];
+  }
+
+  // 4. Thank You
+  if (occ.includes("thank")) {
+    return [
+      {
+        label: "1. Warm & Short",
+        template: "Thank you so much for your incredible kindness and generosity. It truly meant the world to me!",
+      },
+      {
+        label: "2. Heartfelt Gratitude",
+        template: "I cannot thank you enough for always being in my corner. People like you make life so much brighter.",
+      },
+      {
+        label: "3. Thinking of You",
+        template: "Deeply grateful for your time, support, and friendship. Thank you from the bottom of my heart!",
+      },
+    ];
+  }
+
+  // 5. Congratulations
+  if (occ.includes("congrat")) {
+    return [
+      {
+        label: "1. Warm & Short",
+        template: "Huge congratulations! So thrilled to celebrate this incredible milestone with you—pop the bubbly!",
+      },
+      {
+        label: "2. Hard Work & Pride",
+        template: "Your hard work and dedication paid off in the most wonderful way. So immensely proud of you!",
+      },
+      {
+        label: "3. Thinking of Your Future",
+        template: "Here’s to this exciting new chapter and bright horizons ahead. You earned every bit of this success!",
+      },
+    ];
+  }
+
+  // 6. Anniversary / Love
+  if (occ.includes("anniversary") || occ.includes("love") || occ.includes("romance")) {
+    return [
+      {
+        label: "1. Warm & Short",
+        template: "Happy Anniversary my love! Every single day with you is a gift, and I am so grateful for you.",
+      },
+      {
+        label: "2. Fond Memories",
+        template: "Thank you for another wonderful year of laughter, partnership, and adventures. Here is to a lifetime more together.",
+      },
+      {
+        label: "3. Thinking of Our Journey",
+        template: "In a world of constant noise, your love is my steady anchor and favorite home. Happy Anniversary!",
+      },
+    ];
+  }
+
+  // Default / Thinking of You / Just Because
+  return [
+    {
+      label: "1. Warm & Short",
+      template: "Thinking of you today and sending a little piece of sunshine your way. Hope today treats you kindly!",
+    },
+    {
+      label: "2. Fond Memories",
+      template: "You crossed my mind today and I wanted to send a reminder of how much you are loved. Grateful for our friendship!",
+    },
+    {
+      label: "3. Thinking of You",
+      template: "Sending you warmth, strength, and big hugs from afar. Can’t wait to catch up very soon!",
+    },
+  ];
+}
 
 export interface HandwritingStyle {
   id: string;
@@ -72,6 +207,8 @@ interface Step2NoteCompositionProps {
   hideFixedActionBar?: boolean;
   cardTitle?: string;
   cardUrl?: string;
+  scenarioSlug?: string;
+  onSelectCover?: (preset: CardPreset) => void;
 }
 
 export function Step2NoteComposition({
@@ -89,9 +226,14 @@ export function Step2NoteComposition({
   hideFixedActionBar = false,
   cardTitle,
   cardUrl,
+  scenarioSlug,
+  onSelectCover,
 }: Step2NoteCompositionProps) {
   // Handwriting style drawer state
   const [isFontSheetOpen, setIsFontSheetOpen] = useState(false);
+
+  // Quick cover switcher sheet state
+  const [isCoverSheetOpen, setIsCoverSheetOpen] = useState(false);
 
   // Card preview sheet state for mobile
   const [isPreviewCardOpen, setIsPreviewCardOpen] = useState(false);
@@ -164,6 +306,34 @@ export function Step2NoteComposition({
     setPendingInspiration(null);
   };
 
+  // Available covers for quick switcher (at least 6 designs)
+  const availableCovers = useMemo(() => {
+    const occasionLower = (occasion || "").toLowerCase();
+    const matched = CARD_PRESETS.filter((p) => p.occasion.toLowerCase() === occasionLower);
+    const others = CARD_PRESETS.filter((p) => p.occasion.toLowerCase() !== occasionLower);
+    const combined = [...matched, ...others];
+    return combined.slice(0, Math.max(6, Math.min(12, combined.length)));
+  }, [occasion]);
+
+  // Starter prompts bank for occasion / scenario
+  const starterPrompts = useMemo(() => {
+    return getStarterPrompts(occasion, scenarioSlug);
+  }, [occasion, scenarioSlug]);
+
+  const handleUseStarterPrompt = (prompt: StarterPrompt, promptNumber: number) => {
+    setPreviousBodyNote(bodyNote);
+    applyInspirationText(prompt.template);
+    trackEvent("starter_prompt_used", 2, {
+      promptLabel: prompt.label,
+      occasion,
+      promptNumber,
+    });
+    trackEvent("step_3_note_typed", 2, {
+      charCount: prompt.template.length,
+      usedStarterPrompt: true,
+    });
+  };
+
   const handleUseStarter = (starterText: string) => {
     setPreviousBodyNote(bodyNote);
     applyInspirationText(starterText);
@@ -188,6 +358,13 @@ export function Step2NoteComposition({
       if (allowedBodyLen > 0) {
         onChangeBodyNote(newBody.slice(0, allowedBodyLen));
       }
+    }
+
+    if (newBody.trim().length >= 10) {
+      trackEvent("step_3_note_typed", 2, {
+        charCount: newBody.length,
+        usedStarterPrompt: false,
+      });
     }
   };
 
@@ -259,26 +436,27 @@ export function Step2NoteComposition({
                 </span>
               </div>
 
-              {/* 1-Tap Suggested Starter Chip */}
-              {!bodyNote.trim() && messageBank[0] && (
-                <div className="mb-2.5 flex items-center justify-between gap-2.5 bg-emerald-50/80 border border-emerald-200/80 rounded-xl p-3 text-xs text-emerald-950 shadow-2xs">
-                  <div className="min-w-0">
-                    <span className="font-semibold block text-[10px] uppercase tracking-wider text-emerald-800">
-                      Suggested starter ({occasion}):
-                    </span>
-                    <span className="italic truncate block text-stone-700 mt-0.5">
-                      &ldquo;{messageBank[0].handwritten}&rdquo;
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleUseStarter(messageBank[0].handwritten)}
-                    className="shrink-0 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-medium text-xs px-3 py-1.5 rounded-lg transition shadow-2xs cursor-pointer"
-                  >
-                    Use this starter
-                  </button>
+              {/* 1-Tap Starter Note Prompts (Blank-Page Cure) */}
+              <div className="mb-2.5 space-y-1.5">
+                <div className="flex items-center justify-between text-xs font-semibold text-stone-700">
+                  <span className="flex items-center gap-1.5 text-stone-900 font-semibold">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Need inspiration? Tap to insert &amp; edit:</span>
+                  </span>
                 </div>
-              )}
+                <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 overflow-x-auto pb-1">
+                  {starterPrompts.map((p, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => handleUseStarterPrompt(p, idx + 1)}
+                      className="px-3 py-1.5 bg-amber-50 hover:bg-amber-100/90 active:bg-amber-200 border border-amber-200/90 hover:border-amber-400 rounded-full text-xs font-medium text-amber-950 transition shadow-2xs whitespace-nowrap cursor-pointer shrink-0"
+                    >
+                      {p.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
 
               {/* Undo chip if starter just used */}
               {previousBodyNote !== null && (
@@ -356,8 +534,21 @@ export function Step2NoteComposition({
             </div>
           </div>
 
-          {/* COMPACT CONTROLS ROW: HANDWRITING SELECTOR & MOBILE PREVIEW BUTTON */}
+          {/* COMPACT CONTROLS ROW: HANDWRITING SELECTOR, COVER SWITCHER & MOBILE PREVIEW BUTTON */}
           <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-2xl p-4 border border-stone-200/90 shadow-2xs">
+            {/* Quick Cover Switcher for mobile & compact view */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-stone-500">Cover:</span>
+              <button
+                type="button"
+                onClick={() => setIsCoverSheetOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-900 font-medium text-xs transition cursor-pointer"
+              >
+                <span className="font-semibold truncate max-w-[130px]">{cardTitle || "Design"}</span>
+                <span className="text-amber-800 font-semibold">· Swap ({availableCovers.length})</span>
+              </button>
+            </div>
+
             {/* Collapsed Handwriting Selector */}
             <div className="flex items-center gap-2">
               <span className="text-xs text-stone-500">Handwriting:</span>
@@ -474,6 +665,23 @@ export function Step2NoteComposition({
         {/* DESKTOP SIDE-BY-SIDE CARD PREVIEW (Right Column) */}
         <div className="hidden lg:block lg:col-span-5 sticky top-24 space-y-3">
           <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200/80 shadow-2xs">
+            {/* Tactile Header Pill above card preview */}
+            <button
+              type="button"
+              onClick={() => setIsCoverSheetOpen(true)}
+              className="w-full mb-3 px-3.5 py-2.5 bg-white hover:bg-stone-50 border border-stone-200/90 hover:border-amber-400 rounded-xl shadow-2xs text-left flex items-center justify-between text-xs transition cursor-pointer group"
+            >
+              <div className="flex items-center gap-2 truncate">
+                <span className="w-2 h-2 rounded-full bg-emerald-600 shrink-0" />
+                <span className="font-semibold text-stone-900 truncate">
+                  Cover: {cardTitle || "Featured Design"}
+                </span>
+              </div>
+              <span className="text-amber-800 font-semibold shrink-0 group-hover:underline">
+                Swap Design ({availableCovers.length}) →
+              </span>
+            </button>
+
             <div className="flex items-center justify-between mb-3">
               <span className="text-xs font-semibold uppercase tracking-wider text-stone-700">
                 Card Preview
@@ -586,6 +794,23 @@ export function Step2NoteComposition({
         description={cardTitle || "Folded Greeting Card"}
       >
         <div className="py-2">
+          {/* Tactile Header Pill inside mobile preview sheet */}
+          <button
+            type="button"
+            onClick={() => {
+              setIsPreviewCardOpen(false);
+              setIsCoverSheetOpen(true);
+            }}
+            className="w-full mb-3 px-3.5 py-2.5 bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-xl shadow-2xs text-left flex items-center justify-between text-xs transition cursor-pointer"
+          >
+            <span className="font-semibold text-stone-900 truncate">
+              Cover: {cardTitle || "Featured Design"}
+            </span>
+            <span className="text-amber-800 font-semibold shrink-0">
+              Swap Design ({availableCovers.length}) →
+            </span>
+          </button>
+
           <CardPreview
             coverUrl={cardUrl || ""}
             printedGreeting={salutation}
@@ -594,6 +819,58 @@ export function Step2NoteComposition({
             occasion={occasion}
             currentStep={2}
           />
+        </div>
+      </Sheet>
+
+      {/* QUICK COVER SWITCHER BOTTOM-SHEET / MODAL */}
+      <Sheet
+        isOpen={isCoverSheetOpen}
+        onClose={() => setIsCoverSheetOpen(false)}
+        title="Swap Card Design"
+        description={`Select a cover design for your ${occasion} card. Your written note is completely preserved.`}
+      >
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2 max-h-[70vh] overflow-y-auto">
+          {availableCovers.map((preset) => {
+            const isSelected = cardUrl === preset.imageUrl || cardTitle === preset.title;
+            return (
+              <button
+                key={preset.id}
+                type="button"
+                onClick={() => {
+                  if (onSelectCover) {
+                    onSelectCover(preset);
+                  }
+                  setIsCoverSheetOpen(false);
+                }}
+                className={`group rounded-xl border text-left overflow-hidden transition cursor-pointer flex flex-col ${
+                  isSelected
+                    ? "border-emerald-600 ring-2 ring-emerald-600/30 bg-emerald-50/40"
+                    : "border-stone-200 hover:border-amber-400 bg-white hover:shadow-xs"
+                }`}
+              >
+                <div className="relative aspect-[17/22] w-full bg-stone-100 overflow-hidden">
+                  <img
+                    src={preset.imageUrl}
+                    alt={preset.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  {isSelected && (
+                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-xs shadow-xs">
+                      <Check className="w-3 h-3 stroke-[3]" />
+                    </div>
+                  )}
+                </div>
+                <div className="p-2.5 space-y-0.5">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block truncate">
+                    {preset.occasion}
+                  </span>
+                  <span className="text-xs font-semibold text-stone-900 block truncate">
+                    {preset.title}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
         </div>
       </Sheet>
 

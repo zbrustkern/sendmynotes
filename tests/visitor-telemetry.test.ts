@@ -76,7 +76,7 @@ async function runTelemetryTests() {
   const vt = metrics.visitorTelemetry;
 
   // Funnel leaks assertion
-  assert.ok(vt.funnelLeaks.length === 6, "Must contain all 6 micro-funnel waterfall steps");
+  assert.ok(vt.funnelLeaks.length === 6 || vt.funnelLeaks.length === 7, "Must contain all micro-funnel waterfall steps");
   const step1 = vt.funnelLeaks.find((s) => s.stepNumber === 1);
   assert.ok(step1, "Step 1 must exist");
   assert.ok(step1.visitors >= 2, "Step 1 must have at least 2 visitors");

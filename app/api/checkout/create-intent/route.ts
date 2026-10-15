@@ -31,20 +31,31 @@ export async function POST(req: NextRequest) {
       experienceVersion,
     } = body;
 
+    const isAddressDeferred = Boolean(body.addressDeferred || body.address_deferred);
+
     if (!frontImageUrl) {
       return NextResponse.json({ error: "Card cover image is required." }, { status: 400 });
     }
 
-    if (!recipientAddress || !recipientAddress.street1 || !recipientAddress.city || !recipientAddress.state || !recipientAddress.zip) {
-      return NextResponse.json({ error: "Complete recipient address is required." }, { status: 400 });
-    }
+    if (!isAddressDeferred) {
+      if (!recipientAddress || !recipientAddress.street1 || !recipientAddress.city || !recipientAddress.state || !recipientAddress.zip) {
+        return NextResponse.json({ error: "Complete recipient address is required." }, { status: 400 });
+      }
 
-    const senderValidation = validatePersonalSender(returnAddress);
-    if (!senderValidation.valid) {
-      return NextResponse.json(
-        { error: senderValidation.error || "Complete return address is required." },
-        { status: 400 }
-      );
+      const senderValidation = validatePersonalSender(returnAddress);
+      if (!senderValidation.valid) {
+        return NextResponse.json(
+          { error: senderValidation.error || "Complete return address is required." },
+          { status: 400 }
+        );
+      }
+    } else {
+      if (!recipientAddress || (!recipientAddress.firstName && !recipientAddress.lastName)) {
+        return NextResponse.json({ error: "Recipient name is required." }, { status: 400 });
+      }
+      if (!returnAddress || (!returnAddress.firstName && !returnAddress.lastName)) {
+        return NextResponse.json({ error: "Sender name is required." }, { status: 400 });
+      }
     }
 
     // Generate unguessable 128-bit cryptographically secure Order ID and View Token
@@ -121,6 +132,7 @@ export async function POST(req: NextRequest) {
         status: "PENDING_PAYMENT",
         amountInCents: 0,
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
+        ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
         ...(appliedCode ? { discountCode: appliedCode } : {}),
         discountAmountInCents,
         paymentMethod: "PROMO_CODE",
@@ -181,6 +193,7 @@ export async function POST(req: NextRequest) {
       status: "PENDING_PAYMENT",
       amountInCents: finalAmountInCents,
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
+      ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
       paymentMethod: "STRIPE",
