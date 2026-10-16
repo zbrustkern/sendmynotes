@@ -107,6 +107,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, incidentId });
     }
 
+    // Action D: Resend Deferred Address Email for an Order
+    if (action === "resend_deferred_email") {
+      const orderId = (body.orderId || "").trim();
+      if (!orderId) {
+        return NextResponse.json({ error: "Missing orderId parameter" }, { status: 400 });
+      }
+      const { getOrderById } = await import("@/lib/firebase-admin");
+      const order = await getOrderById(orderId);
+      if (!order) {
+        return NextResponse.json({ error: `Order ${orderId} not found` }, { status: 404 });
+      }
+      const targetEmail = (body.email || order.customerEmail || "").trim();
+      if (!targetEmail) {
+        return NextResponse.json({ error: "No customer email found for order" }, { status: 400 });
+      }
+      const { sendAddressDeferredEmail } = await import("@/lib/email-alerts");
+      const result = await sendAddressDeferredEmail({
+        to: targetEmail,
+        orderId: order.id,
+        viewToken: order.viewToken || "",
+        recipientName: `${order.recipientAddress?.firstName || ""} ${order.recipientAddress?.lastName || ""}`.trim() || "Recipient",
+      });
+      return NextResponse.json({
+        success: result.success,
+        error: result.error,
+        message: result.success ? `Deferred address receipt dispatched to ${targetEmail}` : `Failed: ${result.error}`,
+      });
+    }
+
     return NextResponse.json({ error: "Unknown action" }, { status: 400 });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error managing incidents";

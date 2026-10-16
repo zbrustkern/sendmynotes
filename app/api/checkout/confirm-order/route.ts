@@ -174,8 +174,8 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // In production environment, assert livemode === true
-      if (process.env.NODE_ENV === "production" && !pi.livemode) {
+      // In production environment without test mode allowed, assert livemode === true
+      if (mode !== "stripe_test" && process.env.NODE_ENV === "production" && !pi.livemode) {
         const testModeError = "Test-mode payment intent used in production environment.";
         await updateOrderStatus(orderId, {
           status: "PAYMENT_VERIFICATION_FAILED",

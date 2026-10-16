@@ -145,6 +145,8 @@ export function Step5Confirmation({
     }
   };
 
+  const [shareCopied, setShareCopied] = useState(false);
+
   const handleShareLink = async () => {
     if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
       try {
@@ -157,7 +159,13 @@ export function Step5Confirmation({
         // user cancelled share
       }
     } else {
-      handleCopyLink();
+      try {
+        await navigator.clipboard.writeText(magicLinkUrl);
+        setShareCopied(true);
+        setTimeout(() => setShareCopied(false), 3000);
+      } catch {
+        // fallback
+      }
     }
   };
 
@@ -288,8 +296,17 @@ export function Step5Confirmation({
               onClick={handleShareLink}
               className="px-5 py-3 bg-white hover:bg-stone-50 active:bg-stone-100 text-stone-800 font-bold text-xs sm:text-sm rounded-xl border border-stone-300 shadow-2xs transition flex items-center justify-center gap-2 cursor-pointer flex-1"
             >
-              <Share2 className="w-4 h-4 text-amber-700" />
-              <span>Share / Text Link to Myself</span>
+              {shareCopied ? (
+                <>
+                  <Check className="w-4 h-4 text-emerald-600 stroke-[3]" />
+                  <span>Link Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-4 h-4 text-amber-700" />
+                  <span>Copy to Share</span>
+                </>
+              )}
             </button>
 
             <a
