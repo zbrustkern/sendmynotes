@@ -68,8 +68,13 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const { user, account, saveAddress } = useAuth();
   const deviceWallet = useDeviceWallet();
 
+  const isAutoSelect =
+    searchParams?.get("auto_select") === "1" ||
+    searchParams?.get("utm_source")?.toLowerCase() === "google" ||
+    searchParams?.get("utm_source")?.toLowerCase() === "meta";
+
   // Builder Steps: 1 = Cover, 2 = Inside Note, 3 = Address, 4 = Checkout
-  const [currentStep, setCurrentStep] = useState<number>(props?.initialStep || 1);
+  const [currentStep, setCurrentStep] = useState<number>(props?.initialStep || (isAutoSelect ? 2 : 1));
   const [isPrefilledFromUrl, setIsPrefilledFromUrl] = useState(Boolean(props?.initialHandwrittenNote));
 
   // Auth Modal State

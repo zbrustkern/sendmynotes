@@ -1,6 +1,8 @@
-import { Suspense } from "react";
+import React, { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { isReworkV3Enabled } from "@/lib/feature-flags";
 import { ExperienceRouter } from "@/components/ExperienceRouter";
+import { RootAutoSelectRedirect } from "@/components/RootAutoSelectRedirect";
 
 interface PageProps {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -8,10 +10,36 @@ interface PageProps {
 
 export default async function Home({ searchParams }: PageProps) {
   const resolvedParams = searchParams ? await searchParams : {};
-  const isV3 = await isReworkV3Enabled({ searchParams: resolvedParams });
-  const autoParam = resolvedParams["auto_select"];
-  const utmSource = typeof resolvedParams["utm_source"] === "string" ? resolvedParams["utm_source"].toLowerCase() : undefined;
+  const rawAuto = resolvedParams["auto_select"];
+  const autoParam = Array.isArray(rawAuto) ? rawAuto[0] : rawAuto;
+  const rawUtm = resolvedParams["utm_source"];
+  const utmSource =
+    typeof rawUtm === "string"
+      ? rawUtm.trim().toLowerCase()
+      : Array.isArray(rawUtm) && typeof rawUtm[0] === "string"
+      ? rawUtm[0].trim().toLowerCase()
+      : undefined;
+
   const isAuto = autoParam === "1" || utmSource === "google" || utmSource === "meta";
+
+  // 1. Server-side redirect: if auto_select=1 or paid campaign UTM source is present,
+  // immediately redirect to /send with all search parameters preserved.
+  if (isAuto) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(resolvedParams)) {
+      if (typeof value === "string") {
+        params.set(key, value);
+      } else if (Array.isArray(value)) {
+        value.forEach((v) => params.append(key, v));
+      }
+    }
+    if (!params.has("auto_select")) {
+      params.set("auto_select", "1");
+    }
+    redirect(`/send?${params.toString()}`);
+  }
+
+  const isV3 = await isReworkV3Enabled({ searchParams: resolvedParams });
 
   return (
     <Suspense
@@ -26,8 +54,9 @@ export default async function Home({ searchParams }: PageProps) {
         </div>
       }
     >
+      <RootAutoSelectRedirect />
       <ExperienceRouter
-        initialIsV3={isV3}
+        initialIsV3={isAuto ? true : isV3}
         initialOccasion={isAuto ? "Thinking of You" : undefined}
         initialCoverUrl={isAuto ? "/presets/thinking-of-you-quiet-cup.jpg" : undefined}
         initialHandwrittenNote={

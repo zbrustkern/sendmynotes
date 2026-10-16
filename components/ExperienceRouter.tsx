@@ -53,16 +53,28 @@ export function ExperienceRouter({
   const effectiveEmbedded = isAutoSelect ? false : embedded;
   const effectiveInitialStep = isAutoSelect ? "note" : initialStep;
 
-  if (isV3) {
+  // Active Studio component requirement: auto-selected flows MUST run on the active V3 studio
+  const effectiveIsV3 = isAutoSelect ? true : isV3;
+
+  const effectiveOccasion = initialOccasion || (isAutoSelect ? "Thinking of You" : undefined);
+  const effectiveCoverUrl = initialCoverUrl || (isAutoSelect ? "/presets/thinking-of-you-quiet-cup.jpg" : undefined);
+  const effectiveHandwrittenNote =
+    initialHandwrittenNote ||
+    (isAutoSelect
+      ? "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!"
+      : undefined);
+  const effectiveScenarioTitle = scenarioTitle || (isAutoSelect ? "A Quiet Cup" : undefined);
+
+  if (effectiveIsV3) {
     return (
       <EntryPrototypeClient
-        initialOccasion={initialOccasion}
-        initialCoverUrl={initialCoverUrl}
+        initialOccasion={effectiveOccasion}
+        initialCoverUrl={effectiveCoverUrl}
         initialPrintedGreeting={initialPrintedGreeting}
-        initialHandwrittenNote={initialHandwrittenNote}
+        initialHandwrittenNote={effectiveHandwrittenNote}
         initialFontStyleId={initialFontStyleId}
         scenarioSlug={scenarioSlug}
-        scenarioTitle={scenarioTitle}
+        scenarioTitle={effectiveScenarioTitle}
         embedded={effectiveEmbedded}
         initialStep={effectiveInitialStep}
       />
@@ -71,12 +83,13 @@ export function ExperienceRouter({
 
   return (
     <VendingMachineBuilder
-      initialOccasion={initialOccasion}
-      initialCoverUrl={initialCoverUrl}
+      initialOccasion={effectiveOccasion}
+      initialCoverUrl={effectiveCoverUrl}
       initialPrintedGreeting={initialPrintedGreeting}
-      initialHandwrittenNote={initialHandwrittenNote}
+      initialHandwrittenNote={effectiveHandwrittenNote}
       initialFontStyleId={initialFontStyleId}
       scenarioSlug={scenarioSlug}
+      initialStep={effectiveInitialStep === "note" ? 2 : 1}
     />
   );
 }

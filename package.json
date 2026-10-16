@@ -38,7 +38,8 @@
     "test:founder-filter": "tsx tests/founder-filter-and-real-edit.test.ts",
     "test:email": "tsx tests/email-transactional.test.ts",
     "test:staging-polish": "tsx tests/staging-polish.test.tsx",
-    "test:all": "npm run test:target && npm run test:security && npm run test:flags && npm run test:ads && npm run test:scenario-draft && npm run test:meta && npm run test:sync && npm run test:intent && npm run test:payment-mode && npm run test:sender-validation && npm run test:telemetry-ingestion && npm run test:delivery-estimate && npm run test:draft && npm run test:remediation && npm run test:artwork && npm run test:art-fixtures && npm run test:auto-select && npm run test:render-auto-select && npm run test:founder-filter && npm run test:email && npm run test:staging-polish",
+    "test:root-auto-select": "tsx tests/root-auto-select.test.tsx",
+    "test:all": "npm run test:target && npm run test:security && npm run test:flags && npm run test:ads && npm run test:scenario-draft && npm run test:meta && npm run test:sync && npm run test:intent && npm run test:payment-mode && npm run test:sender-validation && npm run test:telemetry-ingestion && npm run test:delivery-estimate && npm run test:draft && npm run test:remediation && npm run test:artwork && npm run test:art-fixtures && npm run test:auto-select && npm run test:render-auto-select && npm run test:founder-filter && npm run test:email && npm run test:staging-polish && npm run test:root-auto-select",
     "test": "npm run test:all"
   },
   "dependencies": {
