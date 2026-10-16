@@ -46,8 +46,8 @@ const htmlGeneral = renderToString(
 
 assert(htmlGeneral.includes("Tactile Stationery Desk"), "Tactile Stationery Desk surface is rendered");
 assert(
-  htmlGeneral.includes("1:1 Real Ballpoint Pen Inking"),
-  "1:1 Real Ballpoint Pen Inking badge is present"
+  htmlGeneral.includes("Live Handwriting Preview"),
+  "Live Handwriting Preview badge is present"
 );
 assert(htmlGeneral.includes("Front Artwork"), "Front Artwork corner-peek preview is rendered");
 assert(

@@ -165,9 +165,9 @@ async function main() {
     // CHECK 2: Both Front Cover artwork and Live Ink Inside Page visible on Desktop without clicking tabs
     verify(
       desktopDom.includes("Front Artwork") &&
-      desktopDom.includes("1:1 Real Ballpoint Pen Inking") &&
+      desktopDom.includes("Live Handwriting Preview") &&
       desktopDom.includes("Full Card Spread"),
-      "Desktop 'Corner Peek / Side-by-Side' renders both Front Artwork and Live Ink leaf simultaneously"
+      "Desktop renders both Front Artwork and Live Ink leaf simultaneously"
     );
 
     // CHECK 3: Primary forward CTA visible above the fold on Desktop and pinned on Mobile

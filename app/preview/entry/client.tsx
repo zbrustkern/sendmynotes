@@ -146,6 +146,20 @@ export function EntryPrototypeClient({
   const [isAddressDeferred, setIsAddressDeferred] = useState(false);
   const [addressValidationError, setAddressValidationError] = useState<string | null>(null);
   const [restoredToast, setRestoredToast] = useState(false);
+  const [hasCustomUserEdits, setHasCustomUserEdits] = useState(false);
+
+  // Mark draft as containing real user edits (persisted to localStorage)
+  const markUserCustomEdit = useCallback(() => {
+    setHasCustomUserEdits(true);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("hasCustomUserEdits", "true");
+        localStorage.setItem(`hasCustomUserEdits_${targetOccasionSlug}`, "true");
+      } catch {
+        // ignore
+      }
+    }
+  }, [targetOccasionSlug]);
 
   // Custom AI drawer state
   const [isCustomAiOpen, setIsCustomAiOpen] = useState(false);
@@ -333,6 +347,11 @@ export function EntryPrototypeClient({
   // Hydrate draft from localStorage (scoped by occasion) for Meta in-app browser resilience
   useEffect(() => {
     if (typeof window === "undefined") return;
+
+    // 2. Once Per Browser Tab Session (sessionStorage Guard)
+    const isAlreadyHydrated = sessionStorage.getItem("smn_draft_hydrated") === "1";
+    sessionStorage.setItem("smn_draft_hydrated", "1");
+
     try {
       const scopedKey = `smn_active_draft_v2_${targetOccasionSlug}`;
       const saved = localStorage.getItem(scopedKey) || localStorage.getItem("smn_active_draft_v2");
@@ -356,8 +375,10 @@ export function EntryPrototypeClient({
       if (isCrossOccasion) {
         try {
           localStorage.removeItem("smn_active_draft_v2");
+          localStorage.removeItem("hasCustomUserEdits");
           if (savedOccasion) {
             localStorage.removeItem(`smn_active_draft_v2_${savedOccasion}`);
+            localStorage.removeItem(`hasCustomUserEdits_${savedOccasion}`);
           }
         } catch {
           // ignore
@@ -373,6 +394,17 @@ export function EntryPrototypeClient({
           setStep("note");
         }
         return;
+      }
+
+      // 1. Require Real User Edits (hasCustomUserEdits === true)
+      const hasRealUserEdits = Boolean(
+        parsed.hasCustomUserEdits === true ||
+        localStorage.getItem("hasCustomUserEdits") === "true" ||
+        localStorage.getItem(`hasCustomUserEdits_${targetOccasionSlug}`) === "true"
+      );
+
+      if (hasRealUserEdits) {
+        setHasCustomUserEdits(true);
       }
 
       if (
@@ -408,9 +440,13 @@ export function EntryPrototypeClient({
             setStep(parsed.currentStep as FlowStep);
           }
         }
-        setRestoredToast(true);
-        const t = setTimeout(() => setRestoredToast(false), 4500);
-        return () => clearTimeout(t);
+
+        // Only display "Welcome back" toast if draft has real user edits AND tab was not already hydrated
+        if (hasRealUserEdits && !isAlreadyHydrated) {
+          setRestoredToast(true);
+          const t = setTimeout(() => setRestoredToast(false), 4500);
+          return () => clearTimeout(t);
+        }
       }
     } catch {
       // ignore
@@ -522,10 +558,15 @@ export function EntryPrototypeClient({
         senderAddress: sender,
         currentStep: step,
         addressDeferred: isAddressDeferred,
+        hasCustomUserEdits,
         updatedAt: Date.now(),
       };
       localStorage.setItem(`smn_active_draft_v2_${targetOccasionSlug}`, JSON.stringify(draftData));
       localStorage.setItem("smn_active_draft_v2", JSON.stringify(draftData));
+      if (hasCustomUserEdits) {
+        localStorage.setItem("hasCustomUserEdits", "true");
+        localStorage.setItem(`hasCustomUserEdits_${targetOccasionSlug}`, "true");
+      }
     } catch {
       // ignore
     }
@@ -543,6 +584,7 @@ export function EntryPrototypeClient({
     recipient,
     step,
     isAddressDeferred,
+    hasCustomUserEdits,
   ]);
 
   // Handle card selection from grid
@@ -606,6 +648,7 @@ export function EntryPrototypeClient({
 
   // Auto-sync Salutation -> Recipient Full Name and persist to draft
   const handleSalutationChange = (newSalutation: string) => {
+    markUserCustomEdit();
     setSalutation(newSalutation);
     dispatch({ type: "UPDATE_NOTE", payload: { salutation: newSalutation } });
     if (!userCustomizedRecipientName) {
@@ -627,6 +670,7 @@ export function EntryPrototypeClient({
 
   // Auto-sync Sign-Off -> Sender Full Name and persist to draft
   const handleSignOffChange = (newSignOff: string) => {
+    markUserCustomEdit();
     setSignOff(newSignOff);
     dispatch({ type: "UPDATE_NOTE", payload: { signOff: newSignOff } });
     if (!userCustomizedSenderName) {
@@ -647,6 +691,7 @@ export function EntryPrototypeClient({
 
   // Handle note body change
   const handleBodyNoteChange = (newText: string) => {
+    markUserCustomEdit();
     dispatch({
       type: "UPDATE_NOTE",
       payload: { text: newText },
@@ -670,6 +715,7 @@ export function EntryPrototypeClient({
 
   // Handle recipient address updates
   const handleUpdateRecipient = (field: keyof AddressData, value: string) => {
+    markUserCustomEdit();
     if (field === "fullName") {
       setUserCustomizedRecipientName(true);
     }
@@ -690,6 +736,7 @@ export function EntryPrototypeClient({
 
   // Handle sender address updates
   const handleUpdateSender = (field: keyof AddressData, value: string) => {
+    markUserCustomEdit();
     if (field === "fullName") {
       setUserCustomizedSenderName(true);
     }
@@ -1025,10 +1072,16 @@ export function EntryPrototypeClient({
       orderId: completedOrderId,
     });
 
+    setHasCustomUserEdits(false);
+    setRestoredToast(false);
+
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem(`smn_active_draft_v2_${targetOccasionSlug}`);
         localStorage.removeItem("smn_active_draft_v2");
+        localStorage.removeItem("hasCustomUserEdits");
+        localStorage.removeItem(`hasCustomUserEdits_${targetOccasionSlug}`);
+        sessionStorage.removeItem("smn_draft_hydrated");
         sessionStorage.setItem("smn_completed_order_id", completedOrderId);
         if (finalToken) {
           sessionStorage.setItem("smn_completed_view_token", finalToken);
@@ -1076,15 +1129,20 @@ export function EntryPrototypeClient({
     setAmountInCents(900);
     setAppliedDiscount(null);
     setCheckoutInitError(null);
+    setHasCustomUserEdits(false);
+    setRestoredToast(false);
 
     if (typeof window !== "undefined") {
       try {
         localStorage.removeItem(`smn_active_draft_v2_${targetOccasionSlug}`);
         localStorage.removeItem("smn_active_draft_v2");
+        localStorage.removeItem("hasCustomUserEdits");
+        localStorage.removeItem(`hasCustomUserEdits_${targetOccasionSlug}`);
         sessionStorage.removeItem("smn_checkout_order_id");
         sessionStorage.removeItem("smn_checkout_view_token");
         sessionStorage.removeItem("smn_completed_order_id");
         sessionStorage.removeItem("smn_completed_view_token");
+        sessionStorage.removeItem("smn_draft_hydrated");
       } catch {
         // ignore
       }
