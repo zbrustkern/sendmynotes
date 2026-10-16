@@ -441,8 +441,8 @@ function InnerPaymentForm({
         </button>
       </div>
 
-      {/* SLEEK 1-ROW ORDER SUMMARY BAR (~90px tall) */}
-      <div className="bg-[#FAF8F5] rounded-2xl p-3 sm:p-3.5 border border-stone-200 shadow-2xs flex items-center justify-between gap-3 min-h-[84px]">
+      {/* SLEEK 1-ROW ORDER SUMMARY BAR (Mobile only) */}
+      <div className="lg:hidden bg-[#FAF8F5] rounded-2xl p-3 sm:p-3.5 border border-stone-200 shadow-2xs flex items-center justify-between gap-3 min-h-[84px]">
         {/* Left: Thumbnail + Recipient info + Delivery + Preview/Edit */}
         <div className="flex items-center gap-3 min-w-0">
           <div className="relative w-12 h-16 sm:w-14 sm:h-[75px] rounded-lg overflow-hidden border border-stone-300 shadow-2xs shrink-0 bg-stone-100">
@@ -495,249 +495,403 @@ function InnerPaymentForm({
         </div>
       </div>
 
-      {/* CUSTOMER EMAIL INPUT (RECEIPT & TRACKING) - IMMEDIATELY ABOVE PAYMENT */}
-      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs space-y-1.5">
-        <label
-          htmlFor="email"
-          className="block text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center justify-between cursor-pointer"
-        >
-          <span className="flex items-center gap-1.5">
-            <Mail className="w-3.5 h-3.5 text-amber-800" />
-            <span>Receipt &amp; USPS Tracking Notification Email</span>
-          </span>
-          <span className="text-[10px] text-stone-400 font-normal lowercase">no password needed</span>
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="email"
-          inputMode="email"
-          autoComplete="email"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-          required
-          value={customerEmail}
-          onChange={(e) => {
-            onChangeCustomerEmail(e.target.value);
-            if (errorMessage) setErrorMessage(null);
-          }}
-          onBlur={() => {
-            if (customerEmail !== committedEmail) {
-              setCommittedEmail(customerEmail);
-            }
-          }}
-          placeholder="your.email@example.com"
-          className="w-full px-3.5 py-2 text-base sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
-        />
-        <p className="text-[11px] text-stone-400">
-          Zero accounts or passwords required. We only send your receipt and tracking updates.
-        </p>
-      </div>
-
-      {/* STRIPE PAYMENT CONTAINER - DIRECTLY ABOVE THE FOLD */}
-      {isZeroCost ? (
-        <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
-          <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
-            <Sparkles className="w-4 h-4 text-emerald-600" />
-            <span>100% Free Order Voucher</span>
-          </div>
-          <p className="text-xs text-emerald-800 leading-relaxed">
-            Your card, real ballpoint inking, and USPS postage are completely covered by voucher{" "}
-            <strong className="font-mono">{appliedDiscount?.code}</strong>. Zero billing info needed.
-          </p>
-        </div>
-      ) : (
-        <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs space-y-3">
-          <div className="flex items-center justify-between border-b border-stone-100 pb-2">
-            <span className="text-xs font-bold uppercase tracking-wider text-stone-900 flex items-center gap-1.5">
-              <Lock className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Apple Pay, Google Pay &amp; Card</span>
-            </span>
-            <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
-          </div>
-
-          {isMock ? (
-            <div className="p-4 bg-amber-50/60 border border-amber-200/70 rounded-xl space-y-2 text-xs text-stone-700">
-              <div className="flex items-center justify-between text-amber-900 font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-amber-700" />
-                  Dev &amp; Sandbox Verified Checkout Active
+      {/* 2-COLUMN DESKTOP SPLIT SCREEN WORKBENCH */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-12 lg:items-start">
+        {/* LEFT COLUMN: Sticky Order Review Summary Card (lg:col-span-5) */}
+        <div className="hidden lg:block lg:col-span-5 space-y-5 lg:sticky lg:top-6">
+          <div className="bg-[#FAF8F5] rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-sm space-y-5">
+            {/* Header: Title & Total */}
+            <div className="flex items-start justify-between gap-3 border-b border-stone-200/80 pb-4">
+              <div>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 bg-amber-100/70 px-2 py-0.5 rounded-full inline-block mb-1">
+                  Order Review
                 </span>
-                <span className="bg-amber-200/70 text-amber-900 text-[10px] uppercase font-mono px-2 py-0.5 rounded">
-                  Sandbox
-                </span>
+                <h2 className="font-serif text-lg font-bold text-stone-900 leading-snug">
+                  {cardTitle}
+                </h2>
+                <p className="text-[11px] text-stone-500 mt-0.5">
+                  Folded Letterpress Card • Real Ballpoint Inking • USPS 1st Class Stamp
+                </p>
               </div>
-              <p className="text-[11px] text-stone-600">
-                Test checkout enabled. Clicking &quot;Authorize &amp; Send Card&quot; simulates end-to-end payment and fulfillment dispatch.
-              </p>
-            </div>
-          ) : !elements ? (
-            <div className="p-4 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-2 text-xs text-stone-700">
-              <div className="flex items-center justify-between text-rose-900 font-semibold">
-                <span className="flex items-center gap-1.5">
-                  <AlertCircle className="w-4 h-4 text-rose-600" />
-                  Payment Processor Unavailable
-                </span>
-              </div>
-              <p className="text-[11px] text-stone-600">
-                Unable to load secure payment elements. Please refresh or retry.
-              </p>
-            </div>
-          ) : (
-            <div className="min-h-[140px] flex flex-col justify-center space-y-4">
-              {!isPaymentElementReady && (
-                <div className="flex flex-col items-center justify-center py-6 gap-2 text-stone-400 text-xs">
-                  <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
-                  <span>Loading secure Stripe payment fields...</span>
+              <div className="text-right shrink-0">
+                <div className="font-serif font-bold text-xl text-stone-950">
+                  {isZeroCost ? "$0.00" : `$${(finalPriceCents / 100).toFixed(2)}`}
                 </div>
-              )}
+                <div className="text-[10px] text-emerald-700 font-medium">All-Inclusive</div>
+              </div>
+            </div>
 
-              {/* EXPRESS CHECKOUT ELEMENT (Apple Pay / Google Pay / Link) */}
-              <div className={walletAvailable ? "space-y-3" : "h-0 overflow-hidden opacity-0 pointer-events-none"}>
-                <ExpressCheckoutElement
-                  onConfirm={handleExpressConfirm}
-                  onReady={handleExpressReady}
-                  options={{
-                    buttonHeight: 44,
-                    paymentMethodOrder: ["applePay", "googlePay", "link"],
-                  }}
-                />
-                {walletAvailable && (
-                  <div className="relative my-3">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-stone-200" />
+            {/* Note & Card Preview Leaf */}
+            <div className="relative w-full rounded-2xl overflow-hidden border border-stone-200/80 bg-[#FDFCF7] paper-texture shadow-inner p-4 space-y-3">
+              <div className="absolute left-0 top-0 bottom-0 w-1.5 bg-gradient-to-r from-stone-400/20 to-transparent pointer-events-none" />
+
+              <div className="flex items-center justify-between text-xs font-semibold text-stone-700">
+                <span className="flex items-center gap-1.5">
+                  <Feather className="w-3.5 h-3.5 text-amber-800" />
+                  <span>Real Ballpoint Inking</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsPreviewOpen(true)}
+                  className="text-[11px] text-amber-800 hover:text-amber-950 font-medium underline underline-offset-2 flex items-center gap-0.5 cursor-pointer"
+                >
+                  <Eye className="w-3 h-3" />
+                  <span>Full Card Spread</span>
+                </button>
+              </div>
+
+              <div className="flex gap-3.5 items-start">
+                <div
+                  onClick={() => setIsPreviewOpen(true)}
+                  title="Click to preview full card"
+                  className="relative w-20 aspect-[17/22] rounded-xl overflow-hidden border border-stone-300 shadow-sm shrink-0 bg-stone-100 cursor-pointer group hover:shadow-md transition"
+                >
+                  <Image
+                    src={cardUrl}
+                    alt={cardTitle}
+                    fill
+                    unoptimized={Boolean(cardUrl?.startsWith("data:"))}
+                    className="object-cover group-hover:scale-105 transition"
+                  />
+                  <div className="absolute inset-x-0 bottom-0 bg-stone-900/80 text-[8px] text-white text-center py-0.5 font-bold">
+                    Front Cover
+                  </div>
+                </div>
+
+                <div className="flex-1 min-w-0 bg-white/70 rounded-xl p-3 border border-stone-200/60 shadow-2xs">
+                  <div className={`text-[#1B3B6F] text-xs leading-relaxed ${fontClass || "font-David"}`}>
+                    {salutation && <p className="font-semibold mb-1 truncate">{salutation}</p>}
+                    <p className="line-clamp-4 text-stone-800 text-[11px] leading-relaxed">
+                      {bodyNote || "Your personal note written in real ballpoint ink..."}
+                    </p>
+                    {signOff && <p className="font-semibold mt-1 truncate">{signOff}</p>}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Addressing Block: Recipient & Return */}
+            <div className="bg-white rounded-2xl p-4 border border-stone-200/80 shadow-2xs space-y-3 text-xs">
+              <div className="flex items-start justify-between border-b border-stone-100 pb-2.5">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                    Mailing To (Recipient)
+                  </div>
+                  <div className="font-semibold text-stone-900 mt-0.5">{recipientDisplayName}</div>
+                  {recipient.street1?.trim() ? (
+                    <div className="text-stone-600 text-[11px] leading-tight mt-0.5">
+                      <div>{recipient.street1}{recipient.street2 ? `, ${recipient.street2}` : ""}</div>
+                      <div>{recipient.city}, {recipient.state} {recipient.zip}</div>
                     </div>
-                    <div className="relative flex justify-center text-xs">
-                      <span className="bg-white px-3 text-stone-400 font-medium">
-                        — Or pay with card —
-                      </span>
+                  ) : (
+                    <div className="text-amber-800 text-[11px] font-medium mt-0.5">
+                      Address link will be sent to recipient
                     </div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={onBack}
+                  className="text-[11px] text-amber-800 hover:text-amber-950 font-semibold underline underline-offset-2 cursor-pointer"
+                >
+                  Edit
+                </button>
+              </div>
+
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
+                  Return Address (From You)
+                </div>
+                <div className="font-semibold text-stone-900 mt-0.5">{sender.fullName || "Sender"}</div>
+                {sender.street1?.trim() && (
+                  <div className="text-stone-600 text-[11px] leading-tight mt-0.5">
+                    <div>{sender.street1}{sender.street2 ? `, ${sender.street2}` : ""}</div>
+                    <div>{sender.city}, {sender.state} {sender.zip}</div>
                   </div>
                 )}
               </div>
+            </div>
 
-              {/* CARD ELEMENT FALLBACK */}
-              <PaymentElement
-                id="v3-payment-element"
-                options={paymentElementOptions}
-                onReady={() => setIsPaymentElementReady(true)}
-                onLoadError={(err) => {
-                  console.error("[Stripe Load Error]", err);
-                  setErrorMessage(err.error?.message || "Could not load payment form.");
-                }}
-              />
+            {/* Estimated Arrival Window */}
+            <div className="bg-amber-50/60 rounded-2xl p-3.5 border border-amber-200/70 flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <Truck className="w-4 h-4 text-amber-800" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-xs font-bold text-stone-900">
+                  Est. USPS Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
+                </div>
+                <div className="text-[11px] text-stone-500">
+                  Dispatched via First-Class Mail with live USPS tracking
+                </div>
+              </div>
+            </div>
+
+            {/* Security Badges on Left Desk */}
+            <div className="grid grid-cols-2 gap-2.5 text-xs text-stone-600 pt-1">
+              <div className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-stone-200/70">
+                <Lock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <div>
+                  <span className="font-semibold text-stone-900 block text-[11px]">256-Bit SSL</span>
+                  <span className="text-[10px] text-stone-500">Stripe encrypted</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-stone-200/70">
+                <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                <div>
+                  <span className="font-semibold text-stone-900 block text-[11px]">Guaranteed</span>
+                  <span className="text-[10px] text-stone-500">Real pen or free re-mail</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: Customer Email + Stripe Express Checkout & Cards (lg:col-span-7) */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* CUSTOMER EMAIL INPUT (RECEIPT & TRACKING) - IMMEDIATELY ABOVE PAYMENT */}
+          <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs space-y-1.5">
+            <label
+              htmlFor="email"
+              className="block text-xs font-semibold uppercase tracking-wider text-stone-700 flex items-center justify-between cursor-pointer"
+            >
+              <span className="flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-amber-800" />
+                <span>Receipt &amp; USPS Tracking Notification Email</span>
+              </span>
+              <span className="text-[10px] text-stone-400 font-normal lowercase">no password needed</span>
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              inputMode="email"
+              autoComplete="email"
+              autoCapitalize="none"
+              autoCorrect="off"
+              spellCheck={false}
+              required
+              value={customerEmail}
+              onChange={(e) => {
+                onChangeCustomerEmail(e.target.value);
+                if (errorMessage) setErrorMessage(null);
+              }}
+              onBlur={() => {
+                if (customerEmail !== committedEmail) {
+                  setCommittedEmail(customerEmail);
+                }
+              }}
+              placeholder="your.email@example.com"
+              className="w-full px-3.5 py-2 text-base sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
+            />
+            <p className="text-[11px] text-stone-400">
+              Zero accounts or passwords required. We only send your receipt and tracking updates.
+            </p>
+          </div>
+
+          {/* STRIPE PAYMENT CONTAINER - DIRECTLY ABOVE THE FOLD */}
+          {isZeroCost ? (
+            <div className="p-5 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2">
+              <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                <span>100% Free Order Voucher</span>
+              </div>
+              <p className="text-xs text-emerald-800 leading-relaxed">
+                Your card, real ballpoint inking, and USPS postage are completely covered by voucher{" "}
+                <strong className="font-mono">{appliedDiscount?.code}</strong>. Zero billing info needed.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-stone-200/90 shadow-2xs space-y-3">
+              <div className="flex items-center justify-between border-b border-stone-100 pb-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-stone-900 flex items-center gap-1.5">
+                  <Lock className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Apple Pay, Google Pay &amp; Card</span>
+                </span>
+                <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
+              </div>
+
+              {isMock ? (
+                <div className="p-4 bg-amber-50/60 border border-amber-200/70 rounded-xl space-y-2 text-xs text-stone-700">
+                  <div className="flex items-center justify-between text-amber-900 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-amber-700" />
+                      Dev &amp; Sandbox Verified Checkout Active
+                    </span>
+                    <span className="bg-amber-200/70 text-amber-900 text-[10px] uppercase font-mono px-2 py-0.5 rounded">
+                      Sandbox
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-600">
+                    Test checkout enabled. Clicking &quot;Authorize &amp; Send Card&quot; simulates end-to-end payment and fulfillment dispatch.
+                  </p>
+                </div>
+              ) : !elements ? (
+                <div className="p-4 bg-rose-50/70 border border-rose-200/80 rounded-xl space-y-2 text-xs text-stone-700">
+                  <div className="flex items-center justify-between text-rose-900 font-semibold">
+                    <span className="flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600" />
+                      Payment Processor Unavailable
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-stone-600">
+                    Unable to load secure payment elements. Please refresh or retry.
+                  </p>
+                </div>
+              ) : (
+                <div className="min-h-[140px] flex flex-col justify-center space-y-4">
+                  {!isPaymentElementReady && (
+                    <div className="flex flex-col items-center justify-center py-6 gap-2 text-stone-400 text-xs">
+                      <Loader2 className="w-5 h-5 animate-spin text-amber-700" />
+                      <span>Loading secure Stripe payment fields...</span>
+                    </div>
+                  )}
+
+                  {/* EXPRESS CHECKOUT ELEMENT (Apple Pay / Google Pay / Link) */}
+                  <div className={walletAvailable ? "space-y-3" : "h-0 overflow-hidden opacity-0 pointer-events-none"}>
+                    <ExpressCheckoutElement
+                      onConfirm={handleExpressConfirm}
+                      onReady={handleExpressReady}
+                      options={{
+                        buttonHeight: 44,
+                        paymentMethodOrder: ["applePay", "googlePay", "link"],
+                      }}
+                    />
+                    {walletAvailable && (
+                      <div className="relative my-3">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-stone-200" />
+                        </div>
+                        <div className="relative flex justify-center text-xs">
+                          <span className="bg-white px-3 text-stone-400 font-medium">
+                            — Or pay with card —
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* CARD ELEMENT FALLBACK */}
+                  <PaymentElement
+                    id="v3-payment-element"
+                    options={paymentElementOptions}
+                    onReady={() => setIsPaymentElementReady(true)}
+                    onLoadError={(err) => {
+                      console.error("[Stripe Load Error]", err);
+                      setErrorMessage(err.error?.message || "Could not load payment form.");
+                    }}
+                  />
+                </div>
+              )}
             </div>
           )}
-        </div>
-      )}
 
-      {/* COLLAPSED PROMO CODE LINK */}
-      <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs">
-        {appliedDiscount ? (
-          <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-bold text-emerald-800 uppercase px-2 py-0.5 bg-emerald-100 rounded border border-emerald-300">
-                {appliedDiscount.code}
-              </span>
-              <span className="text-emerald-700 font-medium">
-                {appliedDiscount.isFree
-                  ? "100% Free Order"
-                  : appliedDiscount.type === "PERCENTAGE"
-                  ? `${appliedDiscount.value}% Off`
-                  : `-$${(appliedDiscount.discountAmountInCents / 100).toFixed(2)} Off`}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={onRemoveDiscount}
-              className="p-1 text-stone-400 hover:text-rose-600 transition"
-              title="Remove code"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        ) : showPromoInput ? (
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={promoInput}
-                onChange={(e) => {
-                  setPromoInput(e.target.value.toUpperCase());
-                  if (promoError) setPromoError(null);
-                }}
-                placeholder="PROMO CODE"
-                maxLength={25}
-                className="flex-1 px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl font-mono font-semibold uppercase focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
-              />
+          {/* COLLAPSED PROMO CODE LINK */}
+          <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs">
+            {appliedDiscount ? (
+              <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono font-bold text-emerald-800 uppercase px-2 py-0.5 bg-emerald-100 rounded border border-emerald-300">
+                    {appliedDiscount.code}
+                  </span>
+                  <span className="text-emerald-700 font-medium">
+                    {appliedDiscount.isFree
+                      ? "100% Free Order"
+                      : appliedDiscount.type === "PERCENTAGE"
+                      ? `${appliedDiscount.value}% Off`
+                      : `-$${(appliedDiscount.discountAmountInCents / 100).toFixed(2)} Off`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={onRemoveDiscount}
+                  className="p-1 text-stone-400 hover:text-rose-600 transition"
+                  title="Remove code"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : showPromoInput ? (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={promoInput}
+                    onChange={(e) => {
+                      setPromoInput(e.target.value.toUpperCase());
+                      if (promoError) setPromoError(null);
+                    }}
+                    placeholder="PROMO CODE"
+                    maxLength={25}
+                    className="flex-1 px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl font-mono font-semibold uppercase focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyPromo}
+                    disabled={promoLoading || !promoInput.trim()}
+                    className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
+                  >
+                    {promoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
+                  </button>
+                </div>
+                {promoError && (
+                  <p className="text-[11px] text-rose-600 font-medium">{promoError}</p>
+                )}
+              </div>
+            ) : (
               <button
                 type="button"
-                onClick={handleApplyPromo}
-                disabled={promoLoading || !promoInput.trim()}
-                className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
+                onClick={() => setShowPromoInput(true)}
+                className="text-xs text-amber-800 hover:text-amber-950 font-semibold flex items-center gap-1 transition cursor-pointer"
               >
-                {promoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
+                <Tag className="w-3.5 h-3.5" />
+                <span>+ Have a voucher or promo code?</span>
               </button>
-            </div>
-            {promoError && (
-              <p className="text-[11px] text-rose-600 font-medium">{promoError}</p>
             )}
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setShowPromoInput(true)}
-            className="text-xs text-amber-800 hover:text-amber-950 font-semibold flex items-center gap-1 transition cursor-pointer"
-          >
-            <Tag className="w-3.5 h-3.5" />
-            <span>+ Have a voucher or promo code?</span>
-          </button>
-        )}
-      </div>
 
-      {errorMessage && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
+          {errorMessage && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
 
-      {/* SECURITY BADGES */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-stone-600">
-        <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-200/70">
-          <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
-          <div>
-            <span className="font-semibold text-stone-900 block">256-Bit SSL Encryption</span>
-            <span className="text-[11px] text-stone-500">Bank-grade security via Stripe</span>
+          {/* MOBILE ONLY SECURITY BADGES */}
+          <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-stone-600">
+            <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-200/70">
+              <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
+              <div>
+                <span className="font-semibold text-stone-900 block">256-Bit SSL Encryption</span>
+                <span className="text-[11px] text-stone-500">Bank-grade security via Stripe</span>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-200/70">
+              <Feather className="w-4 h-4 text-amber-700 shrink-0" />
+              <div>
+                <span className="font-semibold text-stone-900 block">100% Satisfaction Guarantee</span>
+                <span className="text-[11px] text-stone-500">Real ballpoint inking or free re-mail</span>
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-200/70">
-          <Feather className="w-4 h-4 text-amber-700 shrink-0" />
-          <div>
-            <span className="font-semibold text-stone-900 block">100% Satisfaction Guarantee</span>
-            <span className="text-[11px] text-stone-500">Real ballpoint inking or free re-mail</span>
-          </div>
-        </div>
-      </div>
+          {/* DESKTOP ADVANCE BAR */}
+          <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-semibold flex items-center gap-1.5 transition"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>← Back to Addressing</span>
+            </button>
 
-      {/* DESKTOP ADVANCE BAR */}
-      <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-semibold flex items-center gap-1.5 transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>← Back to Addressing</span>
-        </button>
-
-        <button
-          type="submit"
-          disabled={isProcessing || isPaymentCaptured || (!isZeroCost && !isMock && !isPaymentElementReady)}
-          className="px-8 py-3.5 bg-stone-900 hover:bg-black disabled:bg-stone-300 text-white font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
-        >
+            <button
+              type="submit"
+              disabled={isProcessing || isPaymentCaptured || (!isZeroCost && !isMock && !isPaymentElementReady)}
+              className="px-8 py-3.5 bg-stone-900 hover:bg-black disabled:bg-stone-300 text-white font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+            >
           {isPaymentCaptured ? (
             <>
               <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
@@ -760,8 +914,10 @@ function InnerPaymentForm({
           )}
         </button>
       </div>
+    </div>
+  </div>
 
-      {/* MOBILE STICKY BOTTOM ACTION BAR */}
+  {/* MOBILE STICKY BOTTOM ACTION BAR */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/90 p-3 shadow-lg flex items-center justify-between gap-3 safe-area-inset-bottom">
         <button
           type="button"

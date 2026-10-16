@@ -89,6 +89,224 @@ interface Step3EnvelopeAddressingProps {
   onValidationError?: (error: string) => void;
 }
 
+interface LiveEnvelopeCardProps {
+  sender: AddressData;
+  recipient: AddressData;
+  fontClass: string;
+  isAddressDeferred?: boolean;
+}
+
+function LiveEnvelopeCard({
+  sender,
+  recipient,
+  fontClass,
+  isAddressDeferred,
+}: LiveEnvelopeCardProps) {
+  return (
+    <div className="bg-[#FAF8F5] rounded-3xl p-4 sm:p-5 border border-stone-200/90 shadow-sm space-y-3">
+      <div className="flex items-center justify-between border-b border-stone-200/70 pb-2.5">
+        <div className="flex items-center gap-2">
+          <Mail className="w-4 h-4 text-emerald-800" />
+          <h3 className="font-serif font-bold text-sm text-stone-900">
+            Live Envelope Preview
+          </h3>
+        </div>
+        <span className="text-[10px] font-semibold text-emerald-800 bg-white/80 border border-emerald-200 px-2 py-0.5 rounded-full">
+          Real Blue Ink &bull; USPS Forever Stamp
+        </span>
+      </div>
+
+      {/* PHYSICAL ENVELOPE (A2 FORMAT: 4.375" x 5.75", ratio ~1.31) */}
+      <div className="relative w-full rounded-2xl bg-[#FCFAF7] border border-[#E6DFD5] p-4 sm:p-5 shadow-md overflow-hidden text-stone-900 select-none">
+        {/* TOP ROW: HANDWRITTEN RETURN ADDRESS + POSTMARK & FOREVER STAMP */}
+        <div className="flex items-start justify-between gap-2 mb-5">
+          {/* Top-Left: SENDER RETURN ADDRESS IN REAL BLUE PEN INK */}
+          <div
+            className={`max-w-[170px] text-[#1e3a8a] text-xs leading-tight select-none ${fontClass}`}
+          >
+            <p className="font-medium">{sender.fullName || "Your Name"}</p>
+            <p>{sender.street1 || "Street Address"}</p>
+            {sender.street2 && <p>{sender.street2}</p>}
+            <p>
+              {sender.city || "City"}, {sender.state || "ST"}{" "}
+              {sender.zip || "ZIP"}
+            </p>
+          </div>
+
+          {/* Top-Right: REALISTIC POSTMARK & USPS FOREVER STAMP */}
+          <div className="flex items-start shrink-0 select-none">
+            {/* Cancellation postmark (Phoenix, AZ hub per supplier specs) */}
+            <div className="hidden sm:flex flex-col items-end justify-center mr-1 mt-1 text-stone-600/70 text-[9px] font-mono leading-none tracking-tight text-right">
+              <span>PHOENIX AZ 852</span>
+              <span className="text-[8px] text-stone-500/80 my-0.5">
+                FIRST-CLASS
+              </span>
+              {/* Wavy cancellation ink lines */}
+              <svg
+                viewBox="0 0 48 16"
+                className="w-10 h-3 text-stone-600/60 stroke-current fill-none"
+              >
+                <path
+                  d="M0,4 Q6,0 12,4 T24,4 T36,4 T48,4"
+                  strokeWidth="1.2"
+                />
+                <path
+                  d="M0,8 Q6,4 12,8 T24,8 T36,8 T48,8"
+                  strokeWidth="1.2"
+                />
+                <path
+                  d="M0,12 Q6,8 12,12 T24,12 T36,12 T48,12"
+                  strokeWidth="1.2"
+                />
+              </svg>
+            </div>
+
+            {/* USPS FOREVER STAMP (AUTHENTIC PERFORATED POSTAGE STAMP) */}
+            <div className="relative w-12 h-16 sm:w-14 sm:h-18 bg-white rounded-xs border border-stone-300 shadow-xs p-1 flex flex-col justify-between overflow-hidden">
+              {/* Perforated scalloped stamp edges */}
+              <div className="absolute inset-0 border border-dashed border-stone-400/40 pointer-events-none" />
+
+              {/* Stamp artwork: Flag / USA Forever */}
+              <div className="h-full w-full bg-gradient-to-b from-[#1e3a8a] via-[#f8fafc] to-[#991b1b] rounded-[2px] p-1 flex flex-col justify-between relative overflow-hidden">
+                {/* Flag stars header */}
+                <div className="flex items-center justify-between text-white text-[7px] font-sans font-bold leading-none tracking-widest">
+                  <span>USA</span>
+                  <span className="text-[6px] font-serif">★</span>
+                </div>
+                {/* Center emblem */}
+                <div className="text-center py-0.5">
+                  <span className="text-[9px] sm:text-[10px] font-serif font-black tracking-wider text-white drop-shadow-xs">
+                    FOREVER
+                  </span>
+                </div>
+                {/* Bottom value */}
+                <div className="flex items-center justify-between text-white/90 text-[6px] font-mono leading-none">
+                  <span>USPS</span>
+                  <span>2026</span>
+                </div>
+                {/* Cancellation wavy line crossing stamp */}
+                <svg
+                  viewBox="0 0 60 40"
+                  className="absolute inset-0 w-full h-full text-stone-800/40 stroke-current fill-none pointer-events-none"
+                >
+                  <path
+                    d="M-10,10 Q10,5 30,12 T70,10"
+                    strokeWidth="1.5"
+                  />
+                  <path
+                    d="M-10,22 Q10,17 30,24 T70,22"
+                    strokeWidth="1.5"
+                  />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* CENTER: MAILING RECIPIENT IN AUTHENTIC BLUE PEN INK */}
+        <div className="flex justify-center px-2 py-2 sm:py-3 select-none">
+          <div
+            className={`w-fit min-w-[180px] max-w-xs text-left space-y-0.5 text-base sm:text-lg text-[#1e3a8a] leading-snug ${fontClass}`}
+          >
+            <p className="font-semibold text-lg sm:text-xl text-[#1e3a8a]">
+              {recipient.fullName || "Recipient Name"}
+            </p>
+            {isAddressDeferred ? (
+              <p className="text-xs text-stone-500 italic mt-1 font-sans">
+                [ Street address to be added via link after checkout ]
+              </p>
+            ) : (
+              <>
+                <p>
+                  {recipient.street1 || "Street Address"}
+                  {recipient.street2 ? `, ${recipient.street2}` : ""}
+                </p>
+                <p>
+                  {recipient.city || "City"},{" "}
+                  {recipient.state || "State"} {recipient.zip || "ZIP"}
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* BOTTOM: AUTHENTIC USPS INTELLIGENT MAIL BARCODE */}
+        <div className="mt-4 pt-2 flex flex-col items-center justify-center select-none">
+          <svg
+            viewBox="0 0 240 14"
+            className="w-44 sm:w-56 h-3 text-stone-800/70 fill-current opacity-80"
+          >
+            <rect x="0" y="2" width="2" height="10" />
+            <rect x="4" y="2" width="2" height="6" />
+            <rect x="8" y="2" width="2" height="10" />
+            <rect x="12" y="5" width="2" height="7" />
+            <rect x="16" y="2" width="2" height="10" />
+            <rect x="20" y="2" width="2" height="10" />
+            <rect x="24" y="5" width="2" height="4" />
+            <rect x="28" y="2" width="2" height="10" />
+            <rect x="32" y="2" width="2" height="7" />
+            <rect x="36" y="5" width="2" height="7" />
+            <rect x="40" y="2" width="2" height="10" />
+            <rect x="44" y="5" width="2" height="4" />
+            <rect x="48" y="2" width="2" height="10" />
+            <rect x="52" y="2" width="2" height="7" />
+            <rect x="56" y="2" width="2" height="10" />
+            <rect x="60" y="5" width="2" height="7" />
+            <rect x="64" y="2" width="2" height="10" />
+            <rect x="68" y="2" width="2" height="10" />
+            <rect x="72" y="5" width="2" height="4" />
+            <rect x="76" y="2" width="2" height="7" />
+            <rect x="80" y="2" width="2" height="10" />
+            <rect x="84" y="5" width="2" height="7" />
+            <rect x="88" y="2" width="2" height="10" />
+            <rect x="92" y="2" width="2" height="10" />
+            <rect x="96" y="5" width="2" height="4" />
+            <rect x="100" y="2" width="2" height="10" />
+            <rect x="104" y="2" width="2" height="7" />
+            <rect x="108" y="5" width="2" height="7" />
+            <rect x="112" y="2" width="2" height="10" />
+            <rect x="116" y="5" width="2" height="4" />
+            <rect x="120" y="2" width="2" height="10" />
+            <rect x="124" y="2" width="2" height="7" />
+            <rect x="128" y="2" width="2" height="10" />
+            <rect x="132" y="5" width="2" height="7" />
+            <rect x="136" y="2" width="2" height="10" />
+            <rect x="140" y="2" width="2" height="10" />
+            <rect x="144" y="5" width="2" height="4" />
+            <rect x="148" y="2" width="2" height="7" />
+            <rect x="152" y="2" width="2" height="10" />
+            <rect x="156" y="5" width="2" height="7" />
+            <rect x="160" y="2" width="2" height="10" />
+            <rect x="164" y="2" width="2" height="10" />
+            <rect x="168" y="5" width="2" height="4" />
+            <rect x="172" y="2" width="2" height="10" />
+            <rect x="176" y="2" width="2" height="7" />
+            <rect x="180" y="5" width="2" height="7" />
+            <rect x="184" y="2" width="2" height="10" />
+            <rect x="188" y="5" width="2" height="4" />
+            <rect x="192" y="2" width="2" height="10" />
+            <rect x="196" y="2" width="2" height="7" />
+            <rect x="200" y="2" width="2" height="10" />
+            <rect x="204" y="5" width="2" height="7" />
+            <rect x="208" y="2" width="2" height="10" />
+            <rect x="212" y="2" width="2" height="10" />
+            <rect x="216" y="5" width="2" height="4" />
+            <rect x="220" y="2" width="2" height="7" />
+            <rect x="224" y="2" width="2" height="10" />
+            <rect x="228" y="5" width="2" height="7" />
+            <rect x="232" y="2" width="2" height="10" />
+            <rect x="236" y="2" width="2" height="10" />
+          </svg>
+        </div>
+      </div>
+
+      <p className="text-[11px] text-stone-500 text-center">
+        Mailed in a matching woven envelope directly to your recipient via USPS First-Class.
+      </p>
+    </div>
+  );
+}
+
 export function Step3EnvelopeAddressing({
   recipient,
   onChangeRecipient,
@@ -174,34 +392,58 @@ export function Step3EnvelopeAddressing({
         </button>
       </div>
 
-      {/* 1. TOP UNMISTAKABLE ADDRESS DEFERRAL CARD */}
-      <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
-        <div className="flex items-start gap-3">
-          <input
-            id="defer-address-toggle"
-            type="checkbox"
-            checked={isAddressDeferred}
-            onChange={(e) => onChangeAddressDeferred?.(e.target.checked)}
-            className="mt-1 h-5 w-5 rounded border-amber-400 text-emerald-700 focus:ring-emerald-600 cursor-pointer shrink-0"
-          />
-          <label htmlFor="defer-address-toggle" className="text-xs sm:text-sm text-stone-900 cursor-pointer select-none">
-            <strong className="block text-amber-950 font-bold text-sm sm:text-base mb-0.5">
-              Don&apos;t have their street address handy? Lock in your card now &amp; add address later
-            </strong>
-            <span className="text-stone-700 block text-xs sm:text-sm leading-relaxed">
-              We&apos;ll hold your card in queue and immediately email you a magic link (and display it on your confirmation page) to enter the mailing address whenever you&apos;re ready.
-            </span>
-          </label>
-        </div>
-        {isAddressDeferred && (
-          <div className="p-2.5 bg-amber-100/80 rounded-xl border border-amber-200 text-xs text-amber-950 font-medium flex items-center gap-2">
-            <span>✨ Address deferred! You only need to provide recipient &amp; sender names to proceed. Postal dispatch is held until you submit the recipient address via magic link.</span>
+      {/* TWO-COLUMN SPLIT-SCREEN WORKBENCH (lg:grid-cols-12) */}
+      <div className="lg:grid lg:grid-cols-12 lg:gap-12 lg:items-start space-y-6 lg:space-y-0">
+        {/* LEFT COLUMN: lg:col-span-5 lg:sticky lg:top-6 — Live Envelope & Deferral */}
+        <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-6">
+          {/* 1. TOP UNMISTAKABLE ADDRESS DEFERRAL CARD */}
+          <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
+            <div className="flex items-start gap-3">
+              <input
+                id="defer-address-toggle"
+                type="checkbox"
+                checked={isAddressDeferred}
+                onChange={(e) => onChangeAddressDeferred?.(e.target.checked)}
+                className="mt-1 h-5 w-5 rounded border-amber-400 text-emerald-700 focus:ring-emerald-600 cursor-pointer shrink-0"
+              />
+              <label htmlFor="defer-address-toggle" className="text-xs sm:text-sm text-stone-900 cursor-pointer select-none">
+                <strong className="block text-amber-950 font-bold text-sm mb-0.5">
+                  Don&apos;t have their street address handy? Lock in your card now &amp; add address later
+                </strong>
+                <span className="text-stone-700 block text-xs leading-relaxed">
+                  We&apos;ll hold your card in queue and immediately email you a magic link (and display it on your confirmation page) to enter the mailing address whenever you&apos;re ready.
+                </span>
+              </label>
+            </div>
+            {isAddressDeferred && (
+              <div className="p-2.5 bg-amber-100/80 rounded-xl border border-amber-200 text-xs text-amber-950 font-medium flex items-center gap-2">
+                <span>✨ Address deferred! You only need to provide recipient &amp; sender names to proceed. Postal dispatch is held until you submit the recipient address via magic link.</span>
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      {/* FORM SECTIONS: RECIPIENT ("Send to") & SENDER ("From you") LEAD FIRST */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          {/* 2. STICKY LIVE ENVELOPE PREVIEW */}
+          <LiveEnvelopeCard
+            sender={sender}
+            recipient={recipient}
+            fontClass={fontClass}
+            isAddressDeferred={isAddressDeferred}
+          />
+
+          {/* EXPLANATORY CALLOUT */}
+          <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200/70 flex items-start gap-2.5">
+            <ShieldCheck className="w-4 h-4 text-emerald-800 shrink-0 mt-0.5" />
+            <p className="text-xs text-stone-700 leading-relaxed">
+              <strong className="font-semibold text-emerald-950">Return Address:</strong>{" "}
+              Your name and return address appear on the envelope so USPS can deliver it, and your recipient knows who it&apos;s from.
+            </p>
+          </div>
+        </div>
+
+        {/* RIGHT COLUMN: lg:col-span-7 — Sub-Grid (Send to & From you) */}
+        <div className="lg:col-span-7 space-y-4">
+          {/* FORM SECTIONS: RECIPIENT ("Send to") & SENDER ("From you") LEAD FIRST */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
         {/* SECTION 1: RECIPIENT ("Send to") */}
         <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs space-y-4">
           <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
@@ -503,258 +745,33 @@ export function Step3EnvelopeAddressing({
         </div>
       </div>
 
-      {/* EXPLANATORY CALLOUT */}
-      <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-200/70 flex items-start gap-3">
-        <ShieldCheck className="w-4 h-4 text-emerald-800 shrink-0 mt-0.5" />
-        <p className="text-xs text-stone-700 leading-relaxed">
-          <strong className="font-semibold text-emerald-950">Return Address:</strong>{" "}
-          Your name and return address appear on the envelope so USPS can deliver it, and your recipient knows who it&apos;s from.
-        </p>
-      </div>
-
-      {/* REALISTIC ENVELOPE PREVIEW */}
-      <div className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setShowEnvelopePreview(!showEnvelopePreview)}
-          className="w-full p-4 flex items-center justify-between text-left hover:bg-stone-50 transition cursor-pointer"
-        >
-          <div className="flex items-center gap-2.5">
-            <Mail className="w-4 h-4 text-emerald-800" />
-            <div>
-              <span className="text-xs font-bold text-stone-900 block">
-                Envelope Preview
-              </span>
-              <span className="text-[11px] text-stone-500 font-normal block">
-                Penned in real blue ink &amp; mailed with a USPS Forever stamp
-              </span>
+          {formError && (
+            <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium animate-in fade-in">
+              {formError}
             </div>
-          </div>
-          {showEnvelopePreview ? (
-            <ChevronUp className="w-4 h-4 text-stone-400" />
-          ) : (
-            <ChevronDown className="w-4 h-4 text-stone-400" />
           )}
-        </button>
 
-        {showEnvelopePreview && (
-          <div className="p-4 sm:p-6 pt-1 border-t border-stone-100 bg-stone-100/60">
-            {/* PHYSICAL ENVELOPE (A2 FORMAT: 4.375" x 5.75", ratio ~1.31) */}
-            <div className="relative w-full max-w-xl mx-auto rounded-xl bg-[#FCFAF7] border border-[#E6DFD5] p-5 sm:p-7 shadow-md overflow-hidden text-stone-900">
-              {/* TOP ROW: HANDWRITTEN RETURN ADDRESS + POSTMARK & FOREVER STAMP */}
-              <div className="flex items-start justify-between gap-2 sm:gap-4 mb-6 sm:mb-8">
-                {/* Top-Left: SENDER RETURN ADDRESS IN REAL BLUE PEN INK */}
-                <div
-                  className={`max-w-[180px] sm:max-w-[220px] text-[#1e3a8a] text-xs sm:text-sm leading-tight select-none ${fontClass}`}
-                >
-                  <p className="font-medium">{sender.fullName || "Your Name"}</p>
-                  <p>{sender.street1 || "Street Address"}</p>
-                  {sender.street2 && <p>{sender.street2}</p>}
-                  <p>
-                    {sender.city || "City"}, {sender.state || "ST"}{" "}
-                    {sender.zip || "ZIP"}
-                  </p>
-                </div>
+          {/* DESKTOP ADVANCE BAR */}
+          <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
+            <button
+              type="button"
+              onClick={onBack}
+              className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-semibold flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>← Back to note</span>
+            </button>
 
-                {/* Top-Right: REALISTIC POSTMARK & USPS FOREVER STAMP */}
-                <div className="flex items-start shrink-0 select-none">
-                  {/* Cancellation postmark (Phoenix, AZ hub per supplier specs) */}
-                  <div className="hidden sm:flex flex-col items-end justify-center mr-1 mt-1 text-stone-600/70 text-[9px] font-mono leading-none tracking-tight text-right">
-                    <span>PHOENIX AZ 852</span>
-                    <span className="text-[8px] text-stone-500/80 my-0.5">
-                      FIRST-CLASS
-                    </span>
-                    {/* Wavy cancellation ink lines */}
-                    <svg
-                      viewBox="0 0 48 16"
-                      className="w-12 h-3 text-stone-600/60 stroke-current fill-none"
-                    >
-                      <path
-                        d="M0,4 Q6,0 12,4 T24,4 T36,4 T48,4"
-                        strokeWidth="1.2"
-                      />
-                      <path
-                        d="M0,8 Q6,4 12,8 T24,8 T36,8 T48,8"
-                        strokeWidth="1.2"
-                      />
-                      <path
-                        d="M0,12 Q6,8 12,12 T24,12 T36,12 T48,12"
-                        strokeWidth="1.2"
-                      />
-                    </svg>
-                  </div>
-
-                  {/* USPS FOREVER STAMP (AUTHENTIC PERFORATED POSTAGE STAMP) */}
-                  <div className="relative w-14 h-18 sm:w-16 sm:h-20 bg-white rounded-xs border border-stone-300 shadow-xs p-1 flex flex-col justify-between overflow-hidden">
-                    {/* Perforated scalloped stamp edges */}
-                    <div className="absolute inset-0 border border-dashed border-stone-400/40 pointer-events-none" />
-
-                    {/* Stamp artwork: Flag / USA Forever */}
-                    <div className="h-full w-full bg-gradient-to-b from-[#1e3a8a] via-[#f8fafc] to-[#991b1b] rounded-[2px] p-1 flex flex-col justify-between relative overflow-hidden">
-                      {/* Flag stars header */}
-                      <div className="flex items-center justify-between text-white text-[7px] font-sans font-bold leading-none tracking-widest">
-                        <span>USA</span>
-                        <span className="text-[6px] font-serif">★</span>
-                      </div>
-                      {/* Center emblem */}
-                      <div className="text-center py-1">
-                        <span className="text-[10px] sm:text-xs font-serif font-black tracking-wider text-white drop-shadow-xs">
-                          FOREVER
-                        </span>
-                      </div>
-                      {/* Bottom value */}
-                      <div className="flex items-center justify-between text-white/90 text-[6px] font-mono leading-none">
-                        <span>USPS</span>
-                        <span>2026</span>
-                      </div>
-                      {/* Cancellation wavy line crossing stamp */}
-                      <svg
-                        viewBox="0 0 60 40"
-                        className="absolute inset-0 w-full h-full text-stone-800/40 stroke-current fill-none pointer-events-none"
-                      >
-                        <path
-                          d="M-10,10 Q10,5 30,12 T70,10"
-                          strokeWidth="1.5"
-                        />
-                        <path
-                          d="M-10,22 Q10,17 30,24 T70,22"
-                          strokeWidth="1.5"
-                        />
-                      </svg>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* CENTER: MAILING RECIPIENT IN AUTHENTIC BLUE PEN INK */}
-              <div className="flex justify-center px-4 py-2 sm:py-4 select-none">
-                <div
-                  className={`w-fit min-w-[200px] max-w-xs sm:max-w-sm text-left space-y-0.5 text-base sm:text-xl text-[#1e3a8a] leading-snug ${fontClass}`}
-                >
-                  <p className="font-semibold text-lg sm:text-2xl text-[#1e3a8a]">
-                    {recipient.fullName || "Recipient Name"}
-                  </p>
-                  {isAddressDeferred ? (
-                    <p className="text-xs sm:text-sm text-stone-500 italic mt-1 font-sans">
-                      [ Street address to be added via link after checkout ]
-                    </p>
-                  ) : (
-                    <>
-                      <p>
-                        {recipient.street1 || "Street Address"}
-                        {recipient.street2 ? `, ${recipient.street2}` : ""}
-                      </p>
-                      <p>
-                        {recipient.city || "City"},{" "}
-                        {recipient.state || "State"} {recipient.zip || "ZIP"}
-                      </p>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* BOTTOM: AUTHENTIC USPS INTELLIGENT MAIL BARCODE */}
-              <div className="mt-6 pt-3 flex flex-col items-center justify-center select-none">
-                <svg
-                  viewBox="0 0 240 14"
-                  className="w-48 sm:w-64 h-3 sm:h-3.5 text-stone-800/70 fill-current opacity-80"
-                >
-                  <rect x="0" y="2" width="2" height="10" />
-                  <rect x="4" y="2" width="2" height="6" />
-                  <rect x="8" y="2" width="2" height="10" />
-                  <rect x="12" y="5" width="2" height="7" />
-                  <rect x="16" y="2" width="2" height="10" />
-                  <rect x="20" y="2" width="2" height="10" />
-                  <rect x="24" y="5" width="2" height="4" />
-                  <rect x="28" y="2" width="2" height="10" />
-                  <rect x="32" y="2" width="2" height="7" />
-                  <rect x="36" y="5" width="2" height="7" />
-                  <rect x="40" y="2" width="2" height="10" />
-                  <rect x="44" y="5" width="2" height="4" />
-                  <rect x="48" y="2" width="2" height="10" />
-                  <rect x="52" y="2" width="2" height="7" />
-                  <rect x="56" y="2" width="2" height="10" />
-                  <rect x="60" y="5" width="2" height="7" />
-                  <rect x="64" y="2" width="2" height="10" />
-                  <rect x="68" y="2" width="2" height="10" />
-                  <rect x="72" y="5" width="2" height="4" />
-                  <rect x="76" y="2" width="2" height="7" />
-                  <rect x="80" y="2" width="2" height="10" />
-                  <rect x="84" y="5" width="2" height="7" />
-                  <rect x="88" y="2" width="2" height="10" />
-                  <rect x="92" y="2" width="2" height="10" />
-                  <rect x="96" y="5" width="2" height="4" />
-                  <rect x="100" y="2" width="2" height="10" />
-                  <rect x="104" y="2" width="2" height="7" />
-                  <rect x="108" y="5" width="2" height="7" />
-                  <rect x="112" y="2" width="2" height="10" />
-                  <rect x="116" y="5" width="2" height="4" />
-                  <rect x="120" y="2" width="2" height="10" />
-                  <rect x="124" y="2" width="2" height="7" />
-                  <rect x="128" y="2" width="2" height="10" />
-                  <rect x="132" y="5" width="2" height="7" />
-                  <rect x="136" y="2" width="2" height="10" />
-                  <rect x="140" y="2" width="2" height="10" />
-                  <rect x="144" y="5" width="2" height="4" />
-                  <rect x="148" y="2" width="2" height="7" />
-                  <rect x="152" y="2" width="2" height="10" />
-                  <rect x="156" y="5" width="2" height="7" />
-                  <rect x="160" y="2" width="2" height="10" />
-                  <rect x="164" y="2" width="2" height="10" />
-                  <rect x="168" y="5" width="2" height="4" />
-                  <rect x="172" y="2" width="2" height="10" />
-                  <rect x="176" y="2" width="2" height="7" />
-                  <rect x="180" y="5" width="2" height="7" />
-                  <rect x="184" y="2" width="2" height="10" />
-                  <rect x="188" y="5" width="2" height="4" />
-                  <rect x="192" y="2" width="2" height="10" />
-                  <rect x="196" y="2" width="2" height="7" />
-                  <rect x="200" y="2" width="2" height="10" />
-                  <rect x="204" y="5" width="2" height="7" />
-                  <rect x="208" y="2" width="2" height="10" />
-                  <rect x="212" y="2" width="2" height="10" />
-                  <rect x="216" y="5" width="2" height="4" />
-                  <rect x="220" y="2" width="2" height="7" />
-                  <rect x="224" y="2" width="2" height="10" />
-                  <rect x="228" y="5" width="2" height="7" />
-                  <rect x="232" y="2" width="2" height="10" />
-                  <rect x="236" y="2" width="2" height="10" />
-                </svg>
-              </div>
-            </div>
-
-            <p className="text-[11px] text-stone-500 text-center mt-3">
-              Mailed in a matching woven envelope directly to your recipient via USPS First-Class.
-            </p>
+            <button
+              type="button"
+              onClick={handleProceed}
+              className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
+            >
+              <span>Review &amp; pay ($9.00) →</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
-        )}
-      </div>
-
-      {formError && (
-        <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium animate-in fade-in">
-          {formError}
         </div>
-      )}
-
-      {/* DESKTOP ADVANCE BAR */}
-      <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
-        <button
-          type="button"
-          onClick={onBack}
-          className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-semibold flex items-center gap-1.5 transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>← Back to note</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={handleProceed}
-          className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
-        >
-          <span>Review &amp; pay ($9.00) →</span>
-          <ArrowRight className="w-4 h-4" />
-        </button>
       </div>
 
       {/* MOBILE STICKY BOTTOM ACTION BAR */}

@@ -504,7 +504,7 @@ export function Step2NoteComposition({
       </div>
 
       {/* 2. MAIN TWO-COLUMN SPLIT-SCREEN WORKBENCH (lg:grid-cols-12) */}
-      <div className="lg:grid lg:grid-cols-12 lg:gap-10 lg:items-start">
+      <div className="lg:grid lg:grid-cols-12 lg:gap-12 lg:items-start">
         {/* LEFT COLUMN (lg:col-span-6 — The Tactile Stationery Desk) */}
         <div className="hidden lg:block lg:col-span-6 lg:sticky lg:top-6">
           <div className="bg-[#F9F6F0] rounded-3xl p-5 border border-stone-200/90 shadow-sm space-y-4">
@@ -522,7 +522,7 @@ export function Step2NoteComposition({
             </div>
 
             {/* Desktop "Corner Peek / Side-by-Side" Live Preview */}
-            <div className="relative w-full max-w-[340px] mx-auto aspect-[17/22] rounded-2xl overflow-hidden shadow-xl border border-stone-200 bg-[#FDFCF7] paper-texture select-none group">
+            <div className="relative w-full max-w-[400px] min-h-[520px] mx-auto aspect-[17/22] rounded-2xl overflow-hidden shadow-xl border border-stone-200 bg-[#FDFCF7] paper-texture select-none group">
               {/* Blind-Deboss Inset Micro-Rule (Traditional letterpress border) */}
               <div className="absolute inset-3.5 rounded-xl border border-stone-300/40 pointer-events-none" />
 
@@ -544,7 +544,7 @@ export function Step2NoteComposition({
               <div
                 onClick={() => setIsPreviewCardOpen(true)}
                 title="Click to inspect full card inside and out"
-                className="absolute top-3 left-3 z-20 w-24 sm:w-28 aspect-[17/22] rounded-xl overflow-hidden shadow-2xl border-2 border-white bg-stone-100 cursor-pointer transform -rotate-3 hover:rotate-0 hover:scale-105 transition-all duration-200 group/peek"
+                className="absolute top-3 left-3 z-20 w-28 sm:w-32 aspect-[17/22] rounded-xl overflow-hidden shadow-2xl border-2 border-white bg-stone-100 cursor-pointer transform -rotate-3 hover:rotate-0 hover:scale-105 transition-all duration-200 group/peek"
               >
                 <img
                   src={cardUrl || availableCovers[0]?.imageUrl}
@@ -873,13 +873,13 @@ export function Step2NoteComposition({
               </div>
             )}
 
-            {/* MOBILE ONLY: QUICK HANDWRITING SELECTOR PILLS */}
-            <div className="lg:hidden space-y-1.5 pt-2 border-t border-stone-200">
+            {/* QUICK HANDWRITING SELECTOR PILLS */}
+            <div className="space-y-1.5 pt-2 border-t border-stone-200">
               <div className="flex items-center justify-between text-xs text-stone-700">
                 <span className="font-semibold">Handwriting Style:</span>
                 <span className="text-[11px] text-stone-500">{currentFont.name} &bull; {currentFont.subtitle}</span>
               </div>
-              <div className="grid grid-cols-2 gap-1.5">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {HANDWRITING_STYLES.map((style) => (
                   <button
                     key={style.id}

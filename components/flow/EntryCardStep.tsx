@@ -91,7 +91,7 @@ export function EntryCardStep({
   };
 
   return (
-    <div className="w-full max-w-2xl mx-auto px-4 pt-3 pb-32">
+    <div className="w-full max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 pb-32">
       {/* 1. SHORT VALUE STATEMENT & HERO */}
       <section className="text-left mb-3.5 space-y-1.5" aria-labelledby="hero-title">
         <h1
@@ -234,11 +234,11 @@ export function EntryCardStep({
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
             {filteredPresets.map((preset, index) => {
               const isSelected = selectedDesign?.imageUrl === preset.imageUrl;
-              // Eager load first row (first 2 items) for LCP / CLS prevention; lazy load remaining
-              const isFirstRow = index < 2;
+              // Eager load first row (first 4 items on desktop) for LCP / CLS prevention; lazy load remaining
+              const isFirstRow = index < 4;
 
               return (
                 <div
@@ -255,7 +255,7 @@ export function EntryCardStep({
                     <CardFrontPreview
                       artworkUrl={preset.imageUrl}
                       title={preset.title}
-                      sizes="(max-width: 640px) 45vw, 300px"
+                      sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 25vw"
                       priority={isFirstRow}
                     />
 

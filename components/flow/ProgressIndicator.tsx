@@ -27,7 +27,7 @@ export function ProgressIndicator({ currentStep }: ProgressIndicatorProps) {
 
   return (
     <nav aria-label="Order progress" className="w-full bg-white border-b border-stone-100 py-2.5 px-4">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Mobile Compact View (< 640px) */}
         <div className="sm:hidden flex items-center justify-between text-xs py-0.5">
           <div className="flex items-center gap-2">

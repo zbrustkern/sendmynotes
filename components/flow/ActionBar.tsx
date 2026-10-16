@@ -27,7 +27,7 @@ export function ActionBar({
       aria-label="Order summary and action"
       className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200 shadow-lg pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] px-4"
     >
-      <div className="max-w-2xl mx-auto flex items-center justify-between gap-4">
+      <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-4">
         {/* Left: Total & details */}
         <div className="flex flex-col min-w-0">
           <div className="flex items-baseline gap-1.5 flex-wrap">

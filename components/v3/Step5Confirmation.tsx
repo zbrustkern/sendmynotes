@@ -205,7 +205,7 @@ export function Step5Confirmation({
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-7 pb-24 md:pb-12 animate-in fade-in duration-300">
+    <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-7 pb-24 md:pb-12 animate-in fade-in duration-300">
       {/* CELEBRATION HERO BANNER */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200/90 shadow-sm text-center space-y-3">
         <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto shadow-xs">

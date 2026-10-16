@@ -26,7 +26,7 @@ export function FlowHeader({ showClearDraft = false, onClearDraft }: FlowHeaderP
   return (
     <>
       <header className="sticky top-0 z-30 w-full bg-white/95 backdrop-blur-md border-b border-stone-200">
-        <div className="max-w-2xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           {/* Brand */}
           <Link
             href="/"

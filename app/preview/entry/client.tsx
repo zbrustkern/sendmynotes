@@ -251,6 +251,8 @@ export function EntryPrototypeClient({
       setStep(initialStep);
     } else if (initialHandwrittenNote) {
       setStep("note");
+    } else if (typeof window !== "undefined" && window.innerWidth >= 1024 && !searchParams?.get("step")) {
+      setStep("note");
     }
 
     if (!draft.selectedDesign && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
@@ -1138,7 +1140,7 @@ export function EntryPrototypeClient({
     return (
       <div className={`min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col antialiased ${embedded ? "rounded-3xl border border-stone-200/90 shadow-xs overflow-hidden" : ""}`}>
         {!embedded && <FlowHeader showClearDraft={false} onClearDraft={resetEntireFlow} />}
-        <main className="flex-1 max-w-4xl mx-auto px-4 py-8 w-full">
+        <main className="flex-1 max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
           <Step5Confirmation
             orderId={orderId}
             viewToken={viewToken}
@@ -1190,7 +1192,7 @@ export function EntryPrototypeClient({
         )}
 
         {step === "note" && (
-          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
+          <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step2NoteComposition
               hideFixedActionBar={false}
               salutation={salutation}
@@ -1230,7 +1232,7 @@ export function EntryPrototypeClient({
         )}
 
         {step === "address" && (
-          <div className="max-w-4xl mx-auto px-4 py-6 pb-32 space-y-4">
+          <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8 space-y-4">
             {addressValidationError && (
               <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-center gap-2.5 text-xs text-amber-900 shadow-xs animate-in fade-in">
                 <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -1273,7 +1275,7 @@ export function EntryPrototypeClient({
         )}
 
         {step === "pay" && (
-          <div className="max-w-4xl mx-auto px-4 py-6 pb-32">
+          <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step4ReviewAndPayment
               cardTitle={currentCard.title}
               cardUrl={currentCard.imageUrl}
