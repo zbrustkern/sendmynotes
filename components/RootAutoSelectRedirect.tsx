@@ -44,9 +44,6 @@ export function RootAutoSelectRedirect() {
     if (isAuto) {
       const effectiveQuery = searchParams?.toString() || windowQuery;
       const params = new URLSearchParams(effectiveQuery);
-      if (!params.has("auto_select")) {
-        params.set("auto_select", "1");
-      }
       router.replace(`/send?${params.toString()}`);
     }
   }, [searchParams, router]);

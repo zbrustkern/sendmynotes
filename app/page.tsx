@@ -22,8 +22,8 @@ export default async function Home({ searchParams }: PageProps) {
 
   const isAuto = autoParam === "1" || utmSource === "google" || utmSource === "meta";
 
-  // 1. Server-side redirect: if auto_select=1 or paid campaign UTM source is present,
-  // immediately redirect to /send with all search parameters preserved.
+  // Server-side redirect: if legacy auto_select=1 or paid campaign UTM source is present on root,
+  // redirect to /send with all attribution parameters preserved without forcing auto_select=1.
   if (isAuto) {
     const params = new URLSearchParams();
     for (const [key, value] of Object.entries(resolvedParams)) {
@@ -32,9 +32,6 @@ export default async function Home({ searchParams }: PageProps) {
       } else if (Array.isArray(value)) {
         value.forEach((v) => params.append(key, v));
       }
-    }
-    if (!params.has("auto_select")) {
-      params.set("auto_select", "1");
     }
     redirect(`/send?${params.toString()}`);
   }
@@ -56,17 +53,9 @@ export default async function Home({ searchParams }: PageProps) {
     >
       <RootAutoSelectRedirect />
       <ExperienceRouter
-        initialIsV3={isAuto ? true : isV3}
-        initialOccasion={isAuto ? "Thinking of You" : undefined}
-        initialCoverUrl={isAuto ? "/presets/thinking-of-you-quiet-cup.jpg" : undefined}
-        initialHandwrittenNote={
-          isAuto
-            ? "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!"
-            : undefined
-        }
-        scenarioTitle={isAuto ? "A Quiet Cup" : undefined}
+        initialIsV3={isV3}
         embedded={false}
-        initialStep={isAuto ? "note" : undefined}
+        initialStep="card"
       />
     </Suspense>
   );

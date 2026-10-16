@@ -81,20 +81,15 @@ export function EntryPrototypeClient({
     return mapScenarioFontId(initialFontStyleId);
   }, [initialFontStyleId]);
 
-  // Deep link auto-selection detection: occasion routes, scenario slug, auto_select=1, or paid traffic UTMs
-  const autoParam = searchParams?.get("auto_select");
-  const utmSource = searchParams?.get("utm_source")?.toLowerCase();
-
+  // Contextual deep link auto-selection detection: only for specific scenario routes or curated occasion/card deep links.
+  // Generic ad traffic, sitelinks, and generic auto_select=1 do NOT auto-select a card or skip to note.
   const isAutoSelectMode = useMemo(() => {
     return Boolean(
       scenarioSlug ||
       initialHandwrittenNote ||
-      autoParam === "1" ||
-      utmSource === "google" ||
-      utmSource === "meta" ||
-      (occasionParam && !presetParam)
+      (occasionParam && initialCoverUrl)
     );
-  }, [scenarioSlug, initialHandwrittenNote, autoParam, utmSource, occasionParam, presetParam]);
+  }, [scenarioSlug, initialHandwrittenNote, occasionParam, initialCoverUrl]);
 
   // Resolve contextual preselection if specified
   const initialPreset = useMemo(() => {
@@ -106,7 +101,7 @@ export function EntryPrototypeClient({
       const found = matchOccasionToPreset(occasionParam);
       if (found) return found;
     }
-    return CARD_PRESETS[0];
+    return undefined;
   }, [presetParam, occasionParam]);
 
   const targetOccasionSlug = useMemo(() => {
@@ -117,27 +112,30 @@ export function EntryPrototypeClient({
     return "general";
   }, [occasionParam, initialOccasion, scenarioSlug, isAutoSelectMode, initialPreset?.occasion]);
 
-  const resolvedInitialPresetId = scenarioSlug || initialPreset?.id || CARD_PRESETS[0].id;
-  const resolvedInitialPresetTitle =
-    scenarioTitle || initialPreset?.title || (occasionParam ? `${occasionParam} Card` : CARD_PRESETS[0].title);
-  const resolvedInitialPresetUrl = initialCoverUrl || initialPreset?.imageUrl || CARD_PRESETS[0].imageUrl;
+  const resolvedInitialPresetId = isAutoSelectMode
+    ? (scenarioSlug || initialPreset?.id || CARD_PRESETS[0].id)
+    : undefined;
+  const resolvedInitialPresetTitle = isAutoSelectMode
+    ? (scenarioTitle || initialPreset?.title || (occasionParam ? `${occasionParam} Card` : CARD_PRESETS[0].title))
+    : undefined;
+  const resolvedInitialPresetUrl = isAutoSelectMode
+    ? (initialCoverUrl || initialPreset?.imageUrl || CARD_PRESETS[0].imageUrl)
+    : undefined;
 
   const { draft, dispatch, clearDraft, isLoaded } = useDraft({
     experienceVersion: "candidate_v1",
     initialPresetId: resolvedInitialPresetId,
     initialPresetTitle: resolvedInitialPresetTitle,
     initialPresetUrl: resolvedInitialPresetUrl,
-    initialOccasion: occasionParam || initialPreset?.occasion,
+    initialOccasion: isAutoSelectMode ? (occasionParam || initialPreset?.occasion) : undefined,
     initialHandwrittenNote: parsedScenario?.bodyNote,
     initialSalutation: parsedScenario?.salutation,
     initialSignOff: parsedScenario?.signOff,
     initialFontStyleId: mappedInitialFont,
   });
 
-  // Current active step (curated deep links & paid ads default directly to 'note' studio)
-  const effectiveInitialStep: FlowStep = isAutoSelectMode
-    ? "note"
-    : (initialStep || "card");
+  // Current active step (curated deep links default directly to 'note' studio; generic entries start on 'card' selector)
+  const effectiveInitialStep: FlowStep = initialStep || (isAutoSelectMode ? "note" : "card");
 
   const [step, setStep] = useState<FlowStep>(effectiveInitialStep);
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
@@ -427,8 +425,7 @@ export function EntryPrototypeClient({
         }
         if (parsed.currentStep && parsed.currentStep !== "confirmation") {
           if (isAutoSelectMode) {
-            // Requirement 2: If fresh visitor arrives with ?auto_select=1 and has no existing insideNoteText in localStorage,
-            // auto_select=1 must take precedence and set active step to Inside Note Editor immediately.
+            // Contextual deep links: open note editor unless user had already navigated deeper
             if (!parsed.insideNoteText?.trim()) {
               setStep("note");
             } else if (parsed.currentStep !== "card") {
@@ -436,6 +433,9 @@ export function EntryPrototypeClient({
             } else {
               setStep("note");
             }
+          } else if (hasRealUserEdits && parsed.currentStep !== "card") {
+            // Returning visitor with genuine edits: preserve saved work
+            setStep(parsed.currentStep as FlowStep);
           } else if (!initialStep) {
             setStep(parsed.currentStep as FlowStep);
           }
@@ -758,21 +758,9 @@ export function EntryPrototypeClient({
   const handleStepTransition = (nextStep: FlowStep) => {
     if (nextStep === "note") {
       if (!draft.selectedDesign) {
-        const fallback = initialPreset || CARD_PRESETS[0];
-        dispatch({
-          type: "SELECT_DESIGN",
-          payload: {
-            presetId: fallback.id,
-            imageUrl: fallback.imageUrl,
-            title: fallback.title,
-            occasion: fallback.occasion,
-            source: "preset",
-            accepted: true,
-          },
-        });
-      } else {
-        dispatch({ type: "ACCEPT_DESIGN" });
+        return;
       }
+      dispatch({ type: "ACCEPT_DESIGN" });
 
       trackEvent("card_completed", 1, {
         presetId: draft.selectedDesign?.presetId,
@@ -1372,7 +1360,7 @@ export function EntryPrototypeClient({
           priceSubtext="USPS mailing included"
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
-          isDisabled={false}
+          isDisabled={step === "card" ? !draft.selectedDesign : false}
           onPrimaryClick={() => {
             if (step === "card") {
               handleStepTransition("note");

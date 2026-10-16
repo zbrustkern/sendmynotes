@@ -43,38 +43,27 @@ export function ExperienceRouter({
     return initialIsV3;
   }, [searchParams, initialIsV3]);
 
-  const isAutoSelect = useMemo(() => {
-    if (!searchParams) return false;
-    const utm = searchParams.get("utm_source")?.toLowerCase();
-    const auto = searchParams.get("auto_select");
-    return auto === "1" || utm === "google" || utm === "meta";
-  }, [searchParams]);
-
-  const effectiveEmbedded = isAutoSelect ? false : embedded;
-  const effectiveInitialStep = isAutoSelect ? "note" : initialStep;
-
-  // Active Studio component requirement: auto-selected flows MUST run on the active V3 studio
-  const effectiveIsV3 = isAutoSelect ? true : isV3;
-
-  const effectiveOccasion = initialOccasion || (isAutoSelect ? "Thinking of You" : undefined);
-  const effectiveCoverUrl = initialCoverUrl || (isAutoSelect ? "/presets/thinking-of-you-quiet-cup.jpg" : undefined);
-  const effectiveHandwrittenNote =
+  // Specific context (e.g. from occasion or scenario route) determines initial step.
+  // Neither attribution parameters nor generic auto_select=1 select a card or force note editor.
+  const hasSpecificContext = Boolean(
+    scenarioSlug ||
     initialHandwrittenNote ||
-    (isAutoSelect
-      ? "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!"
-      : undefined);
-  const effectiveScenarioTitle = scenarioTitle || (isAutoSelect ? "A Quiet Cup" : undefined);
+    (initialOccasion && initialCoverUrl)
+  );
 
-  if (effectiveIsV3) {
+  const effectiveInitialStep = initialStep || (hasSpecificContext ? "note" : "card");
+  const effectiveEmbedded = Boolean(embedded);
+
+  if (isV3) {
     return (
       <EntryPrototypeClient
-        initialOccasion={effectiveOccasion}
-        initialCoverUrl={effectiveCoverUrl}
+        initialOccasion={initialOccasion}
+        initialCoverUrl={initialCoverUrl}
         initialPrintedGreeting={initialPrintedGreeting}
-        initialHandwrittenNote={effectiveHandwrittenNote}
+        initialHandwrittenNote={initialHandwrittenNote}
         initialFontStyleId={initialFontStyleId}
         scenarioSlug={scenarioSlug}
-        scenarioTitle={effectiveScenarioTitle}
+        scenarioTitle={scenarioTitle}
         embedded={effectiveEmbedded}
         initialStep={effectiveInitialStep}
       />
@@ -83,10 +72,10 @@ export function ExperienceRouter({
 
   return (
     <VendingMachineBuilder
-      initialOccasion={effectiveOccasion}
-      initialCoverUrl={effectiveCoverUrl}
+      initialOccasion={initialOccasion}
+      initialCoverUrl={initialCoverUrl}
       initialPrintedGreeting={initialPrintedGreeting}
-      initialHandwrittenNote={effectiveHandwrittenNote}
+      initialHandwrittenNote={initialHandwrittenNote}
       initialFontStyleId={initialFontStyleId}
       scenarioSlug={scenarioSlug}
       initialStep={effectiveInitialStep === "note" ? 2 : 1}
