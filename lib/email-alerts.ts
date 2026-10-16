@@ -109,6 +109,14 @@ ${adminUrl}
       return { success: false, error: res.error.message };
     }
 
+    if (res.data?.id?.startsWith("sim_")) {
+      console.warn(`[Email Alert] Notice: Dispatched in safe simulation mode (mock ID ${res.data.id}). Live RESEND_API_KEY is not active in this runtime.`);
+      return {
+        success: false,
+        error: "RESEND_API_KEY is not active in this runtime environment. Email was simulated in server logs only.",
+      };
+    }
+
     console.log(`[Email Alert] Sent successfully to ${toEmail} via Resend. ID: ${res.data?.id}`);
     return { success: true };
   } catch (err: unknown) {
