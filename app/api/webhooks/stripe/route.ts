@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { constructWebhookEvent } from "@/lib/stripe";
 import { processPaidOrder } from "@/lib/order-processor";
 import { logIncident } from "@/lib/incident-logger";
+import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
+import {
+  sendDeferredAddressReceiptEmail,
+  sendOrderPenningReceiptEmail,
+} from "@/lib/email/transactional";
 import Stripe from "stripe";
 
 export async function POST(req: NextRequest) {
@@ -88,6 +93,54 @@ export async function POST(req: NextRequest) {
           status: result.status,
           error: result.error,
         }, { status: 200 });
+      }
+
+      // Automated Transactional Email Dispatch (Resend + Google Secret Manager)
+      try {
+        const order = await getOrderById(orderId);
+        if (order) {
+          const customerEmail = paymentIntent.receipt_email || order.customerEmail;
+          const isAddressDeferred = Boolean(
+            order.addressDeferred ||
+            (order as any).address_deferred ||
+            order.status === "AWAITING_RECIPIENT_ADDRESS" ||
+            paymentIntent.metadata?.address_deferred === "true" ||
+            paymentIntent.metadata?.addressDeferred === "true"
+          );
+
+          if (customerEmail && !(order as any).receiptEmailSentAt) {
+            if (isAddressDeferred) {
+              console.log(
+                `[Webhook] Dispatching Scenario A (deferred address) receipt email to ${customerEmail} for order ${orderId}...`
+              );
+              await sendDeferredAddressReceiptEmail({
+                order,
+                customerEmail,
+              });
+            } else {
+              console.log(
+                `[Webhook] Dispatching Scenario B (penning confirmation) receipt email to ${customerEmail} for order ${orderId}...`
+              );
+              await sendOrderPenningReceiptEmail({
+                order,
+                customerEmail,
+              });
+            }
+
+            await updateOrderStatus(orderId, {
+              receiptEmailSentAt: Date.now(),
+            } as any);
+          }
+        }
+      } catch (emailErr: unknown) {
+        const emailMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
+        console.error(`[Webhook] Error dispatching transactional email for order ${orderId}:`, emailMsg);
+        await logIncident({
+          type: "WEBHOOK",
+          severity: "warning",
+          summary: `Transactional email dispatch error for order ${orderId}`,
+          technicalDetails: emailMsg,
+        });
       }
 
       return NextResponse.json({

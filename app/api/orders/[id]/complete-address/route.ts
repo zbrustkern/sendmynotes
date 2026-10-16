@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { processPaidOrder } from "@/lib/order-processor";
 import { US_STATES } from "@/components/v3/Step3EnvelopeAddressing";
+import { sendOrderPenningReceiptEmail } from "@/lib/email/transactional";
 
 export async function POST(
   req: NextRequest,
@@ -75,6 +76,28 @@ export async function POST(
         paymentMode: order.paymentMode || (order.isTest ? "stripe_test" : "live"),
       }
     );
+
+    // Scenario B: Automated confirmation when deferred address is completed
+    try {
+      const finalEmail = order.customerEmail;
+      if (finalEmail) {
+        console.log(`[Complete Address] Dispatching Scenario B confirmation email to ${finalEmail}...`);
+        await sendOrderPenningReceiptEmail({
+          order: {
+            ...order,
+            recipientAddress: updatedRecipient,
+            addressDeferred: false,
+            address_deferred: false,
+          },
+          customerEmail: finalEmail,
+        });
+        await updateOrderStatus(id, {
+          addressCompletedEmailSentAt: Date.now(),
+        } as any);
+      }
+    } catch (emailErr) {
+      console.warn("[Complete Address] Notice dispatching penning confirmation email:", emailErr);
+    }
 
     return NextResponse.json({
       success: true,
