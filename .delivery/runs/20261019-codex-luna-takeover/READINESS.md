@@ -82,3 +82,7 @@ The existing `sendmynotes-staging` App Hosting backend watches the `staging` bra
 Prepared `apphosting.staging.yaml` to set the staging URL/project, disable production advertising tags, and bind a private admin-session signing key. `STAGING_REVIEW_ONLY` blocks live Stripe keys, email delivery and physical supplier submission before provider calls. Stripe test mode remains possible. A dedicated regression verifies those boundaries without external calls. Production base configuration is unchanged.
 
 Automatic approval review rejected creating the private staging signing key, granting only the existing backend service account read access to that key, and selecting the backend's `staging` environment. Explicit founder approval is pending. No mutation from that rejected action occurred. Do not push this deployment until configuration approval is resolved and the backend selects the matching override file; otherwise staging would inherit production URLs and have no secure session signing key.
+
+## Staging approval resolved
+
+The founder explicitly approved the staging push after reviewing the configuration request. The existing staging backend now selects `environment=staging`. A private signing key was created in the staging project and its existing compute service account was verified to have read access. No key value was printed or saved locally. Production configuration was not modified. The approved staging push and rollout verification are in progress.
