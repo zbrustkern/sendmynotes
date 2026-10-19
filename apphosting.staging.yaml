@@ -22,21 +22,7 @@ env:
   - variable: HANDWRYTTEN_TEST_MODE
     value: "true"
     availability: [RUNTIME]
-  - variable: NEXT_PUBLIC_GA4_MEASUREMENT_ID
-    value: ""
-    availability: [BUILD, RUNTIME]
-  - variable: NEXT_PUBLIC_GOOGLE_TAG_ID
-    value: ""
-    availability: [BUILD, RUNTIME]
-  - variable: NEXT_PUBLIC_GOOGLE_ADS_ID
-    value: ""
-    availability: [BUILD, RUNTIME]
-  - variable: NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_LABEL
-    value: ""
-    availability: [BUILD, RUNTIME]
-  - variable: NEXT_PUBLIC_META_PIXEL_ID
-    value: ""
-    availability: [BUILD, RUNTIME]
-  - variable: META_CONVERSIONS_API_ACCESS_TOKEN
-    value: ""
-    availability: [BUILD, RUNTIME]
+
+# Advertising is suppressed by NEXT_PUBLIC_STAGING_REVIEW_ONLY in the root layout
+# and STAGING_REVIEW_ONLY in the server conversions client. Keep inherited secret
+# references intact; use explicit review flags rather than empty env values.
