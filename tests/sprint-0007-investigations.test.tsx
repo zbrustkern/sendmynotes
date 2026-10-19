@@ -62,7 +62,7 @@ async function runSprint0007Tests() {
   console.log("=== SPRINT-0007: Order, Journey, and Economics Investigations Test Suite ===");
 
   await withSafeTestHarness(async () => {
-    const adminToken = generateAdminSessionToken("founder@sendmynotes.com");
+    const adminToken = generateAdminSessionToken("zbrustkern@gmail.com");
 
     // Backup mock collections for clean test isolation
     const ordersCol = firestoreDb.collection("orders") as any;
@@ -219,7 +219,7 @@ async function runSprint0007Tests() {
 
     const orderFounderFailed: Order = {
       id: "smn_ord_founder_failed",
-      customerEmail: "founder@sendmynotes.com",
+      customerEmail: "zbrustkern@gmail.com",
       status: "FAILED",
       isFounderTest: true,
       fulfillmentError: "Handwrytten robotic pen queue stalled",

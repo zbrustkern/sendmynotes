@@ -1,44 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
-  verifyAdminPassphrase,
   generateAdminSessionToken,
-  isValidAdminSessionToken,
+  verifyAdminAuth,
   getAdminSessionEmail,
   isAuthorizedAdminEmail,
   ADMIN_COOKIE_NAME,
 } from "@/lib/admin-auth";
 import { verifyFirebaseIdToken } from "@/lib/firebase-admin";
-import {
-  getClientIp,
-  checkAdminRateLimit,
-  recordAdminFailedAttempt,
-  clearAdminFailedAttempts,
-} from "@/lib/admin-rate-limit";
-
-// Check session and lockout status
+// Check the account-bound session.
 export async function GET(req: NextRequest) {
   const sessionCookie = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
-  const isAuthenticated = sessionCookie ? isValidAdminSessionToken(sessionCookie) : false;
-  const email = sessionCookie ? getAdminSessionEmail(sessionCookie) : null;
-
-  const clientIp = getClientIp(req);
-  const rateLimit = await checkAdminRateLimit(clientIp);
+  const isAuthenticated = verifyAdminAuth(req);
+  const email = isAuthenticated && sessionCookie ? getAdminSessionEmail(sessionCookie) : null;
 
   return NextResponse.json({
     authenticated: isAuthenticated,
     email,
-    locked: rateLimit.locked,
-    retryAfterSeconds: rateLimit.retryAfterSeconds,
-    remainingAttempts: rateLimit.remainingAttempts,
   });
 }
 
-// Log in with retry limit enforcement
+// Exchange a verified Google administrator identity for a signed session.
 export async function POST(req: NextRequest) {
   try {
-    const clientIp = getClientIp(req);
-    const userAgent = req.headers.get("user-agent") || undefined;
-
     const body = await req.json().catch(() => ({}));
     const authHeader = req.headers.get("authorization");
     const idToken =
@@ -55,7 +38,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (!decoded.email || !isAuthorizedAdminEmail(decoded.email)) {
+      if (!decoded.email || !decoded.email_verified || decoded.firebase?.sign_in_provider !== "google.com" || !isAuthorizedAdminEmail(decoded.email)) {
         console.warn(`[AdminAuth] Access denied for user: ${decoded.email || decoded.uid}`);
         return NextResponse.json(
           {
@@ -66,7 +49,6 @@ export async function POST(req: NextRequest) {
       }
 
       // Successful verified admin user
-      await clearAdminFailedAttempts(clientIp);
       const token = generateAdminSessionToken(decoded.email);
       const response = NextResponse.json({
         success: true,
@@ -87,79 +69,7 @@ export async function POST(req: NextRequest) {
       return response;
     }
 
-    // 2. Passphrase Auth: Check if IP is currently locked out before processing passphrase
-    const rateLimit = await checkAdminRateLimit(clientIp);
-    if (!rateLimit.allowed) {
-      const minutes = Math.ceil((rateLimit.retryAfterSeconds || 60) / 60);
-      return NextResponse.json(
-        {
-          error: `Too many failed attempts. Admin portal is locked for this IP. Please try again in ${minutes} minute${
-            minutes === 1 ? "" : "s"
-          }.`,
-          locked: true,
-          retryAfterSeconds: rateLimit.retryAfterSeconds,
-        },
-        {
-          status: 429,
-          headers: {
-            "Retry-After": String(rateLimit.retryAfterSeconds || 900),
-          },
-        }
-      );
-    }
-
-    const passphrase = body?.passphrase;
-
-    // 2. Validate passphrase
-    if (!passphrase || !verifyAdminPassphrase(passphrase)) {
-      const failureResult = await recordAdminFailedAttempt(clientIp, userAgent);
-
-      if (failureResult.locked) {
-        return NextResponse.json(
-          {
-            error: "Too many failed attempts. Admin access has been locked for 15 minutes.",
-            locked: true,
-            retryAfterSeconds: failureResult.retryAfterSeconds,
-          },
-          {
-            status: 429,
-            headers: {
-              "Retry-After": String(failureResult.retryAfterSeconds || 900),
-            },
-          }
-        );
-      }
-
-      return NextResponse.json(
-        {
-          error: `Invalid admin passphrase. ${failureResult.remainingAttempts} attempt${
-            failureResult.remainingAttempts === 1 ? "" : "s"
-          } remaining before lockout.`,
-          remainingAttempts: failureResult.remainingAttempts,
-          locked: false,
-        },
-        { status: 401 }
-      );
-    }
-
-    // 3. Clear failed attempts on successful login
-    await clearAdminFailedAttempts(clientIp);
-
-    const token = generateAdminSessionToken();
-    const response = NextResponse.json({ success: true });
-
-    // Set secure httpOnly cookie (valid for 8 hours)
-    response.cookies.set({
-      name: ADMIN_COOKIE_NAME,
-      value: token,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      path: "/",
-      maxAge: 60 * 60 * 8,
-    });
-
-    return response;
+    return NextResponse.json({ error: "Sign in with an authorized Google administrator account." }, { status: 401 });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error verifying admin auth";
     return NextResponse.json({ error: msg }, { status: 500 });

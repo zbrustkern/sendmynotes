@@ -1,0 +1,50 @@
+{
+  "revision": "sendmynotes-staging-build-2026-10-19-003",
+  "traffic": [
+    {
+      "revisionName": "sendmynotes-staging-build-2026-10-19-003",
+      "percent": 100,
+      "tag": "t-3326296763",
+      "url": "https://t-3326296763---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    }
+  ],
+  "environment": {
+    "NEXT_PUBLIC_STAGING_REVIEW_ONLY": "true",
+    "NEXT_PUBLIC_APP_URL": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+    "FIREBASE_PROJECT_ID": "sendmynotes-staging",
+    "NEXT_PUBLIC_FIREBASE_PROJECT_ID": "sendmynotes-staging",
+    "STAGING_REVIEW_ONLY": "true",
+    "HANDWRYTTEN_TEST_MODE": "true"
+  },
+  "signingKeyBound": true,
+  "checks": [
+    {
+      "path": "/admin",
+      "status": 200,
+      "location": null,
+      "productionAdvertisingScripts": false,
+      "bytes": 22355
+    },
+    {
+      "path": "/admin/growth",
+      "status": 200,
+      "location": null,
+      "productionAdvertisingScripts": false,
+      "bytes": 19377
+    },
+    {
+      "path": "/api/admin/reporting",
+      "status": 401,
+      "location": null,
+      "productionAdvertisingScripts": false,
+      "bytes": 48
+    },
+    {
+      "path": "/api/admin/reliability",
+      "status": 401,
+      "location": null,
+      "productionAdvertisingScripts": false,
+      "bytes": 24
+    }
+  ]
+}

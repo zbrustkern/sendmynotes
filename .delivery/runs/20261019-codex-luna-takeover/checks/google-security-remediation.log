@@ -1,0 +1,63 @@
+=================================================
+🛡️ RUNNING SECURITY REVIEW REMEDIATION TESTS
+=================================================
+
+--- 1. Testing Admin Auth Fail-Closed & Expiry ---
+[AdminAuth] ERROR: ADMIN_SECRET_KEY is not configured in production environment.
+✅ PASS: In production, getAdminSecret() returns null if environment variable is missing
+✅ PASS: In production without secret, hardcoded fallback 'sendmynotes2026' is rejected
+✅ PASS: Configured secret is returned correctly
+✅ PASS: Shared admin keys are rejected even when configured
+✅ PASS: Expired admin session token (> 8 hours) is rejected
+✅ PASS: Mismatched signature length returns false without throwing ERR_CRYPTO_TIMING_SAFE_EQUAL_LENGTH
+✅ PASS: Freshly generated session token is valid
+✅ PASS: Primary founder email zbrustkern@gmail.com is authorized as admin
+✅ PASS: Secondary founder email sentral@gmail.com is authorized as admin
+✅ PASS: Case-insensitive matching authorizes ZBRUSTKERN@GMAIL.COM
+✅ PASS: Unauthorized email attacker@evil.com is rejected
+✅ PASS: Authorized admin zbrustkern@gmail.com logs in via ID token and receives smn_admin_session cookie
+✅ PASS: Authorized admin sentral@gmail.com logs in via ID token
+✅ PASS: Session token for sentral@gmail.com validates cleanly without failing on dots in domain
+✅ PASS: Session token safely extracts sentral@gmail.com
+✅ PASS: GET /api/admin/auth recognizes authenticated session and returns email
+✅ PASS: GET /api/admin/metrics succeeds with 200 using session cookie (Got: 200)
+[AdminAuth] Access denied for user: randomuser@example.com
+✅ PASS: Non-admin Google account randomuser@example.com is rejected with HTTP 403
+✅ PASS: Stripe test key in production environment with FIREBASE_PROJECT_ID=sendmynotes-staging resolves to stripe_test
+✅ PASS: Stripe test key in production environment with K_SERVICE=sendmynotes-staging resolves to stripe_test
+✅ PASS: Production client Firebase config has non-empty valid API key
+✅ PASS: Default client Firebase config matches production API key
+✅ PASS: Staging environment resolves staging client Firebase API key
+✅ PASS: Staging environment resolves staging projectId
+✅ PASS: getFirebaseAuth initializes successfully with non-empty API key
+
+--- 2. Testing /api/admin/test-meta-capi Protection ---
+✅ PASS: Unauthenticated /api/admin/test-meta-capi rejected with HTTP 401 (Got: 401)
+✅ PASS: Missing testEventCode rejected with HTTP 400 to protect live ad measurement (Got: 400)
+
+--- 3. Testing /api/account & /api/reminders ID Token Protection ---
+✅ PASS: Unauthenticated /api/account GET rejected with HTTP 401 (Got: 401)
+✅ PASS: Cross-account UID spoofing rejected with HTTP 403 (Got: 403)
+✅ PASS: Verified user account retrieval succeeds with HTTP 200 (Got: 200)
+✅ PASS: Unauthenticated /api/reminders GET rejected with HTTP 401 (Got: 401)
+✅ PASS: Unauthenticated /api/reminders DELETE rejected with HTTP 401 (Got: 401)
+
+--- 4. Testing Free-Order Atomic State Machine & Replay Protection ---
+[Free Order] Dispatching Order free_sec_test_1792438918966 (Promo: FREE100TEST) to Handwrytten...
+[Free Order] Test mode order free_sec_test_1792438918966. Skipping live Handwrytten dispatch.
+✅ PASS: Initial free order completion transitions to PROCESSING_HANDWRYTTEN (Status: 200)
+[Free Order] Idempotency lock active: Order free_sec_test_1792438918966 is currently 'PROCESSING_HANDWRYTTEN'. Dropping duplicate dispatch.
+✅ PASS: Replay of completed free order returns alreadyProcessed: true without duplicating fulfillment
+✅ PASS: Exhausted promo code (maxUses: 1) on second order rejected with HTTP 400 (Status: 400)
+
+--- 5. Testing Handwrytten Path Traversal & SSRF Protections ---
+✅ PASS: Path traversal escaped path blocked: "Invalid image path: traversal outside public directory is prohibited"
+✅ PASS: SSRF metadata host blocked: "Prohibited host for cover image fetch"
+
+--- 6. Testing Order Sanitization & Unlock Throttling ---
+✅ PASS: Public order view masks entire 5-digit ZIP without revealing prefix digits (Got: "•••••")
+✅ PASS: After 5 failed attempts, brute-force ZIP verification is throttled with HTTP 429
+
+=================================================
+🎉 ALL SECURITY REMEDIATION TESTS PASSED (39/39)
+=================================================

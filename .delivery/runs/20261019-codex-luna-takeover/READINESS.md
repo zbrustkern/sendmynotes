@@ -86,3 +86,13 @@ Automatic approval review rejected creating the private staging signing key, gra
 ## Staging approval resolved
 
 The founder explicitly approved the staging push after reviewing the configuration request. The existing staging backend now selects `environment=staging`. A private signing key was created in the staging project and its existing compute service account was verified to have read access. No key value was printed or saved locally. Production configuration was not modified. The approved staging push and rollout verification are in progress.
+
+## Staging deployment verified
+
+Deployed commit `a73debd90949700d33fff9659defd72611f26f3d`; rollout `build-2026-10-19-003` succeeded, build READY, serving revision `sendmynotes-staging-build-2026-10-19-003` at 100% traffic. See `checks/staging-rollout.json` and `checks/staging-runtime.json`.
+
+The first attempt rejected empty environment overrides; they were removed in favor of the explicit client/server review guards already tested. The second attempt exposed missing access for App Hosting's deployment service; the standard `apphosting:secrets:grantaccess` setup completed the founder-approved backend secret access. No application rollback or provider transaction was needed.
+
+Hosted `/admin` and `/admin/growth` return 200 with production advertising scripts absent. Unauthenticated reporting and reliability APIs return 401. Runtime uses the staging project and URL; both review flags, supplier test flag and private signing-key binding are verified. Live charges, physical submission and email remain blocked by review guards. No real transaction was attempted. Signed-in navigation, mutations and the outstanding acceptance gates remain unverified. Production was unchanged.
+
+This deployment evidence is retained locally after the pushed revision, avoiding an unnecessary deployment solely to publish its own result.

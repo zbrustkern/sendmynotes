@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAdminSessionEmail, isValidAdminSessionToken, verifyAdminAuth, ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
+import { getAuthenticatedAdminActor, verifyAdminAuth } from "@/lib/admin-auth";
 import { getOperationalControls, previewOperationalControl, updateOperationalControl, OperationalControlName } from "@/lib/operational-controls";
 
 const NAMES: OperationalControlName[] = ["checkout", "fulfillment", "generation"];
@@ -17,9 +17,7 @@ export async function POST(req: NextRequest) {
     if (!NAMES.includes(body?.control) || typeof body?.paused !== "boolean" || typeof body?.reason !== "string") {
       return NextResponse.json({ error: "control, paused, and reason are required" }, { status: 400 });
     }
-    const token = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
-    const actor = token ? getAdminSessionEmail(token) : null;
-    const authorizedActor = actor || (token && isValidAdminSessionToken(token) ? "admin-session-operator" : null) || (req.headers.get("x-admin-key") ? "admin-key-operator" : null);
+    const authorizedActor = getAuthenticatedAdminActor(req);
     if (!authorizedActor) return NextResponse.json({ error: "Could not identify authorized operator" }, { status: 403 });
     const controls = await updateOperationalControl({ name: body.control, paused: body.paused, reason: body.reason, actor: authorizedActor });
     return NextResponse.json({ success: true, controls });

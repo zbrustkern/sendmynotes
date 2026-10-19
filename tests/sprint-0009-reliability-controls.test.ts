@@ -23,7 +23,7 @@ async function main() {
     const backups = [config, audit, incident, outbox, incidentAudit, incidentGroups, checks].map((c) => new Map(c.store));
     [config, audit, incident, outbox, incidentAudit, incidentGroups, checks].forEach((c) => c.store.clear());
     try {
-      const token = generateAdminSessionToken("operator@example.test");
+      const token = generateAdminSessionToken("zbrustkern@gmail.com");
       const adminRequest = (body: unknown) => new NextRequest("http://localhost/api/admin/operational-controls", {
         method: "POST", headers: { "content-type": "application/json", cookie: `${ADMIN_COOKIE_NAME}=${token}` }, body: JSON.stringify(body),
       });
@@ -31,7 +31,7 @@ async function main() {
       assert.equal(paused.status, 200, "authorized change applies");
       assert.equal(audit.store.size, 1, "change writes audit event");
       const auditEvent = [...audit.store.values()][0] as any;
-      assert.equal(auditEvent.actor, "operator@example.test");
+      assert.equal(auditEvent.actor, "zbrustkern@gmail.com");
       assert.equal(auditEvent.reason, "Synthetic maintenance drill");
       const checkout = await createIntent(new NextRequest("http://localhost/api/checkout/create-intent", { method: "POST", body: "{}" }));
       assert.equal(checkout.status, 503, "checkout pause is enforced on active intent route");

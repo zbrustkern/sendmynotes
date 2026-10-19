@@ -1,0 +1,2 @@
+[AdminAuth] Access denied for user: unknown@example.com
+Google-only auth: valid allowed account succeeds; passphrase, header key, anonymous/unauthorized sessions and production mock identities rejected.

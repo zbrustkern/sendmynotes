@@ -24,7 +24,7 @@ async function main() {
     const backups = collections.map((collection) => new Map(collection.store));
     collections.forEach((collection) => collection.store.clear());
     try {
-      const token = generateAdminSessionToken("operator@example.test");
+      const token = generateAdminSessionToken("zbrustkern@gmail.com");
       assert.equal((await decisionsGet(new NextRequest("http://localhost/api/admin/decisions"))).status, 401, "decision API requires admin auth");
       const decision = {
         hypothesis: "A clearer preview may reduce uncertainty.", observation: "The supplied historical dashboard is not a validated funnel.", cohort: "Personal senders on the new card preview; sample is not yet established.",

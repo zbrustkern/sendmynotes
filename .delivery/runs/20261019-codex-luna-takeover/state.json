@@ -3,7 +3,7 @@
   "run_id": "20261019-codex-luna-takeover",
   "workflow": "df-sprint-execute",
   "project_root": "/Users/zeke/code/sendmynotes",
-  "stage": "approved staging deployment",
+  "stage": "Google-only authentication repair ready for staging redeploy",
   "status": "active",
   "owner": "Codex coordinator",
   "participants": [
@@ -85,8 +85,10 @@
   ],
   "iteration": 3,
   "iteration_limit": 3,
-  "next_action": "Push staging and verify App Hosting rollout, revision, review-only settings and public authentication boundary.",
-  "updated_at": "2026-10-19T19:20:21.083616+00:00",
+  "next_action": "Verify replacement staging build, deploy, then check hosted Google-only screen and rejection of passphrase login.",
+  "updated_at": "2026-10-19T19:29:11.393727+00:00",
   "implementation_commit": "fe090f4",
-  "deployment_status": "configuration verified; pushing staging"
+  "deployment_status": "SUCCEEDED",
+  "deployed_commit": "a73debd90949700d33fff9659defd72611f26f3d",
+  "deployed_revision": "sendmynotes-staging-build-2026-10-19-003"
 }

@@ -89,12 +89,7 @@ export default function AdminDashboardPage() {
   const [adminUserEmail, setAdminUserEmail] = useState<string | null>(null);
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [accessKey, setAccessKey] = useState("");
   const [authError, setAuthError] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [isLockedOut, setIsLockedOut] = useState(false);
-  const [lockoutRemainingSeconds, setLockoutRemainingSeconds] = useState(0);
-  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
   // Workspace & Global Reporting Scope
   const [globalScope, setGlobalScope] = useState<AdminGlobalScope>(() => {
@@ -295,9 +290,6 @@ export default function AdminDashboardPage() {
         setAuthError(data.error || "Access denied. Your account is not authorized for administrator access.");
       } else {
         setIsAuthenticated(true);
-        setIsLockedOut(false);
-        setLockoutRemainingSeconds(0);
-        setRemainingAttempts(null);
         setAdminUserEmail(data.email || currentUser.email || null);
         fetchMetrics();
         fetchIncidents();
@@ -310,46 +302,6 @@ export default function AdminDashboardPage() {
       setAuthError(msg);
     } finally {
       setGoogleAuthLoading(false);
-    }
-  };
-
-  const verifyAccess = async (keyToTest: string) => {
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const res = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passphrase: keyToTest }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        if (res.status === 429 || data.locked) {
-          setIsLockedOut(true);
-          setLockoutRemainingSeconds(data.retryAfterSeconds || 900);
-          setRemainingAttempts(0);
-          setAuthError(data.error || "Too many failed attempts. Admin access is locked for 15 minutes.");
-        } else {
-          if (typeof data.remainingAttempts === "number") {
-            setRemainingAttempts(data.remainingAttempts);
-          }
-          setAuthError(data.error || "Invalid admin passphrase. Please try again.");
-        }
-      } else {
-        setIsAuthenticated(true);
-        setIsLockedOut(false);
-        setLockoutRemainingSeconds(0);
-        setRemainingAttempts(null);
-        fetchMetrics();
-        fetchIncidents();
-        fetchDiscounts();
-        fetchScenarios();
-        fetchOverviewReport();
-      }
-    } catch {
-      setAuthError("Network error. Please try again.");
-    } finally {
-      setAuthLoading(false);
     }
   };
 
@@ -854,22 +806,6 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    if (!isLockedOut || lockoutRemainingSeconds <= 0) return;
-    const interval = setInterval(() => {
-      setLockoutRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          setIsLockedOut(false);
-          setAuthError("");
-          setRemainingAttempts(5);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isLockedOut, lockoutRemainingSeconds]);
-
-  useEffect(() => {
     const checkAuth = async () => {
       try {
         const res = await fetch("/api/admin/auth");
@@ -889,15 +825,6 @@ export default function AdminDashboardPage() {
           fetchDiscounts();
           fetchScenarios();
           fetchOverviewReport(initialScope);
-        } else {
-          if (data.locked) {
-            setIsLockedOut(true);
-            setLockoutRemainingSeconds(data.retryAfterSeconds || 900);
-            setRemainingAttempts(0);
-            setAuthError("Admin portal is temporarily locked due to repeated failed attempts.");
-          } else if (typeof data.remainingAttempts === "number" && data.remainingAttempts < 5) {
-            setRemainingAttempts(data.remainingAttempts);
-          }
         }
       } catch (err) {
         console.error("Admin auth check failed:", err);
@@ -946,39 +873,27 @@ export default function AdminDashboardPage() {
   }, [globalScope.orderId]);
 
   if (!isAuthenticated) {
-    const minutes = Math.floor(lockoutRemainingSeconds / 60);
-    const seconds = lockoutRemainingSeconds % 60;
-    const formattedTimer = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
-
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-stone-200 shadow-xl space-y-6">
           <div className="text-center space-y-2">
-            <div
-              className={`w-12 h-12 mx-auto rounded-2xl flex items-center justify-center shadow-md transition-colors ${
-                isLockedOut ? "bg-rose-900 text-white" : "bg-stone-900 text-white"
-              }`}
-            >
-              {isLockedOut ? (
-                <ShieldAlert className="w-6 h-6 text-rose-400 animate-pulse" />
-              ) : (
-                <Lock className="w-6 h-6 text-amber-400" />
-              )}
+            <div className="w-12 h-12 mx-auto rounded-2xl flex items-center justify-center shadow-md bg-stone-900 text-white">
+              <Lock className="w-6 h-6 text-amber-400" />
             </div>
             <h1 className="text-2xl font-serif font-bold text-stone-900">
-              sendmynotes Admin Portal
+              SendMyNotes Command Center
             </h1>
             <p className="text-xs text-stone-500">
-              Sign in with your authorized Google administrator account or enter an admin passphrase.
+              Sign in with your authorized Google account to view business performance and manage SendMyNotes.
             </p>
           </div>
 
-          {/* 1. Account-Bound Authentication (Recommended) */}
+          {/* Account-bound Google sign-in */}
           <div className="space-y-3">
             <button
               type="button"
               onClick={handleGoogleAdminLogin}
-              disabled={googleAuthLoading || authLoading}
+              disabled={googleAuthLoading}
               className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-stone-900 hover:bg-black text-white rounded-xl font-medium text-sm transition shadow-md disabled:opacity-50 cursor-pointer"
             >
               {googleAuthLoading ? (
@@ -1024,90 +939,10 @@ export default function AdminDashboardPage() {
             )}
           </div>
 
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-stone-200"></div>
-            <span className="flex-shrink mx-3 text-[11px] font-medium text-stone-400 uppercase tracking-wider">
-              or use passphrase
-            </span>
-            <div className="flex-grow border-t border-stone-200"></div>
-          </div>
-
-          {isLockedOut ? (
-            <div className="p-5 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-3">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 text-xs font-semibold rounded-full border border-rose-200">
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span>Brute-Force Lockout Active</span>
-              </div>
-              <p className="text-xs text-rose-700 leading-relaxed font-sans">
-                Too many incorrect passphrase attempts. Access for this IP address is temporarily suspended.
-              </p>
-              <div className="py-2">
-                <div className="text-3xl font-mono font-bold text-rose-900 tracking-wider">
-                  {formattedTimer}
-                </div>
-                <div className="text-[10px] uppercase font-semibold text-rose-500 tracking-wider mt-0.5">
-                  Remaining Cooldown
-                </div>
-              </div>
-              <p className="text-[11px] text-stone-500">
-                The portal will automatically unlock once the cooldown timer expires. (Google sign-in remains active).
-              </p>
-            </div>
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (accessKey.trim()) verifyAccess(accessKey);
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600">
-                    Passphrase
-                  </label>
-                  {remainingAttempts !== null && remainingAttempts < 5 && (
-                    <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                      {remainingAttempts} attempt{remainingAttempts === 1 ? "" : "s"} left
-                    </span>
-                  )}
-                </div>
-                <input
-                  type="password"
-                  value={accessKey}
-                  onChange={(e) => {
-                    setAccessKey(e.target.value);
-                    if (authError) setAuthError("");
-                  }}
-                  disabled={authLoading}
-                  placeholder="Enter admin passphrase"
-                  autoComplete="current-password"
-                  className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                />
-              </div>
-
-              {authError && (
-                <p className="text-xs text-rose-600 font-medium flex items-center gap-1.5 bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>{authError}</span>
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={authLoading || !accessKey.trim()}
-                className="w-full py-2.5 bg-stone-800 hover:bg-stone-900 disabled:bg-stone-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
-              >
-                {authLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-stone-300" />
-                    <span>Verifying...</span>
-                  </>
-                ) : (
-                  <span>Unlock with Passphrase</span>
-                )}
-              </button>
-            </form>
+          {authError && (
+            <p role="alert" className="text-sm text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-xl">
+              {authError}
+            </p>
           )}
 
           <div className="text-center pt-2">

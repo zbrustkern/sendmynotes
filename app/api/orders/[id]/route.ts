@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderById } from "@/lib/firebase-admin";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 import { Order } from "@/lib/types";
 
 function maskEmail(email?: string): string {
@@ -62,11 +63,10 @@ export async function GET(
       url.searchParams.get("token") ||
       url.searchParams.get("viewToken") ||
       req.headers.get("x-view-token");
-    const adminKey = req.headers.get("x-admin-key");
 
     const isAuthorized =
       Boolean(order.viewToken && token && token === order.viewToken) ||
-      Boolean(adminKey && adminKey === process.env.ADMIN_SECRET_KEY);
+      verifyAdminAuth(req);
 
     if (isAuthorized) {
       return NextResponse.json({

@@ -862,9 +862,9 @@ async function runSprint0002Tests() {
     const unauthRes = await adminReconcileGet(unauthReq);
     assert.strictEqual(unauthRes.status, 401, "Admin reconcile rejects unauthenticated requests");
 
-    // 5E. Admin Reconcile GET endpoint with valid x-admin-key header
+    // 5E. Admin Reconcile GET endpoint with valid account-bound session header
     const authReq = new NextRequest("http://localhost:3000/api/admin/reconcile", {
-      headers: { "x-admin-key": "test_admin_secret_sprint_0002" },
+      headers: { cookie: `smn_admin_session=${generateAdminSessionToken("zbrustkern@gmail.com")}` },
     });
     const authRes = await adminReconcileGet(authReq);
     assert.strictEqual(authRes.status, 200);
@@ -876,7 +876,7 @@ async function runSprint0002Tests() {
     const drainReq = new NextRequest("http://localhost:3000/api/admin/reconcile", {
       method: "POST",
       headers: {
-        "x-admin-key": "test_admin_secret_sprint_0002",
+        cookie: `smn_admin_session=${generateAdminSessionToken("zbrustkern@gmail.com")}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ action: "drain_outbox", isReplay: true }),
@@ -886,7 +886,7 @@ async function runSprint0002Tests() {
     const analyticsRouteEntry = await enqueueOutboxEntry({ topic: "analytics_projection", orderId: "ord_admin_projection", idempotencyKey: `admin_projection_${Date.now()}`, payload: { amountInCents: 900, currency: "usd", isLive: false, status: "PENDING_PAYMENT" } });
     const analyticsDrainReq = new NextRequest("http://localhost:3000/api/admin/reconcile", {
       method: "POST",
-      headers: { "x-admin-key": "test_admin_secret_sprint_0002", "Content-Type": "application/json" },
+      headers: { cookie: `smn_admin_session=${generateAdminSessionToken("zbrustkern@gmail.com")}`, "Content-Type": "application/json" },
       body: JSON.stringify({ action: "drain_analytics", limit: 100 }),
     });
     const analyticsDrainRes = await adminReconcilePost(analyticsDrainReq);

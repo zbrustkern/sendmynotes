@@ -1,3 +1,4 @@
+import { generateAdminSessionToken } from "../lib/admin-auth";
 /**
  * tests/sprint-0004-reporting-and-spend.test.ts
  *
@@ -549,7 +550,7 @@ async function runSprint0004Verification() {
     testAssert(unauthSpendRes.status === 401, "Unauthenticated GET /api/admin/spend-cost returns 401");
 
     // 5B. Authenticated GET /api/admin/reporting (overview)
-    const authHeaders = { "x-admin-key": testAdminKey };
+    const authHeaders = { cookie: `smn_admin_session=${generateAdminSessionToken("zbrustkern@gmail.com")}` };
     const authReportingReq = new NextRequest("http://localhost:3000/api/admin/reporting?dateRange=oct13", {
       headers: authHeaders,
     });

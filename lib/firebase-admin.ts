@@ -391,12 +391,13 @@ export async function verifyFirebaseIdToken(
   const cleanToken = token.trim();
   if (admin.apps.length === 0 || isFirestoreMock) {
     // In mock mode / local test environment
-    if (cleanToken.startsWith("mock_token_")) {
+    if (process.env.NODE_ENV !== "production" && cleanToken.startsWith("mock_token_")) {
       const uid = cleanToken.replace("mock_token_", "");
       return {
         uid,
         email: uid.includes("@") ? uid : `${uid}@example.com`,
         email_verified: true,
+        firebase: { sign_in_provider: "google.com", identities: {} },
       } as unknown as admin.auth.DecodedIdToken;
     }
     return null;
