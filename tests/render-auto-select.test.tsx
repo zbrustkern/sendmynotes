@@ -115,7 +115,7 @@ const categoriesToTest = ["sympathy", "thank-you", "birthday", "congratulations"
 for (const cat of categoriesToTest) {
   const matched = matchOccasionToPreset(cat);
   assert(!!matched, `Category '${cat}' matches a preset`);
-  assert(matched?.imageUrl.startsWith("/presets/"), `Category '${cat}' has valid preset image (${matched?.imageUrl})`);
+  assert(Boolean(matched?.imageUrl.startsWith("/presets/")), `Category '${cat}' has valid preset image (${matched?.imageUrl})`);
   assert(matched?.title.length! > 0, `Category '${cat}' has valid preset title (${matched?.title})`);
 }
 

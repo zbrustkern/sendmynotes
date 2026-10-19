@@ -13,6 +13,10 @@ import { Order } from "./types";
 import { sendMetaCapiPurchaseEvent } from "./meta-conversions-api";
 import { recordServerTelemetry } from "./metrics-rollup";
 import { sendAddressDeferredEmail } from "./email-alerts";
+import { recordPaymentCaptureFact, deriveCommercialKind } from "./financial-ledger";
+import { enqueueOutboxEntry } from "./transactional-outbox";
+import { isOperationalControlPaused } from "./operational-controls";
+import { getStripeClient } from "./stripe";
 
 export interface ProcessPaidOrderResult {
   success: boolean;
@@ -27,12 +31,39 @@ export interface ProcessOrderOptions {
   userAgent?: string;
   isTest?: boolean;
   paymentMode?: "live" | "stripe_test" | "local_mock";
+  amountReceivedCents?: number;
+  currency?: string;
+  providerEventId?: string;
+  providerOccurredAt?: number;
+  simulateAnalyticsOutage?: boolean;
+  /** Provider object supplied only by trusted server routes after signature/retrieval. */
+  verifiedPaymentIntent?: { id: string; status?: string; amount?: number; amount_received?: number; currency?: string; livemode?: boolean; metadata?: Record<string, string> | null; created?: number; receipt_email?: string | null };
 }
 
 export interface SenderValidationResult {
   valid: boolean;
   error?: string;
   isBrandSender?: boolean;
+}
+
+export function verifyPaymentIntentForOrder(input: {
+  paymentIntent: { status?: string; amount?: number; amount_received?: number; currency?: string; metadata?: Record<string, string> | null };
+  orderId: string;
+  order: Order;
+}): { valid: boolean; reason?: string; expectedAmountCents: number; capturedAmountCents: number } {
+  const pi = input.paymentIntent;
+  const expectedAmountCents =
+    typeof input.order.finalAmountInCents === "number" && input.order.finalAmountInCents >= 0
+      ? input.order.finalAmountInCents
+      : typeof input.order.amountInCents === "number" && input.order.amountInCents >= 0
+      ? input.order.amountInCents
+      : 900;
+  const capturedAmountCents = pi.amount_received ?? pi.amount ?? 0;
+  if (pi.status !== "succeeded") return { valid: false, reason: `Payment status is ${pi.status || "unknown"}, expected succeeded`, expectedAmountCents, capturedAmountCents };
+  if ((pi.currency || "").toLowerCase() !== "usd") return { valid: false, reason: `Currency mismatch: expected usd, got ${pi.currency || "unknown"}`, expectedAmountCents, capturedAmountCents };
+  if (capturedAmountCents !== expectedAmountCents) return { valid: false, reason: `Payment amount mismatch: expected ${expectedAmountCents}¢, got ${capturedAmountCents}¢`, expectedAmountCents, capturedAmountCents };
+  if (!input.orderId || pi.metadata?.orderId !== input.orderId) return { valid: false, reason: "PaymentIntent metadata orderId does not match the order.", expectedAmountCents, capturedAmountCents };
+  return { valid: true, expectedAmountCents, capturedAmountCents };
 }
 
 export function validatePersonalSender(
@@ -97,6 +128,88 @@ export async function processPaidOrder(
 ): Promise<ProcessPaidOrderResult> {
   let order: Order;
 
+  // Read order and obtain payment authority before acquiring any dispatch lock. Callers
+  // cannot assert amount, currency, mode, or metadata through client-supplied fields.
+  const authorityOrder = await getOrderById(orderId);
+  if (!authorityOrder) return { success: false, status: "NOT_FOUND", error: `Order ${orderId} not found in database.` };
+  const alreadySubmitted = ["PROCESSING_HANDWRYTTEN", "MAILED", "AWAITING_RECIPIENT_ADDRESS", "DISPATCH_UNCERTAIN"].includes(authorityOrder.status);
+
+
+  const localMockAllowed = clientContext?.paymentMode === "local_mock" && process.env.NODE_ENV !== "production";
+  let paymentIntent: NonNullable<ProcessOrderOptions["verifiedPaymentIntent"]> | undefined = clientContext?.verifiedPaymentIntent;
+  if (!localMockAllowed && !paymentIntent) {
+    try {
+      paymentIntent = await getStripeClient().paymentIntents.retrieve(paymentIntentId) as unknown as NonNullable<ProcessOrderOptions["verifiedPaymentIntent"]>;
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Payment processor retrieval failed";
+      return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: `Unable to independently verify payment: ${msg}` };
+    }
+  }
+  if (localMockAllowed) {
+    paymentIntent = {
+      id: paymentIntentId, status: "succeeded",
+      amount: authorityOrder.finalAmountInCents ?? authorityOrder.amountInCents ?? 900,
+      amount_received: authorityOrder.finalAmountInCents ?? authorityOrder.amountInCents ?? 900,
+      currency: "usd", livemode: false, metadata: { orderId },
+    };
+  }
+  if (!paymentIntent || paymentIntent.id !== paymentIntentId) {
+    return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "PaymentIntent identity could not be verified against the requested payment." };
+  }
+  const operationId = authorityOrder.operationId || paymentIntent.metadata?.operationId;
+  const paymentCheck = verifyPaymentIntentForOrder({ paymentIntent, orderId, order: authorityOrder });
+  const capturedAmountCents = paymentIntent.amount_received ?? paymentIntent.amount ?? 0;
+  const paymentCurrency = (paymentIntent.currency || "unknown").toLowerCase();
+  const isLivePayment = Boolean(paymentIntent.livemode);
+  if (paymentIntent.status === "succeeded" && capturedAmountCents > 0) {
+    await recordPaymentCaptureFact({
+      orderId: paymentCheck.valid ? orderId : undefined,
+      paymentIntentId,
+      operationId,
+      buildSha: process.env.VERCEL_GIT_COMMIT_SHA || process.env.GIT_SHA,
+      amountCents: capturedAmountCents,
+      currency: paymentCurrency,
+      livemode: isLivePayment,
+      providerEventId: clientContext?.providerEventId,
+      commercialKind: paymentCheck.valid
+        ? deriveCommercialKind({
+            amountCents: capturedAmountCents,
+            livemode: isLivePayment,
+            isComp: authorityOrder.isComp,
+            isFounderTest: authorityOrder.isFounderTest,
+            paymentMethod: authorityOrder.paymentMethod,
+            explicitKind: (authorityOrder.discountAmountInCents || 0) > 0 ? "discounted_paid" : undefined,
+            paymentMode: localMockAllowed ? "local_mock" : (isLivePayment ? "live" : "stripe_test"),
+          })
+        : (isLivePayment ? "unresolved_historical" : "founder_test"),
+      occurredAt: clientContext?.providerOccurredAt,
+    });
+  }
+  if (!paymentCheck.valid) {
+    if (!alreadySubmitted) await updateOrderStatus(orderId, { status: "PAYMENT_VERIFICATION_FAILED", fulfillmentError: paymentCheck.reason } as any);
+    return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: paymentCheck.reason || "Payment verification failed." };
+  }
+  // The analytics projection is durable and retryable. If it cannot be enqueued, do
+  // not lose the capture-to-analytics boundary; a retry deduplicates the capture and
+  // attempts this enqueue again before dispatch.
+  await enqueueOutboxEntry({
+    topic: "analytics_projection", orderId, paymentIntentId,
+    idempotencyKey: `outbox_analytics_${orderId}_${paymentIntentId}`,
+    payload: { operationId: operationId || null, amountInCents: capturedAmountCents, currency: paymentCurrency, isLive: isLivePayment, status: authorityOrder.status },
+  });
+  if (alreadySubmitted) {
+    if (authorityOrder.status === "DISPATCH_UNCERTAIN") return { success: false, status: "DISPATCH_UNCERTAIN", error: "Supplier submission outcome is uncertain; reconcile before retrying." };
+    return { success: true, status: authorityOrder.status, handwryttenOrderId: authorityOrder.handwryttenOrderId, alreadyProcessed: true };
+  }
+  clientContext = {
+    ...clientContext,
+    isTest: !isLivePayment,
+    paymentMode: localMockAllowed ? "local_mock" : (isLivePayment ? "live" : "stripe_test"),
+    amountReceivedCents: capturedAmountCents,
+    currency: paymentCurrency,
+    verifiedPaymentIntent: paymentIntent,
+  };
+
   // 1. Atomic Locking via Firestore Transaction:
   // Read and check status atomically, and claim the 'DISPATCHING' lock.
   // This guarantees that even under extreme concurrency, only ONE thread acquires the lock.
@@ -117,8 +230,18 @@ export async function processPaidOrder(
         existingOrder.dispatchStartedAt &&
         Date.now() - existingOrder.dispatchStartedAt > 5 * 60 * 1000;
 
+      if (isStaleLock) {
+        transaction.update(docRef, {
+          status: "DISPATCH_UNCERTAIN",
+          fulfillmentError: "Supplier submission outcome is uncertain; reconcile before retrying.",
+          updatedAt: Date.now(),
+        });
+        return { ...existingOrder, status: "DISPATCH_UNCERTAIN" };
+      }
+
       if (
-        (existingOrder.status === "DISPATCHING" && !isStaleLock) ||
+        existingOrder.status === "DISPATCHING" ||
+        existingOrder.status === "DISPATCH_UNCERTAIN" ||
         existingOrder.status === "PROCESSING_HANDWRYTTEN" ||
         existingOrder.status === "MAILED" ||
         existingOrder.status === "AWAITING_RECIPIENT_ADDRESS"
@@ -179,6 +302,13 @@ export async function processPaidOrder(
     });
   } catch (err: unknown) {
     if (err instanceof DuplicateDispatchError) {
+      if (err.status === "DISPATCH_UNCERTAIN") {
+        return {
+          success: false,
+          status: "DISPATCH_UNCERTAIN",
+          error: "Supplier submission outcome is uncertain; reconcile before retrying.",
+        };
+      }
       console.log(
         `[OrderProcessor] Idempotency lock active: Order ${orderId} is currently '${err.status}' (HW ID: ${err.handwryttenOrderId || "pending"}). Safely dropping duplicate dispatch.`
       );
@@ -203,8 +333,53 @@ export async function processPaidOrder(
     throw err;
   }
 
+  // A stale provider submission is ambiguous. Never blindly submit physical mail again.
+  if (order.status === "DISPATCH_UNCERTAIN") {
+    return {
+      success: false,
+      status: "DISPATCH_UNCERTAIN",
+      error: "Supplier submission outcome is uncertain; reconcile before retrying.",
+    };
+  }
+
+  // Capture authority and analytics projection were persisted before lock acquisition above.
+  const expectedAmountCents = order.finalAmountInCents ?? order.amountInCents ?? 900;
+
+  // Underpayment check
+  if (
+    clientContext?.amountReceivedCents !== undefined &&
+    clientContext.amountReceivedCents < expectedAmountCents
+  ) {
+    const errorMsg = `Amount received (${clientContext.amountReceivedCents} cents) is less than required order subtotal (${expectedAmountCents} cents).`;
+    console.error(`[OrderProcessor Critical] ${errorMsg} on Order ${orderId}. Halting fulfillment.`);
+    await updateOrderStatus(orderId, {
+      status: "PAYMENT_VERIFICATION_FAILED",
+      fulfillmentError: errorMsg,
+    } as any);
+    await logIncident({
+      type: "STRIPE",
+      category: "OPERATOR_ACTION",
+      severity: "error",
+      summary: `Payment Mismatch on Order ${orderId}`,
+      technicalDetails: errorMsg,
+      metadata: {
+        orderId,
+        amountReceived: clientContext.amountReceivedCents,
+        expectedAmount: expectedAmountCents,
+      },
+    });
+    return {
+      success: false,
+      status: "PAYMENT_VERIFICATION_FAILED",
+      error: errorMsg,
+    };
+  }
+
   // Record server authority telemetry for verified purchase
   try {
+    if (clientContext?.simulateAnalyticsOutage) {
+      throw new Error("Simulated analytics telemetry outage");
+    }
     const rawSessionId =
       (order.attribution as any)?.sessionId ||
       order.sessionId ||
@@ -214,7 +389,7 @@ export async function processPaidOrder(
       sessionId: rawSessionId,
       orderId,
       metadata: {
-        amountInCents: order.finalAmountInCents || order.amountInCents || 900,
+        amountInCents: capturedAmountCents,
         isTest: Boolean(clientContext?.isTest || order.isTest),
         paymentMode: clientContext?.paymentMode || order.paymentMode || "stripe_test",
       },
@@ -238,12 +413,13 @@ export async function processPaidOrder(
     try {
       const finalTo = customerEmail || order.customerEmail;
       if (finalTo) {
-        await sendAddressDeferredEmail({
+        const addressEmail = await sendAddressDeferredEmail({
           to: finalTo,
           orderId,
           viewToken: order.viewToken || "",
           recipientName: `${order.recipientAddress?.firstName || ""} ${order.recipientAddress?.lastName || ""}`.trim() || "Recipient",
         });
+        if (addressEmail.success) await updateOrderStatus(orderId, { addressDeferredEmailSentAt: Date.now() });
       }
     } catch (emailErr) {
       console.warn("[OrderProcessor] Error sending address deferred magic link email:", emailErr);
@@ -290,6 +466,14 @@ export async function processPaidOrder(
 
   let fulfillment: { success: boolean; order_id?: string; error?: string; details?: unknown };
 
+  if (!isTestModePayment && await isOperationalControlPaused("fulfillment")) {
+    await updateOrderStatus(orderId, {
+      status: "QUEUED_FOR_FULFILLMENT",
+      fulfillmentError: "Supplier submission is paused by an administrator; paid order remains queued.",
+    });
+    return { success: true, status: "QUEUED_FOR_FULFILLMENT" };
+  }
+
   if (isTestModePayment) {
     // Test/Live safety boundary: Test payments must NEVER submit to live Handwrytten supplier
     console.log(
@@ -300,7 +484,8 @@ export async function processPaidOrder(
       order_id: `test_hw_${orderId}`,
     };
   } else {
-    // 5. Dispatch to Handwrytten robotic pen fulfillment with deterministic orderId for supplier idempotency
+    // 5. Submit once with our order reference. A deterministic reference alone
+    // does not establish supplier-side idempotency or safe transport retries.
     fulfillment = await fulfillHandwryttenOrder({
       orderId,
       imageUrl: order.frontImageUrl,
@@ -317,8 +502,8 @@ export async function processPaidOrder(
     const rawError = fulfillment.error || "";
     console.error(`[OrderProcessor] Handwrytten dispatch queued/failed for Order ${orderId}:`, rawError);
     await updateOrderStatus(orderId, {
-      status: "QUEUED_FOR_FULFILLMENT",
-      fulfillmentError: rawError || "Awaiting studio fulfillment queue",
+      status: "DISPATCH_UNCERTAIN",
+      fulfillmentError: rawError || "Supplier outcome unconfirmed; reconcile before retrying",
     });
 
     const isBillingError = /payment|card|balance|credit|funds/i.test(rawError);
@@ -342,7 +527,7 @@ export async function processPaidOrder(
       severity: isBillingError ? "error" : "warning",
       summary: `${summaryPrefix} for Order ${orderId}: ${rawError || "Fulfillment API error"}`,
       technicalDetails: rawError || "Handwrytten singleStepOrder API error",
-      metadata: { orderId, details: fulfillment.details },
+      metadata: { orderId, operationId: order.operationId || operationId, details: fulfillment.details },
     });
 
     try {
@@ -366,7 +551,7 @@ export async function processPaidOrder(
 
     return {
       success: false,
-      status: "QUEUED_FOR_FULFILLMENT",
+      status: "DISPATCH_UNCERTAIN",
       error: rawError,
     };
   }

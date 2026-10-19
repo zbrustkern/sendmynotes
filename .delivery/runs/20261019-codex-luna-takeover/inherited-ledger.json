@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "sprints": [
+    {
+      "id": "SPRINT-0001",
+      "title": "Restore reporting trust and freeze shared contracts",
+      "path": "docs/sprints/SPRINT-0001.md",
+      "status": "complete",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T19:19:00-05:00"
+    },
+    {
+      "id": "SPRINT-0002",
+      "title": "Establish durable financial truth and reconciliation",
+      "path": "docs/sprints/SPRINT-0002.md",
+      "status": "complete",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T19:33:00-05:00"
+    },
+    {
+      "id": "SPRINT-0003",
+      "title": "Instrument observed customer journeys and payment diagnostics",
+      "path": "docs/sprints/SPRINT-0003.md",
+      "status": "complete",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T19:47:00-05:00"
+    },
+    {
+      "id": "SPRINT-0004",
+      "title": "Build coherent reporting, spend and actual-cost coverage",
+      "path": "docs/sprints/SPRINT-0004.md",
+      "status": "complete",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T20:04:30-05:00"
+    },
+    {
+      "id": "SPRINT-0005",
+      "title": "Strengthen discount pricing, redemption and auto-apply",
+      "path": "docs/sprints/SPRINT-0005.md",
+      "status": "complete",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T20:14:30-05:00"
+    },
+    {
+      "id": "SPRINT-0006",
+      "title": "Deliver the compact executive overview and admin shell",
+      "path": "docs/sprints/SPRINT-0006.md",
+      "status": "complete",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T20:36:00-05:00"
+    },
+    {
+      "id": "SPRINT-0007",
+      "title": "Build order, journey and economics investigations",
+      "path": "docs/sprints/SPRINT-0007.md",
+      "status": "complete",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T20:54:00-05:00"
+    },
+    {
+      "id": "SPRINT-0008",
+      "title": "Ship first-class Promotions and Growth workspaces",
+      "path": "docs/sprints/SPRINT-0008.md",
+      "status": "complete",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T20:54:00-05:00"
+    },
+    {
+      "id": "SPRINT-0009",
+      "title": "Deliver measured reliability and safe operational controls",
+      "path": "docs/sprints/SPRINT-0009.md",
+      "status": "active",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T20:54:00-05:00"
+    },
+    {
+      "id": "SPRINT-0010",
+      "title": "Close the learning loop and prepare a verified release",
+      "path": "docs/sprints/SPRINT-0010.md",
+      "status": "planned",
+      "run_id": "20261018-admin-overhaul-plan",
+      "updated_at": "2026-10-18T23:47:09.272781+00:00"
+    }
+  ]
+}

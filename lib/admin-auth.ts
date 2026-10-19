@@ -37,14 +37,6 @@ export function getAdminSecret(): string | null {
   if (process.env.NODE_ENV !== "production") {
     return "sendmynotes2026";
   }
-  // If explicitly in staging environment, provide default staging passphrase
-  if (
-    process.env.FIREBASE_PROJECT_ID === "sendmynotes-staging" ||
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "sendmynotes-staging" ||
-    (typeof process.env.K_SERVICE === "string" && process.env.K_SERVICE.includes("staging"))
-  ) {
-    return "smn_staging_admin_2026";
-  }
   console.error("[AdminAuth] ERROR: ADMIN_SECRET_KEY is not configured in production environment.");
   return null;
 }
@@ -53,9 +45,12 @@ export function getAdminSecret(): string | null {
  * Secret key used to sign and verify HMAC session cookies.
  */
 export function getAdminSessionSigningKey(): string {
+  const independentKey = process.env.ADMIN_SESSION_SIGNING_KEY?.trim();
+  if (independentKey) return independentKey;
   const secret = getAdminSecret();
   if (secret) return secret;
-  return process.env.ADMIN_SESSION_SIGNING_KEY || "smn_internal_admin_session_key_2026";
+  if (process.env.NODE_ENV !== "production") return "smn_internal_admin_session_key_2026";
+  throw new Error("Admin session signing key is not configured in production.");
 }
 
 /**
@@ -82,7 +77,12 @@ export function generateAdminSessionToken(adminEmail?: string): string {
  */
 export function isValidAdminSessionToken(token: string): boolean {
   if (!token || typeof token !== "string" || !token.includes(".")) return false;
-  const signingKey = getAdminSessionSigningKey();
+  let signingKey: string;
+  try {
+    signingKey = getAdminSessionSigningKey();
+  } catch {
+    return false;
+  }
 
   const lastDot = token.lastIndexOf(".");
   if (lastDot === -1) return false;
@@ -181,4 +181,12 @@ export function verifyAdminPassphrase(passphrase: string): boolean {
   }
 
   return crypto.timingSafeEqual(passBuf, secretBuf);
+}
+
+/** Resolve audit identity from verified credentials, never from request body labels. */
+export function getAuthenticatedAdminActor(req: NextRequest): string | null {
+  if (!verifyAdminAuth(req)) return null;
+  const token = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
+  return (token ? getAdminSessionEmail(token) : null) ||
+    (req.headers.get("x-admin-key") ? "admin-key-operator" : "admin-session-operator");
 }

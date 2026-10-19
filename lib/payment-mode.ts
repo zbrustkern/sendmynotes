@@ -121,6 +121,9 @@ export function resolvePaymentMode(
 ): PaymentMode {
   const isProduction = env.NODE_ENV === "production";
   const { secret, keyType } = normalizeStripeSecretKey(env);
+  if (env.STAGING_REVIEW_ONLY === "true" && (keyType === "standard_live" || keyType === "restricted_live")) {
+    throw new PaymentModeConfigError("Live payments are disabled in staging review.", 503, "STAGING_LIVE_PAYMENT_DISABLED");
+  }
 
   const allowLocalMock =
     env.ALLOW_LOCAL_MOCK_PAYMENTS === "true" ||

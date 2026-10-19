@@ -51,7 +51,7 @@ async function runSecurityRemediationTests() {
   console.log("--- 1. Testing Admin Auth Fail-Closed & Expiry ---");
 
   // In production, when secret is missing, it must fail closed (return null)
-  process.env.NODE_ENV = "production";
+  Object.assign(process.env, { NODE_ENV: "production" });
   delete process.env.ADMIN_SECRET_KEY;
   delete process.env["admin-secret-key"];
 
@@ -335,6 +335,8 @@ async function runSecurityRemediationTests() {
 
   const promoCode: DiscountCode = {
     id: "FREE100TEST",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
     code: "FREE100TEST",
     type: "PERCENTAGE",
     value: 100,

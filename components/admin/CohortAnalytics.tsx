@@ -34,7 +34,7 @@ export function CohortAnalytics({ metrics }: CohortAnalyticsProps) {
             </p>
           </div>
           <span className="text-[11px] font-semibold text-indigo-800 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-200">
-            A/B Cohort
+            Descriptive Usage (Not an A/B Test)
           </span>
         </div>
 

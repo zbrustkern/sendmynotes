@@ -15,7 +15,7 @@ async function runTests() {
   console.log("\n--- 1. Testing Resend API Key Retrieval & In-Memory Caching ---");
   const key1 = await getResendApiKey();
   console.log("Key retrieval result:", key1 ? `${key1.slice(0, 5)}...` : "(none)");
-  
+
   // Call a second time - should hit the cache immediately
   const key2 = await getResendApiKey();
   assert.strictEqual(key1, key2, "Second retrieval must return identical cached key");
@@ -113,7 +113,7 @@ async function runTests() {
   const { saveOrder, getOrderById } = await import("@/lib/firebase-admin");
   const { NextRequest } = await import("next/server");
 
-  process.env.NODE_ENV = "test";
+  Object.assign(process.env, { NODE_ENV: "test" });
   process.env.TEST_BYPASS_WEBHOOK_SIGNATURE = "true";
 
   // 6A. Deferred address order in webhook

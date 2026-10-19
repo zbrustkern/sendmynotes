@@ -5,12 +5,19 @@ import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { PaymentModeConfigError, normalizeStripeSecretKey, resolvePaymentMode } from "@/lib/payment-mode";
 import { validatePersonalSender } from "@/lib/order-processor";
 import { validateDiscount } from "@/lib/discount";
+import { issueOfferPriceQuote, reserveOfferForCheckout } from "@/lib/offer-engine";
 import { Order, MailingAddress, RecipientOccasion } from "@/lib/types";
 import { logIncident } from "@/lib/incident-logger";
 import { saveOccasionReminder } from "@/lib/reminders";
+import { isOperationalControlPaused } from "@/lib/operational-controls";
+import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
 
 export async function POST(req: NextRequest) {
+  const operationId = resolveOperationId(req, "checkout");
   try {
+    if (await isOperationalControlPaused("checkout")) {
+      return withOperationId(NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again shortly.", code: "CHECKOUT_PAUSED", operationId }, { status: 503 }), operationId);
+    }
     const body = await req.json();
 
     const {
@@ -66,22 +73,47 @@ export async function POST(req: NextRequest) {
     let finalAmountInCents = CARD_FLAT_RATE_CENTS; // 900
     let discountAmountInCents = 0;
     let appliedCode: string | undefined = undefined;
+    let quoteId: string | undefined = undefined;
+    let appliedOfferId: string | undefined = undefined;
+    let appliedOfferVersion: number | undefined = undefined;
 
     if (rawDiscountCode && typeof rawDiscountCode === "string" && rawDiscountCode.trim()) {
       const codeToLookup = rawDiscountCode.trim().toUpperCase();
-      const discountDoc = await getDiscountCode(codeToLookup);
-      const validation = validateDiscount(discountDoc, CARD_FLAT_RATE_CENTS);
+      const quoteResult = await issueOfferPriceQuote({
+        code: codeToLookup,
+        listPriceCents: CARD_FLAT_RATE_CENTS,
+        sessionId,
+        nowMs: Date.now(),
+      });
 
-      if (!validation.valid) {
+      if (!quoteResult.valid) {
         return NextResponse.json(
-          { error: validation.error || "Invalid discount code." },
+          { error: quoteResult.error || "Invalid discount code." },
           { status: 400 }
         );
       }
 
-      appliedCode = validation.code;
-      discountAmountInCents = validation.discountAmountInCents;
-      finalAmountInCents = validation.finalAmountInCents;
+      // Reserve slot transactionally
+      const reservation = await reserveOfferForCheckout({
+        code: codeToLookup,
+        orderId,
+        sessionId: sessionId || "sess_checkout",
+        quoteId: quoteResult.quote?.quoteId,
+      });
+
+      if (!reservation.reserved) {
+        return NextResponse.json(
+          { error: reservation.error || "This discount code has reached its maximum redemptions limit." },
+          { status: 400 }
+        );
+      }
+
+      appliedCode = quoteResult.offer?.code || codeToLookup;
+      discountAmountInCents = quoteResult.discountAmountInCents ?? 0;
+      finalAmountInCents = quoteResult.finalAmountInCents ?? CARD_FLAT_RATE_CENTS;
+      quoteId = quoteResult.quote?.quoteId;
+      appliedOfferId = quoteResult.offer?.offerId;
+      appliedOfferVersion = quoteResult.offer?.version;
     }
 
     const maybeSaveReminder = async () => {
@@ -116,8 +148,9 @@ export async function POST(req: NextRequest) {
 
     // Handle 100% Free Order (e.g. VIP/Launch Voucher)
     if (finalAmountInCents === 0) {
-      const orderRecord: Order = {
-        id: orderId,
+      const orderRecord: Order & Record<string, unknown> = {
+      id: orderId,
+      operationId,
         customerEmail,
         ...(userId ? { userId } : {}),
         frontImageUrl,
@@ -132,10 +165,15 @@ export async function POST(req: NextRequest) {
         status: "PENDING_PAYMENT",
         amountInCents: 0,
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
+        finalAmountInCents: 0,
         ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
         ...(appliedCode ? { discountCode: appliedCode } : {}),
         discountAmountInCents,
         paymentMethod: "PROMO_CODE",
+        ...(quoteId ? { quoteId } : {}),
+        ...(appliedOfferId ? { appliedOfferId } : {}),
+        ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
+        listPriceCents: CARD_FLAT_RATE_CENTS,
         ...(attribution ? { attribution } : {}),
         ...(sessionId ? { sessionId } : {}),
         ...(experienceVersion ? { experienceVersion } : {}),
@@ -147,18 +185,23 @@ export async function POST(req: NextRequest) {
       await saveOrder(orderRecord);
       await maybeSaveReminder();
 
-      return NextResponse.json({
+      return withOperationId(NextResponse.json({
         orderId,
+        operationId,
         viewToken,
         isFree: true,
         amountInCents: 0,
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
+        finalAmountInCents: 0,
         discountCode: appliedCode,
         discountAmountInCents,
+        quoteId,
+        appliedOfferId,
+        appliedOfferVersion,
         clientSecret: null,
         paymentIntentId: null,
         publishableKey: null,
-      });
+      }), operationId);
     }
 
     // Create Stripe PaymentIntent for the discounted or standard amount
@@ -166,18 +209,23 @@ export async function POST(req: NextRequest) {
       orderId,
       customerEmail: customerEmail || undefined,
       amountInCents: finalAmountInCents,
-      metadata: appliedCode
+      metadata: {
+        operationId,
+        ...(appliedCode
         ? {
             discountCode: appliedCode,
             discountAmountCents: String(discountAmountInCents),
             originalAmountCents: String(CARD_FLAT_RATE_CENTS),
+            ...(quoteId ? { quoteId } : {}),
           }
-        : undefined,
+        : {}),
+      },
     });
 
     // Construct and persist draft Order to Firestore
-    const orderRecord: Order = {
+    const orderRecord: Order & Record<string, unknown> = {
       id: orderId,
+      operationId,
       stripePaymentId: paymentIntentResult.paymentIntentId,
       customerEmail,
       ...(userId ? { userId } : {}),
@@ -193,10 +241,15 @@ export async function POST(req: NextRequest) {
       status: "PENDING_PAYMENT",
       amountInCents: finalAmountInCents,
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
+      finalAmountInCents,
       ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
       paymentMethod: "STRIPE",
+      ...(quoteId ? { quoteId } : {}),
+      ...(appliedOfferId ? { appliedOfferId } : {}),
+      ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
+      listPriceCents: CARD_FLAT_RATE_CENTS,
       ...(attribution ? { attribution } : {}),
       ...(sessionId ? { sessionId } : {}),
       ...(experienceVersion ? { experienceVersion } : {}),
@@ -218,8 +271,9 @@ export async function POST(req: NextRequest) {
         ? "pk_test_51UIUjfQRpUiJEWIAEBVsU9gEPGjYg84rOZRarlTUfW057pYo1YcbkHv00h288Bth0582JDovGyvz1ZfSPen6VSYP00u7h8Ve2Y"
         : null);
 
-    return NextResponse.json({
+    return withOperationId(NextResponse.json({
       orderId,
+      operationId,
       viewToken,
       clientSecret: paymentIntentResult.clientSecret,
       paymentIntentId: paymentIntentResult.paymentIntentId,
@@ -227,10 +281,14 @@ export async function POST(req: NextRequest) {
       isMock: paymentIntentResult.isMock,
       amountInCents: finalAmountInCents,
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
+      finalAmountInCents,
       discountCode: appliedCode,
       discountAmountInCents,
+      quoteId,
+      appliedOfferId,
+      appliedOfferVersion,
       isFree: false,
-    });
+    }), operationId);
   } catch (error: unknown) {
     if (error instanceof PaymentModeConfigError) {
       const keyInfo = normalizeStripeSecretKey();
@@ -244,9 +302,10 @@ export async function POST(req: NextRequest) {
         severity: "error",
         summary: "Stripe Payment Mode Configuration Error",
         technicalDetails: `Code: ${error.code}, Type: ${keyInfo.keyType}, Source: ${keyInfo.source}`,
+        metadata: operationMetadata(operationId),
       });
 
-      return NextResponse.json(
+      return withOperationId(NextResponse.json(
         {
           error:
             "Payment is temporarily unavailable. Your card and message are saved. Please try again shortly.",
@@ -254,7 +313,7 @@ export async function POST(req: NextRequest) {
           incidentId,
         },
         { status: error.statusCode }
-      );
+      ), operationId);
     }
 
     const rawMsg = error instanceof Error ? error.message : "Error creating checkout intent";
@@ -266,15 +325,16 @@ export async function POST(req: NextRequest) {
       severity: "error",
       summary: "Stripe PaymentIntent Initialization Error",
       technicalDetails: rawMsg,
+      metadata: operationMetadata(operationId),
     });
 
-    return NextResponse.json(
+    return withOperationId(NextResponse.json(
       {
         error:
           "We are temporarily experiencing difficulty connecting to our secure payment gateway. Our studio team has been notified. Please try again in a moment.",
         incidentId,
       },
       { status: 500 }
-    );
+    ), operationId);
   }
 }

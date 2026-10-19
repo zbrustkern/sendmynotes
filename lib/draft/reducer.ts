@@ -5,6 +5,7 @@ import {
   NoteDraft,
   AddressDraft,
   ScheduleDraft,
+  AppliedOfferDraft,
   AttributionDraft,
   CustomGenerationState,
 } from "./types";
@@ -28,6 +29,7 @@ export type DraftAction =
   | { type: "UPDATE_SENDER"; payload: AddressDraft | null }
   | { type: "UPDATE_SCHEDULE"; payload: ScheduleDraft | null }
   | { type: "SET_DISCOUNT_CODE"; payload: string | null }
+  | { type: "SET_APPLIED_OFFER"; payload: AppliedOfferDraft | null }
   | { type: "SET_ATTRIBUTION"; payload: AttributionDraft | null }
   | { type: "SET_CUSTOM_GENERATION"; payload: Partial<CustomGenerationState> }
   | { type: "SET_CHECKOUT_SNAPSHOT"; payload: string | null }
@@ -55,6 +57,7 @@ export function createInitialDraft(experienceVersion = "candidate_v1"): DraftSta
     sender: null,
     schedule: null,
     discountCode: null,
+    appliedOffer: null,
     attribution: null,
     customGeneration: {
       status: "idle",
@@ -161,6 +164,15 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         ...state,
         updatedAt: now,
         discountCode: action.payload,
+      };
+    }
+
+    case "SET_APPLIED_OFFER": {
+      return {
+        ...state,
+        updatedAt: now,
+        appliedOffer: action.payload,
+        discountCode: action.payload?.code ?? (action.payload === null ? null : state.discountCode),
       };
     }
 

@@ -293,8 +293,8 @@ async function runTests() {
       "Pet Loss deep link does NOT substitute generic fallback cover"
     );
     verify(
-      routerChild?.props.initialHandwrittenNote?.includes("paw prints") ||
-        routerChild?.props.initialHandwrittenNote?.includes("heart"),
+      Boolean(routerChild?.props.initialHandwrittenNote?.includes("paw prints") ||
+        routerChild?.props.initialHandwrittenNote?.includes("heart")),
       "Pet Loss deep link retains contextual pet sympathy message"
     );
   } catch (err) {

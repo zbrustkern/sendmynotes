@@ -1,0 +1,91 @@
+=================================================================
+🧪 RUNNING SPRINT-0003: TELEMETRY V2 & JOURNEY IDENTITY TESTS
+=================================================================
+
+--- Suite 1: Journey Identity, Inactivity Rotation & Resilience ---
+✅ PASS: Initial journey identity mints anonymousId, sessionId, journeyId
+✅ PASS: Identity in working storage is not degraded
+✅ PASS: Activity within 30m preserves sessionId
+✅ PASS: Activity within 30m preserves anonymousId
+✅ PASS: Activity within 30m preserves journeyId
+✅ PASS: Inactivity > 30m rotates sessionId to new session
+✅ PASS: Inactivity > 30m preserves anonymousId
+✅ PASS: Inactivity > 30m preserves journeyId
+✅ PASS: Throwing storage generates valid in-memory identity
+✅ PASS: Identity flagged degradedIdentity: true when storage throws
+✅ PASS: Draft resume preserves bound journeyId
+✅ PASS: Draft resume preserves bound anonymousId
+✅ PASS: Standard visitor classifies as customer
+✅ PASS: Explicit founder flag classifies as founder
+✅ PASS: Explicit staff flag classifies as staff
+✅ PASS: Crawler user agent classifies as known_bot
+✅ PASS: Automated test user agent classifies as synthetic
+✅ PASS: Explicit operator override respected
+
+--- Suite 2: Funnel Milestone Integrity & Bridging ---
+✅ PASS: cover_loaded does NOT classify as milestone
+✅ PASS: note_template_loaded does NOT classify as milestone
+✅ PASS: note_confirmed classifies as note_completed
+✅ PASS: address_confirmed classifies as address_completed
+✅ PASS: address_deferred classifies as address_completed
+✅ PASS: payment_captured classifies as paid
+✅ PASS: cover_loaded successfully ingested
+✅ PASS: note_template_loaded successfully ingested
+✅ PASS: note_confirmed with noteEdited: false ingested and bridged
+✅ PASS: note_confirmed with noteEdited: true ingested and bridged
+✅ PASS: address_confirmed ingested and bridged to address_completed
+✅ PASS: address_deferred ingested and bridged to address_completed
+
+--- Suite 3: Payment Diagnostics & Authority Boundary ---
+✅ PASS: Payment diagnostic event 'payment_ui_ready' is an allowed browser event
+✅ PASS: Payment diagnostic event 'payment_ui_failed' is an allowed browser event
+✅ PASS: Payment diagnostic event 'payment_attempted' is an allowed browser event
+✅ PASS: Payment diagnostic event 'payment_failed' is an allowed browser event
+✅ PASS: Payment diagnostic event 'payment_action_required' is an allowed browser event
+✅ PASS: Payment diagnostic event 'payment_canceled' is an allowed browser event
+✅ PASS: Payment diagnostic event 'payment_confirmation_observed' is an allowed browser event
+✅ PASS: payment_ui_failed ingested successfully
+✅ PASS: payment_canceled ingested successfully
+✅ PASS: Event 'payment_succeeded' is identified as an authority event
+✅ PASS: Event 'payment_succeeded' is in AUTHORITY_EVENTS set
+✅ PASS: Event 'card_rendered' is identified as an authority event
+✅ PASS: Event 'card_rendered' is in AUTHORITY_EVENTS set
+✅ PASS: Event 'mail_dispatched' is identified as an authority event
+✅ PASS: Event 'mail_dispatched' is in AUTHORITY_EVENTS set
+✅ PASS: Event 'order_state_transitioned' is identified as an authority event
+✅ PASS: Event 'order_state_transitioned' is in AUTHORITY_EVENTS set
+✅ PASS: Event 'reconciliation_completed' is identified as an authority event
+✅ PASS: Event 'reconciliation_completed' is in AUTHORITY_EVENTS set
+✅ PASS: Browser POST of authority event 'mail_dispatched' returns 403
+✅ PASS: Collector rejection diagnostics count incremented for authority rejection
+✅ PASS: Rejection reason 'browser_authority_rejected' recorded in diagnostics
+
+--- Suite 4: Redaction & Privacy Boundary ---
+✅ PASS: Safe metadata key 'charCount' preserved
+✅ PASS: Safe metadata key 'fontId' preserved
+✅ PASS: Prohibited key 'handwrittenNote' stripped
+✅ PASS: Prohibited key 'recipientAddress' stripped
+✅ PASS: Prohibited key 'customerEmail' stripped
+✅ PASS: Prohibited key 'insideNoteText' stripped
+✅ PASS: Prohibited key 'salutation' stripped
+✅ PASS: Prohibited key 'signOff' stripped
+✅ PASS: Prohibited key 'addressLine1' stripped
+✅ PASS: Safe string preserved
+✅ PASS: Value containing email dropped
+✅ PASS: Value containing Bearer token dropped
+✅ PASS: URL sanitized to origin + pathname without query params/hash
+✅ PASS: sec-gpc: 1 header resolves consent to 'gpc_restricted'
+
+--- Suite 5: Deduplication, Stable Event IDs & Clock Skew ---
+✅ PASS: First event ingestion succeeds with duplicate: false
+✅ PASS: Second event ingestion with same eventId returns duplicate: true
+✅ PASS: Concurrent identical event IDs persist once and report one duplicate
+✅ PASS: Collector duplicate count incremented
+✅ PASS: Concurrent collector counter updates persist without lost increments
+✅ PASS: First API ingestion succeeds
+✅ PASS: Retry API ingestion with same eventId returns duplicate: true
+✅ PASS: Envelope records clock_skew_ms
+
+=================================================================
+📊 SPRINT-0003 TELEMETRY V2 TEST RESULTS: 74 PASSED, 0 FAILED
+=================================================================

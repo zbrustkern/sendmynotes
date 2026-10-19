@@ -24,6 +24,8 @@ export async function GET(req: NextRequest) {
     if (!apiKey) {
       return NextResponse.json({
         connected: false,
+        credits: null, cardsRemaining: null, lowBalanceWarning: false, accountEmail: null,
+        modeLabel: "Provider connection unverified",
         isTestMode,
         backplateImageId,
         message: "HANDWRYTTEN_API_KEY not configured",
@@ -48,12 +50,13 @@ export async function GET(req: NextRequest) {
     }
 
     // Handwrytten credit card on file / auto-reload accounts or credit balance
-    const credits = accountData?.user?.credits || accountData?.credits || null;
-    const cardsRemaining = credits !== null ? Math.floor(credits / 3.5) : null;
+    const rawCredits = accountData?.user?.credits ?? accountData?.credits;
+    const credits = typeof rawCredits === "number" && Number.isFinite(rawCredits) ? rawCredits : null;
+    const cardsRemaining = null; // Actual per-card supplier charges are unconfirmed.
     const lowBalanceWarning = credits !== null ? credits < 15 : false;
 
     return NextResponse.json({
-      connected: true,
+      connected: accountData !== null,
       isTestMode,
       backplateImageId,
       credits,

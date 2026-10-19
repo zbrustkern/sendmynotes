@@ -1,0 +1,17 @@
+{
+  "checked_at": "2026-10-18T23:48:08.200830+00:00",
+  "scope": "Planning artifacts only; no application tests or implementation verification run",
+  "sprints": 10,
+  "tasks": 50,
+  "acceptance_criteria": 40,
+  "markdown_files_checked": 18,
+  "checks": {
+    "unique_ids_and_planned_status": true,
+    "acyclic_existing_dependencies": true,
+    "required_sections_and_task_references": true,
+    "local_markdown_links_and_formatting": true,
+    "requirements_map_covers_all_sprints": true
+  },
+  "errors": [],
+  "passed": true
+}

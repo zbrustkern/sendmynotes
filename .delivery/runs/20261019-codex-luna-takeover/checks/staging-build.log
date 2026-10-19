@@ -1,0 +1,126 @@
+ ⚠ Linting is disabled.
+   ▲ Next.js 15.5.26
+
+   Creating an optimized production build ...
+(node:74221) Warning: To load an ES module, set "type": "module" in the package.json or use the .mjs extension.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ Compiled successfully in 7.4s
+   Checking validity of types ...
+   Collecting page data ...
+(node:74249) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:74246) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:74243) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:74244) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:74248) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:74247) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:74245) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+   Generating static pages (0/91) ...
+(node:74253) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:74251) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+   Generating static pages (22/91)
+(node:74252) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+   Generating static pages (45/91)
+(node:74250) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+   Generating static pages (68/91)
+ ✓ Generating static pages (91/91)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                        Size  First Load JS
+┌ ƒ /                                                             558 B         246 kB
+├ ○ /_not-found                                                   997 B         103 kB
+├ ○ /.well-known/apple-developer-merchantid-domain-association    210 B         103 kB
+├ ○ /account                                                    18.4 kB         164 kB
+├ ○ /admin                                                      44.7 kB         217 kB
+├ ○ /admin/economics                                            6.05 kB         163 kB
+├ ○ /admin/feature-flags                                          608 B         103 kB
+├ ○ /admin/growth                                               11.5 kB         159 kB
+├ ○ /admin/journeys                                             3.98 kB         169 kB
+├ ○ /admin/orders                                               6.85 kB         172 kB
+├ ○ /admin/promotions                                           12.9 kB         161 kB
+├ ƒ /api/account                                                  210 B         103 kB
+├ ƒ /api/admin/ad-spend                                           327 B         111 kB
+├ ƒ /api/admin/auth                                               210 B         103 kB
+├ ƒ /api/admin/decisions                                          210 B         103 kB
+├ ƒ /api/admin/discounts                                          210 B         103 kB
+├ ƒ /api/admin/dispatch-comp                                      210 B         103 kB
+├ ƒ /api/admin/feature-flags                                      210 B         103 kB
+├ ƒ /api/admin/growth                                             327 B         111 kB
+├ ƒ /api/admin/handwrytten-balance                                210 B         103 kB
+├ ƒ /api/admin/incidents                                          210 B         103 kB
+├ ƒ /api/admin/investigations                                     327 B         111 kB
+├ ƒ /api/admin/mark-founder-device                                210 B         103 kB
+├ ƒ /api/admin/metrics                                            327 B         111 kB
+├ ƒ /api/admin/operational-controls                               210 B         103 kB
+├ ƒ /api/admin/order-proof                                        210 B         103 kB
+├ ƒ /api/admin/promotions                                         327 B         111 kB
+├ ƒ /api/admin/reconcile                                          210 B         103 kB
+├ ƒ /api/admin/reliability                                        210 B         103 kB
+├ ƒ /api/admin/reporting                                          327 B         111 kB
+├ ƒ /api/admin/retry-fulfillment                                  327 B         111 kB
+├ ƒ /api/admin/scenarios                                          327 B         111 kB
+├ ƒ /api/admin/spend-cost                                         210 B         103 kB
+├ ƒ /api/admin/sync-handwrytten                                   210 B         103 kB
+├ ƒ /api/admin/sync-stripe                                        327 B         111 kB
+├ ƒ /api/admin/test-meta-capi                                     210 B         103 kB
+├ ƒ /api/admin/unflag-founder-sessions                            327 B         111 kB
+├ ƒ /api/admin/valuation-assumptions                              210 B         103 kB
+├ ƒ /api/checkout/complete-free-order                             327 B         111 kB
+├ ƒ /api/checkout/confirm-order                                   327 B         111 kB
+├ ƒ /api/checkout/create-intent                                   327 B         111 kB
+├ ƒ /api/discount/validate                                        210 B         103 kB
+├ ƒ /api/feature-flags                                            210 B         103 kB
+├ ƒ /api/feedback                                                 210 B         103 kB
+├ ƒ /api/generate-cover                                           210 B         103 kB
+├ ƒ /api/orders/[id]                                              210 B         103 kB
+├ ƒ /api/orders/[id]/complete-address                           1.18 kB         117 kB
+├ ƒ /api/reminders                                                210 B         103 kB
+├ ƒ /api/telemetry                                                327 B         111 kB
+├ ƒ /api/webhooks/handwrytten                                     210 B         103 kB
+├ ƒ /api/webhooks/stripe                                          327 B         111 kB
+├ ○ /apple-icon.png                                                 0 B            0 B
+├ ○ /icon.png                                                       0 B            0 B
+├ ○ /new                                                          189 B         220 kB
+├ ○ /opengraph-image.png                                            0 B            0 B
+├ ƒ /order/[id]                                                 12.1 kB         163 kB
+├ ƒ /order/[id]/complete-address                                  170 B         121 kB
+├ ƒ /orders/[id]/complete-address                                 170 B         121 kB
+├ ○ /preview                                                      210 B         103 kB
+├ ○ /preview/entry                                                189 B         220 kB
+├ ○ /privacy                                                      167 B         106 kB
+├ ○ /return-policy                                                167 B         106 kB
+├ ○ /robots.txt                                                   210 B         103 kB
+├ ƒ /send                                                         215 B         245 kB
+├ ● /send/[occasion]                                              215 B         245 kB
+├   ├ /send/thank-you
+├   ├ /send/sympathy
+├   ├ /send/congratulations
+├   └ [+4 more paths]
+├ ● /send/[occasion]/[slug]                                       215 B         245 kB
+├   ├ /send/thank-you/kindness-and-support
+├   ├ /send/thank-you/after-job-interview
+├   ├ /send/thank-you/to-mentor-or-advisor
+├   └ [+16 more paths]
+├ ○ /sitemap.xml                                                  210 B         103 kB
+├ ○ /terms                                                        167 B         106 kB
+└ ○ /twitter-image.png                                              0 B            0 B
++ First Load JS shared by all                                    102 kB
+  ├ chunks/162-174f4695fb3987fc.js                              46.3 kB
+  ├ chunks/81e83212-6c0567bda503c424.js                         54.2 kB
+  └ other shared chunks (total)                                 1.94 kB
+
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand

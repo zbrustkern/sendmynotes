@@ -65,8 +65,8 @@ export function HighIntentCartsWidget({ metrics }: HighIntentCartsWidgetProps) {
 
         <div className="flex items-center gap-3">
           <div className="text-right">
-            <span className="text-[10px] text-amber-800 uppercase font-semibold block">Recoverable Volume</span>
-            <span className="text-base font-bold text-amber-950">${potentialRevenue.toFixed(2)}</span>
+            <span className="text-[10px] text-amber-800 uppercase font-semibold block">Observed Inactive Sessions</span>
+            <span className="text-xs font-semibold text-amber-950">Latest 50 Sample — Unverified Identity</span>
           </div>
         </div>
       </div>
@@ -123,7 +123,7 @@ export function HighIntentCartsWidget({ metrics }: HighIntentCartsWidgetProps) {
                   type="button"
                   onClick={() => handleCopyLink("WELCOME10", cart.sessionId)}
                   className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 text-amber-950 text-[11px] font-semibold transition"
-                  title="Copy 1-Click Recovery Link ($2 off) to send to customer"
+                  title="Copy Generic Promo Link (No Draft Restore)"
                 >
                   {copiedLink === cart.sessionId ? (
                     <>
@@ -133,7 +133,7 @@ export function HighIntentCartsWidget({ metrics }: HighIntentCartsWidgetProps) {
                   ) : (
                     <>
                       <Tag className="w-3 h-3 text-amber-700" />
-                      <span>Copy Recovery Link</span>
+                      <span>Copy Generic Promo Link (No Draft Restore)</span>
                     </>
                   )}
                 </button>

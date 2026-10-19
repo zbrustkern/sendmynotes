@@ -190,7 +190,8 @@ async function runSenderValidationTests() {
     const defectiveProcessResult = await processPaidOrder(
       defectiveOrderId,
       "pi_simulated_paid_defective",
-      "victim@example.com"
+      "victim@example.com",
+      { paymentMode: "local_mock" }
     );
 
     assert(

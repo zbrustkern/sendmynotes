@@ -156,6 +156,7 @@ export function validateCoverImagePathOrUrl(imageUrl: string): void {
 export async function fulfillHandwryttenOrder(
   params: HandwryttenOrderParams
 ): Promise<HandwryttenOrderResult> {
+  if (process.env.STAGING_REVIEW_ONLY === "true") return { success: false, error: "Physical fulfillment is disabled in staging review." };
   // Validate image safety (containment & SSRF) immediately
   validateCoverImagePathOrUrl(params.imageUrl);
 
@@ -484,4 +485,3 @@ export async function fetchHandwryttenOrderStatus(
     return { success: false, error: msg };
   }
 }
-

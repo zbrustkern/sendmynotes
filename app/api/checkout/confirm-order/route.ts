@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getStripeClient, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { resolvePaymentMode, PaymentMode } from "@/lib/payment-mode";
-import { processPaidOrder } from "@/lib/order-processor";
+import { processPaidOrder, verifyPaymentIntentForOrder } from "@/lib/order-processor";
+import { recordPaymentCaptureFact, deriveCommercialKind } from "@/lib/financial-ledger";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { logIncident } from "@/lib/incident-logger";
+import { verifyCheckoutQuoteIntegrity, redeemOfferForOrder } from "@/lib/offer-engine";
 
 export async function POST(req: NextRequest) {
   try {
@@ -68,6 +70,7 @@ export async function POST(req: NextRequest) {
     let isTest = isMockDevMode;
     let paymentMode: PaymentMode = mode;
     let customerEmailFromStripe: string | undefined;
+    let serverVerifiedPaymentIntent: any;
 
     if (!isMockDevMode) {
       // Synchronously verify PaymentIntent directly via Stripe API (Fail Closed)
@@ -75,6 +78,7 @@ export async function POST(req: NextRequest) {
       try {
         const stripe = getStripeClient();
         pi = await stripe.paymentIntents.retrieve(verifiedPaymentIntentId);
+        serverVerifiedPaymentIntent = pi;
       } catch (stripeErr: unknown) {
         const msg = stripeErr instanceof Error ? stripeErr.message : "Stripe API retrieval error";
         console.error(`[Confirm Order] Failed to retrieve PaymentIntent ${verifiedPaymentIntentId}:`, msg);
@@ -99,6 +103,37 @@ export async function POST(req: NextRequest) {
             error: `Unable to verify payment with processor: ${msg}`,
           },
           { status: 400 }
+        );
+      }
+
+      const paymentCheck = verifyPaymentIntentForOrder({ paymentIntent: pi, orderId, order });
+      if (pi.status === "succeeded") await recordPaymentCaptureFact({
+        paymentIntentId: pi.id,
+        amountCents: pi.amount_received ?? pi.amount ?? 0,
+        currency: pi.currency || "usd",
+        livemode: Boolean(pi.livemode),
+        orderId: paymentCheck.valid ? orderId : undefined,
+        commercialKind: paymentCheck.valid
+          ? deriveCommercialKind({ amountCents: pi.amount_received ?? pi.amount ?? 0, livemode: Boolean(pi.livemode), isFounderTest: order.isFounderTest, isComp: order.isComp, paymentMethod: order.paymentMethod, explicitKind: (order.discountAmountInCents || 0) > 0 ? "discounted_paid" : undefined })
+          : (pi.livemode ? "unresolved_historical" : "founder_test"),
+        operationId: order.operationId || pi.metadata?.operationId,
+        // Synchronous verification observes success now; intent creation is not capture time.
+      });
+      if (!paymentCheck.valid) {
+        await updateOrderStatus(orderId, {
+          status: "PAYMENT_VERIFICATION_FAILED",
+          fulfillmentError: paymentCheck.reason,
+        });
+        await logIncident({
+          type: "STRIPE",
+          severity: "error",
+          summary: `Captured payment requires reconciliation for order ${orderId}`,
+          technicalDetails: paymentCheck.reason || "Payment verification failed.",
+          metadata: { orderId, paymentIntentId: pi.id },
+        });
+        return NextResponse.json(
+          { success: false, error: "Captured payment could not be matched to this order; fulfillment was not dispatched." },
+          { status: 409 }
         );
       }
 
@@ -132,9 +167,30 @@ export async function POST(req: NextRequest) {
 
       // Assert amount matches expected order total
       const expectedAmountCents =
-        typeof order.amountInCents === "number" && order.amountInCents > 0
+        typeof order.finalAmountInCents === "number" && order.finalAmountInCents >= 0
+          ? order.finalAmountInCents
+          : typeof order.amountInCents === "number" && order.amountInCents >= 0
           ? order.amountInCents
           : CARD_FLAT_RATE_CENTS;
+
+      // Verify quote integrity and price matching
+      const integrityCheck = await verifyCheckoutQuoteIntegrity({
+        quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
+        code: order.discountCode,
+        expectedFinalCents: expectedAmountCents,
+        paymentIntentAmountCents: pi.amount,
+      });
+
+      if (!integrityCheck.valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: integrityCheck.reason || "Price changed or quote expired. Please reconfirm total before paying.",
+            requiresPriceReconfirmation: true,
+          },
+          { status: 409 }
+        );
+      }
 
       if (pi.amount !== expectedAmountCents) {
         const errorMsg = `Payment amount mismatch: expected ${expectedAmountCents}¢ ($${(
@@ -192,6 +248,30 @@ export async function POST(req: NextRequest) {
       paymentMode = pi.livemode ? "live" : "stripe_test";
     } else {
       console.log(`[Confirm Order] Mock mode verification active for order ${orderId}`);
+      const expectedAmountCents =
+        typeof order.finalAmountInCents === "number" && order.finalAmountInCents >= 0
+          ? order.finalAmountInCents
+          : typeof order.amountInCents === "number" && order.amountInCents >= 0
+          ? order.amountInCents
+          : CARD_FLAT_RATE_CENTS;
+
+      const integrityCheck = await verifyCheckoutQuoteIntegrity({
+        quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
+        code: order.discountCode,
+        expectedFinalCents: expectedAmountCents,
+        paymentIntentAmountCents: expectedAmountCents,
+      });
+
+      if (!integrityCheck.valid) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: integrityCheck.reason || "Price changed or quote expired. Please reconfirm total before paying.",
+            requiresPriceReconfirmation: true,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const clientIp =
@@ -205,8 +285,23 @@ export async function POST(req: NextRequest) {
       orderId,
       verifiedPaymentIntentId,
       customerEmail || customerEmailFromStripe || order.customerEmail,
-      { clientIp, userAgent, isTest, paymentMode }
+      { clientIp, userAgent, isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent }
     );
+
+    if (result.success && order.discountCode) {
+      await redeemOfferForOrder({
+        code: order.discountCode,
+        orderId,
+        quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
+        discountAmountCents: order.discountAmountInCents || 0,
+        finalAmountCents:
+          typeof order.finalAmountInCents === "number"
+            ? order.finalAmountInCents
+            : order.amountInCents ?? CARD_FLAT_RATE_CENTS,
+        verifiedCaptureId: verifiedPaymentIntentId,
+        requireAuthoritativeBinding: true,
+      });
+    }
 
     return NextResponse.json({
       success: result.success,

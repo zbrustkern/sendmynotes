@@ -1,15 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { constructWebhookEvent } from "@/lib/stripe";
-import { processPaidOrder } from "@/lib/order-processor";
+import { processPaidOrder, verifyPaymentIntentForOrder } from "@/lib/order-processor";
 import { logIncident } from "@/lib/incident-logger";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import {
   sendDeferredAddressReceiptEmail,
   sendOrderPenningReceiptEmail,
 } from "@/lib/email/transactional";
+import { acceptWebhookEvent, markWebhookInboxProcessed, markWebhookInboxFailed } from "@/lib/webhook-inbox";
+import {
+  deriveCommercialKind,
+  resolvePaymentIntentReference,
+  recordPaymentCaptureFact,
+  recordPaymentRefundFact,
+  recordPaymentDisputeFact,
+} from "@/lib/financial-ledger";
 import Stripe from "stripe";
 
+
 export async function POST(req: NextRequest) {
+  let acceptedEventId: string | undefined;
   try {
     const rawBody = await req.text();
     const signature = req.headers.get("stripe-signature");
@@ -61,17 +71,81 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // 1. Durable Webhook Inbox Acceptance & Idempotency Check (SPRINT-0002)
+    const orderIdCandidate = (event.data.object as any)?.metadata?.orderId;
+    const paymentIntentIdCandidate =
+      event.type.startsWith("payment_intent")
+        ? (event.data.object as any)?.id
+        : (event.data.object as any)?.payment_intent;
+
+    const inboxResult = await acceptWebhookEvent({
+      provider: "stripe",
+      providerEventId: event.id,
+      eventType: event.type,
+      livemode: Boolean(event.livemode),
+      signatureVerified: true,
+      payloadSummary: {
+        eventId: event.id,
+        type: event.type,
+        objectId: (event.data.object as any)?.id,
+        operationId: (event.data.object as any)?.metadata?.operationId || null,
+      },
+      orderId: orderIdCandidate,
+      paymentIntentId: paymentIntentIdCandidate,
+    });
+
+    acceptedEventId = event.id;
+    if (inboxResult.duplicate) {
+      console.log(
+        `[Webhook] Duplicate Stripe webhook ${event.id} (${event.type}) received. Safely returning 200 OK.`
+      );
+      return NextResponse.json({ received: true, duplicate: true });
+    }
+
+    // 2. Handle Payment Intent Succeeded
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;
       const orderId = paymentIntent.metadata?.orderId;
-
-      if (!orderId) {
-        console.warn("[Webhook] payment_intent.succeeded missing metadata.orderId:", paymentIntent.id);
-        return NextResponse.json({ received: true, warning: "Missing orderId in metadata" });
-      }
-
       const isTestPayment = event.livemode === false || paymentIntent.livemode === false;
       const paymentMode = isTestPayment ? "stripe_test" : "live";
+      const amountReceived = paymentIntent.amount_received ?? paymentIntent.amount ?? 900;
+      const currency = paymentIntent.currency || "usd";
+
+      const order = orderId ? await getOrderById(orderId) : null;
+      const paymentCheck = order
+        ? verifyPaymentIntentForOrder({ paymentIntent, orderId: orderId!, order })
+        : { valid: false, reason: "PaymentIntent metadata orderId does not identify an existing order." };
+
+      // Persist evidence of captured money even when it cannot safely authorize fulfillment.
+      await recordPaymentCaptureFact({
+        paymentIntentId: paymentIntent.id,
+        operationId: paymentIntent.metadata?.operationId,
+        amountCents: amountReceived,
+        currency,
+        livemode: !isTestPayment,
+        providerEventId: event.id,
+        orderId: paymentCheck.valid ? orderId : undefined,
+        commercialKind: paymentCheck.valid
+          ? deriveCommercialKind({ amountCents: amountReceived, livemode: !isTestPayment, isFounderTest: order?.isFounderTest, isComp: order?.isComp, paymentMethod: order?.paymentMethod, explicitKind: (order?.discountAmountInCents || 0) > 0 ? "discounted_paid" : undefined })
+          : (isTestPayment ? "founder_test" : "unresolved_historical"),
+        occurredAt: event.created * 1000,
+      });
+
+      if (!paymentCheck.valid) {
+        await logIncident({
+          type: "STRIPE",
+          severity: "error",
+          summary: `Captured payment requires reconciliation (${paymentIntent.id})`,
+          technicalDetails: paymentCheck.reason || "Payment verification failed.",
+          metadata: { paymentIntentId: paymentIntent.id,
+        operationId: paymentIntent.metadata?.operationId, orderId: orderId || "" },
+        });
+        await markWebhookInboxProcessed(event.id);
+        return NextResponse.json({
+          received: true,
+          warning: "Captured payment recorded for reconciliation; fulfillment was not dispatched.",
+        });
+      }
 
       console.log(
         `[Webhook] Payment confirmed for Order ${orderId} (mode: ${paymentMode}, livemode: ${!isTestPayment}). Processing order...`
@@ -84,15 +158,24 @@ export async function POST(req: NextRequest) {
         {
           isTest: isTestPayment,
           paymentMode,
+          amountReceivedCents: amountReceived,
+          currency,
+          providerEventId: event.id,
+          providerOccurredAt: event.created * 1000,
+          verifiedPaymentIntent: paymentIntent,
         }
       );
 
       if (!result.success) {
-        return NextResponse.json({
-          received: true,
-          status: result.status,
-          error: result.error,
-        }, { status: 200 });
+        await markWebhookInboxProcessed(event.id);
+        return NextResponse.json(
+          {
+            received: true,
+            status: result.status,
+            error: result.error,
+          },
+          { status: 200 }
+        );
       }
 
       // Automated Transactional Email Dispatch (Resend + Google Secret Manager)
@@ -102,18 +185,19 @@ export async function POST(req: NextRequest) {
           const customerEmail = paymentIntent.receipt_email || order.customerEmail;
           const isAddressDeferred = Boolean(
             order.addressDeferred ||
-            (order as any).address_deferred ||
-            order.status === "AWAITING_RECIPIENT_ADDRESS" ||
-            paymentIntent.metadata?.address_deferred === "true" ||
-            paymentIntent.metadata?.addressDeferred === "true"
+              (order as any).address_deferred ||
+              order.status === "AWAITING_RECIPIENT_ADDRESS" ||
+              paymentIntent.metadata?.address_deferred === "true" ||
+              paymentIntent.metadata?.addressDeferred === "true"
           );
 
-          if (customerEmail && !(order as any).receiptEmailSentAt) {
+          if (customerEmail && !order.receiptEmailSentAt && !order.addressDeferredEmailSentAt) {
+            let delivery: { success: boolean; error?: string };
             if (isAddressDeferred) {
               console.log(
                 `[Webhook] Dispatching Scenario A (deferred address) receipt email to ${customerEmail} for order ${orderId}...`
               );
-              await sendDeferredAddressReceiptEmail({
+              delivery = await sendDeferredAddressReceiptEmail({
                 order,
                 customerEmail,
               });
@@ -121,14 +205,15 @@ export async function POST(req: NextRequest) {
               console.log(
                 `[Webhook] Dispatching Scenario B (penning confirmation) receipt email to ${customerEmail} for order ${orderId}...`
               );
-              await sendOrderPenningReceiptEmail({
+              delivery = await sendOrderPenningReceiptEmail({
                 order,
                 customerEmail,
               });
             }
 
+            if (!delivery.success) throw new Error(delivery.error || "Receipt provider did not acknowledge delivery request");
             await updateOrderStatus(orderId, {
-              receiptEmailSentAt: Date.now(),
+              ...(isAddressDeferred ? { addressDeferredEmailSentAt: Date.now() } : { receiptEmailSentAt: Date.now() }),
             } as any);
           }
         }
@@ -143,6 +228,8 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      await markWebhookInboxProcessed(event.id);
+
       return NextResponse.json({
         received: true,
         orderId,
@@ -151,9 +238,78 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // 3. Handle Charge Refunded (supports partial and multiple refunds)
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge;
+      const paymentIntentId = resolvePaymentIntentReference(charge.payment_intent);
+      const orderId = paymentIntentId ? charge.metadata?.orderId : undefined;
+      const isTestPayment = event.livemode === false || charge.livemode === false;
+
+      const refundsList = charge.refunds?.data || [];
+      if (refundsList.length > 0) {
+        for (const r of refundsList) {
+          await recordPaymentRefundFact({
+            refundId: r.id,
+            orderId,
+            paymentIntentId,
+            chargeId: charge.id,
+            amountCents: r.amount,
+            currency: r.currency || charge.currency || "usd",
+            livemode: !isTestPayment,
+            commercialKind: paymentIntentId ? undefined : "unresolved_historical",
+            providerEventId: event.id,
+            occurredAt: (r.created || charge.created) * 1000,
+            reason: r.reason || undefined,
+          });
+        }
+      } else {
+        // amount_refunded is a cumulative charge total, not a new refund.
+        // Converting each callback into a fact would double-count partial refunds.
+        // Keep the inbox retryable until itemized refund evidence is available.
+        throw new Error("Itemized refund IDs are unavailable; reconcile provider refunds before accepting this event.");
+      }
+
+      await markWebhookInboxProcessed(event.id);
+      return NextResponse.json({ received: true, event: "charge.refunded" });
+    }
+
+    // 4. Handle Charge Dispute Created
+    if (event.type === "charge.dispute.created") {
+      const dispute = event.data.object as Stripe.Dispute;
+      const chargeId =
+        typeof dispute.charge === "string" ? dispute.charge : (dispute.charge as any)?.id;
+      const expandedCharge = dispute.charge && typeof dispute.charge === "object" ? dispute.charge as unknown as Record<string, unknown> : undefined;
+      const paymentIntentId = resolvePaymentIntentReference((dispute as any).payment_intent) || resolvePaymentIntentReference(expandedCharge?.payment_intent);
+      const isTestPayment = event.livemode === false || dispute.livemode === false;
+
+      await recordPaymentDisputeFact({
+        disputeId: dispute.id,
+        chargeId,
+        paymentIntentId,
+        amountCents: dispute.amount || 0,
+        currency: dispute.currency || "usd",
+        livemode: !isTestPayment,
+        commercialKind: paymentIntentId ? undefined : "unresolved_historical",
+        providerEventId: event.id,
+        occurredAt: (dispute.created || Date.now() / 1000) * 1000,
+        reason: dispute.reason || undefined,
+      });
+
+      await markWebhookInboxProcessed(event.id);
+      return NextResponse.json({ received: true, event: "charge.dispute.created" });
+    }
+
+    await markWebhookInboxProcessed(event.id);
     return NextResponse.json({ received: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Webhook handler exception";
+    if (acceptedEventId) {
+      try {
+        await markWebhookInboxFailed(acceptedEventId, msg);
+      } catch (inboxErr) {
+        console.error("[Webhook] Failed to mark inbox record retryable:", inboxErr);
+      }
+    }
     console.error("[Webhook Exception]:", msg);
 
     await logIncident({

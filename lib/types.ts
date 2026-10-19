@@ -14,6 +14,7 @@ export type OrderStatus =
   | "PAYMENT_RECEIVED"
   | "AWAITING_RECIPIENT_ADDRESS"
   | "DISPATCHING"
+  | "DISPATCH_UNCERTAIN"
   | "PROCESSING_HANDWRYTTEN"
   | "QUEUED_FOR_FULFILLMENT"
   | "MAILED"
@@ -88,6 +89,9 @@ export interface OrderAttribution {
 
 export interface Order {
   id: string;
+  operationId?: string;
+  receiptEmailSentAt?: number;
+  addressDeferredEmailSentAt?: number;
   stripePaymentId?: string;
   customerEmail: string;
   userId?: string;
@@ -270,6 +274,7 @@ export type TelemetryEventName =
   | "note_completed"
   | "payment_viewed"
   | "wallet_availability_observed"
+  | "payment_confirmation_observed"
   | "payment_canceled"
   | "reminder_opt_in"
   // Server-only authority events (§10):
@@ -374,6 +379,9 @@ export interface FinancialMargins {
   averageFulfillmentCogsCents: number;
   averageNetContributionCents: number; // break-even target CPA
   targetBreakevenCpaDollars: number;
+  costStatus?: "verified" | "estimated" | "unconfirmed";
+  marginStatus?: "verified" | "estimated" | "unavailable";
+  spendStatus?: "verified" | "unverified_scalar" | "missing";
 }
 
 export interface CampaignAttributionMetric {
@@ -516,6 +524,10 @@ export interface AdminMetrics {
   filterChannel?: string;
   excludeFounder?: boolean;
   highIntentAbandoners?: VisitorSessionRecord[];
+  funnelMode?: "legacy_inferred" | "observed_v2";
+  unresolvedOrderCount?: number;
+  unresolvedRevenueCents?: number;
+  reportingNotes?: string[];
 }
 
 export interface FeatureFlagsMap {
@@ -528,4 +540,3 @@ export interface FeatureFlagsState {
   updatedAt?: number;
   updatedBy?: string;
 }
-

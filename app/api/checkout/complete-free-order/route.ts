@@ -12,10 +12,15 @@ import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { logIncident } from "@/lib/incident-logger";
 import { validatePersonalSender } from "@/lib/order-processor";
 import { sendAddressDeferredEmail } from "@/lib/email-alerts";
+import { redeemOfferForOrder } from "@/lib/offer-engine";
 import { Order, DiscountCode } from "@/lib/types";
+import { isOperationalControlPaused } from "@/lib/operational-controls";
 
 export async function POST(req: NextRequest) {
   try {
+    if (await isOperationalControlPaused("checkout")) {
+      return NextResponse.json({ error: "Checkout is temporarily unavailable.", code: "CHECKOUT_PAUSED" }, { status: 503 });
+    }
     const body = await req.json();
     const { orderId, discountCode, customerEmail } = body;
 
@@ -92,14 +97,6 @@ export async function POST(req: NextRequest) {
           throw new Error("This discount code has reached its maximum usage limit.");
         }
 
-        // Atomically increment discount usage inside transaction
-        transaction.update(discountRef, {
-          usedCount: (discountData.usedCount || 0) + 1,
-          totalDiscountGivenCents:
-            (discountData.totalDiscountGivenCents || 0) + CARD_FLAT_RATE_CENTS,
-          updatedAt: Date.now(),
-        });
-
         const finalEmail = customerEmail || existingOrder.customerEmail || "";
 
         // Atomically claim DISPATCHING lock on order
@@ -158,6 +155,28 @@ export async function POST(req: NextRequest) {
     }
 
     const { order } = txResult;
+
+    // 2.5. Deterministic offer redemption
+    const redemptionResult = await redeemOfferForOrder({
+      code: (order.discountCode || "").trim().toUpperCase(),
+      orderId,
+      quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
+      discountAmountCents: CARD_FLAT_RATE_CENTS,
+      finalAmountCents: 0,
+      isFreePromo: true,
+      requireAuthoritativeBinding: true,
+    });
+
+    if (!redemptionResult.redeemed) {
+      await updateOrderStatus(orderId, {
+        status: "FAILED",
+        fulfillmentError: redemptionResult.error || "Promo redemption failed.",
+      });
+      return NextResponse.json(
+        { error: redemptionResult.error || "This discount code has reached its maximum redemptions limit." },
+        { status: 400 }
+      );
+    }
 
     // 3. Sender validation
     const senderValidation = validatePersonalSender(order.returnAddress);
@@ -226,6 +245,12 @@ export async function POST(req: NextRequest) {
         success: true,
         order_id: `test_free_hw_${orderId}`,
       };
+    } else if (await isOperationalControlPaused("fulfillment")) {
+      await updateOrderStatus(orderId, {
+        status: "QUEUED_FOR_FULFILLMENT",
+        fulfillmentError: "Supplier submission is paused by an administrator; order remains queued.",
+      });
+      return NextResponse.json({ success: true, orderId, status: "QUEUED_FOR_FULFILLMENT", warning: "Order accepted and queued while supplier submission is paused." });
     } else {
       fulfillment = await fulfillHandwryttenOrder({
         orderId,

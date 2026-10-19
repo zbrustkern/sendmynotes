@@ -131,6 +131,7 @@ export default function RootLayout({
             }),
           }}
         />
+        {process.env.NEXT_PUBLIC_STAGING_REVIEW_ONLY !== "true" && <>
         {/* Google tag (gtag.js) for Google Tag, Google Ads & GA4 */}
         <script
           async
@@ -174,6 +175,7 @@ export default function RootLayout({
             alt=""
           />
         </noscript>
+        </>}
         <meta
           name="facebook-domain-verification"
           content={process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION || "7j8rbkz9ktc5jzapl53uueqvute5et"}

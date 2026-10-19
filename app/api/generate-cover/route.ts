@@ -4,12 +4,17 @@ import { generateThematicSentiments } from "@/lib/thematic-sentiment";
 import { saveImageCacheItem } from "@/lib/firebase-admin";
 import { checkRateLimit, refundRateLimit } from "@/lib/rate-limiter";
 import { logIncident } from "@/lib/incident-logger";
+import { isOperationalControlPaused } from "@/lib/operational-controls";
+import { resolveOperationId, withOperationId } from "@/lib/operation-diagnostics";
 
 export async function POST(req: NextRequest) {
-  const correlationId = `gen_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const correlationId = resolveOperationId(req, "generation");
   const startTime = Date.now();
 
   try {
+    if (await isOperationalControlPaused("generation")) {
+      return withOperationId(NextResponse.json({ success: false, error: "ART_GENERATION_PAUSED", code: "ART_GENERATION_PAUSED", message: "Custom artwork generation is temporarily unavailable." }, { status: 503 }), correlationId);
+    }
     // Determine client identifier for rate limiting
     const forwardedFor = req.headers.get("x-forwarded-for");
     const realIp = req.headers.get("x-real-ip");
@@ -18,7 +23,7 @@ export async function POST(req: NextRequest) {
     // Enforce 5 generations per 10-minute sliding window
     const rateLimit = checkRateLimit(clientId);
     if (!rateLimit.allowed) {
-      return NextResponse.json(
+      return withOperationId(NextResponse.json(
         {
           success: false,
           error: "RATE_LIMIT_EXCEEDED",
@@ -34,7 +39,7 @@ export async function POST(req: NextRequest) {
             "Retry-After": String(rateLimit.retryAfterSeconds),
           },
         }
-      );
+      ), correlationId);
     }
 
     const body = await req.json();
@@ -42,7 +47,7 @@ export async function POST(req: NextRequest) {
     const occasion = (body.occasion || "General").trim();
 
     if (!prompt) {
-      return NextResponse.json(
+      return withOperationId(NextResponse.json(
         {
           success: false,
           error: "INVALID_PROMPT",
@@ -50,7 +55,7 @@ export async function POST(req: NextRequest) {
           message: "A description of the artwork is required.",
         },
         { status: 400 }
-      );
+      ), correlationId);
     }
 
     // Call AI cover generator
@@ -83,7 +88,7 @@ export async function POST(req: NextRequest) {
         console.warn("[GenerateCover] Incident log notice:", logErr);
       }
 
-      return NextResponse.json(
+      return withOperationId(NextResponse.json(
         {
           success: false,
           error: "ART_REQUEST_BLOCKED",
@@ -103,7 +108,7 @@ export async function POST(req: NextRequest) {
           limit: rateLimit.limit,
         },
         { status: 422 }
-      );
+      ), correlationId);
     }
 
     // =========================================================================
@@ -122,7 +127,7 @@ export async function POST(req: NextRequest) {
         });
       } catch {}
 
-      return NextResponse.json(
+      return withOperationId(NextResponse.json(
         {
           success: false,
           error: "ART_PROVIDER_CONFIG_ERROR",
@@ -140,7 +145,7 @@ export async function POST(req: NextRequest) {
           limit: rateLimit.limit,
         },
         { status: 503 }
-      );
+      ), correlationId);
     }
 
     // =========================================================================
@@ -157,7 +162,7 @@ export async function POST(req: NextRequest) {
         });
       } catch {}
 
-      return NextResponse.json(
+      return withOperationId(NextResponse.json(
         {
           success: false,
           error: "ART_PROVIDER_UNAVAILABLE",
@@ -175,7 +180,7 @@ export async function POST(req: NextRequest) {
           limit: rateLimit.limit,
         },
         { status: 503 }
-      );
+      ), correlationId);
     }
 
     // =========================================================================
@@ -192,7 +197,7 @@ export async function POST(req: NextRequest) {
         });
       } catch {}
 
-      return NextResponse.json(
+      return withOperationId(NextResponse.json(
         {
           success: false,
           error: "ART_GENERATION_FAILED",
@@ -212,7 +217,7 @@ export async function POST(req: NextRequest) {
           limit: rateLimit.limit,
         },
         { status: 502 }
-      );
+      ), correlationId);
     }
 
     // =========================================================================
@@ -245,7 +250,7 @@ export async function POST(req: NextRequest) {
       console.warn("[GenerateCover] Cache-write notice:", cacheErr);
     }
 
-    return NextResponse.json({
+    return withOperationId(NextResponse.json({
       success: true,
       cacheId,
       imageUrl: art.imageUrl,
@@ -259,7 +264,7 @@ export async function POST(req: NextRequest) {
       themeTag: thematic.themeTag,
       remaining: rateLimit.remaining,
       limit: rateLimit.limit,
-    });
+    }), correlationId);
   } catch (error: unknown) {
     const rawMsg = error instanceof Error ? error.message : "Error generating cover";
     console.error("[Cover Gen Exception]", rawMsg);
@@ -274,7 +279,7 @@ export async function POST(req: NextRequest) {
       });
     } catch {}
 
-    return NextResponse.json(
+    return withOperationId(NextResponse.json(
       {
         success: false,
         error: "SERVER_ERROR",
@@ -283,6 +288,6 @@ export async function POST(req: NextRequest) {
           "Our AI art studio is temporarily busy. Please choose from our curated signature cards or try again shortly.",
       },
       { status: 500 }
-    );
+    ), correlationId);
   }
 }

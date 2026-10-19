@@ -50,6 +50,20 @@ export interface ScheduleDraft {
   isScheduled: boolean;
 }
 
+export interface AppliedOfferDraft {
+  code: string;
+  quoteId?: string;
+  offerId?: string;
+  offerVersion?: number;
+  discountType: "PERCENTAGE" | "FIXED_AMOUNT";
+  discountValue: number;
+  discountAmountInCents: number;
+  finalAmountInCents: number;
+  isFree: boolean;
+  quoteExpiresAt?: number;
+  appliedAt: number;
+}
+
 export interface AttributionDraft {
   utm_source?: string;
   utm_medium?: string;
@@ -75,6 +89,7 @@ export interface DraftRequiredContent {
 export interface DraftOptionalPreferences {
   schedule: ScheduleDraft | null;
   discountCode: string | null;
+  appliedOffer?: AppliedOfferDraft | null;
   attribution: AttributionDraft | null;
   customGeneration: CustomGenerationState;
   checkoutSnapshotId: string | null;
@@ -100,6 +115,7 @@ export interface DraftState {
   // Optional preferences fields
   schedule: ScheduleDraft | null;
   discountCode: string | null;
+  appliedOffer?: AppliedOfferDraft | null;
   attribution: AttributionDraft | null;
   customGeneration: CustomGenerationState;
   checkoutSnapshotId: string | null;
@@ -123,6 +139,7 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "sender",
   "schedule",
   "discountCode",
+  "appliedOffer",
   "attribution",
   "customGeneration",
   "checkoutSnapshotId",

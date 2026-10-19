@@ -182,7 +182,7 @@ async function runSecurityTests() {
   console.log("Simulating 10 concurrent processPaidOrder requests fired in the exact same millisecond...");
 
   const concurrentCalls = Array.from({ length: 10 }, (_, i) =>
-    processPaidOrder(raceOrderId, `pi_concurrent_test_${i}`, "racer@example.com")
+    processPaidOrder(raceOrderId, `pi_concurrent_test_${i}`, "racer@example.com", { paymentMode: "local_mock" })
   );
 
   const results = await Promise.all(concurrentCalls);
@@ -219,7 +219,7 @@ async function runSecurityTests() {
   );
 
   // 3B. Subsequent replay after fulfillment returns alreadyProcessed: true
-  const replayResult = await processPaidOrder(raceOrderId, "pi_replay_attempt");
+  const replayResult = await processPaidOrder(raceOrderId, "pi_replay_attempt", undefined, { paymentMode: "local_mock" });
   assert(
     replayResult.success === true && replayResult.alreadyProcessed === true,
     `Replay of already completed order returns alreadyProcessed: true without new dispatch`

@@ -1,27 +1,38 @@
+/**
+ * lib/telemetry.ts
+ *
+ * Client telemetry dispatcher supporting both legacy events and Event V2.
+ * Enforces Global Privacy Control (GPC), stable retry event IDs,
+ * session rotation, and sanitized gtag forwarding.
+ *
+ * Reference: SPRINT-0003-T01, T02
+ */
+
 import { TelemetryEventName } from "./types";
+import { EventV2Name } from "./contracts/admin-overhaul";
 import { getStoredAttribution } from "@/components/AttributionTracker";
-import { isAuthorityEvent, sanitizeUrlOrPath } from "./telemetry-schema";
+import {
+  isAuthorityEvent,
+  sanitizeUrlOrPath,
+  sanitizeMetadata,
+} from "./telemetry-schema";
+import {
+  getOrCreateJourneyIdentity,
+  resolveConsentState,
+} from "./journey-identity";
+import { buildEventV2Envelope } from "./telemetry-v2-envelope";
 
 export const TELEMETRY_COLLECTION = "telemetry_events";
 
-let currentSessionId: string | null = null;
-
+/**
+ * Returns active session ID using versioned journey identity.
+ */
 export function getSessionId(): string {
   if (typeof window === "undefined") {
     return "server_session";
   }
-
-  if (!currentSessionId) {
-    const existing = window.sessionStorage.getItem("smn_telemetry_session");
-    if (existing) {
-      currentSessionId = existing;
-    } else {
-      currentSessionId = `sess_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-      window.sessionStorage.setItem("smn_telemetry_session", currentSessionId);
-    }
-  }
-
-  return currentSessionId;
+  const identity = getOrCreateJourneyIdentity();
+  return identity.sessionId;
 }
 
 /**
@@ -44,16 +55,8 @@ export function getClientId(): string {
   if (typeof window === "undefined") {
     return "server_client";
   }
-  try {
-    let cid = window.localStorage.getItem("smn_client_id");
-    if (!cid) {
-      cid = `cid_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`;
-      window.localStorage.setItem("smn_client_id", cid);
-    }
-    return cid;
-  } catch {
-    return "unknown_client";
-  }
+  const identity = getOrCreateJourneyIdentity();
+  return identity.anonymousId;
 }
 
 /**
@@ -111,6 +114,121 @@ export function isInAppBrowser(): boolean {
   }
 }
 
+/**
+ * Generates a stable event ID for retry deduplication.
+ */
+export function generateStableEventId(): string {
+  return `evt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+export interface TrackEventV2Options {
+  experienceVersion?: string;
+  eventId?: string;
+  orderId?: string;
+  paymentAttemptId?: string;
+  requestId?: string;
+  traceId?: string;
+  draftId?: string;
+  step?: number;
+}
+
+/**
+ * Dispatches an Event V2 telemetry payload with envelope validation,
+ * retry stability, and consent/GPC enforcement.
+ */
+export async function trackEventV2(
+  eventName: EventV2Name | string,
+  properties?: Record<string, unknown>,
+  options?: TrackEventV2Options
+): Promise<void> {
+  if (typeof window === "undefined") return;
+
+  if (isAuthorityEvent(eventName)) {
+    return;
+  }
+
+  try {
+    const identity = getOrCreateJourneyIdentity({ draftId: options?.draftId });
+    const consentState = resolveConsentState();
+    const eventId = options?.eventId || generateStableEventId();
+    const cleanPath = sanitizeUrlOrPath(window.location.pathname) || "/";
+    const inApp = isInAppBrowser();
+    const attribution = getStoredAttribution();
+
+    const envelope = buildEventV2Envelope({
+      event_name: eventName,
+      experience_version: options?.experienceVersion,
+      event_id: eventId,
+      session_id: identity.sessionId,
+      anonymous_id: identity.anonymousId,
+      journey_id: identity.journeyId,
+      order_id: options?.orderId,
+      payment_attempt_id: options?.paymentAttemptId,
+      request_id: options?.requestId,
+      trace_id: options?.traceId,
+      route_template: cleanPath,
+      degraded_identity: identity.degradedIdentity,
+      consent_state: consentState,
+      properties: {
+        in_app_browser: inApp,
+        attribution_observed: true,
+        utmSource: attribution?.utmSource,
+        utmMedium: attribution?.utmMedium,
+        utmCampaign: attribution?.utmCampaign,
+        referrer: sanitizeUrlOrPath(attribution?.referrer || document.referrer),
+        device_category: getDeviceType(),
+        ...(properties || {}),
+      },
+      source: "browser",
+      isFounderFlag: isFounderDevice(),
+    });
+
+    const payload = JSON.stringify(envelope);
+
+    // Send via sendBeacon first, fallback to fetch with keepalive using the exact same eventId
+    let sent = false;
+    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+      try {
+        const blob = new Blob([payload], { type: "application/json" });
+        sent = navigator.sendBeacon("/api/telemetry", blob);
+      } catch {
+        sent = false;
+      }
+    }
+
+    if (!sent) {
+      fetch("/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+      }).catch(() => {});
+    }
+
+    // Consent enforcement: if consent is denied or gpc_restricted, NEVER call window.gtag!
+    if (consentState !== "denied" && consentState !== "gpc_restricted") {
+      if (typeof window !== "undefined") {
+        const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+        if (typeof win.gtag === "function") {
+          const { sanitized } = sanitizeMetadata(eventName, properties || {});
+          win.gtag("event", eventName, {
+            event_category: "visitor_telemetry_v2",
+            event_id: eventId,
+            order_id: options?.orderId,
+            ...sanitized,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    console.debug("[Telemetry V2] Failed to dispatch event:", err);
+  }
+}
+
+/**
+ * Legacy telemetry dispatch function with backward compatibility,
+ * stable event IDs, and GPC consent enforcement.
+ */
 export async function trackEvent(
   eventName: TelemetryEventName,
   step?: number,
@@ -124,7 +242,9 @@ export async function trackEvent(
     return;
   }
 
-  const sessionId = getSessionId();
+  const identity = getOrCreateJourneyIdentity();
+  const consentState = resolveConsentState();
+  const eventId = generateStableEventId();
 
   try {
     const attr = getStoredAttribution();
@@ -139,14 +259,17 @@ export async function trackEvent(
     const cleanLandingPath = sanitizeUrlOrPath(attr?.landingPath || window.location.pathname) || "/";
 
     const founder = isFounderDevice();
-    const clientId = getClientId();
 
     const payload = {
+      eventId,
       eventName,
       step,
-      sessionId,
+      sessionId: identity.sessionId,
+      anonymousId: identity.anonymousId,
+      journeyId: identity.journeyId,
       orderId,
-      clientId,
+      clientId: identity.anonymousId,
+      degradedIdentity: identity.degradedIdentity,
       ...(founder ? { is_founder: true, isFounder: true } : {}),
       metadata: {
         in_app_browser: inApp,
@@ -190,16 +313,19 @@ export async function trackEvent(
       }).catch(() => {});
     }
 
-    // Forward to GA4 / gtag if active
-    if (typeof window !== "undefined") {
-      const win = window as unknown as { gtag?: (...args: unknown[]) => void };
-      if (typeof win.gtag === "function") {
-        win.gtag("event", eventName, {
-          event_category: "visitor_telemetry",
-          step_number: step,
-          order_id: orderId,
-          ...(metadata || {}),
-        });
+    // Forward to GA4 / gtag if active and consent is NOT denied or restricted
+    if (consentState !== "denied" && consentState !== "gpc_restricted") {
+      if (typeof window !== "undefined") {
+        const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+        if (typeof win.gtag === "function") {
+          const { sanitized } = sanitizeMetadata(eventName, metadata || {});
+          win.gtag("event", eventName, {
+            event_category: "visitor_telemetry",
+            step_number: step,
+            order_id: orderId,
+            ...sanitized,
+          });
+        }
       }
     }
   } catch (err) {

@@ -12,6 +12,7 @@ export const META_GRAPH_API_VERSION = "v19.0";
  * Retrieves the Conversions API System User access token from environment or secrets.
  */
 export function getMetaAccessToken(): string | undefined {
+  if (process.env.STAGING_REVIEW_ONLY === "true") return undefined;
   return (
     process.env.META_CONVERSIONS_API_ACCESS_TOKEN ||
     process.env["meta-conversions-api-access-token"] ||

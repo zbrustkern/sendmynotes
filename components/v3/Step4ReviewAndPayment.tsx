@@ -30,7 +30,7 @@ import {
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { AddressData } from "./Step3EnvelopeAddressing";
 import { evaluatePaymentSubmission } from "@/lib/payment-mode";
-import { trackEvent } from "@/lib/telemetry";
+import { trackEvent, trackEventV2 } from "@/lib/telemetry";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
 
@@ -124,11 +124,11 @@ function InnerPaymentForm({
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Promo code toggle & input state
   const [showPromoInput, setShowPromoInput] = useState(Boolean(appliedDiscount));
   const [promoInput, setPromoInput] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [priceReconfirmationRequired, setPriceReconfirmationRequired] = useState(false);
 
   const deliveryEstimate = useMemo(() => calculateDeliveryEstimate(), []);
 
@@ -167,6 +167,11 @@ function InnerPaymentForm({
     const methods = event?.availablePaymentMethods;
     const hasAny = Boolean(methods && (methods.applePay || methods.googlePay || methods.link));
     setWalletAvailable(hasAny);
+    trackEventV2("wallet_availability_observed", {
+      applePay: Boolean(methods?.applePay),
+      googlePay: Boolean(methods?.googlePay),
+      link: Boolean(methods?.link),
+    });
     trackEvent("wallet_availability_observed", 4, {
       applePay: Boolean(methods?.applePay),
       googlePay: Boolean(methods?.googlePay),
@@ -179,11 +184,27 @@ function InnerPaymentForm({
     setIsProcessing(true);
     setErrorMessage(null);
 
+    const attemptId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    trackEventV2("payment_attempted", {
+      paymentMethodType: "wallet",
+      attemptId,
+      orderId,
+    });
+    trackEvent("payment_attempted", 4, {
+      paymentMethodType: "wallet",
+      attemptId,
+    });
+
     try {
       // Per Stripe Express Checkout documentation: elements.submit() validates element fields
       const { error: submitError } = await elements.submit();
       if (submitError) {
         setErrorMessage(submitError.message || "Please complete all required payment details.");
+        trackEventV2("payment_failed", {
+          attemptId,
+          errorCategory: submitError.type || "validation_error",
+          errorCode: submitError.code || "submit_error",
+        });
         setIsProcessing(false);
         return;
       }
@@ -199,8 +220,35 @@ function InnerPaymentForm({
 
       if (error) {
         setErrorMessage(error.message || "Wallet payment failed. Please use card below.");
+        trackEventV2("payment_failed", {
+          attemptId,
+          errorCategory: error.type || "wallet_error",
+          errorCode: error.code || "decline",
+        });
+        trackEvent("payment_failed", 4, {
+          attemptId,
+          errorCategory: error.type || "wallet_error",
+        });
         setIsProcessing(false);
+      } else if (paymentIntent && paymentIntent.status === "requires_action") {
+        trackEventV2("payment_action_required", {
+          attemptId,
+          actionType: paymentIntent.next_action?.type || "3ds",
+        });
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
+        trackEventV2("payment_confirmation_observed", {
+          orderId,
+          amountInCents: appliedDiscount?.finalAmountInCents ?? 900,
+          in_app_browser: false,
+          used_address_deferral: !recipient.street1?.trim(),
+        });
+        trackEvent("payment_confirmation_observed", 4, {
+          orderId,
+          amountInCents: appliedDiscount?.finalAmountInCents ?? 900,
+          in_app_browser: false,
+          used_address_deferral: !recipient.street1?.trim(),
+        });
+
         // Stripe captured payment: lock form against duplicate charges
         setIsPaymentCaptured(true);
         let confirmData: any = null;
@@ -215,6 +263,12 @@ function InnerPaymentForm({
             }),
           });
           confirmData = await confirmRes.json();
+          if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation) {
+            setPriceReconfirmationRequired(true);
+            setErrorMessage(confirmData?.error || "Price changed or quote expired. Please reconfirm total before paying.");
+            setIsProcessing(false);
+            return;
+          }
           if (confirmRes.ok && confirmData.success) {
             setIsProcessing(false);
             onPaymentSuccess(orderId, confirmData?.viewToken, confirmData?.status);
@@ -231,6 +285,11 @@ function InnerPaymentForm({
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
+      trackEventV2("payment_failed", {
+        attemptId,
+        errorCategory: "unexpected_error",
+        errorCode: "exception",
+      });
       setIsProcessing(false);
     }
   };
@@ -261,6 +320,12 @@ function InnerPaymentForm({
 
         const data = await res.json();
         if (!res.ok) {
+          if (res.status === 409 || data?.requiresPriceReconfirmation) {
+            setPriceReconfirmationRequired(true);
+            setErrorMessage(data?.error || "Price changed or promo expired. Please reconfirm total before proceeding.");
+            setIsProcessing(false);
+            return;
+          }
           throw new Error(data.error || "Failed to process free order.");
         }
 
@@ -304,6 +369,12 @@ function InnerPaymentForm({
           }),
         });
         const confirmData = await confirmRes.json();
+        if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation) {
+          setPriceReconfirmationRequired(true);
+          setErrorMessage(confirmData?.error || "Price changed or quote expired. Please reconfirm total before paying.");
+          setIsProcessing(false);
+          return;
+        }
         if (!confirmRes.ok || !confirmData.success) {
           throw new Error(confirmData.error || "Failed to confirm simulated order.");
         }
@@ -321,6 +392,10 @@ function InnerPaymentForm({
     // 3. REAL STRIPE PAYMENT CONFIRMATION
     if (!stripe || !elements) {
       setErrorMessage("Payment processor is unavailable. Please check your connection and retry.");
+      trackEventV2("payment_ui_failed", {
+        errorCategory: "stripe_elements_unavailable",
+        errorCode: "elements_null",
+      });
       setIsProcessing(false);
       return;
     }
@@ -330,6 +405,17 @@ function InnerPaymentForm({
       setIsProcessing(false);
       return;
     }
+
+    const attemptId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    trackEventV2("payment_attempted", {
+      paymentMethodType: "card",
+      attemptId,
+      orderId,
+    });
+    trackEvent("payment_attempted", 4, {
+      paymentMethodType: "card",
+      attemptId,
+    });
 
     try {
       const { error, paymentIntent } = await stripe.confirmPayment({
@@ -343,8 +429,35 @@ function InnerPaymentForm({
 
       if (error) {
         setErrorMessage(error.message || "Payment declined. Please check your card information.");
+        trackEventV2("payment_failed", {
+          attemptId,
+          errorCategory: error.type || "card_error",
+          errorCode: error.code || "decline",
+        });
+        trackEvent("payment_failed", 4, {
+          attemptId,
+          errorCategory: error.type || "card_error",
+        });
         setIsProcessing(false);
+      } else if (paymentIntent && paymentIntent.status === "requires_action") {
+        trackEventV2("payment_action_required", {
+          attemptId,
+          actionType: paymentIntent.next_action?.type || "3ds",
+        });
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
+        trackEventV2("payment_confirmation_observed", {
+          orderId,
+          amountInCents: appliedDiscount?.finalAmountInCents ?? 900,
+          in_app_browser: false,
+          used_address_deferral: !recipient.street1?.trim(),
+        });
+        trackEvent("payment_confirmation_observed", 4, {
+          orderId,
+          amountInCents: appliedDiscount?.finalAmountInCents ?? 900,
+          in_app_browser: false,
+          used_address_deferral: !recipient.street1?.trim(),
+        });
+
         // Stripe captured payment: lock form against duplicate charges
         setIsPaymentCaptured(true);
         let confirmData: any = null;
@@ -359,6 +472,12 @@ function InnerPaymentForm({
             }),
           });
           confirmData = await confirmRes.json();
+          if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation) {
+            setPriceReconfirmationRequired(true);
+            setErrorMessage(confirmData?.error || "Price changed or quote expired. Please reconfirm total before paying.");
+            setIsProcessing(false);
+            return;
+          }
           if (confirmRes.ok && confirmData.success) {
             setIsProcessing(false);
             onPaymentSuccess(orderId, confirmData?.viewToken, confirmData?.status);
@@ -375,6 +494,11 @@ function InnerPaymentForm({
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
+      trackEventV2("payment_failed", {
+        attemptId,
+        errorCategory: "unexpected_error",
+        errorCode: "exception",
+      });
       setIsProcessing(false);
     }
   };
@@ -433,7 +557,11 @@ function InnerPaymentForm({
 
         <button
           type="button"
-          onClick={onBack}
+          onClick={() => {
+            trackEventV2("payment_canceled", { stage: "review_and_pay" });
+            trackEvent("payment_canceled", 4, { stage: "review_and_pay" });
+            onBack();
+          }}
           className="px-2.5 py-1 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer shrink-0"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -775,10 +903,20 @@ function InnerPaymentForm({
                   <PaymentElement
                     id="v3-payment-element"
                     options={paymentElementOptions}
-                    onReady={() => setIsPaymentElementReady(true)}
+                    onReady={() => {
+                      setIsPaymentElementReady(true);
+                      trackEventV2("payment_ui_ready", {
+                        paymentElement: true,
+                        mode: isMock ? "mock" : "stripe",
+                      });
+                    }}
                     onLoadError={(err) => {
                       console.error("[Stripe Load Error]", err);
                       setErrorMessage(err.error?.message || "Could not load payment form.");
+                      trackEventV2("payment_ui_failed", {
+                        errorCategory: "stripe_element_load_error",
+                        errorCode: err.error?.code || "load_error",
+                      });
                     }}
                   />
                 </div>
@@ -849,6 +987,35 @@ function InnerPaymentForm({
               </button>
             )}
           </div>
+
+          {priceReconfirmationRequired && (
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-2 text-xs text-amber-900 shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2 font-bold text-amber-950">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Price Quote Updated</span>
+              </div>
+              <p className="text-amber-900 text-xs leading-relaxed">
+                The promotional price quote has expired or terms have changed. Please reconfirm your order total before paying.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setPriceReconfirmationRequired(false);
+                    setErrorMessage(null);
+                    if (appliedDiscount?.code) {
+                      await onApplyDiscount(appliedDiscount.code);
+                    } else {
+                      onRemoveDiscount();
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-lg text-xs transition cursor-pointer"
+                >
+                  Reconfirm &amp; Refresh Total
+                </button>
+              </div>
+            </div>
+          )}
 
           {errorMessage && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">

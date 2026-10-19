@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -63,13 +64,26 @@ import { StudioCompModal } from "@/components/admin/StudioCompModal";
 import { CohortAnalytics } from "@/components/admin/CohortAnalytics";
 import { ValuationHeuristicsWidget } from "@/components/admin/ValuationHeuristicsWidget";
 import { VisitorTelemetryDashboard } from "@/components/admin/VisitorTelemetryDashboard";
-import { AdminFeatureFlagsTab } from "@/components/admin/AdminFeatureFlagsTab";
 import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
 import { CampaignPerformanceWidget } from "@/components/admin/CampaignPerformanceWidget";
 import { HighIntentCartsWidget } from "@/components/admin/HighIntentCartsWidget";
+import { OperationalControlsPanel } from "@/components/admin/OperationalControlsPanel";
 import { getClientId, getSessionId } from "@/lib/telemetry";
+import {
+  AdminGlobalScope,
+  AdminWorkspaceId,
+  DEFAULT_ADMIN_GLOBAL_SCOPE,
+  ExecutiveOverviewReport,
+  parseAdminGlobalScope,
+  serializeAdminGlobalScope,
+  toGlobalReportScope,
+  createRequestSequenceGuard,
+} from "@/lib/admin-scope";
+import { ExecutiveShell } from "@/components/admin/ExecutiveShell";
+import { ExecutiveOverview } from "@/components/admin/ExecutiveOverview";
 
 export default function AdminDashboardPage() {
+  const router = useRouter();
   const { user, signInWithGoogle, signOut: authSignOut } = useAuth();
   const [googleAuthLoading, setGoogleAuthLoading] = useState(false);
   const [adminUserEmail, setAdminUserEmail] = useState<string | null>(null);
@@ -82,8 +96,97 @@ export default function AdminDashboardPage() {
   const [lockoutRemainingSeconds, setLockoutRemainingSeconds] = useState(0);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
-  // Tab Navigation State
-  const [activeTab, setActiveTab] = useState<"orders" | "margins" | "discounts" | "scenarios" | "incidents" | "flags">("orders");
+  // Workspace & Global Reporting Scope
+  const [globalScope, setGlobalScope] = useState<AdminGlobalScope>(() => {
+    if (typeof window !== "undefined") {
+      return parseAdminGlobalScope(window.location.search);
+    }
+    return DEFAULT_ADMIN_GLOBAL_SCOPE;
+  });
+
+  // Executive Overview Report State
+  const [report, setReport] = useState<ExecutiveOverviewReport | null>(null);
+  const [reportLoading, setReportLoading] = useState<boolean>(false);
+  const [isReportStale, setIsReportStale] = useState<boolean>(false);
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportLastUpdated, setReportLastUpdated] = useState<string | null>(null);
+  const sequenceGuardRef = React.useRef(createRequestSequenceGuard());
+
+  const handleScopeChange = (newScope: AdminGlobalScope) => {
+    if (!["orders", "journeys", "economics", "promotions", "growth"].includes(newScope.workspace)) setGlobalScope(newScope);
+    if (typeof window !== "undefined") {
+      const qs = serializeAdminGlobalScope(newScope);
+      const destination = ["orders", "journeys", "economics", "promotions", "growth"].includes(newScope.workspace)
+        ? `/admin/${newScope.workspace}`
+        : "/admin";
+      router.replace(qs ? `${destination}?${qs}` : destination);
+    }
+  };
+
+  const handleWorkspaceChange = (workspace: AdminWorkspaceId) => {
+    const nextScope = { ...globalScope, workspace };
+    if (!["orders", "journeys", "economics", "promotions", "growth"].includes(workspace)) setGlobalScope(nextScope);
+    const qs = serializeAdminGlobalScope(nextScope);
+    const destination = ["orders", "journeys", "economics", "promotions", "growth"].includes(workspace)
+      ? `/admin/${workspace}`
+      : "/admin";
+    router.push(qs ? `${destination}?${qs}` : destination);
+  };
+
+  // Compatibility helper for legacy tab switches
+  const setActiveTab = (tab: string) => {
+    if (tab === "orders") handleWorkspaceChange("orders");
+    else if (tab === "margins") handleWorkspaceChange("economics");
+    else if (tab === "discounts") handleWorkspaceChange("promotions");
+    else if (tab === "scenarios") handleWorkspaceChange("growth");
+    else if (tab === "incidents") handleWorkspaceChange("reliability");
+    else if (tab === "flags") handleWorkspaceChange("controls");
+    else if (tab === "journeys") handleWorkspaceChange("journeys");
+    else if (tab === "overview") handleWorkspaceChange("overview");
+  };
+  const activeTab = globalScope.workspace;
+
+  const fetchOverviewReport = async (scopeToFetch = globalScope) => {
+    const requestId = sequenceGuardRef.current.next();
+    setReportLoading(true);
+    try {
+      const repScope = toGlobalReportScope(scopeToFetch);
+      const params = new URLSearchParams();
+      params.set("view", "overview");
+      params.set("dateRange", repScope.window.label);
+      params.set("window", repScope.window.label);
+      params.set("mode", repScope.mode);
+      params.set("timezone", repScope.timezone);
+      params.set("environment", scopeToFetch.environment);
+      params.set("excludeFounder", repScope.excludeFounder ? "true" : "false");
+      if (repScope.channel) params.set("channel", repScope.channel);
+      if (repScope.deviceCategory) params.set("device", repScope.deviceCategory);
+      if (scopeToFetch.inAppBrowserOnly) params.set("inApp", "true");
+      if (repScope.window.start) params.set("from", repScope.window.start);
+      if (repScope.window.end) params.set("to", repScope.window.end);
+
+      const res = await fetch(`/api/admin/reporting?${params.toString()}`);
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`);
+      }
+      const data: ExecutiveOverviewReport = await res.json();
+      if (!sequenceGuardRef.current.isLatest(requestId)) {
+        return; // Stale response dropped
+      }
+      setReport(data);
+      setIsReportStale(false);
+      setReportError(null);
+      setReportLastUpdated(data.asOf || new Date().toISOString());
+    } catch (err) {
+      if (!sequenceGuardRef.current.isLatest(requestId)) return;
+      setIsReportStale(true);
+      setReportError(err instanceof Error ? err.message : "Failed to load executive overview report");
+    } finally {
+      if (sequenceGuardRef.current.isLatest(requestId)) {
+        setReportLoading(false);
+      }
+    }
+  };
 
   // Margins, Ad Spend & Campaign Attribution State
   const [adSpendInput, setAdSpendInput] = useState<string>("0.00");
@@ -128,6 +231,9 @@ export default function AdminDashboardPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [alertFormOpen, setAlertFormOpen] = useState(false);
   const [incidentFilter, setIncidentFilter] = useState<"UNRESOLVED" | "RESOLVED" | "ALL">("UNRESOLVED");
+  const [incidentLifecycle, setIncidentLifecycle] = useState<Record<string, string>>({});
+  const [incidentOwners, setIncidentOwners] = useState<Record<string, string>>({});
+  const [incidentReasons, setIncidentReasons] = useState<Record<string, string>>({});
 
   // Discount Codes State
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
@@ -197,6 +303,7 @@ export default function AdminDashboardPage() {
         fetchIncidents();
         fetchDiscounts();
         fetchScenarios();
+        fetchOverviewReport();
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error authenticating with Google.";
@@ -237,6 +344,7 @@ export default function AdminDashboardPage() {
         fetchIncidents();
         fetchDiscounts();
         fetchScenarios();
+        fetchOverviewReport();
       }
     } catch {
       setAuthError("Network error. Please try again.");
@@ -452,6 +560,9 @@ export default function AdminDashboardPage() {
   };
 
   const handleSyncStripe = async (orderId: string) => {
+    if (!window.confirm("This reconciliation can start billable supplier fulfillment if Stripe confirms payment. Continue?")) {
+      return;
+    }
     setSyncingStripeId(orderId);
     try {
       const res = await fetch("/api/admin/sync-stripe", {
@@ -538,26 +649,20 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleResolveIncident = async (incidentId: string) => {
+  const handleIncidentLifecycle = async (incidentId: string) => {
+    const reason = (incidentReasons[incidentId] || "").trim();
+    const status = incidentLifecycle[incidentId] || "acknowledged";
+    if (!reason) return;
     try {
       const res = await fetch("/api/admin/incidents", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "resolve_incident", incidentId }),
+        body: JSON.stringify({ action: "update_incident", incidentId, status, reason, owner: incidentOwners[incidentId] || "" }),
       });
       if (res.ok) {
-        setIncidents((prev) =>
-          prev.map((inc) =>
-            inc.id === incidentId
-              ? {
-                  ...inc,
-                  resolved: true,
-                  resolvedAt: Date.now(),
-                  resolutionNote: "Marked resolved by operator",
-                }
-              : inc
-          )
-        );
+        const result = await res.json();
+        setIncidents((prev) => prev.map((inc) => inc.id === incidentId ? ({ ...inc, resolved: status === "resolved" || status === "verified", lifecycleStatus: status, owner: incidentOwners[incidentId] || undefined, resolutionNote: status === "resolved" || status === "verified" ? reason : undefined, resolvedAt: status === "resolved" || status === "verified" ? result.updatedAt : undefined } as any) : inc));
+        setIncidentReasons((prev) => ({ ...prev, [incidentId]: "" }));
       }
     } catch (err) {
       console.error("Error resolving incident:", err);
@@ -774,16 +879,16 @@ export default function AdminDashboardPage() {
           if (data.email) {
             setAdminUserEmail(data.email);
           }
+          let initialScope = globalScope;
+          if (typeof window !== "undefined") {
+            initialScope = parseAdminGlobalScope(window.location.search);
+            setGlobalScope(initialScope);
+          }
           fetchMetrics();
           fetchIncidents();
           fetchDiscounts();
           fetchScenarios();
-          if (typeof window !== "undefined") {
-            const urlTab = new URLSearchParams(window.location.search).get("tab");
-            if (urlTab === "flags" || urlTab === "incidents" || urlTab === "margins" || urlTab === "discounts" || urlTab === "scenarios" || urlTab === "orders") {
-              setActiveTab(urlTab as any);
-            }
-          }
+          fetchOverviewReport(initialScope);
         } else {
           if (data.locked) {
             setIsLockedOut(true);
@@ -800,6 +905,45 @@ export default function AdminDashboardPage() {
     };
     checkAuth();
   }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchOverviewReport(globalScope);
+    }
+  }, [
+    isAuthenticated,
+    globalScope.window,
+    globalScope.mode,
+    globalScope.channel,
+    globalScope.device,
+    globalScope.from,
+    globalScope.to,
+  ]);
+
+  useEffect(() => {
+    if (!isAuthenticated || typeof window === "undefined") return;
+    const returnTo = new URLSearchParams(window.location.search).get("returnTo");
+    if (returnTo && /^\/admin(?:\/|\?|$)/.test(returnTo)) {
+      router.replace(returnTo);
+    }
+  }, [isAuthenticated, router]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      if (typeof window !== "undefined") {
+        setGlobalScope(parseAdminGlobalScope(window.location.search));
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  useEffect(() => {
+    if (globalScope.orderId) {
+      setSearchQuery(globalScope.orderId);
+      setExpandedJourneyOrderId(globalScope.orderId);
+    }
+  }, [globalScope.orderId]);
 
   if (!isAuthenticated) {
     const minutes = Math.floor(lockoutRemainingSeconds / 60);
@@ -978,9 +1122,9 @@ export default function AdminDashboardPage() {
 
   const filteredOrders = (metrics?.recentOrders || []).filter((order) => {
     const matchesSearch =
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      `${order.recipientAddress.firstName} ${order.recipientAddress.lastName}`
+      String(order.id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(order.customerEmail || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      `${order.recipientAddress?.firstName || ""} ${order.recipientAddress?.lastName || ""}`
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
 
@@ -1024,395 +1168,79 @@ export default function AdminDashboardPage() {
       : "0.0";
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-[#FAF8F5] pb-24 md:pb-20 text-stone-900">
-      {/* ADMIN HEADER */}
-      <header className="border-b border-stone-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 md:py-4">
-          {/* MOBILE HEADER BAR (Phone Screens) */}
-          <div className="flex md:hidden items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-stone-900 text-white flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-amber-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-serif font-bold text-sm text-stone-900 leading-tight">
-                    Admin Console
-                  </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                </div>
-                <span className="text-[10px] text-stone-400 font-medium block leading-none">
-                  Live Operations
-                </span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setShowCompModal(true)}
-                className="text-xs font-bold text-stone-950 bg-amber-500 hover:bg-amber-600 active:scale-95 px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                title="Dispatch Complimentary Card"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Comp</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  fetchMetrics();
-                  fetchIncidents();
-                  fetchDiscounts();
-                  fetchScenarios();
-                }}
-                disabled={loading || loadingIncidents || loadingDiscounts || loadingScenarios}
-                className="p-2 text-stone-600 hover:bg-stone-100 active:scale-90 rounded-lg transition cursor-pointer"
-                title="Refresh Data & Incidents"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${
-                    loading || loadingIncidents || loadingDiscounts || loadingScenarios ? "animate-spin" : ""
-                  }`}
-                />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(true)}
-                className="p-2 text-stone-700 hover:bg-stone-100 active:scale-90 rounded-lg transition cursor-pointer"
-                aria-label="Open operator menu"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
-            </div>
-          </div>
-
-          {/* DESKTOP HEADER BAR (Tablet & Desktop) */}
-          <div className="hidden md:flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center">
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-serif text-lg font-bold text-stone-900">
-                    sendmynotes Admin
-                  </span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300/60">
-                    Live Operations
-                  </span>
-                </div>
-                <p className="text-xs text-stone-400">
-                  Customer telemetry, revenue analytics, and robotic fulfillment monitoring.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setShowCompModal(true)}
-                className="text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Dispatch Comp Card</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  fetchMetrics();
-                  fetchIncidents();
-                  fetchDiscounts();
-                  fetchScenarios();
-                }}
-                disabled={loading || loadingIncidents || loadingDiscounts || loadingScenarios}
-                className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition cursor-pointer"
-                title="Refresh Data & Incidents"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${
-                    loading || loadingIncidents || loadingDiscounts || loadingScenarios ? "animate-spin" : ""
-                  }`}
-                />
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("flags")}
-                className={`text-xs font-semibold flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition cursor-pointer ${
-                  activeTab === "flags"
-                    ? "bg-amber-600 text-white shadow-xs"
-                    : "text-amber-900 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200/80"
-                }`}
-                title="Feature Flags & V3 Rollout Controls"
-              >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Feature Flags</span>
-              </button>
-              <Link
-                href="/"
-                className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 bg-stone-100 px-3.5 py-2 rounded-xl transition"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Storefront</span>
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl border border-rose-200 transition cursor-pointer"
-              >
-                Log Out
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* MOBILE SLIDE-OVER DRAWER */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
-            onClick={() => setMobileMenuOpen(false)}
+    <>
+      <ExecutiveShell
+        currentWorkspace={globalScope.workspace}
+        scope={globalScope}
+        onScopeChange={handleScopeChange}
+        onWorkspaceChange={handleWorkspaceChange}
+        userEmail={adminUserEmail || user?.email || null}
+        onLogout={handleLogout}
+        onTriggerComp={() => setShowCompModal(true)}
+        onRefresh={() => {
+          fetchOverviewReport(globalScope);
+          fetchMetrics();
+          fetchIncidents();
+          fetchDiscounts();
+          fetchScenarios();
+        }}
+        isLoading={reportLoading || loading}
+        isStale={isReportStale}
+        lastUpdated={reportLastUpdated}
+      >
+        {/* ===================== WORKSPACE: OVERVIEW ===================== */}
+        {globalScope.workspace === "overview" && (
+          <ExecutiveOverview
+            report={report}
+            scope={globalScope}
+            onScopeChange={handleScopeChange}
+            isLoading={reportLoading}
           />
-          <div className="relative w-4/5 max-w-xs bg-white h-full shadow-2xl p-5 flex flex-col justify-between z-10">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-stone-200">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-stone-900 text-amber-400 font-bold text-xs flex items-center justify-center">
-                    SMN
-                  </div>
-                  <div>
-                    <span className="font-serif font-bold text-sm text-stone-900 block leading-tight">
-                      Operator Tools
-                    </span>
-                    <span className="text-[10px] text-stone-400">sendmynotes Admin</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-1 rounded-lg text-stone-400 hover:text-stone-700 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
+        )}
 
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setShowCompModal(true);
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-50 text-xs font-semibold text-amber-900 bg-amber-50/60 border border-amber-200 transition text-left cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-600" />
-                    Dispatch Comp Card
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-amber-500" />
-                </button>
-
-                <Link
-                  href="/"
-                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-stone-50 text-xs font-semibold text-stone-700 transition"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span className="flex items-center gap-2">
-                    <ArrowLeft className="w-4 h-4 text-stone-400" />
-                    Return to Storefront
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-stone-400" />
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("flags");
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-stone-50 text-xs font-semibold text-stone-700 transition text-left cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-amber-600" />
-                    Feature Flags &amp; V3 Rollout
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-stone-400" />
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-stone-200">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleLogout();
-                }}
-                className="w-full py-2.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition text-center cursor-pointer"
-              >
-                Log Out of Admin
-              </button>
-            </div>
+        {/* ===================== WORKSPACE: JOURNEYS & DROP-OFF ===================== */}
+        {globalScope.workspace === "journeys" && (
+          <div className="space-y-8">
+            <HighIntentCartsWidget metrics={metrics} />
+            <VisitorTelemetryDashboard
+              metrics={metrics}
+              filterDateRange={filterDateRange}
+              onDateRangeChange={handleDateRangeChange}
+              excludeFounder={excludeFounder}
+              onExcludeFounderChange={handleExcludeFounderChange}
+              filterChannel={filterChannel}
+              onChannelChange={handleChannelChange}
+              customFrom={customFrom}
+              customTo={customTo}
+              onCustomDateChange={handleCustomDateChange}
+              onRefresh={() => fetchMetrics()}
+              isMarkingFounder={isMarkingFounder}
+              onMarkFounderDevice={handleMarkFounderDevice}
+              founderMarkedSuccess={founderMarkedSuccess}
+              onUnflagFounderSessions={handleUnflagFounderSessions}
+              isUnflaggingFounder={isUnflaggingFounder}
+              unflagFounderSuccess={unflagFounderSuccess}
+            />
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ADMIN TABS NAVIGATION */}
-      <div className="border-b border-stone-200/80 bg-white shadow-2xs">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <nav className="flex items-center gap-1.5 sm:gap-8 overflow-x-auto py-2.5 sm:py-0 no-scrollbar scroll-smooth" aria-label="Admin Tabs">
-            <button
-              type="button"
-              onClick={() => setActiveTab("orders")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "orders"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-stone-900 sm:text-stone-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-            >
-              <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 shrink-0" />
-              <span>Command Center</span>
-              {metrics?.totalOrders !== undefined && (
-                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                  activeTab === "orders"
-                    ? "bg-stone-800 text-stone-200 sm:bg-stone-100 sm:text-stone-600"
-                    : "bg-stone-100 text-stone-600 sm:bg-stone-100"
-                }`}>
-                  {metrics.totalOrders}
-                </span>
-              )}
-            </button>
-
-            {/* 2. SYSTEM HEALTH & INCIDENTS (Positioned second; font & icon reflect live health) */}
-            <button
-              type="button"
-              onClick={() => setActiveTab("incidents")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                hasActiveAlerts
-                  ? activeTab === "incidents"
-                    ? "bg-rose-600 text-white shadow-xs ring-1 ring-rose-600 sm:bg-rose-50/30 sm:border-rose-600 sm:text-rose-700 sm:shadow-none sm:ring-0 font-bold"
-                    : "bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-rose-600 font-semibold"
-                  : activeTab === "incidents"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-emerald-50/30 sm:border-emerald-600 sm:text-emerald-800 sm:shadow-none sm:ring-0 font-bold"
-                  : "bg-white text-emerald-800 hover:text-emerald-900 hover:bg-stone-50 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-emerald-700 font-medium sm:shadow-none"
-              }`}
-            >
-              {/* Alert icon ONLY shows up when there are active/unresolved alerts */}
-              {hasActiveAlerts ? (
-                <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white sm:text-rose-600 animate-pulse shrink-0" />
-              ) : (
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              )}
-              <span>System Health</span>
-              {hasActiveAlerts ? (
-                <span className="ml-1 py-0.5 px-1.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-bold border border-rose-200">
-                  {unresolvedIncidents.length}
-                </span>
-              ) : (
-                <span className="ml-1 py-0.5 px-1.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-medium">
-                  Healthy
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("margins")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "margins"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-emerald-600 sm:text-emerald-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-            >
-              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
-              <span>Unit Economics</span>
-              {metrics?.margins?.netContributionMarginPercent !== undefined && (
-                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                  activeTab === "margins"
-                    ? "bg-stone-800 text-emerald-300 sm:bg-emerald-100 sm:text-emerald-800"
-                    : "bg-stone-100 text-stone-600 sm:bg-emerald-100 sm:text-emerald-800"
-                }`}>
-                  {metrics.margins.netContributionMarginPercent}%
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("discounts")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "discounts"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-amber-600 sm:text-amber-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 shrink-0" />
-              <span>Discounts</span>
-              {discountStats?.activeCodes !== undefined && discountStats.activeCodes > 0 && (
-                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                  activeTab === "discounts"
-                    ? "bg-stone-800 text-amber-300 sm:bg-amber-100 sm:text-amber-800"
-                    : "bg-stone-100 text-stone-600 sm:bg-amber-100 sm:text-amber-800"
-                }`}>
-                  {discountStats.activeCodes}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("scenarios")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "scenarios"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-indigo-600 sm:text-indigo-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 shrink-0" />
-              <span>SEO</span>
-              {scenarioSummary?.activeScenariosCount !== undefined && (
-                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                  activeTab === "scenarios"
-                    ? "bg-stone-800 text-indigo-300 sm:bg-indigo-100 sm:text-indigo-800"
-                    : "bg-stone-100 text-stone-600 sm:bg-indigo-100 sm:text-indigo-800"
-                }`}>
-                  {scenarioSummary.activeScenariosCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("flags")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "flags"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-amber-600 sm:text-amber-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-              title="Configure SendMyNotes Rework V3 Feature Flags"
-            >
-              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
-              <span>Flags</span>
-              <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                activeTab === "flags"
-                  ? "bg-stone-800 text-amber-300 sm:bg-amber-100 sm:text-amber-800"
-                  : "bg-amber-100 text-amber-800"
-              }`}>
-                V3
-              </span>
-            </button>
-          </nav>
-        </div>
-      </div>
-
-      <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-3 sm:pt-8 space-y-4 sm:space-y-8 min-w-0">
-        {/* LIVE HANDWRYTTEN STATUS & BALANCE WIDGET */}
-        <HandwryttenStatusWidget />
-        {/* ===================== TAB: ORDERS & OPERATIONS ===================== */}
-        {activeTab === "orders" && (
+        {/* ===================== WORKSPACE: ORDERS & OPERATIONS ===================== */}
+        {globalScope.workspace === "orders" && (
           <div className="space-y-5 sm:space-y-8">
+            {/* CANONICAL BASELINE DISCLOSURE BANNER */}
+            {(excludeFounder || (metrics?.totalOrders || 0) > 0) && (
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-900 text-xs">
+                <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <p className="font-semibold text-amber-950">
+                    Canonical Baseline Notice (Oct 11, 2026)
+                  </p>
+                  <p className="text-amber-800 leading-relaxed">
+                    Canonical baseline (Oct 11, 2026): 0 independent customer conversions (1 founder test). Any un-reconciled historical paid record requires verification against Stripe and founder test records before counting as independent customer demand.
+                  </p>
+                </div>
+              </div>
+            )}
             {/* KPI METRIC CARDS (2x2 on Mobile, 4x1 on Desktop) */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
               <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
@@ -1460,37 +1288,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* ALL-IN-ONE COMMAND CENTER: CAMPAIGN PERFORMANCE & HIGH-INTENT CART RECOVERY */}
-            <CampaignPerformanceWidget
-              metrics={metrics}
-              orders={metrics?.recentOrders || []}
-            />
 
-            <HighIntentCartsWidget metrics={metrics} />
-
-            {/* ENRICHED VISITOR TELEMETRY & DROP-OFF WATERFALL */}
-            <VisitorTelemetryDashboard
-              metrics={metrics}
-              filterDateRange={filterDateRange}
-              onDateRangeChange={handleDateRangeChange}
-              excludeFounder={excludeFounder}
-              onExcludeFounderChange={handleExcludeFounderChange}
-              filterChannel={filterChannel}
-              onChannelChange={handleChannelChange}
-              customFrom={customFrom}
-              customTo={customTo}
-              onCustomDateChange={handleCustomDateChange}
-              onRefresh={() => fetchMetrics()}
-              isMarkingFounder={isMarkingFounder}
-              onMarkFounderDevice={handleMarkFounderDevice}
-              founderMarkedSuccess={founderMarkedSuccess}
-              onUnflagFounderSessions={handleUnflagFounderSessions}
-              isUnflaggingFounder={isUnflaggingFounder}
-              unflagFounderSuccess={unflagFounderSuccess}
-            />
-
-            {/* COHORT & HANDWRITING STYLE ANALYTICS */}
-            <CohortAnalytics metrics={metrics} />
 
             {/* RECENT ORDERS TABLE & MOBILE CARDS */}
             <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden">
@@ -1523,7 +1321,7 @@ export default function AdminDashboardPage() {
                     className="px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none"
                   >
                     <option value="ALL">All Statuses</option>
-                    <option value="PROCESSING_HANDWRYTTEN">Processing / Inked</option>
+                    <option value="PROCESSING_HANDWRYTTEN">Submitted to Supplier</option>
                     <option value="PENDING_PAYMENT">Pending Draft</option>
                     <option value="FAILED">Failed</option>
                   </select>
@@ -1547,13 +1345,13 @@ export default function AdminDashboardPage() {
                       const isComp = order.paymentMethod === "STUDIO_COMP";
                       const canRetry = !isProcessing && !isPending && !isMailed;
 
-                      let statusLabel = order.status.replace(/_/g, " ");
+                      let statusLabel = String(order.status || "UNKNOWN").replace(/_/g, " ");
                       let statusStyle = "bg-stone-100 text-stone-700 border-stone-200";
                       if (isMailed) {
                         statusLabel = "Mailed";
                         statusStyle = "bg-purple-50 text-purple-700 border-purple-200";
                       } else if (isProcessing) {
-                        statusLabel = "Inking (Robot)";
+                        statusLabel = "Submitted to Supplier";
                         statusStyle = "bg-emerald-50 text-emerald-800 border-emerald-200";
                       } else if (isPending) {
                         statusLabel = "Pending";
@@ -1615,10 +1413,10 @@ export default function AdminDashboardPage() {
                               <div className="flex items-start justify-between gap-2 min-w-0">
                                 <div className="min-w-0">
                                   <p className="text-xs font-bold text-stone-900 truncate">
-                                    {order.recipientAddress.firstName} {order.recipientAddress.lastName}
+                                    {order.recipientAddress?.firstName} {order.recipientAddress?.lastName}
                                   </p>
                                   <p className="text-[11px] text-stone-500 truncate">
-                                    {order.recipientAddress.city}, {order.recipientAddress.state} {order.recipientAddress.zip}
+                                    {order.recipientAddress?.city}, {order.recipientAddress?.state} {order.recipientAddress?.zip}
                                   </p>
                                 </div>
                                 <div className="text-right shrink-0">
@@ -1837,11 +1635,11 @@ export default function AdminDashboardPage() {
                               </td>
                               <td className="py-3 px-4">
                                 <p className="font-semibold text-stone-800">
-                                  {order.recipientAddress.firstName} {order.recipientAddress.lastName}
+                                  {order.recipientAddress?.firstName} {order.recipientAddress?.lastName}
                                 </p>
                                 <p className="text-[11px] text-stone-400 truncate max-w-[180px]">
-                                  {order.recipientAddress.city}, {order.recipientAddress.state}{" "}
-                                  {order.recipientAddress.zip}
+                                  {order.recipientAddress?.city}, {order.recipientAddress?.state}{" "}
+                                  {order.recipientAddress?.zip}
                                 </p>
                               </td>
                               <td className="py-3 px-4 truncate max-w-[160px]">
@@ -1862,6 +1660,8 @@ export default function AdminDashboardPage() {
                                   >
                                     {order.status === "QUEUED_FOR_FULFILLMENT"
                                       ? "QUEUED"
+                                      : order.status === "PROCESSING_HANDWRYTTEN"
+                                      ? "SUBMITTED TO SUPPLIER"
                                       : order.status}
                                   </span>
                                   {order.handwryttenOrderId && (
@@ -2026,8 +1826,8 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ===================== TAB: UNIT ECONOMICS & MARGINS ===================== */}
-        {activeTab === "margins" && (
+        {/* ===================== WORKSPACE: UNIT ECONOMICS & MARGINS ===================== */}
+        {globalScope.workspace === "economics" && (
           <div className="space-y-8">
             {/* UNIT ECONOMICS KPI SUMMARY */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2063,7 +1863,7 @@ export default function AdminDashboardPage() {
                 <p className="font-serif text-2xl font-bold text-indigo-900">
                   -${((metrics?.margins?.fulfillmentCogsCents || 0) / 100).toFixed(2)}
                 </p>
-                <p className="text-[11px] text-stone-400">$4.88 ink + cardstock + First Class</p>
+                <p className="text-[11px] text-stone-400">Estimated ($4.88 unconfirmed assumption)</p>
               </div>
 
               <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-sm space-y-1 bg-emerald-50/30">
@@ -2075,7 +1875,13 @@ export default function AdminDashboardPage() {
                   +${((metrics?.margins?.netContributionMarginCents || 0) / 100).toFixed(2)}
                 </p>
                 <p className="text-[11px] text-emerald-800 font-medium">
-                  {metrics?.margins?.netContributionMarginPercent || 39.6}% margin ($3.56/card)
+                  {metrics?.margins?.marginStatus === "unavailable" || (metrics?.margins?.paidCardsCount || 0) === 0
+                    ? "Unconfirmed (Pending Supplier Invoice)"
+                    : `${metrics?.margins?.netContributionMarginPercent || 0}% margin ($${(
+                        (metrics?.margins?.netContributionMarginCents || 0) /
+                        (metrics?.margins?.paidCardsCount || 1) /
+                        100
+                      ).toFixed(2)}/card)`}
                 </p>
               </div>
             </div>
@@ -2187,10 +1993,10 @@ export default function AdminDashboardPage() {
                       <div className="pt-2 border-t border-stone-200/80 text-[11px] text-stone-500 space-y-1">
                         <p className="flex items-center gap-1.5 font-medium text-stone-700">
                           <Target className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Break-even Target CPA: <strong>$3.56</strong></span>
+                          <span>Estimated Break-even Target CPA: <strong>$3.56</strong></span>
                         </p>
                         <p>
-                          Any Google Ads click-to-order cost under $3.56 is instantly profitable on the first card mailed.
+                          Modeled break-even target assuming unconfirmed $4.88 supplier COGS baseline.
                         </p>
                       </div>
                     </div>
@@ -2202,11 +2008,11 @@ export default function AdminDashboardPage() {
                           <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
                             Blended CPA / CAC
                           </span>
-                          <p className={`font-serif text-xl font-bold ${cpaDollars <= 3.56 ? "text-emerald-700" : "text-amber-700"}`}>
-                            ${cpaDollars.toFixed(2)}
+                          <p className={`font-serif text-xl font-bold ${cpaDollars <= 3.56 && paidCount > 0 ? "text-emerald-700" : "text-amber-700"}`}>
+                            {paidCount === 0 && enteredAdSpend > 0 ? "No purchases" : `$${cpaDollars.toFixed(2)}`}
                           </p>
                           <p className="text-[10px] text-stone-400">
-                            {paidCount > 0 ? `Across ${paidCount} paid orders` : "Based on ad spend"}
+                            {paidCount > 0 ? `Across ${paidCount} paid orders` : enteredAdSpend > 0 ? "Ad spend with 0 paid orders" : "No ad spend entered"}
                           </p>
                         </div>
 
@@ -2220,11 +2026,11 @@ export default function AdminDashboardPage() {
                           <p className="text-[10px] text-stone-400">Gross Rev / Ad Spend</p>
                         </div>
 
-                        <div className={`p-4 rounded-2xl border space-y-1 ${netProfitAfterAds >= 0 ? "bg-emerald-50/50 border-emerald-200" : "bg-rose-50/50 border-rose-200"}`}>
+                        <div className={`p-4 rounded-2xl border space-y-1 ${netProfitAfterAds >= 0 && paidCount > 0 ? "bg-emerald-50/50 border-emerald-200" : "bg-rose-50/50 border-rose-200"}`}>
                           <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
                             Net Studio Profit
                           </span>
-                          <p className={`font-serif text-xl font-bold ${netProfitAfterAds >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
+                          <p className={`font-serif text-xl font-bold ${netProfitAfterAds >= 0 && paidCount > 0 ? "text-emerald-700" : "text-rose-700"}`}>
                             {netProfitAfterAds >= 0 ? `+$${netProfitAfterAds.toFixed(2)}` : `-$${Math.abs(netProfitAfterAds).toFixed(2)}`}
                           </p>
                           <p className="text-[10px] text-stone-400">After COGS, fees &amp; ads</p>
@@ -2232,31 +2038,45 @@ export default function AdminDashboardPage() {
                       </div>
 
                       {/* Profitability Status Callout */}
-                      <div
-                        className={`p-4 rounded-2xl border flex items-start gap-3 ${
-                          isProfitable
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                            : "bg-amber-50 border-amber-200 text-amber-900"
-                        }`}
-                      >
-                        {isProfitable ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                        ) : (
-                          <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                        )}
-                        <div className="space-y-1 text-xs">
-                          <p className="font-bold">
-                            {isProfitable
-                              ? "Profitable First-Order Acquisition (CPA ≤ $3.56)"
-                              : "Growth & Customer Acquisition Investment (CPA > $3.56)"}
-                          </p>
-                          <p className="text-stone-600 leading-relaxed">
-                            {isProfitable
-                              ? `At a CPA of $${cpaDollars.toFixed(2)}, you are clearing positive cash flow on card #1. Repeat sends generated from recipient address book reminders are 100% organic profit.`
-                              : `At a CPA of $${cpaDollars.toFixed(2)}, the first card operates as customer acquisition. Customers who save recipients average 3+ card orders per year, achieving full breakeven on repeat sends.`}
-                          </p>
+                      {enteredAdSpend <= 0 || paidCount === 0 ? (
+                        <div className="p-4 rounded-2xl border flex items-start gap-3 bg-stone-50 border-stone-200 text-stone-800">
+                          <Info className="w-5 h-5 text-stone-500 shrink-0 mt-0.5" />
+                          <div className="space-y-1 text-xs">
+                            <p className="font-bold">Spend or Purchases Missing — Profitability Unknown</p>
+                            <p className="text-stone-600 leading-relaxed">
+                              {enteredAdSpend <= 0
+                                ? "Spend has not been entered. Enter marketing ad spend above to model blended CPA and net margin."
+                                : "Marketing spend recorded but no paid customer purchases observed. Acquisition cost cannot be calculated with zero purchases."}
+                            </p>
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div
+                          className={`p-4 rounded-2xl border flex items-start gap-3 ${
+                            isProfitable
+                              ? "bg-emerald-50 border-emerald-200 text-emerald-900"
+                              : "bg-amber-50 border-amber-200 text-amber-900"
+                          }`}
+                        >
+                          {isProfitable ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+                          ) : (
+                            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+                          )}
+                          <div className="space-y-1 text-xs">
+                            <p className="font-bold">
+                              {isProfitable
+                                ? "Modeled First-Order Acquisition (CPA ≤ $3.56)"
+                                : "Growth & Customer Acquisition Investment (CPA > $3.56)"}
+                            </p>
+                            <p className="text-stone-600 leading-relaxed">
+                              {isProfitable
+                                ? `At a modeled CPA of $${cpaDollars.toFixed(2)}, first-card margin covers acquisition based on assumed $4.88 COGS (unconfirmed supplier baseline).`
+                                : `At a modeled CPA of $${cpaDollars.toFixed(2)}, the first card operates at an acquisition loss under the unconfirmed $4.88 COGS assumption.`}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2324,11 +2144,11 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-stone-700">Fulfillment COGS</span>
                     <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
-                      -$4.88
+                      -$4.88 (Est.)
                     </span>
                   </div>
                   <p className="text-xs text-stone-500 leading-relaxed">
-                    Handwrytten robotic pen drawing, custom 120 lb cardstock, envelope inking, and USPS First Class postage.
+                    Handwrytten robotic pen drawing, cardstock (unconfirmed stock weight), envelope inking, and USPS First Class postage (unconfirmed supplier baseline).
                   </p>
                 </div>
 
@@ -2336,11 +2156,11 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-emerald-900">Net Gross Margin</span>
                     <span className="text-xs font-bold text-white bg-emerald-600 px-2 py-0.5 rounded-full">
-                      +$3.56
+                      +$3.56 (Est.)
                     </span>
                   </div>
                   <p className="text-xs text-emerald-800 leading-relaxed">
-                    <strong>39.6% net contribution margin.</strong> This is your exact break-even budget for Google Ads CAC.
+                    <strong>Estimated 39.6% net contribution margin ($3.56/card).</strong> Modeled baseline assuming $4.88 COGS; subject to verification against live supplier billing.
                   </p>
                 </div>
               </div>
@@ -2533,8 +2353,8 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ===================== TAB: DISCOUNT CODES ===================== */}
-        {activeTab === "discounts" && (
+        {/* ===================== WORKSPACE: PROMOTIONS & OFFERS ===================== */}
+        {globalScope.workspace === "promotions" && (
           <div className="space-y-8">
             {/* KPI METRIC CARDS FOR DISCOUNTS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -2993,9 +2813,14 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ===================== TAB: SEO & SCENARIOS ===================== */}
-        {activeTab === "scenarios" && (
+        {/* ===================== WORKSPACE: GROWTH & ACQUISITION ===================== */}
+        {globalScope.workspace === "growth" && (
           <div className="space-y-8">
+            <CampaignPerformanceWidget
+              metrics={metrics}
+              orders={metrics?.recentOrders || []}
+            />
+            <CohortAnalytics metrics={metrics} />
             {/* KPI METRIC CARDS FOR SCENARIOS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
@@ -3254,9 +3079,11 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ===================== TAB: SYSTEM HEALTH & INCIDENTS ===================== */}
-        {activeTab === "incidents" && (
+        {/* ===================== WORKSPACE: SYSTEM HEALTH & RELIABILITY ===================== */}
+        {globalScope.workspace === "reliability" && (
           <div className="space-y-8">
+            <OperationalControlsPanel />
+            <HandwryttenStatusWidget />
             {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}
             <div className="bg-white rounded-3xl p-4 sm:p-8 border border-stone-200 shadow-sm space-y-4 sm:space-y-6">
               <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-stone-100">
@@ -3264,7 +3091,7 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center gap-2">
                     <h2
                       className={`text-base font-bold flex items-center gap-2 ${
-                        hasActiveAlerts ? "text-rose-700" : "text-emerald-800"
+                        hasActiveAlerts ? "text-rose-700" : "text-stone-700"
                       }`}
                     >
                       {hasActiveAlerts && (
@@ -3277,8 +3104,8 @@ export default function AdminDashboardPage() {
                         {unresolvedIncidents.length} Active Alert{unresolvedIncidents.length > 1 ? "s" : ""}
                       </span>
                     ) : (
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        All Systems Operational
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-300">
+                        Health Evidence Unknown
                       </span>
                     )}
                   </div>
@@ -3413,9 +3240,9 @@ export default function AdminDashboardPage() {
                 incidentFilter === "UNRESOLVED" ? (
                   <div className="text-center py-10 px-4 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-2">
                     <ShieldCheck className="w-10 h-10 text-emerald-600 mx-auto" />
-                    <p className="font-bold text-sm text-emerald-900">All Systems Healthy &amp; Operational</p>
+                    <p className="font-bold text-sm text-emerald-900">No Open Incidents in This Feed</p>
                     <p className="text-xs text-emerald-700 max-w-md mx-auto">
-                      No active or unresolved alerts. Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
+                      No unresolved alerts were returned. Provider and end-to-end health remain unknown without recent positive checks.
                     </p>
                     {resolvedIncidents.length > 0 && (
                       <div className="pt-2">
@@ -3553,17 +3380,18 @@ export default function AdminDashboardPage() {
                                 <span>Fix Address</span>
                               </button>
                             )}
-                            {!incident.resolved && (
-                              <button
-                                type="button"
-                                onClick={() => handleResolveIncident(incident.id)}
-                                className="text-[11px] font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
-                              >
-                                Mark Resolved
-                              </button>
-                            )}
                           </div>
                         </div>
+
+                        <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_1.5fr_auto]">
+                          <input aria-label="Incident owner" value={incidentOwners[incident.id] ?? (incident as any).owner ?? ""} onChange={(event) => setIncidentOwners((prev) => ({ ...prev, [incident.id]: event.target.value }))} placeholder="Owner" className="rounded-lg border border-stone-300 px-2 py-1.5 text-[11px]" />
+                          <select aria-label="Incident lifecycle state" value={incidentLifecycle[incident.id] ?? (incident as any).lifecycleStatus ?? (incident.resolved ? "resolved" : "acknowledged")} onChange={(event) => setIncidentLifecycle((prev) => ({ ...prev, [incident.id]: event.target.value }))} className="rounded-lg border border-stone-300 px-2 py-1.5 text-[11px]">
+                            <option value="acknowledged">Acknowledged</option><option value="investigating">Investigating</option><option value="resolved">Resolved</option><option value="verified">Verified</option>
+                          </select>
+                          <input aria-label="Incident lifecycle reason" value={incidentReasons[incident.id] || ""} onChange={(event) => setIncidentReasons((prev) => ({ ...prev, [incident.id]: event.target.value }))} maxLength={500} placeholder="Reason or resolution evidence" className="rounded-lg border border-stone-300 px-2 py-1.5 text-[11px]" />
+                          <button type="button" disabled={!incidentReasons[incident.id]?.trim()} onClick={() => handleIncidentLifecycle(incident.id)} className="rounded-lg bg-stone-900 px-3 py-1.5 text-[11px] font-semibold text-white disabled:opacity-40">Record update</button>
+                        </div>
+                        <div className="mt-1 text-[10px] text-stone-500">State: {(incident as any).lifecycleStatus || (incident.resolved ? "resolved" : "open")} · age {Math.max(0, Math.floor((Date.now() - incident.createdAt) / 3600000))}h · repeats {(incident as any).occurrenceCount || 1} · alert {(incident as any).alertDelivery || "unverified"}</div>
 
                         <p className="font-semibold text-xs text-stone-800 mt-2">{incident.summary}</p>
 
@@ -3588,74 +3416,11 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ===================== TAB: FEATURE FLAGS & V3 ROLLOUT ===================== */}
-        {activeTab === "flags" && (
-          <AdminFeatureFlagsTab />
+        {/* ===================== WORKSPACE: FEATURE FLAGS & EXPERIMENTS ===================== */}
+        {globalScope.workspace === "controls" && (
+          <div className="space-y-4"><OperationalControlsPanel /><p className="text-xs text-stone-600">Experience releases use the deployment rollback procedure. Operational pauses preserve accepted payments and existing orders.</p></div>
         )}
-      </main>
-
-      {/* MOBILE PERSISTENT BOTTOM NAVIGATION (Thumb zone) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-stone-200 py-1.5 px-3 z-40 flex items-center justify-around shadow-lg">
-        <button
-          type="button"
-          onClick={() => setActiveTab("orders")}
-          className={`flex flex-col items-center py-1 transition cursor-pointer ${
-            activeTab === "orders" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
-          }`}
-        >
-          <Package className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Orders</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("incidents")}
-          className={`flex flex-col items-center py-1 transition cursor-pointer ${
-            activeTab === "incidents" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
-          }`}
-        >
-          <div className="relative">
-            <ShieldCheck className="w-5 h-5" />
-            <span
-              className={`w-2 h-2 rounded-full absolute -top-0.5 -right-0.5 ring-2 ring-white ${
-                hasActiveAlerts ? "bg-rose-500 animate-pulse" : "bg-emerald-500"
-              }`}
-            />
-          </div>
-          <span className="text-[10px] mt-0.5">Health</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("margins")}
-          className={`flex flex-col items-center py-1 transition cursor-pointer ${
-            activeTab === "margins" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
-          }`}
-        >
-          <DollarSign className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Margins</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("discounts")}
-          className={`flex flex-col items-center py-1 transition cursor-pointer ${
-            activeTab === "discounts" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
-          }`}
-        >
-          <Tag className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Promos</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen(true)}
-          className="flex flex-col items-center py-1 text-stone-400 hover:text-stone-700 font-medium transition cursor-pointer"
-        >
-          <Menu className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Menu</span>
-        </button>
-      </nav>
+      </ExecutiveShell>
 
       {/* ===================== STUDIO & OPERATOR MODALS ===================== */}
       {selectedProofOrderId && (
@@ -3676,6 +3441,7 @@ export default function AdminDashboardPage() {
           onSuccess={() => {
             fetchMetrics();
             fetchIncidents();
+            fetchOverviewReport(globalScope);
           }}
         />
       )}
@@ -3685,9 +3451,10 @@ export default function AdminDashboardPage() {
           onClose={() => setShowCompModal(false)}
           onSuccess={() => {
             fetchMetrics();
+            fetchOverviewReport(globalScope);
           }}
         />
       )}
-    </div>
+    </>
   );
 }

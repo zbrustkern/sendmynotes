@@ -45,8 +45,23 @@ export function CampaignPerformanceWidget({ metrics, orders }: CampaignPerforman
 
   // 1. Populate from sessions
   for (const s of sessions) {
+    const sSource = (s.source || "").toLowerCase();
+    const sMed = (s.medium || "").toLowerCase();
+    const isMeta = sSource === "meta" || sSource === "facebook" || sSource === "instagram" || sMed === "paid_social";
+    const isPaidMedium = ["paid_social", "paid", "cpc", "cpm", "ppc"].includes(sMed);
+
+    let channel = "Direct";
+    if (s.gclid || (sSource === "google" && sMed === "cpc")) {
+      channel = "Google Ads";
+    } else if (isMeta) {
+      channel = (isPaidMedium || Boolean(s.campaign)) ? "Meta Paid" : "Social";
+    } else if (sMed === "organic") {
+      channel = "Organic";
+    } else if (sMed === "social") {
+      channel = "Social";
+    }
+
     const campName = s.campaign || (s.gclid ? "Google Ads (Auto-Tagged)" : s.source ? `${s.source} / ${s.medium}` : "Direct / Organic");
-    const channel = s.gclid || s.source === "google" && s.medium === "cpc" ? "Google Ads" : s.medium === "organic" ? "Organic" : s.medium === "social" ? "Social" : "Direct";
 
     if (!campaignDataMap.has(campName)) {
       campaignDataMap.set(campName, {
@@ -68,32 +83,49 @@ export function CampaignPerformanceWidget({ metrics, orders }: CampaignPerforman
     }
     if (s.completed) {
       row.purchases++;
-      row.revenueDollars += 9.0;
-      row.netMarginDollars += 3.56;
+      // Do not invent fixed $9.00 or $3.56 margin
+      row.revenueDollars += 0;
+      row.netMarginDollars += 0;
     }
   }
 
   // 2. Also incorporate completed orders that have attribution
   for (const ord of orders) {
     if (ord.status === "PENDING_PAYMENT" || ord.status === "FAILED" || ord.status === "PAYMENT_VERIFICATION_FAILED") continue;
+    const ordSrc = (ord.attribution?.utmSource || "").toLowerCase();
+    const ordMed = (ord.attribution?.utmMedium || "").toLowerCase();
+    const ordIsMeta = ordSrc === "meta" || ordSrc === "facebook" || ordSrc === "instagram" || ordMed === "paid_social";
+    const ordPaidMedium = ["paid_social", "paid", "cpc", "cpm", "ppc"].includes(ordMed);
+
+    let ordChannel = "Direct";
+    if (ord.attribution?.gclid || (ordSrc === "google" && ordMed === "cpc")) {
+      ordChannel = "Google Ads";
+    } else if (ordIsMeta) {
+      ordChannel = (ordPaidMedium || Boolean(ord.attribution?.utmCampaign)) ? "Meta Paid" : "Social";
+    } else if (ordMed === "organic") {
+      ordChannel = "Organic";
+    } else if (ordMed === "social") {
+      ordChannel = "Social";
+    }
+
     const camp = ord.attribution?.utmCampaign || (ord.attribution?.gclid ? "Google Ads" : "Direct / Organic");
+    const orderRev = typeof ord.amountInCents === "number" && ord.amountInCents > 0 ? ord.amountInCents / 100 : 0;
+
     if (campaignDataMap.has(camp)) {
-      // Ensure orders count matches
       const r = campaignDataMap.get(camp)!;
       if (r.purchases === 0) {
         r.purchases += 1;
-        r.revenueDollars += (ord.amountInCents || 900) / 100;
-        r.netMarginDollars += 3.56;
+        r.revenueDollars += orderRev;
       }
     } else {
       campaignDataMap.set(camp, {
         name: camp,
-        channel: ord.attribution?.gclid ? "Google Ads" : "Direct",
-        visitors: 1,
-        reachedAddress: 1,
+        channel: ordChannel,
+        visitors: 0,
+        reachedAddress: 0,
         purchases: 1,
-        revenueDollars: (ord.amountInCents || 900) / 100,
-        netMarginDollars: 3.56,
+        revenueDollars: orderRev,
+        netMarginDollars: 0,
         landingPage: ord.attribution?.landingPath,
       });
     }
@@ -114,9 +146,9 @@ export function CampaignPerformanceWidget({ metrics, orders }: CampaignPerforman
               <Target className="w-4 h-4 text-amber-600 shrink-0" />
               <span>Live Campaign Performance &amp; Channel Attribution</span>
             </h2>
-            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              Live Funnel
+            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+              Legacy Sample (Latest 50 Sessions — Partial Cohort)
             </span>
           </div>
           <p className="text-xs text-stone-500 mt-1">
@@ -176,7 +208,7 @@ export function CampaignPerformanceWidget({ metrics, orders }: CampaignPerforman
                 <th className="py-2.5 px-3 text-center">Purchases</th>
                 <th className="py-2.5 px-3 text-right">Conv. Rate</th>
                 <th className="py-2.5 px-3 text-right">Gross Revenue</th>
-                <th className="py-2.5 px-3 text-right">Net Studio Margin</th>
+                <th className="py-2.5 px-3 text-right">Net Margin (Pending Invoice)</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
@@ -202,6 +234,8 @@ export function CampaignPerformanceWidget({ metrics, orders }: CampaignPerforman
                         className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
                           row.channel === "Google Ads"
                             ? "bg-blue-50 text-blue-800 border border-blue-200"
+                            : row.channel === "Meta Paid"
+                            ? "bg-indigo-50 text-indigo-800 border border-indigo-200"
                             : "bg-stone-100 text-stone-700 border border-stone-200"
                         }`}
                       >
@@ -242,8 +276,8 @@ export function CampaignPerformanceWidget({ metrics, orders }: CampaignPerforman
                       ${row.revenueDollars.toFixed(2)}
                     </td>
 
-                    <td className="py-3 px-3 text-right font-bold text-emerald-700">
-                      +${row.netMarginDollars.toFixed(2)}
+                    <td className="py-3 px-3 text-right font-medium text-stone-500">
+                      Unconfirmed
                     </td>
                   </tr>
                 );

@@ -1,0 +1,42 @@
+# Selected only by the sendmynotes-staging backend environment name.
+# Staging is an admin review environment; live payments, mail and physical orders are blocked.
+env:
+  - variable: NEXT_PUBLIC_STAGING_REVIEW_ONLY
+    value: "true"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app
+    availability: [BUILD, RUNTIME]
+  - variable: FIREBASE_PROJECT_ID
+    value: sendmynotes-staging
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: sendmynotes-staging
+    availability: [BUILD, RUNTIME]
+  - variable: STAGING_REVIEW_ONLY
+    value: "true"
+    availability: [RUNTIME]
+  - variable: ADMIN_SESSION_SIGNING_KEY
+    secret: admin-session-signing-key
+    availability: [RUNTIME]
+  - variable: HANDWRYTTEN_TEST_MODE
+    value: "true"
+    availability: [RUNTIME]
+  - variable: NEXT_PUBLIC_GA4_MEASUREMENT_ID
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_GOOGLE_TAG_ID
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_GOOGLE_ADS_ID
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_LABEL
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_META_PIXEL_ID
+    value: ""
+    availability: [BUILD, RUNTIME]
+  - variable: META_CONVERSIONS_API_ACCESS_TOKEN
+    value: ""
+    availability: [BUILD, RUNTIME]

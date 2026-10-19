@@ -1,0 +1,72 @@
+[
+  {
+    "test": "sprint-0001-contracts-and-trust.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.39
+  },
+  {
+    "test": "sprint-0002-financial-truth.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.7
+  },
+  {
+    "test": "sprint-0003-telemetry-v2.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.36
+  },
+  {
+    "test": "sprint-0004-reporting-and-spend.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.42
+  },
+  {
+    "test": "sprint-0005-offer-engine.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.36
+  },
+  {
+    "test": "sprint-0006-executive-shell.test.tsx",
+    "exit_code": 0,
+    "duration_seconds": 0.27
+  },
+  {
+    "test": "sprint-0007-investigations.test.tsx",
+    "exit_code": 0,
+    "duration_seconds": 0.56
+  },
+  {
+    "test": "sprint-0008-promotions-and-growth.test.tsx",
+    "exit_code": 0,
+    "duration_seconds": 0.4
+  },
+  {
+    "test": "sprint-0009-reliability-controls.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.56
+  },
+  {
+    "test": "sprint-0010-learning-and-replay.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.38
+  },
+  {
+    "test": "admin-portal-repairs-regression.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.15
+  },
+  {
+    "test": "draft.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.11
+  },
+  {
+    "test": "admin-takeover-reporting.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.35
+  },
+  {
+    "test": "admin-takeover-integration.test.ts",
+    "exit_code": 0,
+    "duration_seconds": 0.67
+  }
+]

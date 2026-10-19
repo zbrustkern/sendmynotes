@@ -9,6 +9,23 @@ export const AUTHORITY_EVENTS = new Set<string>([
   "purchase_verified",
   "fulfillment_submitted",
   "fulfillment_failed",
+  "step_6_paid_order",
+  "payment_captured",
+  "payment_refunded",
+  "payment_disputed",
+  "fulfillment_queued",
+  "supplier_status_observed",
+  "receipt_requested",
+  "receipt_accepted",
+  "receipt_delivered",
+  "receipt_failed",
+  "discount_redeemed",
+  "control_changed",
+  "release_observed",
+  "card_rendered",
+  "mail_dispatched",
+  "order_state_transitioned",
+  "reconciliation_completed",
 ]);
 
 /**
@@ -20,15 +37,38 @@ export function isAuthorityEvent(eventName: string): boolean {
   if (AUTHORITY_EVENTS.has(eventName)) return true;
   if (eventName.startsWith("fulfillment_")) return true;
   if (eventName.startsWith("purchase_")) return true;
+  if (eventName.startsWith("receipt_")) return true;
   if (/^(payment|order)_succeed(ed)?$/i.test(eventName)) return true;
   if (/^payment_success$/i.test(eventName)) return true;
+  if (
+    eventName === "step_6_paid_order" ||
+    eventName === "payment_captured" ||
+    eventName === "payment_refunded" ||
+    eventName === "payment_disputed" ||
+    eventName === "discount_redeemed" ||
+    eventName === "control_changed" ||
+    eventName === "release_observed"
+  ) {
+    return true;
+  }
   return false;
+}
+
+/**
+ * Evaluates whether an event is an authoritative, verified server payment event.
+ * Returns true ONLY when eventName is purchase_verified or payment_succeeded AND path is /api/server.
+ */
+export function isVerifiedServerPaymentEvent(eventName: string, path?: string): boolean {
+  return (
+    (eventName === "purchase_verified" || eventName === "payment_succeeded") &&
+    path === "/api/server"
+  );
 }
 
 /**
  * Allowed client/browser event names.
  */
-export const ALLOWED_BROWSER_EVENT_NAMES = new Set<TelemetryEventName>([
+export const ALLOWED_BROWSER_EVENT_NAMES = new Set<string>([
   "session_start",
   "landing_viewed",
   "builder_started",
@@ -53,6 +93,7 @@ export const ALLOWED_BROWSER_EVENT_NAMES = new Set<TelemetryEventName>([
   "checkout_initiated",
   "payment_viewed",
   "wallet_availability_observed",
+  "payment_confirmation_observed",
   "payment_attempted",
   "payment_canceled",
   "payment_failed",
@@ -68,6 +109,37 @@ export const ALLOWED_BROWSER_EVENT_NAMES = new Set<TelemetryEventName>([
   "step_6_paid_order",
   "starter_prompt_used",
   "default_template_loaded",
+  // Event V2 Browser Events (SPRINT-0003):
+  "entry_viewed",
+  "builder_engaged",
+  "cover_loaded",
+  "cover_selected",
+  "generation_requested",
+  "generation_completed",
+  "generation_failed",
+  "note_template_loaded",
+  "note_edit_started",
+  "note_confirmed",
+  "address_viewed",
+  "address_validation_failed",
+  "address_confirmed",
+  "address_deferred",
+  "checkout_requested",
+  "checkout_created",
+  "payment_ui_ready",
+  "payment_ui_failed",
+  "wallet_selected",
+  "wallet_canceled",
+  "payment_action_required",
+  "offer_viewed",
+  "discount_apply_requested",
+  "discount_applied",
+  "discount_rejected",
+  "discount_removed",
+  "draft_resumed",
+  "recovery_offer_viewed",
+  "recovery_purchase_linked",
+  "experiment_exposed",
 ]);
 
 export type AllowedFieldType = "string" | "number" | "boolean";
@@ -81,6 +153,15 @@ export interface FieldRule {
  * Common metadata keys allowed on all events.
  */
 export const COMMON_METADATA_RULES: Record<string, FieldRule> = {
+  attribution_observed: { type: "boolean" },
+  utmSource: { type: "string", maxLength: 100 },
+  utmMedium: { type: "string", maxLength: 100 },
+  utmCampaign: { type: "string", maxLength: 100 },
+  utm_source: { type: "string", maxLength: 100 },
+  utm_medium: { type: "string", maxLength: 100 },
+  utm_campaign: { type: "string", maxLength: 100 },
+  device_category: { type: "string", maxLength: 10 },
+  referrer: { type: "string", maxLength: 200 },
   experienceVersion: { type: "string", maxLength: 50 },
   draftRevision: { type: "number" },
   elapsedMs: { type: "number" },
@@ -203,6 +284,12 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     googlePay: { type: "boolean" },
     browserCategory: { type: "string", maxLength: 50 },
   },
+  payment_confirmation_observed: {
+    orderId: { type: "string", maxLength: 100 },
+    amountInCents: { type: "number" },
+    in_app_browser: { type: "boolean" },
+    used_address_deferral: { type: "boolean" },
+  },
   payment_attempted: {
     paymentMethodType: { type: "string", maxLength: 50 },
     attemptId: { type: "string", maxLength: 100 },
@@ -296,15 +383,180 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     orderId: { type: "string", maxLength: 100 },
     errorCategory: { type: "string", maxLength: 100 },
   },
+  // Event V2 Metadata Schemas (SPRINT-0003):
+  entry_viewed: {
+    entryRoute: { type: "string", maxLength: 100 },
+    occasion: { type: "string", maxLength: 50 },
+    scenarioSlug: { type: "string", maxLength: 100 },
+  },
+  builder_engaged: {
+    startingMode: { type: "string", maxLength: 50 },
+    occasion: { type: "string", maxLength: 50 },
+  },
+  cover_loaded: {
+    presetId: { type: "string", maxLength: 100 },
+    occasion: { type: "string", maxLength: 50 },
+    autoSelected: { type: "boolean" },
+    auto_selected: { type: "boolean" },
+    source: { type: "string", maxLength: 50 },
+  },
+  cover_selected: {
+    presetId: { type: "string", maxLength: 100 },
+    occasion: { type: "string", maxLength: 50 },
+    title: { type: "string", maxLength: 100 },
+    selectionMethod: { type: "string", maxLength: 50 },
+  },
+  generation_requested: {
+    occasion: { type: "string", maxLength: 50 },
+    style: { type: "string", maxLength: 50 },
+  },
+  generation_completed: {
+    occasion: { type: "string", maxLength: 50 },
+    durationMs: { type: "number" },
+    style: { type: "string", maxLength: 50 },
+  },
+  generation_failed: {
+    reason: { type: "string", maxLength: 100 },
+    errorCode: { type: "string", maxLength: 50 },
+    durationMs: { type: "number" },
+  },
+  note_template_loaded: {
+    charCount: { type: "number" },
+    occasion: { type: "string", maxLength: 50 },
+    scenarioSlug: { type: "string", maxLength: 100 },
+    noteEdited: { type: "boolean" },
+    wasEdited: { type: "boolean" },
+  },
+  note_edit_started: {
+    inputField: { type: "string", maxLength: 50 },
+    charCount: { type: "number" },
+  },
+  note_confirmed: {
+    charCount: { type: "number" },
+    fontId: { type: "string", maxLength: 50 },
+    wasEdited: { type: "boolean" },
+    noteEdited: { type: "boolean" },
+    hasPrintedGreeting: { type: "boolean" },
+  },
+  address_viewed: {
+    last_validation_error: { type: "string", maxLength: 200 },
+    deferred: { type: "boolean" },
+  },
+  address_validation_failed: {
+    errorCategory: { type: "string", maxLength: 100 },
+    missingFields: { type: "string", maxLength: 100 },
+    failedField: { type: "string", maxLength: 50 },
+  },
+  address_confirmed: {
+    hasReturnAddress: { type: "boolean" },
+    isInternational: { type: "boolean" },
+    used_address_deferral: { type: "boolean" },
+  },
+  address_deferred: {
+    used_address_deferral: { type: "boolean" },
+    reason: { type: "string", maxLength: 100 },
+  },
+  checkout_requested: {
+    orderId: { type: "string", maxLength: 100 },
+    amountInCents: { type: "number" },
+    used_address_deferral: { type: "boolean" },
+    requestId: { type: "string", maxLength: 100 },
+  },
+  checkout_created: {
+    orderId: { type: "string", maxLength: 100 },
+    amountInCents: { type: "number" },
+    paymentMode: { type: "string", maxLength: 50 },
+    requestId: { type: "string", maxLength: 100 },
+  },
+  payment_ui_ready: {
+    paymentElement: { type: "boolean" },
+    loadTimeMs: { type: "number" },
+    mode: { type: "string", maxLength: 50 },
+  },
+  payment_ui_failed: {
+    errorCategory: { type: "string", maxLength: 100 },
+    errorCode: { type: "string", maxLength: 50 },
+    loadTimeMs: { type: "number" },
+  },
+  wallet_selected: {
+    walletType: { type: "string", maxLength: 50 },
+  },
+  wallet_canceled: {
+    walletType: { type: "string", maxLength: 50 },
+  },
+  payment_action_required: {
+    attemptId: { type: "string", maxLength: 100 },
+    actionType: { type: "string", maxLength: 50 },
+  },
+  offer_viewed: {
+    promoCode: { type: "string", maxLength: 50 },
+    source: { type: "string", maxLength: 50 },
+  },
+  discount_apply_requested: {
+    promoCode: { type: "string", maxLength: 50 },
+  },
+  discount_applied: {
+    promoCode: { type: "string", maxLength: 50 },
+    discountType: { type: "string", maxLength: 20 },
+    discountAmountInCents: { type: "number" },
+  },
+  discount_rejected: {
+    promoCode: { type: "string", maxLength: 50 },
+    reason: { type: "string", maxLength: 100 },
+  },
+  discount_removed: {
+    promoCode: { type: "string", maxLength: 50 },
+  },
+  draft_resumed: {
+    draftId: { type: "string", maxLength: 100 },
+    resumedStep: { type: "number" },
+    hadNote: { type: "boolean" },
+    hadRecipient: { type: "boolean" },
+  },
+  recovery_offer_viewed: {
+    offerCode: { type: "string", maxLength: 50 },
+    sessionId: { type: "string", maxLength: 100 },
+  },
+  recovery_purchase_linked: {
+    orderId: { type: "string", maxLength: 100 },
+    recoverySessionId: { type: "string", maxLength: 100 },
+  },
+  experiment_exposed: {
+    experimentId: { type: "string", maxLength: 50 },
+    variantId: { type: "string", maxLength: 50 },
+  },
 };
+
+export const PROHIBITED_METADATA_KEYS = new Set<string>([
+  "printedmessage",
+  "handwrittennote",
+  "bodynote",
+  "salutation",
+  "signoff",
+  "recipientaddress",
+  "returnaddress",
+  "street1",
+  "street2",
+  "customeremail",
+  "email",
+  "phone",
+  "authorization",
+  "bearer",
+  "viewtoken",
+  "clientsecret",
+  "password",
+  "token",
+  "secretmessage",
+]);
 
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
 
 /**
  * Sanitizes an event's metadata according to its allowlist schema.
+ * - Prohibited PII and secret keys are strictly dropped.
  * - Unknown keys are dropped.
  * - Nested objects and arrays are rejected/dropped so no personal values can be stored.
- * - String values are stripped of emails and length-bounded.
+ * - String values are stripped of emails, Bearer tokens, and length-bounded.
  */
 export function sanitizeMetadata(
   eventName: string,
@@ -328,6 +580,17 @@ export function sanitizeMetadata(
       continue;
     }
 
+    // Explicitly reject prohibited PII / secret keys
+    const lowerKey = key.toLowerCase();
+    if (
+      PROHIBITED_METADATA_KEYS.has(lowerKey) ||
+      lowerKey.includes("password") ||
+      lowerKey.includes("secret") ||
+      (lowerKey.includes("token") && lowerKey !== "fontid" && lowerKey !== "presetid")
+    ) {
+      continue;
+    }
+
     const rule = eventRules[key] || COMMON_METADATA_RULES[key];
     if (!rule) {
       // Unknown key dropped
@@ -336,10 +599,20 @@ export function sanitizeMetadata(
 
     if (rule.type === "string") {
       if (typeof value === "string") {
-        // Strip any email pattern
-        const stripped = value.replace(new RegExp(EMAIL_REGEX, "g"), "").trim();
+        const trimmedVal = value.trim();
+        // Drop Bearer tokens
+        if (/^bearer\s+/i.test(trimmedVal) || /bearer\s+[a-z0-9_-]+/i.test(trimmedVal)) {
+          continue;
+        }
+        // If string is exclusively an email address, drop it
+        if (/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(trimmedVal)) {
+          continue;
+        }
+        // Strip any embedded email pattern
+        const stripped = trimmedVal.replace(new RegExp(EMAIL_REGEX, "g"), "").trim();
+        if (!stripped) continue;
         const maxLen = rule.maxLength || 100;
-        sanitized[key] = stripped.slice(0, maxLen);
+        sanitized[key] = key === "referrer" ? sanitizeUrlOrPath(stripped) : stripped.slice(0, maxLen);
       }
     } else if (rule.type === "number") {
       if (typeof value === "number" && Number.isFinite(value)) {
@@ -358,6 +631,7 @@ export function sanitizeMetadata(
 /**
  * Sanitizes URLs and paths to origin + pathname only.
  * Strips query strings (?...) and hashes (#...) to prevent leaking PII, receipt tokens, etc.
+ * Redacts any email patterns or token strings in path segments.
  */
 export function sanitizeUrlOrPath(raw: string | undefined): string | undefined {
   if (!raw || typeof raw !== "string") return undefined;
@@ -368,17 +642,23 @@ export function sanitizeUrlOrPath(raw: string | undefined): string | undefined {
   if (/^https?:\/\//i.test(trimmed)) {
     try {
       const parsed = new URL(trimmed);
-      return `${parsed.origin}${parsed.pathname}`;
+      let cleanPath = parsed.pathname;
+      cleanPath = cleanPath.replace(EMAIL_REGEX, "[redacted]");
+      cleanPath = cleanPath.replace(/bearer\s+[a-z0-9_-]+/gi, "[redacted]");
+      return `${parsed.origin}${cleanPath}`;
     } catch {
       // Fallback: take portion before ? or #
-      return trimmed.split(/[?#]/)[0];
+      const base = trimmed.split(/[?#]/)[0];
+      return base.replace(EMAIL_REGEX, "[redacted]");
     }
   }
 
   // Relative path
   const withoutQueryOrHash = trimmed.split(/[?#]/)[0];
   if (!withoutQueryOrHash) return "/";
-  return withoutQueryOrHash.startsWith("/") ? withoutQueryOrHash : `/${withoutQueryOrHash}`;
+  let cleanRelative = withoutQueryOrHash.startsWith("/") ? withoutQueryOrHash : `/${withoutQueryOrHash}`;
+  cleanRelative = cleanRelative.replace(EMAIL_REGEX, "[redacted]");
+  return cleanRelative;
 }
 
 /**

@@ -17,8 +17,8 @@ import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step
 import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
 import { evaluateCheckoutInitTransition } from "@/lib/payment-mode";
-import { extractRecipientName, extractSenderName } from "@/components/v3/TargetPurchaseExperience";
-import { trackEvent, getSessionId } from "@/lib/telemetry";
+import { trackEvent, trackEventV2, getSessionId } from "@/lib/telemetry";
+import { bindJourneyToDraft } from "@/lib/journey-identity";
 import {
   trackGA4ViewItem,
   trackGA4BeginCheckout,
@@ -36,6 +36,8 @@ import { getStoredAttribution } from "@/components/AttributionTracker";
 import { useAuth } from "@/context/AuthContext";
 import { AlertCircle } from "lucide-react";
 import { parseScenarioNote, mapScenarioFontId } from "@/lib/seo-scenarios";
+import { extractRecipientName, extractSenderName } from "@/components/v3/TargetPurchaseExperience";
+import { extractOfferCodeFromUrlParams } from "@/lib/discount";
 
 export interface EntryPrototypeClientProps {
   initialOccasion?: string;
@@ -186,6 +188,7 @@ export function EntryPrototypeClient({
 
   const [userCustomizedRecipientName, setUserCustomizedRecipientName] = useState(false);
   const [userCustomizedSenderName, setUserCustomizedSenderName] = useState(false);
+  const [userCustomizedNote, setUserCustomizedNote] = useState(false);
 
   // Payment & checkout state
   const [customerEmail, setCustomerEmail] = useState("");
@@ -318,6 +321,19 @@ export function EntryPrototypeClient({
         setUserCustomizedSenderName(true);
       }
     }
+
+    if (draft.appliedOffer) {
+      setAppliedDiscount({
+        code: draft.appliedOffer.code,
+        type: draft.appliedOffer.discountType,
+        value: draft.appliedOffer.discountValue,
+        discountAmountInCents: draft.appliedOffer.discountAmountInCents,
+        finalAmountInCents: draft.appliedOffer.finalAmountInCents,
+        isFree: Boolean(draft.appliedOffer.isFree),
+      });
+      setIsFreeOrder(Boolean(draft.appliedOffer.isFree));
+      setAmountInCents(draft.appliedOffer.finalAmountInCents);
+    }
   }, [
     isLoaded,
     draft.completed,
@@ -327,6 +343,7 @@ export function EntryPrototypeClient({
     draft.note.signOff,
     draft.recipient,
     draft.sender,
+    draft.appliedOffer,
     initialPreset,
     resolvedInitialPresetUrl,
     targetOccasionSlug,
@@ -441,6 +458,16 @@ export function EntryPrototypeClient({
           }
         }
 
+        if (!isAlreadyHydrated) {
+          const draftId = parsed.draftId || `draft_${targetOccasionSlug}`;
+          bindJourneyToDraft(draftId);
+          trackEventV2("draft_resumed", {
+            draftId,
+            restoredStep: parsed.currentStep || "note",
+            hasEdits: hasRealUserEdits,
+          });
+        }
+
         // Only display "Welcome back" toast if draft has real user edits AND tab was not already hydrated
         if (hasRealUserEdits && !isAlreadyHydrated) {
           setRestoredToast(true);
@@ -502,6 +529,37 @@ export function EntryPrototypeClient({
       auto_selected: isAutoSelectMode,
       autoSelected: isAutoSelectMode,
     });
+    trackEventV2("entry_viewed", {
+      entryRoute: typeof window !== "undefined" ? window.location.pathname : "/",
+      occasion: occasionParam || currentCard.occasion,
+      scenarioSlug,
+    });
+    trackEventV2("cover_loaded", {
+      presetId: resolvedInitialPresetId || currentCard.presetId,
+      occasion: occasionParam || currentCard.occasion,
+      autoSelected: isAutoSelectMode,
+      auto_selected: isAutoSelectMode,
+      source: isAutoSelectMode ? "scenario_seeded" : "preset_default",
+    });
+
+    if (initialHandwrittenNote) {
+      trackEventV2("note_template_loaded", {
+        charCount: initialHandwrittenNote.length,
+        occasion: occasionParam,
+        scenarioSlug,
+        noteEdited: false,
+        wasEdited: false,
+      });
+    }
+
+    const promo = extractOfferCodeFromUrlParams(searchParams);
+    if (promo) {
+      trackEventV2("offer_viewed", {
+        promoCode: promo,
+        source: "url_param",
+      });
+    }
+
     if (isAutoSelectMode) {
       trackEvent("step_2_cover_ready", 1, {
         presetId: resolvedInitialPresetId || currentCard.presetId,
@@ -543,7 +601,10 @@ export function EntryPrototypeClient({
   useEffect(() => {
     if (typeof window === "undefined" || !isLoaded || isOrderConfirmed) return;
     try {
+      const draftId = `draft_${targetOccasionSlug}`;
+      bindJourneyToDraft(draftId);
       const draftData = {
+        draftId,
         coverId: currentCard.presetId,
         occasionSlug: currentCard.occasion,
         canonicalOccasion: targetOccasionSlug,
@@ -606,6 +667,13 @@ export function EntryPrototypeClient({
       title: preset.title,
       occasion: preset.occasion,
     });
+    trackEventV2("cover_selected", {
+      presetId: preset.id,
+      occasion: preset.occasion,
+      source: "preset_picker",
+      autoSelected: false,
+      auto_selected: false,
+    });
   };
 
   // Handle Custom AI generation selection (Finding 8: never transmit customer prompt to Meta)
@@ -626,6 +694,12 @@ export function EntryPrototypeClient({
     });
     trackEvent("card_completed", 1, {
       cardType: "custom",
+    });
+    trackEventV2("cover_selected", {
+      occasion: art.occasion,
+      source: "custom_ai",
+      autoSelected: false,
+      auto_selected: false,
     });
 
     trackMetaCustomizeProduct({
@@ -649,6 +723,13 @@ export function EntryPrototypeClient({
   // Auto-sync Salutation -> Recipient Full Name and persist to draft
   const handleSalutationChange = (newSalutation: string) => {
     markUserCustomEdit();
+    if (!userCustomizedNote) {
+      setUserCustomizedNote(true);
+      trackEventV2("note_edit_started", {
+        inputField: "salutation",
+        charCount: newSalutation.length,
+      });
+    }
     setSalutation(newSalutation);
     dispatch({ type: "UPDATE_NOTE", payload: { salutation: newSalutation } });
     if (!userCustomizedRecipientName) {
@@ -671,6 +752,13 @@ export function EntryPrototypeClient({
   // Auto-sync Sign-Off -> Sender Full Name and persist to draft
   const handleSignOffChange = (newSignOff: string) => {
     markUserCustomEdit();
+    if (!userCustomizedNote) {
+      setUserCustomizedNote(true);
+      trackEventV2("note_edit_started", {
+        inputField: "signOff",
+        charCount: newSignOff.length,
+      });
+    }
     setSignOff(newSignOff);
     dispatch({ type: "UPDATE_NOTE", payload: { signOff: newSignOff } });
     if (!userCustomizedSenderName) {
@@ -692,6 +780,13 @@ export function EntryPrototypeClient({
   // Handle note body change
   const handleBodyNoteChange = (newText: string) => {
     markUserCustomEdit();
+    if (!userCustomizedNote) {
+      setUserCustomizedNote(true);
+      trackEventV2("note_edit_started", {
+        inputField: "note",
+        charCount: newText.length,
+      });
+    }
     dispatch({
       type: "UPDATE_NOTE",
       payload: { text: newText },
@@ -810,6 +905,24 @@ export function EntryPrototypeClient({
         });
       }
 
+      const noteWasEdited = Boolean(
+        userCustomizedNote ||
+        hasCustomUserEdits ||
+        (initialHandwrittenNote && draft.note.text !== initialHandwrittenNote) ||
+        (!initialHandwrittenNote && draft.note.text.trim().length > 0)
+      );
+
+      trackEventV2("note_confirmed", {
+        charCount: draft.note.text.length,
+        fontId: draft.note.style || "hwDavid",
+        wasEdited: noteWasEdited,
+        noteEdited: noteWasEdited,
+        hasPrintedGreeting: Boolean(salutation || signOff),
+      });
+      trackEventV2("address_viewed", {
+        deferred: isAddressDeferred,
+      });
+
       trackEvent("note_completed", 2, {
         charCount: draft.note.text.length,
         fontId: draft.note.style || "hwDavid",
@@ -840,6 +953,10 @@ export function EntryPrototypeClient({
       const err = "Please provide the recipient's full name.";
       setAddressValidationError(err);
       trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      trackEventV2("address_validation_failed", {
+        errorCategory: "missing_recipient_name",
+        fieldName: "recipient.fullName",
+      });
       return;
     }
     if (!isAddressDeferred) {
@@ -847,12 +964,19 @@ export function EntryPrototypeClient({
         const err = "Please provide the recipient's street address.";
         setAddressValidationError(err);
         trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+        trackEventV2("address_validation_failed", {
+          errorCategory: "missing_recipient_street",
+          fieldName: "recipient.street1",
+        });
         return;
       }
       if (!recipient.city.trim() || !recipient.state.trim() || !recipient.zip.trim()) {
         const err = "Please complete the recipient's City, State, and ZIP code.";
         setAddressValidationError(err);
         trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+        trackEventV2("address_validation_failed", {
+          errorCategory: "missing_recipient_city_state_zip",
+        });
         return;
       }
     }
@@ -860,12 +984,19 @@ export function EntryPrototypeClient({
       const err = "Please provide your name for your return address.";
       setAddressValidationError(err);
       trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      trackEventV2("address_validation_failed", {
+        errorCategory: "missing_sender_name",
+        fieldName: "sender.fullName",
+      });
       return;
     }
     if (!isAddressDeferred && (!sender.city.trim() || !sender.state.trim())) {
       const err = "Please provide your city and state for your return address.";
       setAddressValidationError(err);
       trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      trackEventV2("address_validation_failed", {
+        errorCategory: "missing_sender_city_state",
+      });
       return;
     }
 
@@ -873,6 +1004,16 @@ export function EntryPrototypeClient({
     trackEvent("step_4b_address_completed", 4, {
       used_address_deferral: isAddressDeferred,
     });
+    if (isAddressDeferred) {
+      trackEventV2("address_deferred", {
+        reason: "sender_will_provide_later",
+      });
+    } else {
+      trackEventV2("address_confirmed", {
+        hasReturnAddress: Boolean(sender.street1 && sender.city),
+        hasRecipientStreet2: Boolean(recipient.street2),
+      });
+    }
     initializeCheckout();
   };
 
@@ -882,6 +1023,17 @@ export function EntryPrototypeClient({
     setIsInitializingCheckout(true);
 
     try {
+      const discountCodeToUse =
+        overrideDiscountCode !== undefined
+          ? overrideDiscountCode
+          : appliedDiscount?.code;
+
+      trackEventV2("checkout_requested", {
+        amountInCents,
+        hasDiscount: Boolean(discountCodeToUse),
+        isAddressDeferred,
+      });
+
       const fullHandwrittenMessage = [salutation, draft.note.text, signOff]
         .filter(Boolean)
         .join("\n\n");
@@ -893,11 +1045,6 @@ export function EntryPrototypeClient({
       const senderParts = sender.fullName.trim().split(/\s+/);
       const senderFirstName = senderParts[0] || "Friend";
       const senderLastName = senderParts.slice(1).join(" ") || "";
-
-      const discountCodeToUse =
-        overrideDiscountCode !== undefined
-          ? overrideDiscountCode
-          : appliedDiscount?.code;
 
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
@@ -972,6 +1119,13 @@ export function EntryPrototypeClient({
       setAmountInCents(data.finalAmountInCents ?? data.amountInCents ?? 900);
       setCheckoutInitError(null);
 
+      trackEventV2("checkout_created", {
+        orderId: data.orderId,
+        isMock: Boolean(data.isMock),
+        isFree: Boolean(data.isFree),
+        amountInCents: data.finalAmountInCents ?? data.amountInCents ?? 900,
+      });
+
       trackEvent("address_completed", 3, {
         hasReturnAddress: Boolean(sender.street1 && sender.city),
         usedAddressDeferral: isAddressDeferred,
@@ -1008,6 +1162,9 @@ export function EntryPrototypeClient({
 
   // Promo code validation
   const handleApplyDiscount = async (code: string) => {
+    trackEventV2("discount_apply_requested", {
+      promoCode: code.trim(),
+    });
     try {
       const res = await fetch("/api/discount/validate", {
         method: "POST",
@@ -1016,28 +1173,85 @@ export function EntryPrototypeClient({
       });
       const data = await res.json();
       if (!res.ok || !data.valid) {
+        trackEventV2("discount_rejected", {
+          promoCode: code.trim(),
+          rejectionReason: data.error || "invalid_code",
+        });
         return { success: false, error: data.error || "Invalid promo code." };
       }
+
+      trackEventV2("discount_applied", {
+        promoCode: data.code,
+        discountType: data.discountType || (data.isFree ? "free_order" : "percent_or_fixed"),
+        amountSavedInCents: 900 - (data.finalAmountInCents ?? 900),
+        finalAmountInCents: data.finalAmountInCents ?? 900,
+      });
 
       setAppliedDiscount(data);
       setIsFreeOrder(Boolean(data.isFree));
       setAmountInCents(data.finalAmountInCents ?? 900);
       dispatch({ type: "SET_DISCOUNT_CODE", payload: data.code });
+      dispatch({
+        type: "SET_APPLIED_OFFER",
+        payload: {
+          code: data.code,
+          quoteId: data.quoteId,
+          offerId: data.offerId,
+          offerVersion: data.offerVersion,
+          discountType: data.type || "PERCENTAGE",
+          discountValue: data.value || 0,
+          discountAmountInCents: data.discountAmountInCents || 0,
+          finalAmountInCents: data.finalAmountInCents ?? 900,
+          isFree: Boolean(data.isFree),
+          quoteExpiresAt: data.quoteExpiresAt,
+          appliedAt: Date.now(),
+        },
+      });
 
       await initializeCheckout(data.code);
       return { success: true };
     } catch {
+      trackEventV2("discount_rejected", {
+        promoCode: code.trim(),
+        rejectionReason: "network_error",
+      });
       return { success: false, error: "Unable to apply promo code." };
     }
   };
 
   const handleRemoveDiscount = async () => {
+    if (appliedDiscount) {
+      trackEventV2("discount_removed", {
+        promoCode: appliedDiscount.code,
+      });
+    }
+    if (orderId) {
+      try {
+        await fetch("/api/discount/validate", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId }),
+        }).catch(() => {});
+      } catch {
+        // non-critical
+      }
+    }
     setAppliedDiscount(null);
     setIsFreeOrder(false);
     setAmountInCents(900);
     dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
+    dispatch({ type: "SET_APPLIED_OFFER", payload: null });
     await initializeCheckout("");
   };
+
+  // Destination-aware auto-apply: detect ?discount=, ?code=, or ?promo= on entry routes
+  useEffect(() => {
+    if (!isLoaded) return;
+    const codeFromUrl = extractOfferCodeFromUrlParams(searchParams);
+    if (codeFromUrl && !appliedDiscount && !draft.appliedOffer) {
+      handleApplyDiscount(codeFromUrl);
+    }
+  }, [isLoaded, searchParams]);
 
   // Payment success handler (server records verified telemetry)
   const handlePaymentSuccess = (

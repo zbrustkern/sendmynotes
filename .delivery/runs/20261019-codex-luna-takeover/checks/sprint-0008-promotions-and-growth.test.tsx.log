@@ -1,0 +1,77 @@
+======================================================================
+🏷️ RUNNING SPRINT-0008 PROMOTIONS & GROWTH WORKSPACES TEST SUITE
+======================================================================
+
+--- SUITE 1: AC01 — Presets, Destination Allowlist & Link Builder ---
+  ✅ PASS: Preset welcome_2_off provides $2.00 fixed discount
+  ✅ PASS: Preset launch_20_pct provides 20% discount
+  ✅ PASS: Preset vip_free_card provides 100% free card
+  ✅ PASS: Preset recovery_150_off provides $1.50 recovery incentive
+  ✅ PASS: Allows root path '/'
+  ✅ PASS: Allows '/send'
+  ✅ PASS: Allows '/send/birthday'
+  ✅ PASS: Allows '/send/thank-you/elegant-rose'
+  ✅ PASS: Allows '/preview/entry'
+  ✅ PASS: Rejects external https:// URLs
+  ✅ PASS: Rejects protocol-relative // URLs
+  ✅ PASS: Rejects javascript: scheme
+  ✅ PASS: Rejects data: scheme
+  ✅ PASS: Rejects path traversal (..)
+  ✅ PASS: Rejects internal non-customer path '/admin'
+  ✅ PASS: Builds link with ?discount= alias and UTM tracking
+  ✅ PASS: Supports ?code= query alias
+  ✅ PASS: Supports ?promo= query alias
+  ✅ PASS: Fixed $2.00 off preview: $9.00 -> $7.00 (subsidy $2.00)
+  ✅ PASS: 100% off preview: $9.00 -> $0.00 (isFree: true)
+
+--- SUITE 2: AC02 — Offer Evidence Detail & Financial Reconciliation ---
+  ✅ PASS: Quotes issued successfully
+  ✅ PASS: Evidence detail generated
+  ✅ PASS: Funnel records 2 redemptions
+  ✅ PASS: Funnel records 1 refund
+  ✅ PASS: Exact Gross List Value is 1800¢ ($18.00)
+  ✅ PASS: Exact Subsidy Given is 600¢ ($6.00)
+  ✅ PASS: Exact Net Captured Revenue is 1200¢ ($12.00)
+  ✅ PASS: Exact Refunded Amount is 600¢ ($6.00)
+  ✅ PASS: Cost status is explicitly 'unconfirmed' when invoice not allocated
+  ✅ PASS: Verified margin is strictly null (never fabricated)
+  ✅ PASS: Commercial breakdown identifies 2 paid discounted orders
+  ✅ PASS: Includes honest guest identity & unconfirmed cost coverage note
+
+--- SUITE 3: AC03 — Growth Campaigns, Non-Causal Badge & Recovery ---
+  ✅ PASS: Report displays 'Descriptive Redemption Share — Not Causal Lift (No Control Holdout)'
+  ✅ PASS: Includes advisory against premature code termination on small sample sizes
+  ✅ PASS: Finds 'fall_special_2026' in campaigns list
+  ✅ PASS: Matches exact dated spend ($50.00)
+  ✅ PASS: Counts paid orders
+  ✅ PASS: Computes descriptive ROAS
+  ✅ PASS: Recovery link applies offer code via ?discount=
+  ✅ PASS: Preserves original acquisition channel as utm_source
+  ✅ PASS: Preserves original campaign as utm_campaign
+  ✅ PASS: Tags touchpoint with recovered_from=draft_id
+  ✅ PASS: Includes draftId for cross-device restoration of server draft
+  ✅ PASS: Guarantees zero automated messaging in disclaimer
+  ✅ PASS: Browser-local link does not append draftId to prevent cross-device draft mismatch
+  ✅ PASS: Explicitly notes draft was stored in local browser storage only
+
+--- SUITE 4: AC04 — Consequential Change Preview & Audited Mutations ---
+  ✅ PASS: Unused code with 0 redemptions can be hard-deleted (canHardDelete: true)
+  ✅ PASS: Unused code deleted successfully
+  ✅ PASS: Redeemed code CANNOT be hard-deleted (canHardDelete: false)
+  ✅ PASS: Preview emits warning that hard deletion is blocked
+  ✅ PASS: executeAuditedOfferChange refuses to hard-delete redeemed code
+  ✅ PASS: Error advises founder to archive code instead to preserve accounting
+  ✅ PASS: Archiving redeemed code succeeds
+  ✅ PASS: Offer status updated to 'archived'
+  ✅ PASS: Audited mutations recorded in admin_audit_log collection (found 2 entries)
+  ✅ PASS: Audit record captures actor, targetType, and immutable timestamp
+
+--- SUITE 5: API Security & verifyAdminAuth Enforcement ---
+  ✅ PASS: Unauthorized GET /api/admin/promotions returns HTTP 401
+  ✅ PASS: Unauthorized POST /api/admin/promotions returns HTTP 401
+  ✅ PASS: Unauthorized GET /api/admin/growth returns HTTP 401
+  ✅ PASS: Unauthorized POST /api/admin/growth returns HTTP 401
+
+======================================================================
+🏁 SPRINT-0008 TEST RESULTS: 60/60 PASSED (0 FAILED)
+======================================================================

@@ -1,16 +1,38 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrderById, updateOrderStatus, getSystemIncidentsCollection, resolveIncidentsForOrder } from "@/lib/firebase-admin";
+import {
+  getOrderById,
+  updateOrderStatus,
+  getSystemIncidentsCollection,
+  resolveIncidentsForOrder,
+} from "@/lib/firebase-admin";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
+import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { MailingAddress } from "@/lib/types";
+import { evaluateFulfillmentRetryGate } from "@/lib/investigation-service";
 
 export async function POST(req: NextRequest) {
   try {
+    // 1. Authorization Gate (SPRINT-0007-T05, AC03)
     if (!verifyAdminAuth(req)) {
-      return NextResponse.json({ error: "Unauthorized access to fulfillment retry" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Unauthorized access to fulfillment retry" },
+        { status: 401 }
+      );
     }
 
-    const { orderId, updatedRecipientAddress, incidentId } = await req.json();
+    if (await isOperationalControlPaused("fulfillment")) {
+      return NextResponse.json({ error: "Supplier submission is paused. The order remains queued for later inspection.", code: "FULFILLMENT_PAUSED" }, { status: 423 });
+    }
+
+    const body = await req.json();
+    const {
+      orderId,
+      updatedRecipientAddress,
+      incidentId,
+      confirmBillableDispatch,
+      idempotencyKey,
+    } = body;
 
     if (!orderId) {
       return NextResponse.json({ error: "Missing orderId parameter" }, { status: 400 });
@@ -21,9 +43,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    // 2. If operator provided an updated or corrected address, apply it before gating
     let recipientToUse = order.recipientAddress;
-
-    // If operator provided an updated or corrected address
     if (updatedRecipientAddress && typeof updatedRecipientAddress === "object") {
       const addressUpdate: MailingAddress = {
         firstName: String(updatedRecipientAddress.firstName || "").trim(),
@@ -34,11 +55,61 @@ export async function POST(req: NextRequest) {
         state: String(updatedRecipientAddress.state || "").trim().toUpperCase(),
         zip: String(updatedRecipientAddress.zip || "").trim(),
       };
-      await updateOrderStatus(orderId, { recipientAddress: addressUpdate });
+      await updateOrderStatus(orderId, {
+        recipientAddress: addressUpdate,
+        addressDeferred: false,
+        address_deferred: false,
+      });
       recipientToUse = addressUpdate;
     }
 
-    console.log(`[Admin] Retrying Handwrytten fulfillment for order: ${orderId}...`);
+    // 3. Pre-Retry Safety Gate Evaluation (SPRINT-0007-T03, AC03)
+    const gate = await evaluateFulfillmentRetryGate(orderId);
+    if (!gate.allowed) {
+      console.warn(
+        `[Admin Retry Blocked] Gate rejected retry for order ${orderId}: ${gate.reason} - ${gate.message}`
+      );
+      return NextResponse.json(
+        {
+          success: false,
+          error: gate.message,
+          reason: gate.reason,
+          requiresReadSyncFirst: gate.requiresReadSyncFirst,
+          safeToRetry: false,
+          orderStatus: gate.orderStatus,
+          suggestedAction: gate.suggestedAction,
+        },
+        { status: 409 }
+      );
+    }
+
+    // 4. Require explicit billable confirmation (AC03)
+    if (confirmBillableDispatch !== true) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Billable dispatch confirmation required before submitting to supplier. Operator must explicitly confirm billable physical card creation.",
+          reason: "missing_confirmation",
+          requiresReadSyncFirst: false,
+          safeToRetry: true,
+          suggestedAction: "retry_fulfillment",
+        },
+        { status: 409 }
+      );
+    }
+
+    // Lock order into DISPATCHING to prevent concurrent submission races
+    await updateOrderStatus(orderId, {
+      status: "DISPATCHING",
+      dispatchStartedAt: Date.now(),
+    });
+
+    console.log(
+      `[Admin] Pre-check passed. Retrying Handwrytten fulfillment for order: ${orderId} (idempotency: ${
+        idempotencyKey || "none"
+      })...`
+    );
 
     const fulfillment = await fulfillHandwryttenOrder({
       imageUrl: order.frontImageUrl,
@@ -93,6 +164,7 @@ export async function POST(req: NextRequest) {
       success: true,
       handwryttenOrderId: fulfillment.order_id,
       status: "PROCESSING_HANDWRYTTEN",
+      fulfillmentStateLabel: "Submitted to Supplier",
     });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error executing retry";

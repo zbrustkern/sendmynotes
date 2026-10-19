@@ -13,6 +13,7 @@ import {
   VisitorTelemetryMetrics,
 } from "./types";
 import { getAllScenarios } from "./seo-scenarios";
+import { isVerifiedServerPaymentEvent } from "./telemetry-schema";
 
 export const HANDWRYTTEN_COGS_PER_CARD_CENTS = 488; // $4.88 (Cardstock + Real Pen Inking + USPS First Class postage)
 
@@ -195,9 +196,7 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
       summary.checkoutInitiated++;
     }
   } else if (
-    event.eventName === "purchase_verified" ||
-    event.eventName === "payment_succeeded" ||
-    event.eventName === "step_6_paid_order"
+    isVerifiedServerPaymentEvent(event.eventName, event.path)
   ) {
     if (!summary.paidOrderIds) {
       summary.paidOrderIds = [];
@@ -233,9 +232,7 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
   let stepNum = event.step || 1;
   let stepName = "Cover Selection";
   if (
-    event.eventName === "purchase_verified" ||
-    event.eventName === "payment_succeeded" ||
-    event.eventName === "step_6_paid_order"
+    isVerifiedServerPaymentEvent(event.eventName, event.path)
   ) {
     stepNum = 5;
     stepName = "Paid & Penned";
@@ -243,6 +240,8 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     event.eventName === "checkout_initiated" ||
     event.eventName === "payment_viewed" ||
     event.eventName === "step_5_checkout_initiated" ||
+    event.eventName === "step_6_paid_order" ||
+    event.eventName === "payment_confirmation_observed" ||
     event.step === 4
   ) {
     stepNum = 4;
@@ -325,9 +324,7 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
       existingSession.highestStepName = stepName;
     }
     if (
-      event.eventName === "purchase_verified" ||
-      event.eventName === "payment_succeeded" ||
-      event.eventName === "step_6_paid_order"
+      isVerifiedServerPaymentEvent(event.eventName, event.path)
     ) {
       existingSession.completed = true;
       existingSession.dropOffStep = undefined;
@@ -361,10 +358,7 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
       existingSession.noteEdited = false;
     }
   } else {
-    const isCompleted =
-      event.eventName === "purchase_verified" ||
-      event.eventName === "payment_succeeded" ||
-      event.eventName === "step_6_paid_order";
+    const isCompleted = isVerifiedServerPaymentEvent(event.eventName, event.path);
     const isFounderEvt = Boolean(event.isFounder || event.is_founder || event.metadata?.is_founder || event.metadata?.isFounder);
     const isNoteEditEvt = Boolean(
       event.metadata?.noteEdited === true ||
@@ -430,7 +424,7 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
   if (isNewSession) {
     summary.sourceCounts[srcKey].sessions++;
   }
-  if (event.eventName === "purchase_verified" || event.eventName === "payment_succeeded") {
+  if (isVerifiedServerPaymentEvent(event.eventName, event.path)) {
     summary.sourceCounts[srcKey].paid++;
   } else {
     summary.sourceCounts[srcKey].dropOffs[stepName] =
@@ -473,8 +467,7 @@ async function executeIngest(event: TelemetryEvent): Promise<void> {
     ) {
       s.checkouts++;
     } else if (
-      event.eventName === "purchase_verified" ||
-      event.eventName === "payment_succeeded"
+      isVerifiedServerPaymentEvent(event.eventName, event.path)
     ) {
       s.paid++;
     }
@@ -570,7 +563,7 @@ export async function getTelemetrySummary(): Promise<TelemetrySummary> {
           break;
         case "purchase_verified":
         case "payment_succeeded":
-          if (evt.sessionId) paidSessions.add(evt.sessionId);
+          if (evt.sessionId && isVerifiedServerPaymentEvent(evt.eventName, evt.path)) paidSessions.add(evt.sessionId);
           break;
       }
 
@@ -603,8 +596,7 @@ export async function getTelemetrySummary(): Promise<TelemetrySummary> {
         ) {
           s.checkouts++;
         } else if (
-          evt.eventName === "purchase_verified" ||
-          evt.eventName === "payment_succeeded"
+          isVerifiedServerPaymentEvent(evt.eventName, evt.path)
         ) {
           s.paid++;
         }
@@ -640,7 +632,7 @@ export async function getTelemetrySummary(): Promise<TelemetrySummary> {
  * Determines whether an order belongs to a non-customer cohort (founder test, studio comp, test mode, or mock).
  * These orders must be excluded from customer conversion and business metrics.
  */
-export function isExcludedOrderCohort(o: Partial<Order>): boolean {
+export function isExcludedOrderCohort(o: Partial<Order>, founderSessionIds?: Set<string>): boolean {
   return (
     o.isTest === true ||
     o.isComp === true ||
@@ -648,7 +640,7 @@ export function isExcludedOrderCohort(o: Partial<Order>): boolean {
     o.paymentMode === "stripe_test" ||
     o.paymentMode === "local_mock" ||
     o.paymentMethod === "STUDIO_COMP" ||
-    Boolean(o.customerEmail && o.customerEmail.toLowerCase().includes("founder"))
+    Boolean(o.sessionId && founderSessionIds?.has(o.sessionId))
   );
 }
 
@@ -675,23 +667,28 @@ export function matchesChannelFilter(
 
   const s = (source || "").toLowerCase();
   const m = (medium || "").toLowerCase();
+  const c = (campaign || "").toLowerCase();
   const hasGclid = Boolean(gclid);
-  const hasFbclid = Boolean(fbclid);
   const isGoogle = s.includes("google") || hasGclid;
-  const isMeta = s.includes("meta") || s.includes("facebook") || s.includes("instagram") || hasFbclid;
-  const isPaid = m === "cpc" || m === "paid" || hasGclid || hasFbclid || (isMeta && (m.includes("paid") || m.includes("social") || hasFbclid));
+  const isGooglePaid = (isGoogle && (m === "cpc" || hasGclid)) || (s === "google" && m === "cpc");
+
+  // Meta Paid requires paid medium or explicit paid campaign; fbclid alone without paid medium or campaign is organic social
+  const isMetaSource = s.includes("meta") || s.includes("facebook") || s.includes("instagram");
+  const isPaidMedium = ["cpc", "paid", "paid_social", "cpm", "ppc"].includes(m);
+  const isMetaPaid = (isMetaSource && (isPaidMedium || Boolean(c))) || m === "paid_social";
+  const isPaid = isGooglePaid || isMetaPaid || (isPaidMedium && !isMetaSource && !isGoogle);
 
   if (channel === "paid") {
-    return isPaid || (isGoogle && m === "cpc") || isMeta;
+    return isPaid;
   }
   if (channel === "google_cpc") {
-    return (isGoogle && (m === "cpc" || hasGclid)) || (s === "google" && m === "cpc");
+    return isGooglePaid;
   }
   if (channel === "meta_paid") {
-    return isMeta;
+    return isMetaPaid;
   }
   if (channel === "organic_direct") {
-    return !isPaid && !hasGclid && !hasFbclid && !isMeta;
+    return !isPaid;
   }
   return true;
 }
@@ -736,7 +733,7 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
   const allOrdersSnap = await getOrdersCollection().get();
   const allOrdersList: Order[] = [];
   allOrdersSnap.forEach((doc) => {
-    allOrdersList.push(doc.data() as Order);
+    allOrdersList.push({ ...doc.data() as Order, id: doc.id });
   });
 
   const filteredOrders = allOrdersList.filter((o) => {
@@ -748,11 +745,8 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     }
 
     if (excludeFounder) {
-      if (isExcludedOrderCohort(o)) return false;
+      if (isExcludedOrderCohort(o, founderSessionIds)) return false;
       if (o.sessionId && founderSessionIds.has(o.sessionId)) return false;
-      if (o.customerEmail && (o.customerEmail.toLowerCase().includes("founder") || o.customerEmail.toLowerCase().includes("zeke"))) {
-        return false;
-      }
     }
 
     const utmSrc = o.attribution?.utmSource;
@@ -768,6 +762,8 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
   });
 
   let totalRevenueCents = 0;
+  let unresolvedOrderCount = 0;
+  let unresolvedRevenueCents = 0;
   let pendingCount = 0;
   let processingCount = 0;
   let failedCount = 0;
@@ -792,56 +788,83 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
   const campaignAgg: Record<string, CampaignAttributionMetric> = {};
 
   filteredOrders.forEach((o) => {
-    const isPaid =
-      o.status === "PROCESSING_HANDWRYTTEN" ||
+    const isPaidStatus =
       o.status === "PAYMENT_RECEIVED" ||
+      o.status === "AWAITING_RECIPIENT_ADDRESS" ||
+      o.status === "DISPATCHING" ||
+      o.status === "PROCESSING_HANDWRYTTEN" ||
+      o.status === "QUEUED_FOR_FULFILLMENT" ||
       o.status === "MAILED";
 
-    if (isPaid) {
-      const orderRev = o.amountInCents !== undefined ? o.amountInCents : 900;
-      totalRevenueCents += orderRev;
-      processingCount++;
+    const hasVerifiedCapturedPayment = Boolean(
+      o.stripePaymentId &&
+      typeof o.amountInCents === "number" &&
+      o.amountInCents > 0 &&
+      o.status !== "PENDING_PAYMENT" &&
+      o.status !== "PAYMENT_VERIFICATION_FAILED"
+    );
 
-      const orderStripeFee = calculateStripeFeeCents(orderRev, o.paymentMethod);
-      const orderCogs = HANDWRYTTEN_COGS_PER_CARD_CENTS;
-      const orderNetMargin = orderRev - orderStripeFee - orderCogs;
+    const isLivePaidCandidate = isPaidStatus || hasVerifiedCapturedPayment;
+    const isExcluded = isExcludedOrderCohort(o, founderSessionIds);
+    const hasValidAmount = typeof o.amountInCents === "number" && o.amountInCents > 0;
+    const isPromoFreeOrder = o.paymentMethod === "PROMO_CODE";
+    const isUnresolvedHistorical =
+      (o as any).commercialKind === "unresolved_historical" ||
+      (o as any).reconciliationStatus === "unresolved";
 
-      stripeFeesCents += orderStripeFee;
-      fulfillmentCogsCents += orderCogs;
+    if (isLivePaidCandidate && !isExcluded && !isPromoFreeOrder) {
+      if (hasValidAmount && !isUnresolvedHistorical) {
+        const orderRev = o.amountInCents!;
+        totalRevenueCents += orderRev;
+        processingCount++;
 
-      const utmCampaign = o.attribution?.utmCampaign?.trim() || "";
-      const utmSource = o.attribution?.utmSource?.trim() || "";
-      const utmMedium = o.attribution?.utmMedium?.trim() || "";
-      const hasGclid = Boolean(o.attribution?.gclid);
+        const orderStripeFee = calculateStripeFeeCents(orderRev, o.paymentMethod);
+        const orderCogs = HANDWRYTTEN_COGS_PER_CARD_CENTS;
+        const orderNetMargin = orderRev - orderStripeFee - orderCogs;
 
-      let key = "Direct / Organic";
-      if (utmCampaign) {
-        key = utmCampaign;
-      } else if (utmSource || utmMedium) {
-        key = `${utmSource || "direct"} / ${utmMedium || "none"}`;
-      } else if (hasGclid) {
-        key = "Google Ads (Auto-tagged)";
-      }
+        stripeFeesCents += orderStripeFee;
+        fulfillmentCogsCents += orderCogs;
 
-      if (!campaignAgg[key]) {
-        campaignAgg[key] = {
-          campaignKey: key,
-          utmSource: utmSource || (hasGclid ? "google" : "direct"),
-          utmMedium: utmMedium || (hasGclid ? "cpc" : "none"),
-          utmCampaign: utmCampaign || (hasGclid ? "Google Ads" : "(not set)"),
-          hasGclid,
-          orderCount: 0,
-          grossRevenueCents: 0,
-          netContributionMarginCents: 0,
-          lastOrderAt: o.createdAt,
-        };
-      }
+        const utmCampaign = o.attribution?.utmCampaign?.trim() || "";
+        const utmSource = o.attribution?.utmSource?.trim() || "";
+        const utmMedium = o.attribution?.utmMedium?.trim() || "";
+        const hasGclid = Boolean(o.attribution?.gclid);
 
-      campaignAgg[key].orderCount++;
-      campaignAgg[key].grossRevenueCents += orderRev;
-      campaignAgg[key].netContributionMarginCents += orderNetMargin;
-      if (o.createdAt && (!campaignAgg[key].lastOrderAt || o.createdAt > campaignAgg[key].lastOrderAt!)) {
-        campaignAgg[key].lastOrderAt = o.createdAt;
+        let key = "Direct / Organic";
+        if (utmCampaign) {
+          key = utmCampaign;
+        } else if (utmSource || utmMedium) {
+          key = `${utmSource || "direct"} / ${utmMedium || "none"}`;
+        } else if (hasGclid) {
+          key = "Google Ads (Auto-tagged)";
+        }
+
+        if (!campaignAgg[key]) {
+          campaignAgg[key] = {
+            campaignKey: key,
+            utmSource: utmSource || (hasGclid ? "google" : "direct"),
+            utmMedium: utmMedium || (hasGclid ? "cpc" : "none"),
+            utmCampaign: utmCampaign || (hasGclid ? "Google Ads" : "(not set)"),
+            hasGclid,
+            orderCount: 0,
+            grossRevenueCents: 0,
+            netContributionMarginCents: 0,
+            lastOrderAt: o.createdAt,
+          };
+        }
+
+        campaignAgg[key].orderCount++;
+        campaignAgg[key].grossRevenueCents += orderRev;
+        campaignAgg[key].netContributionMarginCents += orderNetMargin;
+        if (o.createdAt && (!campaignAgg[key].lastOrderAt || o.createdAt > campaignAgg[key].lastOrderAt!)) {
+          campaignAgg[key].lastOrderAt = o.createdAt;
+        }
+      } else {
+        // Missing amount or unresolved historical status tracked separately from verified revenue
+        unresolvedOrderCount++;
+        if (typeof o.amountInCents === "number" && o.amountInCents > 0) {
+          unresolvedRevenueCents += o.amountInCents;
+        }
       }
     } else if (o.status === "PENDING_PAYMENT") {
       pendingCount++;
@@ -853,14 +876,8 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     const fontName = FONT_NAME_MAP[fontId] || fontId;
     fontCounts[fontName] = (fontCounts[fontName] || 0) + 1;
 
-    const noteText = `${o.printedMessage || ""} ${o.handwrittenNote || ""}`.toLowerCase();
-    let occasion = "Personal Note";
-    if (noteText.includes("birthday") || noteText.includes("bday")) occasion = "Birthday";
-    else if (noteText.includes("thank") || noteText.includes("grateful") || noteText.includes("gratitude")) occasion = "Thank You";
-    else if (noteText.includes("anniversary")) occasion = "Anniversary";
-    else if (noteText.includes("congrat") || noteText.includes("milestone") || noteText.includes("proud")) occasion = "Congratulations";
-    else if (noteText.includes("sympathy") || noteText.includes("condolence") || noteText.includes("thinking of you")) occasion = "Sympathy";
-    else if (noteText.includes("love") || noteText.includes("miss you")) occasion = "Love / Romance";
+    // Strict privacy preservation: do NOT read printedMessage or handwrittenNote to infer occasion!
+    const occasion = o.occasion?.trim() || "Unspecified";
     occasionCounts[occasion] = (occasionCounts[occasion] || 0) + 1;
   });
 
@@ -885,29 +902,15 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
   const paidCardsCount = processingCount;
   const netContributionMarginCents = totalRevenueCents - stripeFeesCents - fulfillmentCogsCents;
   const netContributionMarginPercent =
-    totalRevenueCents > 0
+    totalRevenueCents > 0 && paidCardsCount > 0
       ? Math.round((netContributionMarginCents / totalRevenueCents) * 1000) / 10
-      : 39.6;
+      : 0;
 
-  const averageOrderRevenueCents = paidCardsCount > 0 ? Math.round(totalRevenueCents / paidCardsCount) : 900;
-  const averageStripeFeeCents = paidCardsCount > 0 ? Math.round(stripeFeesCents / paidCardsCount) : 56;
-  const averageFulfillmentCogsCents = paidCardsCount > 0 ? Math.round(fulfillmentCogsCents / paidCardsCount) : HANDWRYTTEN_COGS_PER_CARD_CENTS;
-  const averageNetContributionCents = paidCardsCount > 0 ? Math.round(netContributionMarginCents / paidCardsCount) : (900 - 56 - HANDWRYTTEN_COGS_PER_CARD_CENTS);
-  const targetBreakevenCpaDollars = Number((averageNetContributionCents / 100).toFixed(2));
-
-  const margins: FinancialMargins = {
-    grossRevenueCents: totalRevenueCents,
-    stripeFeesCents,
-    fulfillmentCogsCents,
-    netContributionMarginCents,
-    netContributionMarginPercent,
-    paidCardsCount,
-    averageOrderRevenueCents,
-    averageStripeFeeCents,
-    averageFulfillmentCogsCents,
-    averageNetContributionCents,
-    targetBreakevenCpaDollars,
-  };
+  const averageOrderRevenueCents = paidCardsCount > 0 ? Math.round(totalRevenueCents / paidCardsCount) : 0;
+  const averageStripeFeeCents = paidCardsCount > 0 ? Math.round(stripeFeesCents / paidCardsCount) : 0;
+  const averageFulfillmentCogsCents = paidCardsCount > 0 ? Math.round(fulfillmentCogsCents / paidCardsCount) : 0;
+  const averageNetContributionCents = paidCardsCount > 0 ? Math.round(netContributionMarginCents / paidCardsCount) : 0;
+  const targetBreakevenCpaDollars = paidCardsCount > 0 ? Number((averageNetContributionCents / 100).toFixed(2)) : 0;
 
   const campaignAttributions = Object.values(campaignAgg).sort(
     (a, b) => b.netContributionMarginCents - a.netContributionMarginCents
@@ -932,6 +935,23 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
   } catch (err) {
     console.warn("[Metrics Rollup] Error reading valuation assumptions:", err);
   }
+
+  const margins: FinancialMargins = {
+    grossRevenueCents: totalRevenueCents,
+    stripeFeesCents,
+    fulfillmentCogsCents,
+    netContributionMarginCents,
+    netContributionMarginPercent,
+    paidCardsCount,
+    averageOrderRevenueCents,
+    averageStripeFeeCents,
+    averageFulfillmentCogsCents,
+    averageNetContributionCents,
+    targetBreakevenCpaDollars,
+    costStatus: "unconfirmed",
+    marginStatus: "unavailable",
+    spendStatus: adSpendCents > 0 ? "unverified_scalar" : "missing",
+  };
 
   // 2. Fetch telemetry events and construct sessions
   const telemetry = await getTelemetrySummary();
@@ -1029,11 +1049,7 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
       stages.hasStage4b = true;
       stages.hasStage5 = true;
     }
-    if (
-      evt.eventName === "step_6_paid_order" ||
-      evt.eventName === "purchase_verified" ||
-      evt.eventName === "payment_succeeded"
-    ) {
+    if (isVerifiedServerPaymentEvent(evt.eventName, evt.path)) {
       stages.hasStage1 = true;
       stages.hasStage2 = true;
       stages.hasStage3 = true;
@@ -1041,6 +1057,17 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
       stages.hasStage4b = true;
       stages.hasStage5 = true;
       stages.hasStage6 = true;
+    } else if (
+      evt.eventName === "step_6_paid_order" ||
+      evt.eventName === "payment_confirmation_observed"
+    ) {
+      // Browser paid aliases NEVER set stages.hasStage6 = true! Only sets up through stage 5
+      stages.hasStage1 = true;
+      stages.hasStage2 = true;
+      stages.hasStage3 = true;
+      stages.hasStage4a = true;
+      stages.hasStage4b = true;
+      stages.hasStage5 = true;
     }
     sessionStages.set(sId, stages);
 
@@ -1149,12 +1176,34 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
   }
 
   // Cross-reference paid orders to ensure conversion completion
+  // Cross-reference verified paid orders to ensure conversion completion
   for (const o of filteredOrders) {
-    const isPaid =
-      o.status === "PROCESSING_HANDWRYTTEN" ||
+    const isPaidStatus =
       o.status === "PAYMENT_RECEIVED" ||
+      o.status === "AWAITING_RECIPIENT_ADDRESS" ||
+      o.status === "DISPATCHING" ||
+      o.status === "PROCESSING_HANDWRYTTEN" ||
+      o.status === "QUEUED_FOR_FULFILLMENT" ||
       o.status === "MAILED";
-    if (isPaid && o.sessionId) {
+    const hasVerifiedCapturedPayment = Boolean(
+      o.stripePaymentId &&
+      typeof o.amountInCents === "number" &&
+      o.amountInCents > 0 &&
+      o.status !== "PENDING_PAYMENT" &&
+      o.status !== "PAYMENT_VERIFICATION_FAILED"
+    );
+    const isUnresolvedHistorical =
+      (o as any).commercialKind === "unresolved_historical" ||
+      (o as any).reconciliationStatus === "unresolved";
+    const isVerifiedPaid =
+      (isPaidStatus || hasVerifiedCapturedPayment) &&
+      typeof o.amountInCents === "number" &&
+      o.amountInCents > 0 &&
+      o.paymentMethod !== "PROMO_CODE" &&
+      !isUnresolvedHistorical &&
+      !isExcludedOrderCohort(o, founderSessionIds);
+
+    if (isVerifiedPaid && o.sessionId) {
       const s = sessionStages.get(o.sessionId);
       if (s) {
         s.hasStage1 = true;
@@ -1184,31 +1233,14 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     }
 
     if (excludeFounder) {
-      // Real mobile and paid ad traffic (gclid, fbclid, utm_source google/meta) must NEVER be filtered by IP proxy contamination
-      const isMobile =
-        s.deviceType === "mobile" ||
-        (s.screenResolution && parseInt(s.screenResolution.split("x")[0] || "0", 10) < 768);
-      const isPaidOrAd = Boolean(
-        s.gclid ||
-        s.fbclid ||
-        s.campaign ||
-        (s.source && ["google", "meta", "facebook", "instagram"].includes(s.source.toLowerCase())) ||
-        (s.medium && ["cpc", "paid", "social"].includes(s.medium.toLowerCase()))
-      );
-      const isProtectedRealTraffic = isMobile || isPaidOrAd;
+      const isExplicitFounder =
+        s.isFounder === true ||
+        founderSessionIds.has(s.sessionId) ||
+        s.sessionId.startsWith("test_founder") ||
+        Boolean(s.clientId && founderClientIds.has(s.clientId));
 
-      // Founder 3440x1440 desktop test sessions are strictly excluded
-      const isFounderDesktopResolution = s.screenResolution === "3440x1440";
-      if (isFounderDesktopResolution && !isMobile) {
+      if (isExplicitFounder) {
         return false;
-      }
-
-      // For non-protected traffic, exclude registered founder sessions and client IDs
-      if (!isProtectedRealTraffic) {
-        if (s.isFounder) return false;
-        if (founderSessionIds.has(s.sessionId)) return false;
-        if (s.sessionId.startsWith("test_founder")) return false;
-        if (s.clientId && founderClientIds.has(s.clientId)) return false;
       }
     }
 
@@ -1465,6 +1497,14 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     filterChannel: channel,
     excludeFounder,
     highIntentAbandoners,
+    funnelMode: "legacy_inferred",
+    unresolvedOrderCount,
+    unresolvedRevenueCents,
+    reportingNotes: [
+      "Canonical baseline (Oct 11, 2026): 0 independent customer conversions (1 founder test).",
+      "Supplier per-order custom A2 card charges are unconfirmed pending supplier invoices.",
+      "Funnel stages use legacy inferred rollup rules pending v2 observed telemetry projection.",
+    ],
   };
 }
 

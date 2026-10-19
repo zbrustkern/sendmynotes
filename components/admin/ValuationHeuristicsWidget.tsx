@@ -121,24 +121,34 @@ export function ValuationHeuristicsWidget({
       };
     } else {
       return {
-        label: "Hyper-Efficient / Under-Investing in Ads",
+        label: "Scenario Modeled Ratio",
         badgeClass: "bg-indigo-100 text-indigo-800 border-indigo-300",
-        message: "Exceptional LTV relative to CAC. You have significant room to increase Google Ads bids.",
+        message: "Modeled scenario output only. Do not increase ad bids based on assumed LTV without verified repeat-order cohorts and confirmed supplier costs.",
       };
     }
   }, [outputs.ltvToCacRatio]);
 
   return (
     <div className="space-y-8">
+      {/* PROMINENT UNVERIFIED SCENARIO MODELING BANNER */}
+      <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3 text-amber-950 text-xs font-medium">
+        <span className="px-2.5 py-0.5 rounded-full bg-amber-200/80 text-amber-950 font-bold uppercase tracking-wider text-[10px] shrink-0">
+          Notice
+        </span>
+        <span>
+          Scenario Modeling Only — Unverified Assumptions (Do Not Use for Bid Decisions).
+        </span>
+      </div>
+
       {/* SECTION HEADER */}
       <div className="bg-gradient-to-br from-stone-900 via-stone-850 to-stone-900 text-white rounded-3xl p-6 sm:p-8 shadow-lg border border-stone-800 space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-stone-800">
           <div className="space-y-2">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/30">
-                Heuristic Economic Engine
+                Scenario Modeling Only — Unverified Assumptions (Do Not Use for Bid Decisions)
               </span>
-              <span className="text-xs text-stone-400">Deterministic Physical Product Modeling</span>
+              <span className="text-xs text-stone-400">Hypothetical Simulation</span>
             </div>
             <h2 className="font-serif text-2xl sm:text-3xl font-bold text-white flex items-center gap-2.5">
               <Award className="w-6 h-6 text-amber-400" />
