@@ -1,6 +1,6 @@
 # SPRINT-0011: Bind discount totals to the payment actually confirmed
 
-Status: active. October 19, 2026. Owner: Codex; Luna implementation and regression lanes.
+Status: complete. October 19, 2026. Owner: Codex; Luna implementation, regression and hosted verification lanes.
 
 ## Pyramid Index
 
@@ -55,3 +55,7 @@ No forced updates or secret/config changes. Use explicit project, backend and co
 A remount can require re-entering card details; correctness takes precedence over preserving payment fields during a deliberate price change. In-flight card authorization must disable promo mutation. Backend response races and free-order resume require explicit tests. Existing unpromoted admin gates stay separate. Exact cloud deployment source, staging Stripe test-key availability, actual wallet/Safari behavior and specific founder transaction are unresolved until verified.
 
 Plan synthesized and self-reviewed in Codex using df-sprint-plan; Antigravity has not run. Handoff and local critique retained in .delivery/runs/20261019-discount-payment-fix. Current user authorizes scoped execution/staging/production after readiness; no extra ceremonial approval is required.
+
+## Completion
+
+Implemented and released. Staging source `2723ea1` serves revision `sendmynotes-staging-build-2026-10-19-005` at 100%; actual hosted server/Stripe TEST prices were 900/700/720/0 cents, test intents canceled. Production source `c7c127e` serves revision `sendmynotes-build-2026-10-19-001` at 100%. Both optimized builds, payment/draft/security/offer suites and mounted form/parent regressions passed. Production payment configuration fingerprint is unchanged; / and /new return 200 with no browser errors, and the brief post-rollout observation found zero ERROR/payment-related log entries. No live production purchase, wallet/device payment, refund, email or physical order was tested or created. See [.delivery release evidence](../../.delivery/runs/20261019-discount-payment-fix/REPORT.md) for the scope, exact artifacts and limits; [rollback](../../.delivery/runs/20261019-discount-payment-fix/ROLLBACK.md) retains prior READY source/build. Other admin-overhaul sprints remain unchanged.

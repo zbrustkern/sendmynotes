@@ -1,0 +1,32 @@
+[
+  {
+    "test": "payment-mode-safety",
+    "exit_code": 0,
+    "seconds": 83.18
+  },
+  {
+    "test": "transaction-security",
+    "exit_code": 0,
+    "seconds": 0.84
+  },
+  {
+    "test": "security-review-remediation",
+    "exit_code": 0,
+    "seconds": 0.62
+  },
+  {
+    "test": "draft",
+    "exit_code": 0,
+    "seconds": 0.15
+  },
+  {
+    "test": "sender-validation",
+    "exit_code": 0,
+    "seconds": 0.59
+  },
+  {
+    "test": "review-remediation",
+    "exit_code": 0,
+    "seconds": 0.64
+  }
+]

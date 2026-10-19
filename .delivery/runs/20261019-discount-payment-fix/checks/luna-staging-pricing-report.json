@@ -1,0 +1,95 @@
+{
+  "timestamp": "2026-10-19T21:27:05.588Z",
+  "project": "sendmynotes-staging",
+  "origin": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "expectedRevision": "projects/sendmynotes-staging/locations/us-central1/services/sendmynotes-staging/revisions/sendmynotes-staging-build-2026-10-19-005",
+  "actualRevision": "projects/sendmynotes-staging/locations/us-central1/services/sendmynotes-staging/revisions/sendmynotes-staging-build-2026-10-19-005",
+  "stripeMode": "test",
+  "paymentConfigurationHash": "fb09fc7ffc35bb0bc2251339f3698c50e9c2fbcc78766d01a2bc8bcc0feb53a5",
+  "results": [
+    {
+      "code": "SMN_S11_F_0BA2FEA4",
+      "expectedCents": 700,
+      "returnedCents": 700,
+      "isFree": false,
+      "hasPaymentIntent": true,
+      "stripeAmountCents": 700
+    },
+    {
+      "code": "SMN_S11_P_0BA2FEA4",
+      "expectedCents": 720,
+      "returnedCents": 720,
+      "isFree": false,
+      "hasPaymentIntent": true,
+      "stripeAmountCents": 720
+    },
+    {
+      "code": "SMN_S11_Z_0BA2FEA4",
+      "expectedCents": 0,
+      "returnedCents": 0,
+      "isFree": true,
+      "hasPaymentIntent": false
+    },
+    {
+      "code": null,
+      "expectedCents": 900,
+      "returnedCents": 900,
+      "isFree": false,
+      "hasPaymentIntent": true,
+      "stripeAmountCents": 900
+    }
+  ],
+  "testCodes": [
+    "SMN_S11_F_0BA2FEA4",
+    "SMN_S11_P_0BA2FEA4",
+    "SMN_S11_Z_0BA2FEA4"
+  ],
+  "draftOrderIds": [
+    "order_a1aea9e408d04b5d961f8df76285e333",
+    "order_a913e9464581c09448c38e0d04a80719",
+    "order_946d6f20156bd028668d481c3365014c",
+    "order_bb77499219b81e5f54a04b5c34c613e0"
+  ],
+  "quoteIds": [
+    "quote_1792445221560_drfzsyf",
+    "quote_1792445222693_1t1zxhp",
+    "quote_1792445223907_4gkhr04"
+  ],
+  "reservationIds": [
+    "res_order_a1aea9e408d04b5d961f8df76285e333_SMN_S11_F_0BA2FEA4",
+    "res_order_a913e9464581c09448c38e0d04a80719_SMN_S11_P_0BA2FEA4",
+    "res_order_946d6f20156bd028668d481c3365014c_SMN_S11_Z_0BA2FEA4"
+  ],
+  "intentIdsCreatedAndCanceled": [
+    "pi_3USO5CQRpUiJEWIA1VO7QrNm",
+    "pi_3USO5DQRpUiJEWIA1mhzK9Xa",
+    "pi_3USO5EQRpUiJEWIA0kh8bIqV"
+  ],
+  "firestoreArtifactsRetained": 16,
+  "capturedPayments": 0,
+  "emailsSent": 0,
+  "supplierOrders": 0,
+  "verifiedStripeIntents": [
+    {
+      "id": "pi_3USO5CQRpUiJEWIA1VO7QrNm",
+      "amountCents": 700,
+      "currency": "usd",
+      "livemode": false,
+      "status": "canceled"
+    },
+    {
+      "id": "pi_3USO5DQRpUiJEWIA1mhzK9Xa",
+      "amountCents": 720,
+      "currency": "usd",
+      "livemode": false,
+      "status": "canceled"
+    },
+    {
+      "id": "pi_3USO5EQRpUiJEWIA0kh8bIqV",
+      "amountCents": 900,
+      "currency": "usd",
+      "livemode": false,
+      "status": "canceled"
+    }
+  ]
+}

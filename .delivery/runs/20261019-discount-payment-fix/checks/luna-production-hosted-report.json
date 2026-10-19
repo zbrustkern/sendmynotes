@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-10-19T21:33:13.320Z",
+  "project": "sendmynotes-2a417",
+  "backend": "sendmynotes",
+  "origin": "https://sendmynotes.com",
+  "source": {
+    "expectedHash": "c7c127e3e184252d0c727df715dd18e8e30129f6",
+    "deployedHash": "c7c127e3e184252d0c727df715dd18e8e30129f6",
+    "branch": "main",
+    "commitMessage": "test(checkout): cover failed repricing and saved free-order resume",
+    "latestRolloutState": "SUCCEEDED",
+    "latestBuildState": "READY",
+    "successfulBuild": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-10-19-001",
+    "traffic": [
+      {
+        "build": "projects/486379422282/locations/us-central1/backends/sendmynotes/builds/build-2026-10-19-001",
+        "percent": 100
+      }
+    ]
+  },
+  "runtime": {
+    "project": "sendmynotes-2a417",
+    "service": "sendmynotes",
+    "latestReadyRevision": "projects/sendmynotes-2a417/locations/us-central1/services/sendmynotes/revisions/sendmynotes-build-2026-10-19-001",
+    "trafficStatuses": [
+      {
+        "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+        "revision": "sendmynotes-build-2026-10-19-001",
+        "percent": 100,
+        "tag": "t-3326296761",
+        "uri": "https://t-3326296761---sendmynotes-j357xgslpa-uc.a.run.app"
+      }
+    ],
+    "uri": "https://sendmynotes-j357xgslpa-uc.a.run.app",
+    "flags": [
+      {
+        "name": "NEXT_PUBLIC_APP_URL",
+        "value": "https://sendmynotes.com"
+      }
+    ],
+    "paymentConfigurationHash": "05786c6f2267dadc72e50a9815c7508aef54be730da5588b4be1c286d1c1d95b",
+    "secretValuesLogged": false
+  },
+  "baselinePaymentConfigurationHash": "05786c6f2267dadc72e50a9815c7508aef54be730da5588b4be1c286d1c1d95b",
+  "appUrl": "https://sendmynotes.com",
+  "stagingFlagsAbsentOrFalse": true,
+  "browserPages": [
+    {
+      "path": "/new",
+      "status": 200,
+      "title": "Send a Real Handwritten Card Online | SendMyNotes | sendmynotes.com",
+      "pageErrors": [],
+      "providerCallsBlocked": 4,
+      "apiWritesBlocked": 2
+    },
+    {
+      "path": "/",
+      "status": 200,
+      "title": "sendmynotes.com | Real Handwritten Cards, Mailed for You",
+      "pageErrors": [],
+      "providerCallsBlocked": 4,
+      "apiWritesBlocked": 2
+    }
+  ],
+  "apiCalls": "all mutating same-origin API calls blocked; cross-origin provider/tracking calls blocked",
+  "checkoutIntentPosts": 0,
+  "productionWrites": 0,
+  "chargeAttempts": 0,
+  "logObservationStartedAt": "2026-10-19T21:33:13.321Z"
+}

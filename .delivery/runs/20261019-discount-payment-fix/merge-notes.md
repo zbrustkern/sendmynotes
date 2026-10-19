@@ -1,0 +1,3 @@
+Single-app plan; no alternate review returned. Prefer minimal provider reset and transactional UI update over new Stripe API/coupon architecture. Production hotfix must exclude 210-file staging overhaul. Real payment and physical fulfillment excluded from test evidence.
+
+Luna implementation review added saved-code revalidation, defers pre-pay validation races, and guards free-order auto-resume from repeated creation. Both production and staging retain existing server/payment configuration. Main baseline tsc fails in four preexisting test files; minimal type-only corrections included for a verifiable production build, with baseline output retained.

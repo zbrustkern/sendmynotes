@@ -1,0 +1,49 @@
+{
+  "project": "sendmynotes-staging",
+  "backend": "sendmynotes-staging",
+  "uri": "sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "environment": "staging",
+  "latestRollout": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-10-19-003",
+    "state": "SUCCEEDED"
+  },
+  "successfulRollout": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-10-19-003",
+    "state": "SUCCEEDED",
+    "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-19-004"
+  },
+  "source": {
+    "codebase": {
+      "branch": "staging",
+      "displayName": "7f6e3e5c0aba98b47cbde08e76b0dadf2012481e",
+      "hash": "7f6e3e5c0aba98b47cbde08e76b0dadf2012481e",
+      "commitMessage": "fix(admin): require Google sign-in and remove shared passphrase access",
+      "uri": "https://github.com/zbrustkern/sendmynotes/commit/7f6e3e5c0aba98b47cbde08e76b0dadf2012481e",
+      "author": {
+        "displayName": "User Name",
+        "email": "zbrustkern@gmail.com",
+        "imageUri": "https://github.com/zbrustkern.png"
+      },
+      "commitTime": "2026-10-19T19:42:52Z"
+    }
+  },
+  "traffic": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/traffic",
+    "rolloutPolicy": {
+      "codebaseBranch": "staging"
+    },
+    "reconciling": false,
+    "createTime": "2026-10-13T18:53:22.819965138Z",
+    "updateTime": "2026-10-13T18:53:22.021251Z",
+    "etag": "ZYjcvvlitQHMLk4-qEky1kLbiabHb-ul1S2TwdIOdyQ",
+    "uid": "94a33098-95ef-4dea-aff3-01ae91ba5e98",
+    "current": {
+      "splits": [
+        {
+          "build": "projects/910796604705/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-19-004",
+          "percent": 100
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "timestamp": "2026-10-19T21:26:28.379Z",
+  "project": "sendmynotes-staging",
+  "backend": "sendmynotes-staging",
+  "origin": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "expectedRevision": "projects/sendmynotes-staging/locations/us-central1/services/sendmynotes-staging/revisions/sendmynotes-staging-build-2026-10-19-005",
+  "latestReadyRevision": "projects/sendmynotes-staging/locations/us-central1/services/sendmynotes-staging/revisions/sendmynotes-staging-build-2026-10-19-005",
+  "servingRevisions": [
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-19-005",
+      "percent": 100,
+      "tag": "t-3326296765",
+      "uri": "https://t-3326296765---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    }
+  ],
+  "safetyFlags": {
+    "NEXT_PUBLIC_STAGING_REVIEW_ONLY": "true",
+    "NEXT_PUBLIC_APP_URL": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+    "FIREBASE_PROJECT_ID": "sendmynotes-staging",
+    "STAGING_REVIEW_ONLY": "true",
+    "HANDWRYTTEN_TEST_MODE": "true"
+  },
+  "stripeMode": "test",
+  "paymentConfigurationHash": "fb09fc7ffc35bb0bc2251339f3698c50e9c2fbcc78766d01a2bc8bcc0feb53a5",
+  "browser": {
+    "status": 200,
+    "title": "Send a Real Handwritten Card Online | SendMyNotes | sendmynotes.com",
+    "body": "SendMyNotes\nStart over\n$9.00 All-In • Real Ink • Stamp Included\nStep 1 of 4\n·\nCard\nYour words. Real ink. Mailed for you.\n\nChoose a card, add your message, and we'll write and mail it for you.\n\n$9 including mailing. No account needed.\nAll\nHalloween\nChristmas & Holidays\nBirthday\nThank You\nThinking of You\nCongratulations\nAnniversary\nJust Because\nSympathy & Support\nLove & Romance\nMake it personal — Create a custom design\nDescribe a personal scene or memory for custom artwork\nCustom Art\nPreview\nVintage Evergreen\nCHRISTMAS & HOLIDAYS\nPreview\nAutumn Harvest Glow\nHALLOWEEN\nPreview\nA Quiet Cup\nTHINKING OF YOU\nPreview\nWildflower Meadow\nTHANK YOU\nPreview\nOlive & Laurel Wreath\nTHANK YOU\nPreview\nMake a Wish\nBIRTHDAY\nPreview\nGolden Celebration\nBIRTHDAY\nPreview\nGentle Healing & Wild Chamomile\nTHINKING OF YOU\nPreview\nMisty Pines & Dawn\nTHINKING OF YOU\nPreview\nA Big Moment\nCONGRATULATIONS\nPreview\nThe Golden Summit\nCONGRATULATIONS\nPreview\nPop the Bubbly\nCONGRATULATIONS\nPreview\nAnother Year Together\nANNIVERSARY\nPreview\nBotanical Pair\nANNIVERSARY\nPreview\nVelvet Blossoms\nLOVE & ROMANCE\nPreview\nHere for You\nSYMPATHY & SUPPORT\nPreview\nRainbow Meadow & Paws\nSYMPATHY & SUPPORT\nPreview\nGentle Solace\nSYMPATHY & SUPPORT\nPreview\nPeaceful Olive Branch\nSYMPATHY & SUPPORT\nPreview\nWildflower Posy\nJUST BECAUSE\n$9 total\n· USPS mailing included\nWrite your note",
+    "pageErrors": [],
+    "providerCallsBlocked": 2,
+    "apiWritesBlocked": 4,
+    "stripeRequestsAttempted": 1
+  },
+  "pricingProbe": "Completed separately; see luna-staging-pricing-report.json for API and Stripe TEST amounts.",
+  "performed": [
+    "read-only revision/config gate",
+    "hosted /new browser shell smoke with Stripe and checkout APIs intercepted"
+  ],
+  "prohibitedActionsPerformed": []
+}
