@@ -131,6 +131,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
   const [isInitializingCheckout, setIsInitializingCheckout] = useState<boolean>(false);
+  const checkoutRequestInFlight = React.useRef(false);
+  const discountRequestInFlight = React.useRef(false);
   const [isMockIntent, setIsMockIntent] = useState<boolean>(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
@@ -401,6 +403,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
   // Apply or remove discount codes
   const applyDiscountCode = async (codeToApply: string) => {
+    if (discountRequestInFlight.current || checkoutRequestInFlight.current) return { success: false, error: "Checkout is updating. Please try again." };
+    discountRequestInFlight.current = true;
     try {
       const res = await fetch("/api/discount/validate", {
         method: "POST",
@@ -411,30 +415,40 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       if (!res.ok || !data.valid) {
         return { success: false, error: data.error || "Invalid discount code." };
       }
+      if (currentStep === 4 && !await proceedToCheckout(data.code, data.finalAmountInCents, true)) {
+        return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
+      }
       setAppliedDiscount(data);
       setIsFreeOrder(Boolean(data.isFree));
-
-      // If we are already on step 4 with an initialized order, re-create the intent with the new discount
-      if (currentStep === 4 && orderId) {
-        await proceedToCheckout(data.code);
-      }
 
       return { success: true };
     } catch {
       return { success: false, error: "Unable to validate discount code." };
+    } finally {
+      discountRequestInFlight.current = false;
     }
   };
 
   const removeDiscountCode = async () => {
-    setAppliedDiscount(null);
-    setIsFreeOrder(false);
-    if (currentStep === 4 && orderId) {
-      await proceedToCheckout(null);
+    if (discountRequestInFlight.current || checkoutRequestInFlight.current) return;
+    discountRequestInFlight.current = true;
+    try {
+      if (currentStep === 4 && !await proceedToCheckout("", 900, true)) return;
+      setAppliedDiscount(null);
+      setIsFreeOrder(false);
+    } finally {
+      discountRequestInFlight.current = false;
     }
   };
 
   // Move to Step 4 and create PaymentIntent
-  const proceedToCheckout = async (overrideDiscountCode?: string | null) => {
+  const proceedToCheckout = async (
+    overrideDiscountCode?: string | null,
+    expectedAmountInCents?: number,
+    allowDuringDiscountValidation = false
+  ) => {
+    if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
+    checkoutRequestInFlight.current = true;
     setIsInitializingCheckout(true);
     setCheckoutError(null);
     trackEvent("address_completed", 3);
@@ -472,6 +486,12 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         throw new Error(data.error || "Failed to initialize checkout.");
       }
 
+      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? appliedDiscount?.finalAmountInCents : 900);
+      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
+      if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
+        throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
+      }
+
       // If user is logged in and opted to save recipient address to their address book
       if (user && saveRecipientToAddressBook) {
         await saveAddress({
@@ -506,13 +526,16 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       setIsFreeOrder(Boolean(data.isFree));
       trackEvent("checkout_initiated", 4, { orderId: data.orderId, amount: data.amountInCents });
       setCurrentStep(4);
+      return true;
     } catch (err: unknown) {
       const msg =
         err instanceof Error
           ? err.message
           : "We were unable to connect to our payment processor. Please try again shortly.";
       setCheckoutError(msg);
+      return false;
     } finally {
+      checkoutRequestInFlight.current = false;
       setIsInitializingCheckout(false);
     }
   };
@@ -850,6 +873,9 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
             {currentStep === 4 && (
               <CheckoutStep
+              isUpdatingCheckout={isInitializingCheckout}
+              checkoutError={checkoutError}
+              onRetryCheckout={() => { void proceedToCheckout(); }}
                 orderId={orderId}
                 clientSecret={clientSecret}
                 publishableKey={publishableKey}

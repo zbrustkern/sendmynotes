@@ -135,6 +135,8 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
   const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscountInfo | null>(null);
   const [checkoutInitError, setCheckoutInitError] = useState<string | null>(null);
   const [isInitializingCheckout, setIsInitializingCheckout] = useState<boolean>(false);
+  const checkoutRequestInFlight = React.useRef(false);
+  const discountRequestInFlight = React.useRef(false);
 
   // Pre-fill user email and default return address if logged in
   useEffect(() => {
@@ -338,7 +340,13 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
   };
 
   // Initialize checkout PaymentIntent when proceeding from Step 3 to Step 4
-  const initializeCheckout = async (overrideDiscountCode?: string) => {
+  const initializeCheckout = async (
+    overrideDiscountCode?: string,
+    expectedAmountInCents?: number,
+    allowDuringDiscountValidation = false
+  ) => {
+    if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
+    checkoutRequestInFlight.current = true;
     setCheckoutInitError(null);
     setIsInitializingCheckout(true);
     try {
@@ -402,6 +410,12 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         throw new Error(decision.errorMessage || "Unable to proceed to payment.");
       }
 
+      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? appliedDiscount?.finalAmountInCents : 900);
+      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
+      if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
+        throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
+      }
+
       setOrderId(data.orderId);
       setClientSecret(data.clientSecret);
       if (data.publishableKey) {
@@ -409,22 +423,27 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
       }
       setIsMockCheckout(Boolean(data.isMock));
       setIsFreeOrder(Boolean(data.isFree));
-      setAmountInCents(data.amountInCents || 900);
+      setAmountInCents(data.amountInCents ?? 900);
       setCheckoutInitError(null);
       goToStep(4);
+      return true;
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unable to connect to payment processor. Please try again.";
       console.warn("Notice initializing checkout intent:", msg);
       evaluateCheckoutInitTransition(false);
       setCheckoutInitError(msg);
+      return false;
       // Safe boundary: stay on current step with error and retry; never advance to payment
     } finally {
+      checkoutRequestInFlight.current = false;
       setIsInitializingCheckout(false);
     }
   };
 
   // Promo code validation
   const handleApplyDiscount = async (code: string) => {
+    if (discountRequestInFlight.current || checkoutRequestInFlight.current) return { success: false, error: "Checkout is updating. Please try again." };
+    discountRequestInFlight.current = true;
     try {
       const res = await fetch("/api/discount/validate", {
         method: "POST",
@@ -436,23 +455,32 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         return { success: false, error: data.error || "Invalid promo code." };
       }
 
+      if (currentStep === 4 && !await initializeCheckout(data.code, data.finalAmountInCents, true)) {
+        return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
+      }
       setAppliedDiscount(data);
       setIsFreeOrder(Boolean(data.isFree));
       setAmountInCents(data.finalAmountInCents ?? 900);
 
-      // Re-create payment intent with discount
-      await initializeCheckout(data.code);
       return { success: true };
     } catch {
       return { success: false, error: "Unable to apply promo code." };
+    } finally {
+      discountRequestInFlight.current = false;
     }
   };
 
   const handleRemoveDiscount = async () => {
-    setAppliedDiscount(null);
-    setIsFreeOrder(false);
-    setAmountInCents(900);
-    await initializeCheckout("");
+    if (discountRequestInFlight.current || checkoutRequestInFlight.current) return;
+    discountRequestInFlight.current = true;
+    try {
+      if (currentStep === 4 && !await initializeCheckout("", 900, true)) return;
+      setAppliedDiscount(null);
+      setIsFreeOrder(false);
+      setAmountInCents(900);
+    } finally {
+      discountRequestInFlight.current = false;
+    }
   };
 
   // Payment Success
@@ -592,6 +620,9 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
         {currentStep === 4 && (
           <Step4ReviewAndPayment
+              isUpdatingCheckout={isInitializingCheckout}
+              checkoutError={checkoutInitError}
+              onRetryCheckout={() => { void initializeCheckout(); }}
             cardTitle={selectedCardTitle}
             cardUrl={selectedCardUrl}
             salutation={salutation}

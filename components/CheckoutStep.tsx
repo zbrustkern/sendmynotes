@@ -47,6 +47,9 @@ interface CheckoutStepProps {
   onApplyDiscount?: (code: string) => Promise<{ success: boolean; error?: string }>;
   onRemoveDiscount?: () => void;
   isFree?: boolean;
+  isUpdatingCheckout?: boolean;
+  checkoutError?: string | null;
+  onRetryCheckout?: () => void;
 }
 
 function InnerPaymentForm({
@@ -64,7 +67,12 @@ function InnerPaymentForm({
   const stripe = useStripe();
   const elements = useElements();
   const deviceWallet = useDeviceWallet();
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, setIsProcessingState] = useState(false);
+  const actionInFlight = React.useRef<"payment" | "promo" | null>(null);
+  const setIsProcessing = (processing: boolean) => {
+    actionInFlight.current = processing ? "payment" : null;
+    setIsProcessingState(processing);
+  };
   const [isPaymentElementReady, setIsPaymentElementReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -80,7 +88,8 @@ function InnerPaymentForm({
 
   const handleApplyPromo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!promoInput.trim() || !onApplyDiscount) return;
+    if (actionInFlight.current || !promoInput.trim() || !onApplyDiscount) return;
+    actionInFlight.current = "promo";
     setPromoError(null);
     setPromoLoading(true);
     try {
@@ -93,12 +102,26 @@ function InnerPaymentForm({
     } catch {
       setPromoError("Failed to apply promo code.");
     } finally {
+      actionInFlight.current = null;
+      setPromoLoading(false);
+    }
+  };
+
+  const handleRemovePromo = async () => {
+    if (actionInFlight.current || !onRemoveDiscount) return;
+    actionInFlight.current = "promo";
+    setPromoLoading(true);
+    try {
+      await onRemoveDiscount();
+    } finally {
+      actionInFlight.current = null;
       setPromoLoading(false);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (actionInFlight.current) return;
     if (!customerEmail.trim() || !customerEmail.includes("@")) {
       setErrorMessage("Please enter a valid email address for your order receipt.");
       return;
@@ -288,7 +311,8 @@ function InnerPaymentForm({
             {onRemoveDiscount && (
               <button
                 type="button"
-                onClick={onRemoveDiscount}
+                onClick={handleRemovePromo}
+                disabled={isProcessing || promoLoading}
                 className="text-stone-400 hover:text-rose-600 p-1 rounded transition cursor-pointer"
                 title="Remove discount code"
               >
@@ -312,7 +336,7 @@ function InnerPaymentForm({
             <button
               type="button"
               onClick={handleApplyPromo}
-              disabled={promoLoading || !promoInput.trim()}
+              disabled={isProcessing || promoLoading || !promoInput.trim()}
               className="px-3.5 py-1.5 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-lg shadow-xs transition disabled:opacity-50 cursor-pointer flex items-center gap-1"
             >
               {promoLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Apply"}
@@ -468,7 +492,7 @@ function InnerPaymentForm({
       {/* Order Confirmation Primary Action Button */}
       <button
         type="submit"
-        disabled={isProcessing || (!isZeroCost && !isMock && !isPaymentElementReady)}
+        disabled={promoLoading || isProcessing || (!isZeroCost && !isMock && !isPaymentElementReady)}
         className="w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 hover:from-amber-500 hover:to-amber-500 text-white font-bold text-base shadow-xl hover:shadow-2xl shadow-amber-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
       >
         {isProcessing ? (
@@ -536,6 +560,19 @@ export function CheckoutStep(props: CheckoutStepProps) {
 
   const deviceWallet = useDeviceWallet();
 
+  if (props.isUpdatingCheckout || props.checkoutError) {
+    return (
+      <div role={props.checkoutError ? "alert" : "status"} className="p-6 rounded-2xl border border-stone-200 bg-white space-y-3">
+        <p>{props.checkoutError || "Updating your secure checkout…"}</p>
+        {props.checkoutError && props.onRetryCheckout && (
+          <button type="button" onClick={props.onRetryCheckout} className="underline font-semibold">
+            Retry checkout
+          </button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -555,6 +592,7 @@ export function CheckoutStep(props: CheckoutStepProps) {
       <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-sm">
         {!props.isFree && props.clientSecret && stripePromise ? (
           <Elements
+            key={props.clientSecret}
             stripe={stripePromise}
             options={{
               clientSecret: props.clientSecret,
@@ -571,7 +609,12 @@ export function CheckoutStep(props: CheckoutStepProps) {
             <InnerPaymentForm {...props} />
           </Elements>
         ) : (
-          <InnerPaymentForm {...props} isMock={props.isMock ?? false} />
+          <Elements
+            stripe={null}
+            key={props.orderId || (props.isFree ? "free" : props.isMock ? "mock" : "unavailable")}
+          >
+            <InnerPaymentForm {...props} isMock={props.isMock ?? false} />
+          </Elements>
         )}
       </div>
     </div>

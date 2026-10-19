@@ -121,6 +121,17 @@
       "implementation_status": "integrated_local_checks_passed",
       "acceptance_status": "partial_pending_readiness_gates",
       "evidence": ".delivery/runs/20261019-codex-luna-takeover/READINESS.md"
+    },
+    {
+      "id": "SPRINT-0011",
+      "title": "Bind discount totals to the payment actually confirmed",
+      "path": "docs/sprints/SPRINT-0011.md",
+      "status": "active",
+      "run_id": "20261019-discount-payment-fix",
+      "updated_at": "2026-10-19T21:11:09.082220+00:00",
+      "implementation_status": "in_progress",
+      "acceptance_status": "pending_local_and_hosted_gates",
+      "evidence": ".delivery/runs/20261019-discount-payment-fix/REPORT.md"
     }
   ]
 }
