@@ -113,7 +113,7 @@ async function runTests() {
   const { saveOrder, getOrderById } = await import("@/lib/firebase-admin");
   const { NextRequest } = await import("next/server");
 
-  process.env.NODE_ENV = "test";
+  (process.env as Record<string, string | undefined>).NODE_ENV = "test";
   process.env.TEST_BYPASS_WEBHOOK_SIGNATURE = "true";
 
   // 6A. Deferred address order in webhook

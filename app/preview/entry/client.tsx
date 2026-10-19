@@ -202,6 +202,8 @@ export function EntryPrototypeClient({
   const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscountInfo | null>(null);
   const [checkoutInitError, setCheckoutInitError] = useState<string | null>(null);
   const [isInitializingCheckout, setIsInitializingCheckout] = useState(false);
+  const checkoutRequestInFlight = React.useRef(false);
+  const discountRequestInFlight = React.useRef(false);
 
   // Pre-fill user email if authenticated
   useEffect(() => {
@@ -889,7 +891,13 @@ export function EntryPrototypeClient({
   };
 
   // Initialize PaymentIntent when advancing from address to pay
-  const initializeCheckout = async (overrideDiscountCode?: string) => {
+  const initializeCheckout = async (
+    overrideDiscountCode?: string,
+    expectedAmountInCents?: number,
+    allowDuringDiscountValidation = false
+  ) => {
+    if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
+    checkoutRequestInFlight.current = true;
     setCheckoutInitError(null);
     setIsInitializingCheckout(true);
 
@@ -909,7 +917,38 @@ export function EntryPrototypeClient({
       const discountCodeToUse =
         overrideDiscountCode !== undefined
           ? overrideDiscountCode
-          : appliedDiscount?.code;
+          : appliedDiscount?.code || draft.discountCode || undefined;
+
+      // A resumed draft stores only the code, not its price terms. Revalidate it
+      // before creating an intent so the displayed terms match the server total.
+      let discountToApply =
+        discountCodeToUse && appliedDiscount?.code === discountCodeToUse
+          ? appliedDiscount
+          : null;
+      if (discountCodeToUse && !discountToApply) {
+        const validationResponse = await fetch("/api/discount/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code: discountCodeToUse }),
+        });
+        let validation: AppliedDiscountInfo & { valid?: boolean; error?: string };
+        try {
+          validation = await validationResponse.json();
+        } catch {
+          throw new Error("Unable to validate your saved discount code. Please retry checkout.");
+        }
+        const definitiveInvalidCode =
+          (validationResponse.status >= 400 && validationResponse.status < 500) ||
+          (validationResponse.ok && validation.valid === false);
+        if (definitiveInvalidCode) {
+          dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
+          throw new Error(validation.error || "Your saved discount code is no longer valid. Retry checkout to continue at the regular price.");
+        }
+        if (!validationResponse.ok || validation.valid !== true) {
+          throw new Error(validation.error || "Unable to validate your saved discount code. Please retry checkout.");
+        }
+        discountToApply = validation;
+      }
 
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
@@ -960,6 +999,12 @@ export function EntryPrototypeClient({
         throw new Error(decision.errorMessage || "Unable to proceed to payment.");
       }
 
+      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? discountToApply?.finalAmountInCents : 900);
+      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
+      if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
+        throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
+      }
+
       setOrderId(data.orderId);
       if (data.viewToken) {
         setViewToken(data.viewToken);
@@ -982,6 +1027,7 @@ export function EntryPrototypeClient({
       setIsMockCheckout(Boolean(data.isMock));
       setIsFreeOrder(Boolean(data.isFree));
       setAmountInCents(data.finalAmountInCents ?? data.amountInCents ?? 900);
+      setAppliedDiscount(discountToApply);
       setCheckoutInitError(null);
 
       trackEvent("address_completed", 3, {
@@ -1005,6 +1051,7 @@ export function EntryPrototypeClient({
       if (typeof window !== "undefined") {
         window.scrollTo({ top: 0, behavior: "instant" });
       }
+      return true;
     } catch (err) {
       const msg =
         err instanceof Error
@@ -1013,13 +1060,17 @@ export function EntryPrototypeClient({
       console.warn("Notice initializing checkout intent:", msg);
       evaluateCheckoutInitTransition(false);
       setCheckoutInitError(msg);
+      return false;
     } finally {
+      checkoutRequestInFlight.current = false;
       setIsInitializingCheckout(false);
     }
   };
 
   // Promo code validation
   const handleApplyDiscount = async (code: string) => {
+    if (discountRequestInFlight.current || checkoutRequestInFlight.current) return { success: false, error: "Checkout is updating. Please try again." };
+    discountRequestInFlight.current = true;
     try {
       const res = await fetch("/api/discount/validate", {
         method: "POST",
@@ -1031,24 +1082,36 @@ export function EntryPrototypeClient({
         return { success: false, error: data.error || "Invalid promo code." };
       }
 
+      if (step === "pay") {
+        const updated = await initializeCheckout(data.code, data.finalAmountInCents, true);
+        if (!updated) return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
+      }
+
       setAppliedDiscount(data);
       setIsFreeOrder(Boolean(data.isFree));
       setAmountInCents(data.finalAmountInCents ?? 900);
       dispatch({ type: "SET_DISCOUNT_CODE", payload: data.code });
 
-      await initializeCheckout(data.code);
       return { success: true };
     } catch {
       return { success: false, error: "Unable to apply promo code." };
+    } finally {
+      discountRequestInFlight.current = false;
     }
   };
 
   const handleRemoveDiscount = async () => {
-    setAppliedDiscount(null);
-    setIsFreeOrder(false);
-    setAmountInCents(900);
-    dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
-    await initializeCheckout("");
+    if (discountRequestInFlight.current || checkoutRequestInFlight.current) return;
+    discountRequestInFlight.current = true;
+    try {
+      if (step === "pay" && !await initializeCheckout("", 900, true)) return;
+      setAppliedDiscount(null);
+      setIsFreeOrder(false);
+      setAmountInCents(900);
+      dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
+    } finally {
+      discountRequestInFlight.current = false;
+    }
   };
 
   // Payment success handler (server records verified telemetry)
@@ -1155,6 +1218,8 @@ export function EntryPrototypeClient({
     if (
       isLoaded &&
       step === "pay" &&
+      !orderId &&
+      !isFreeOrder &&
       !clientSecret &&
       !isInitializingCheckout &&
       !checkoutInitError &&
@@ -1162,7 +1227,7 @@ export function EntryPrototypeClient({
     ) {
       initializeCheckout();
     }
-  }, [isLoaded, step, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed]);
+  }, [isLoaded, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode]);
 
   // Check if address is valid for advancing
   const isAddressValid = isAddressDeferred
@@ -1335,6 +1400,9 @@ export function EntryPrototypeClient({
         {step === "pay" && (
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step4ReviewAndPayment
+              isUpdatingCheckout={isInitializingCheckout}
+              checkoutError={checkoutInitError}
+              onRetryCheckout={() => { void initializeCheckout(); }}
               cardTitle={currentCard.title}
               cardUrl={currentCard.imageUrl}
               salutation={salutation}

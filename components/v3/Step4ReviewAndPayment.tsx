@@ -62,6 +62,9 @@ interface Step4ReviewAndPaymentProps {
   publishableKey: string | null;
   isMock: boolean;
   isFree: boolean;
+  isUpdatingCheckout?: boolean;
+  checkoutError?: string | null;
+  onRetryCheckout?: () => void;
   onApplyDiscount: (code: string) => Promise<{ success: boolean; error?: string }>;
   onRemoveDiscount: () => void;
   appliedDiscount: AppliedDiscountInfo | null;
@@ -117,7 +120,12 @@ function InnerPaymentForm({
   const stripe = useStripe();
   const elements = useElements();
 
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [isProcessing, setIsProcessingState] = useState(false);
+  const actionInFlight = React.useRef<"payment" | "promo" | null>(null);
+  const setIsProcessing = (processing: boolean) => {
+    actionInFlight.current = processing ? "payment" : null;
+    setIsProcessingState(processing);
+  };
   const [isPaymentCaptured, setIsPaymentCaptured] = useState(false);
   const [isPaymentElementReady, setIsPaymentElementReady] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -144,7 +152,8 @@ function InnerPaymentForm({
 
   const handleApplyPromo = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!promoInput.trim()) return;
+    if (actionInFlight.current || isPaymentCaptured || !promoInput.trim()) return;
+    actionInFlight.current = "promo";
     setPromoError(null);
     setPromoLoading(true);
     try {
@@ -157,6 +166,7 @@ function InnerPaymentForm({
     } catch {
       setPromoError("Failed to validate promo code.");
     } finally {
+      actionInFlight.current = null;
       setPromoLoading(false);
     }
   };
@@ -175,6 +185,7 @@ function InnerPaymentForm({
   };
 
   const handleExpressConfirm = async () => {
+    if (actionInFlight.current || isPaymentCaptured) return;
     if (!stripe || !elements) return;
     setIsProcessing(true);
     setErrorMessage(null);
@@ -235,8 +246,21 @@ function InnerPaymentForm({
     }
   };
 
+  const handleRemovePromo = async () => {
+    if (actionInFlight.current || isPaymentCaptured || !onRemoveDiscount) return;
+    actionInFlight.current = "promo";
+    setPromoLoading(true);
+    try {
+      await onRemoveDiscount();
+    } finally {
+      actionInFlight.current = null;
+      setPromoLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (actionInFlight.current || isPaymentCaptured) return;
 
     if (!customerEmail.trim() || !customerEmail.includes("@")) {
       setErrorMessage("Please enter a valid email for your order receipt and USPS tracking.");
@@ -433,7 +457,7 @@ function InnerPaymentForm({
 
         <button
           type="button"
-          onClick={onBack}
+          onClick={() => { if (!actionInFlight.current && !isPaymentCaptured) onBack(); }}
           className="px-2.5 py-1 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer shrink-0"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -591,7 +615,7 @@ function InnerPaymentForm({
                 </div>
                 <button
                   type="button"
-                  onClick={onBack}
+                  onClick={() => { if (!actionInFlight.current && !isPaymentCaptured) onBack(); }}
                   className="text-[11px] text-amber-800 hover:text-amber-950 font-semibold underline underline-offset-2 cursor-pointer"
                 >
                   Edit
@@ -749,14 +773,14 @@ function InnerPaymentForm({
 
                   {/* EXPRESS CHECKOUT ELEMENT (Apple Pay / Google Pay / Link) */}
                   <div className={walletAvailable ? "space-y-3" : "h-0 overflow-hidden opacity-0 pointer-events-none"}>
-                    <ExpressCheckoutElement
+                    {!promoLoading && <ExpressCheckoutElement
                       onConfirm={handleExpressConfirm}
                       onReady={handleExpressReady}
                       options={{
                         buttonHeight: 44,
                         paymentMethodOrder: ["applePay", "googlePay", "link"],
                       }}
-                    />
+                    />}
                     {walletAvailable && (
                       <div className="relative my-3">
                         <div className="absolute inset-0 flex items-center">
@@ -804,7 +828,8 @@ function InnerPaymentForm({
                 </div>
                 <button
                   type="button"
-                  onClick={onRemoveDiscount}
+                  onClick={handleRemovePromo}
+                  disabled={isProcessing || promoLoading || isPaymentCaptured}
                   className="p-1 text-stone-400 hover:text-rose-600 transition"
                   title="Remove code"
                 >
@@ -828,7 +853,7 @@ function InnerPaymentForm({
                   <button
                     type="button"
                     onClick={handleApplyPromo}
-                    disabled={promoLoading || !promoInput.trim()}
+                    disabled={isProcessing || promoLoading || isPaymentCaptured || !promoInput.trim()}
                     className="px-4 py-2 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-xs transition disabled:opacity-50 cursor-pointer"
                   >
                     {promoLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : "Apply"}
@@ -880,7 +905,7 @@ function InnerPaymentForm({
           <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
             <button
               type="button"
-              onClick={onBack}
+              onClick={() => { if (!actionInFlight.current && !isPaymentCaptured) onBack(); }}
               className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-semibold flex items-center gap-1.5 transition"
             >
               <ArrowLeft className="w-4 h-4" />
@@ -889,7 +914,7 @@ function InnerPaymentForm({
 
             <button
               type="submit"
-              disabled={isProcessing || isPaymentCaptured || (!isZeroCost && !isMock && !isPaymentElementReady)}
+              disabled={promoLoading || isProcessing || isPaymentCaptured || (!isZeroCost && !isMock && !isPaymentElementReady)}
               className="px-8 py-3.5 bg-stone-900 hover:bg-black disabled:bg-stone-300 text-white font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
           {isPaymentCaptured ? (
@@ -921,7 +946,7 @@ function InnerPaymentForm({
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/90 p-3 shadow-lg flex items-center justify-between gap-3 safe-area-inset-bottom">
         <button
           type="button"
-          onClick={onBack}
+          onClick={() => { if (!actionInFlight.current && !isPaymentCaptured) onBack(); }}
           disabled={isPaymentCaptured}
           className="px-3 py-2 text-stone-600 hover:text-stone-900 text-xs font-semibold flex items-center gap-1 disabled:opacity-40"
         >
@@ -931,7 +956,7 @@ function InnerPaymentForm({
 
         <button
           type="submit"
-          disabled={isProcessing || isPaymentCaptured || (!isZeroCost && !isMock && !isPaymentElementReady)}
+          disabled={promoLoading || isProcessing || isPaymentCaptured || (!isZeroCost && !isMock && !isPaymentElementReady)}
           className="px-5 py-2.5 bg-stone-900 hover:bg-black disabled:bg-stone-300 text-white font-semibold rounded-xl text-xs transition shadow-sm flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
         >
           {isPaymentCaptured ? (
@@ -982,9 +1007,23 @@ export function Step4ReviewAndPayment(props: Step4ReviewAndPaymentProps) {
     return props.publishableKey ? loadStripe(props.publishableKey) : null;
   }, [props.publishableKey]);
 
+  if (props.isUpdatingCheckout || props.checkoutError) {
+    return (
+      <div role={props.checkoutError ? "alert" : "status"} className="p-6 rounded-2xl border border-stone-200 bg-white space-y-3">
+        <p>{props.checkoutError || "Updating your secure checkout…"}</p>
+        {props.checkoutError && props.onRetryCheckout && (
+          <button type="button" onClick={props.onRetryCheckout} className="underline font-semibold">
+            Retry checkout
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (props.clientSecret && stripePromise) {
     return (
       <Elements
+        key={props.clientSecret}
         stripe={stripePromise}
         options={{
           clientSecret: props.clientSecret,
@@ -1004,5 +1043,12 @@ export function Step4ReviewAndPayment(props: Step4ReviewAndPaymentProps) {
     );
   }
 
-  return <InnerPaymentForm {...props} isMock={props.isMock ?? false} />;
+  return (
+    <Elements
+      stripe={null}
+      key={props.orderId || (props.isFree ? "free" : props.isMock ? "mock" : "unavailable")}
+    >
+      <InnerPaymentForm {...props} isMock={props.isMock ?? false} />
+    </Elements>
+  );
 }
