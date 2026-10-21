@@ -1,0 +1,12 @@
+{
+  "project": "sendmynotes-2a417",
+  "service": "sendmynotes",
+  "since": "2026-10-21T03:26:00Z",
+  "errorCount": 0,
+  "paymentRelated": 0,
+  "byRevision": {},
+  "hasMore": false,
+  "logContentSaved": false,
+  "observedAt": "2026-10-21T03:31:45.140Z",
+  "scope": "Short post-deployment service error-log window; not long-term reliability or payment validation"
+}

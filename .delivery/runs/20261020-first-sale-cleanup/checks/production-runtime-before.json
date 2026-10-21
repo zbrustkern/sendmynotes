@@ -1,0 +1,23 @@
+{
+  "project": "sendmynotes-2a417",
+  "service": "sendmynotes",
+  "latestReadyRevision": "projects/sendmynotes-2a417/locations/us-central1/services/sendmynotes/revisions/sendmynotes-build-2026-10-19-001",
+  "trafficStatuses": [
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-build-2026-10-19-001",
+      "percent": 100,
+      "tag": "t-3326296761",
+      "uri": "https://t-3326296761---sendmynotes-j357xgslpa-uc.a.run.app"
+    }
+  ],
+  "uri": "https://sendmynotes-j357xgslpa-uc.a.run.app",
+  "flags": [
+    {
+      "name": "NEXT_PUBLIC_APP_URL",
+      "value": "https://sendmynotes.com"
+    }
+  ],
+  "paymentConfigurationHash": "05786c6f2267dadc72e50a9815c7508aef54be730da5588b4be1c286d1c1d95b",
+  "secretValuesLogged": false
+}

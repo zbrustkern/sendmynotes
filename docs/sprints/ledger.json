@@ -134,6 +134,19 @@
       "evidence": ".delivery/runs/20261019-discount-payment-fix/REPORT.md",
       "production_commit": "c7c127e3e184252d0c727df715dd18e8e30129f6",
       "staging_commit": "2723ea1bc1291d801386124781442a7eeda74ada"
+    },
+    {
+      "id": "SPRINT-0012",
+      "title": "Make the first-sale experience clearer and more truthful",
+      "path": "docs/sprints/SPRINT-0012.md",
+      "status": "complete",
+      "run_id": "20261020-first-sale-cleanup",
+      "updated_at": "2026-10-21T03:32:57.032708+00:00",
+      "implementation_status": "deployed_staging_and_production",
+      "acceptance_status": "passed_scoped_release_gates",
+      "evidence": ".delivery/runs/20261020-first-sale-cleanup/REPORT.md",
+      "production_commit": "0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+      "staging_commit": "f97f98f62d0fee461c236c597e33e9f54a7275d3"
     }
   ]
 }

@@ -1,0 +1,55 @@
+{
+  "project": "sendmynotes-2a417",
+  "backend": "sendmynotes",
+  "uri": "sendmynotes--sendmynotes-2a417.us-central1.hosted.app",
+  "environment": null,
+  "latestRollout": {
+    "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-10-21-001",
+    "state": "SUCCEEDED"
+  },
+  "successfulRollout": {
+    "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-10-21-001",
+    "state": "SUCCEEDED",
+    "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-10-21-001"
+  },
+  "source": {
+    "codebase": {
+      "branch": "main",
+      "displayName": "0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+      "hash": "0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+      "commitMessage": "fix(copy): clarify custom artwork and verified card details",
+      "uri": "https://github.com/zbrustkern/sendmynotes/commit/0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+      "commitTime": "2026-10-21T03:12:45Z"
+    }
+  },
+  "latestBuildState": "READY",
+  "latestSource": {
+    "codebase": {
+      "branch": "main",
+      "displayName": "0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+      "hash": "0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+      "commitMessage": "fix(copy): clarify custom artwork and verified card details",
+      "uri": "https://github.com/zbrustkern/sendmynotes/commit/0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+      "commitTime": "2026-10-21T03:12:45Z"
+    }
+  },
+  "traffic": {
+    "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/traffic",
+    "rolloutPolicy": {
+      "codebaseBranch": "main"
+    },
+    "reconciling": false,
+    "createTime": "2026-09-22T16:17:50.468258513Z",
+    "updateTime": "2026-09-22T16:17:49.524419Z",
+    "etag": "7akd5hknbWsv4Aax2ju0q96ymb4DxkKKDnfIsht7qw4",
+    "uid": "fce05bcc-555a-4037-b93f-76fa3baf29ed",
+    "current": {
+      "splits": [
+        {
+          "build": "projects/486379422282/locations/us-central1/backends/sendmynotes/builds/build-2026-10-21-001",
+          "percent": 100
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "tool": "cua_repl",
+  "url": "http://127.0.0.1:3312/",
+  "source": "production candidate based on c7c127e, after Luna iteration 2",
+  "local_only": true,
+  "viewports": [
+    {"width": 320, "height": 844, "button_client_width": 286, "button_scroll_width": 286, "button_height": 68.75, "full_title_and_description_visible": true},
+    {"width": 390, "height": 844, "button_client_width": 356, "button_scroll_width": 356, "button_height": 54, "full_title_and_description_visible": true},
+    {"width": 1280, "height": 900, "button_client_width": 1214, "button_scroll_width": 1214, "button_height": 54, "full_title_and_description_visible": true}
+  ],
+  "keyboard_enter_opens_custom_chooser": true,
+  "click_opens_custom_chooser": true,
+  "close_preserves_selected_card": true,
+  "preset_preview_shows_correct_envelope_copy": true,
+  "selected_preset": "Make a Wish",
+  "note_to_address_navigation_passed": true,
+  "address_step_shows_correct_envelope_copy": true,
+  "art_generation_triggered": false,
+  "checkout_or_payment_started": false,
+  "real_addresses_entered": false,
+  "external_provider_network": "blocked by local process preload",
+  "advertising": "suppressed in local build",
+  "limits": "Not a live payment, fulfillment or real-device wallet test. Conditional order tracking preservation verified in source; no personal order was fetched."
+}

@@ -1,0 +1,18 @@
+{
+  "source_commit": "f97f98f62d0fee461c236c597e33e9f54a7275d3",
+  "tool": "cua_repl",
+  "routes_verified": ["/", "/privacy", "/new"],
+  "phone_viewports": [320, 390],
+  "invitation_full_text_visible": true,
+  "320_button_client_width": 286,
+  "320_button_scroll_width": 286,
+  "chooser_open_and_close": "passed without generation",
+  "policy_material_copy": "cardstock and automated equipment holding real pens",
+  "browser_errors": [],
+  "screenshot": "staging-mobile.jpg",
+  "server_error_log_since": "2026-10-21T03:16:00Z",
+  "server_error_count": 0,
+  "server_payment_error_count": 0,
+  "raw_customer_logs_saved": false,
+  "purchases_or_provider_submissions": false
+}

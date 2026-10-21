@@ -1,0 +1,70 @@
+{
+  "observedAt": "2026-10-21T03:31:45.151Z",
+  "sourceCommit": "0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+  "tool": "cua_repl",
+  "url": "https://sendmynotes.com",
+  "publicRoutes": [
+    "/",
+    "/new",
+    "/privacy"
+  ],
+  "checks": [
+    {
+      "viewport": {
+        "width": 390,
+        "height": 844
+      },
+      "button": {
+        "clientWidth": 356,
+        "scrollWidth": 356,
+        "height": 54
+      },
+      "fullInvitationReadable": true,
+      "screenshot": "production-mobile.jpg"
+    },
+    {
+      "viewport": {
+        "width": 320,
+        "height": 844
+      },
+      "button": {
+        "clientWidth": 286,
+        "scrollWidth": 286,
+        "height": 68.75
+      },
+      "fullInvitationReadable": true
+    },
+    {
+      "route": "/",
+      "chooserOpened": true,
+      "chooserClosed": true,
+      "generationTriggered": false
+    },
+    {
+      "route": "/new",
+      "renders": true,
+      "customArtworkInvitationVisible": true
+    },
+    {
+      "route": "/privacy",
+      "renders": true,
+      "cardstockRealPenDescriptionVisible": true
+    },
+    {
+      "route": "/admin",
+      "founderReportDate": "October 20, 2026",
+      "founderReportVisible": true,
+      "correctedCardstockDescriptionVisible": true,
+      "individualOrderOpened": false,
+      "operationalButtonsUsed": false,
+      "rawAdminContentSaved": false
+    }
+  ],
+  "browserErrorLogs": [],
+  "viewportOverridesReset": true,
+  "limits": [
+    "No live purchase or Apple Pay test",
+    "No supplier submission or physical fulfillment",
+    "Admin dashboard rendered in existing authorized session; no customer content saved in this artifact"
+  ]
+}

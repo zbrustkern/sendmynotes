@@ -1,0 +1,20 @@
+const base='/Users/zeke/.nvm/versions/node/v20.12.1/lib/node_modules/firebase-tools/lib/';
+const variant=process.argv[2];
+const targets={production:['sendmynotes-2a417','sendmynotes'],staging:['sendmynotes-staging','sendmynotes-staging']};
+(async()=>{
+ if(!targets[variant])throw Error('Expected production or staging');
+ const [project,backend]=targets[variant];
+ const auth=require(base+'auth').getGlobalDefaultAccount();
+ await require(base+'requireAuth').requireAuth({...auth,project,projectId:project,nonInteractive:true});
+ const ah=require(base+'gcp/apphosting');
+ const rows=(await ah.listRollouts(project,'us-central1',backend)).rollouts;
+ rows.sort((a,b)=>(b.createTime||'').localeCompare(a.createTime||''));
+ const build=await ah.getBuild(project,'us-central1',backend,rows[0].build.split('/').pop());
+ const id=build.buildLogsUri?.match(/us-central1\/([^?]+)/)?.[1];
+ if(!id)throw Error('No Cloud Build identifier');
+ const {Client}=require(base+'apiv2');
+ const api=new Client({urlPrefix:'https://cloudbuild.googleapis.com',auth:true,apiVersion:'v1'});
+ const detail=(await api.get(`projects/${project}/locations/us-central1/builds/${id}`)).body;
+ const safe={project,backend,source:build.source?.codebase?.hash,status:detail.status,startTime:detail.startTime,finishTime:detail.finishTime,steps:(detail.steps||[]).map(step=>({id:step.id,status:step.status})),failureInfo:detail.failureInfo};
+ process.stdout.write(JSON.stringify(safe,null,2)+'\n');
+})().catch(e=>{process.stderr.write('Cloud build inspection failed: '+(e.code||e.status||e.message)+'\n');process.exitCode=1});

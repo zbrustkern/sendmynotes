@@ -1,0 +1,10 @@
+{
+  "variant": "production",
+  "exit_code": 0,
+  "seconds": 15.91,
+  "typecheck": "included in Next build",
+  "local_only_env": {
+    "NEXT_PUBLIC_STAGING_REVIEW_ONLY": "true"
+  },
+  "external_network": "denied"
+}
