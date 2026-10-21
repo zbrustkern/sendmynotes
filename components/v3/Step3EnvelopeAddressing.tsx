@@ -301,7 +301,7 @@ function LiveEnvelopeCard({
       </div>
 
       <p className="text-[11px] text-stone-500 text-center">
-        Mailed in a matching woven envelope directly to your recipient via USPS First-Class.
+        Mailed in an envelope directly to your recipient via USPS First-Class.
       </p>
     </div>
   );

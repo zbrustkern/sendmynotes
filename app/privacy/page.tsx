@@ -163,7 +163,7 @@ export default function PrivacyPolicyPage() {
             </h2>
             <p>We use the information we collect for legitimate commercial, operational, and marketing purposes:</p>
             <ul className="list-disc pl-5 space-y-1.5 text-xs text-stone-600">
-              <li><strong>Physical Manufacturing &amp; Fulfillment:</strong> Printing card artwork on 120 lb archival cardstock, controlling robotic ballpoint plotting machines to write your message in real ink, stuffing envelopes, applying postage stamps, and mailing via USPS First Class.</li>
+              <li><strong>Physical Manufacturing &amp; Fulfillment:</strong> Printing card artwork on cardstock, using automated equipment holding real pens to write your message, preparing envelopes, applying postage stamps, and mailing via USPS First Class.</li>
               <li><strong>Payment Processing:</strong> Facilitating secure credit/debit card transactions and fraud prevention through Stripe.</li>
               <li><strong>Customer Communications:</strong> Sending transactional order receipts, production milestones, shipment notices, and responding to feedback inquiries.</li>
               <li><strong>Address Book Management:</strong> Allowing registered users to retrieve previously saved recipient and return addresses for faster repeat checkout.</li>

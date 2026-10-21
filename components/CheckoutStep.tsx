@@ -276,7 +276,7 @@ function InnerPaymentForm({
           className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
         />
         <p className="text-[11px] text-stone-400 mt-1">
-          Zero accounts or passwords required. We only send your receipt and USPS tracking updates.
+          Zero accounts or passwords required. We send your receipt and any available mailing updates.
         </p>
       </div>
 

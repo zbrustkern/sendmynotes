@@ -69,7 +69,7 @@ export function HandwryttenStatusWidget() {
           <p className="text-[11px] text-stone-500 mt-0.5">
             {data.isTestMode
               ? "Orders generate digital proofs without deducting credits or plotting physical envelopes."
-              : "Orders are physically penned by robotic arms on 100 lb cardstock and dispatched via USPS."}
+              : "Orders are written with real pens on cardstock and dispatched via USPS."}
           </p>
         </div>
       </div>

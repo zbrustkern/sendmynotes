@@ -58,8 +58,8 @@ export const PRODUCT_FORMAT = {
 export const PRODUCT_MATERIALS = {
   paperDescription: "cardstock",
   paperDisplay: "Quality cardstock",
-  envelopeDescription: "matching envelope",
-  envelopeDisplay: "Matching paper envelope",
+  envelopeDescription: "envelope",
+  envelopeDisplay: "Paper envelope",
   coverDescription: "Printed front artwork on folded cardstock",
 } as const;
 

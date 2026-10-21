@@ -527,7 +527,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
                 SendMyNotes
               </span>
               <span className="text-[10px] uppercase font-sans tracking-wider text-stone-500 block">
-                Real Pen-Written Cards In 60 Seconds
+                Personal cards, made easy to send
               </span>
             </div>
           </div>
@@ -673,7 +673,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
           SendMyNotes • Real Ballpoint Inking &amp; First-Class USPS Delivery
         </p>
         <p className="text-[11px] text-stone-400">
-          Luxury 120 lb Archival Cardstock • Flat $9.00 Rate (Postage Included)
+          Cardstock • Flat $9.00 Rate (Postage Included)
         </p>
       </footer>
     </div>

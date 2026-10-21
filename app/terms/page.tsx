@@ -70,7 +70,7 @@ export default function TermsPage() {
               Card Production &amp; USPS Postal Delivery Disclaimers
             </h2>
             <p>
-              We provide automated physical greeting card manufacturing and mailing fulfillment. Cards are printed on archival cardstock, penned using automated robotic ballpoint plotters, stamped with domestic postage, and inducted into the United States Postal Service (&ldquo;USPS&rdquo;) First Class Mail stream.
+              We provide automated physical greeting card manufacturing and mailing fulfillment. Cards are printed on cardstock, written with automated equipment holding real pens, stamped with domestic postage, and inducted into the United States Postal Service (&ldquo;USPS&rdquo;) First Class Mail stream.
             </p>
             <div className="p-4 bg-amber-50/70 rounded-2xl border border-amber-200/80 text-xs text-amber-950 space-y-2">
               <p className="font-semibold flex items-center gap-1.5 text-amber-900">
@@ -78,7 +78,7 @@ export default function TermsPage() {
                 Postal Carrier Notice &amp; Transit Times:
               </p>
               <ul className="list-disc pl-4 space-y-1 text-amber-900/90">
-                <li>Delivery dates and transit windows (e.g., 3–6 business days) displayed on the Site are estimates provided by postal carrier schedules and are <strong>not guaranteed delivery deadlines</strong>.</li>
+                <li>Preparation typically takes 1–2 business days. Domestic USPS transit typically takes 2–7 business days; these times are estimates and are <strong>not guaranteed delivery deadlines</strong>.</li>
                 <li>Once an envelope is handed over to the USPS, delivery speed, weather delays, postal rerouting, forwarding orders, and mailbox security are strictly within the custody and control of the postal service.</li>
                 <li>You are solely responsible for ensuring that the recipient name and street address supplied during checkout are accurate, mailable, and deliverable according to USPS standards. We cannot refund orders returned due to invalid or undeliverable addresses provided by the customer.</li>
               </ul>
@@ -139,7 +139,7 @@ export default function TermsPage() {
               All prices are listed in USD. Our $9.00 flat fee covers custom card printing, robotic pen inking, packaging, and domestic postage. Payments are securely processed through Stripe.
             </p>
             <p>
-              <strong>Custom Personalized Goods:</strong> Because each card is a custom, on-demand physical item created with your specific words and inked directly onto cotton cardstock, orders enter automated production immediately upon payment confirmation. <strong>All sales are final once printing and penning have commenced.</strong>
+              <strong>Custom Personalized Goods:</strong> Because each card is a custom, on-demand physical item created with your specific words and written on cardstock, orders enter automated production immediately upon payment confirmation. <strong>All sales are final once printing and penning have commenced.</strong>
             </p>
             <p>
               If your card experiences a material defect attributable to our robotic plotter equipment (e.g., severe ink smear, missing text lines), please reach out within 7 days of estimated arrival at <a href="mailto:support@sendmynotes.com" className="text-amber-700 underline font-medium">support@sendmynotes.com</a> with a photograph, and we will promptly dispatch a replacement at zero charge or issue a store credit.

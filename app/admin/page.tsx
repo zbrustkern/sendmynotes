@@ -1413,6 +1413,9 @@ export default function AdminDashboardPage() {
         {/* ===================== TAB: ORDERS & OPERATIONS ===================== */}
         {activeTab === "orders" && (
           <div className="space-y-5 sm:space-y-8">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
+              <strong>Founder report — October 20, 2026:</strong> Purchases reviewed to date were founder tests. This dated report does not reconcile live paid totals or visit ratios; those figures alone do not establish independent customer demand.
+            </div>
             {/* KPI METRIC CARDS (2x2 on Mobile, 4x1 on Desktop) */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
               <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
@@ -2328,7 +2331,7 @@ export default function AdminDashboardPage() {
                     </span>
                   </div>
                   <p className="text-xs text-stone-500 leading-relaxed">
-                    Handwrytten robotic pen drawing, custom 120 lb cardstock, envelope inking, and USPS First Class postage.
+                    Handwrytten robotic pen drawing, custom cardstock, envelope addressing, and USPS First Class postage.
                   </p>
                 </div>
 

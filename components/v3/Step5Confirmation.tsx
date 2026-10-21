@@ -394,7 +394,7 @@ export function Step5Confirmation({
                 3. USPS First-Class Stamped
               </span>
               <p className="text-xs text-stone-500">
-                Enclosed in a matching envelope with an authentic USPS stamp. Typically prepared in 1–2 business days.
+                Enclosed in an envelope with an authentic USPS stamp. Typically prepared in 1–2 business days.
               </p>
             </div>
           </div>

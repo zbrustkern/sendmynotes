@@ -637,7 +637,7 @@ export function AddressStep({
         <div className="flex items-center gap-2">
           <Mail className="w-4 h-4 text-amber-700 flex-shrink-0" />
           <span>
-            <strong>USPS First Class Physical Stamp</strong> affixed to genuine heavy cardstock envelope.
+            <strong>USPS First Class Physical Stamp</strong> affixed to the envelope.
           </span>
         </div>
         <div className="flex items-center gap-1 font-semibold text-amber-800 text-[11px] whitespace-nowrap">

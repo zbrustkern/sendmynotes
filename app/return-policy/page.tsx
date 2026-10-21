@@ -113,7 +113,7 @@ export default function ReturnPolicyPage() {
               Manufacturing Defects &amp; Replacement Policy
             </h2>
             <p>
-              We take tremendous pride in the tactile quality of our cotton cardstock and real-ink handwriting. You are entitled to a <strong>free replacement or a 100% full refund</strong> if:
+              We take tremendous pride in our cardstock and real-ink handwriting. You are entitled to a <strong>free replacement or a 100% full refund</strong> if:
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs pt-1">
               <div className="p-3 bg-stone-50 border border-stone-200 rounded-xl space-y-1">

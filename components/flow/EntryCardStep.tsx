@@ -199,16 +199,16 @@ export function EntryCardStep({
                 <Sparkles className="w-4 h-4" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <span className="block text-xs font-semibold text-stone-900 truncate">
-                  Make it personal — Create a custom design
+                <span className="block text-xs font-semibold leading-snug text-stone-900">
+                  Create custom artwork
                 </span>
-                <span className="block text-[11px] text-stone-500 truncate">
-                  Describe a personal scene or memory for custom artwork
+                <span className="block text-[11px] leading-snug text-stone-500">
+                  From a personal scene or memory
                 </span>
               </div>
             </div>
             <span className="text-xs font-medium text-emerald-800 bg-white border border-stone-200 px-2.5 py-1 rounded-md shrink-0 shadow-2xs">
-              Custom Art
+              Create
             </span>
           </button>
         )}
@@ -320,7 +320,7 @@ export function EntryCardStep({
 
             <div className="bg-stone-50 rounded-xl p-3 text-xs text-stone-600 space-y-1">
               <p className="font-medium text-stone-900">Card details</p>
-              <p>Mailed in a matching envelope with authentic ballpoint pen handwriting inside.</p>
+              <p>Mailed in an envelope with your message written in real pen ink inside.</p>
             </div>
 
             <div className="flex gap-2">
