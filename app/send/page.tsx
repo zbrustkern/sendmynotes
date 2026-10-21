@@ -21,14 +21,14 @@ import {
 export const metadata: Metadata = {
   title: "Send a Real Handwritten Card for Any Occasion | sendmynotes",
   description:
-    "Browse curated greeting card scenarios written in real pen and ink on heavy cardstock and delivered via USPS First Class mail. No trips to the store, no stamps, no hassle.",
+    "Browse curated greeting card scenarios written in real pen and ink on cardstock and delivered via USPS First Class mail. No trips to the store, no stamps, no hassle.",
   alternates: {
     canonical: "https://sendmynotes.com/send",
   },
   openGraph: {
     title: "Send a Real Handwritten Card for Any Occasion | sendmynotes",
     description:
-      "Send a real handwritten card in minutes. Written in real pen and ink on heavy cardstock, stamped, and mailed directly to their door.",
+      "Send a real handwritten card in minutes. Written in real pen and ink on cardstock, stamped, and mailed directly to their door.",
     url: "https://sendmynotes.com/send",
     siteName: "sendmynotes",
     images: [
@@ -45,7 +45,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Send a Real Handwritten Card for Any Occasion | sendmynotes",
     description:
-      "Send a real handwritten card in minutes. Written in real pen and ink on heavy cardstock, stamped, and mailed directly to their door.",
+      "Send a real handwritten card in minutes. Written in real pen and ink on cardstock, stamped, and mailed directly to their door.",
     images: ["/og-image.png"],
   },
 };
@@ -164,7 +164,7 @@ export default async function SendCatalogPage({ searchParams }: PageProps) {
         </h1>
 
         <p className="text-base sm:text-lg text-stone-600 max-w-2xl mx-auto leading-relaxed">
-          Skip the greeting card aisle and writer&apos;s block. Choose a scenario below to load a pre-seeded card design and sentiment, ready to edit and mail in 60 seconds.
+          Skip the greeting card aisle and writer&apos;s block. Choose a scenario below to load a pre-seeded card design and sentiment, ready for you to edit and send.
         </p>
 
         <div className="flex flex-wrap items-center justify-center gap-3 pt-2 text-xs font-medium text-stone-600">

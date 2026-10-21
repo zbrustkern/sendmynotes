@@ -1062,6 +1062,9 @@ export default function AdminDashboardPage() {
         {/* ===================== WORKSPACE: ORDERS & OPERATIONS ===================== */}
         {globalScope.workspace === "orders" && (
           <div className="space-y-5 sm:space-y-8">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
+              <strong>Founder report — October 20, 2026:</strong> Purchases reviewed to date were founder tests. This dated report does not reconcile live paid totals or visit ratios; those figures alone do not establish independent customer demand.
+            </div>
             {/* CANONICAL BASELINE DISCLOSURE BANNER */}
             {(excludeFounder || (metrics?.totalOrders || 0) > 0) && (
               <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-900 text-xs">

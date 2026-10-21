@@ -322,7 +322,7 @@ function InnerPaymentForm({
     if (actionInFlight.current || isPaymentCaptured) return;
 
     if (!customerEmail.trim() || !customerEmail.includes("@")) {
-      setErrorMessage("Please enter a valid email for your order receipt and USPS tracking.");
+      setErrorMessage("Please enter a valid email for your order receipt and any available mailing updates.");
       return;
     }
 
@@ -663,7 +663,7 @@ function InnerPaymentForm({
                   {cardTitle}
                 </h2>
                 <p className="text-[11px] text-stone-500 mt-0.5">
-                  Folded Letterpress Card • Real Ballpoint Inking • USPS 1st Class Stamp
+                  Folded Cardstock Card • Real Pen Ink • USPS 1st Class Stamp
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -775,7 +775,7 @@ function InnerPaymentForm({
                   Est. USPS Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
                 </div>
                 <div className="text-[11px] text-stone-500">
-                  Dispatched via First-Class Mail with live USPS tracking
+                  Sent via First-Class Mail. Tracking details appear when provided by the mail service.
                 </div>
               </div>
             </div>
@@ -810,7 +810,7 @@ function InnerPaymentForm({
             >
               <span className="flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-amber-800" />
-                <span>Receipt &amp; USPS Tracking Notification Email</span>
+                <span>Receipt &amp; Mailing Updates Email</span>
               </span>
               <span className="text-[10px] text-stone-400 font-normal lowercase">no password needed</span>
             </label>
@@ -838,7 +838,7 @@ function InnerPaymentForm({
               className="w-full px-3.5 py-2 text-base sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
             />
             <p className="text-[11px] text-stone-400">
-              Zero accounts or passwords required. We only send your receipt and tracking updates.
+              Zero accounts or passwords required. We send your receipt and any available mailing updates.
             </p>
           </div>
 

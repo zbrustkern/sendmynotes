@@ -393,9 +393,9 @@ export default function OrderStatusPage() {
           }.${
             order.handwryttenTrackingNumber
               ? ` Tracking: ${order.handwryttenTrackingNumber}`
-              : " Estimated delivery: 2-4 business days."
+              : " Domestic transit typically takes 2–7 business days; delivery timing is estimated."
           }`
-        : "Dispatched into postal stream. Estimated delivery: 2-4 business days.",
+        : "Domestic transit typically takes 2–7 business days; delivery timing is estimated, not guaranteed.",
       icon: Truck,
       status: isMailed ? "complete" : "upcoming",
     },

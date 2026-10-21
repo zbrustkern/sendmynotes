@@ -664,7 +664,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         </div>
 
         <h1 className="font-serif text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-stone-900 mb-2 leading-tight">
-          The thoughtful gesture you meant to make today—done in 60 seconds.
+          The thoughtful gesture you meant to make today, ready to send.
         </h1>
 
         <p className="text-xs sm:text-sm text-stone-600 max-w-xl mx-auto leading-relaxed mb-4">
@@ -794,11 +794,11 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
               <div className="mt-6 pt-5 border-t border-stone-100 grid grid-cols-3 gap-2 text-center text-[11px] text-stone-500">
                 <div className="p-2 bg-stone-50/80 rounded-lg border border-stone-200/50">
-                  <span className="block font-bold text-stone-800">5&quot; × 7&quot;</span>
-                  <span className="text-[10px] text-stone-500">120 lb Cardstock</span>
+                  <span className="block font-bold text-stone-800">4.25&quot; × 5.5&quot;</span>
+                  <span className="text-[10px] text-stone-500">Cardstock</span>
                 </div>
                 <div className="p-2 bg-stone-50/80 rounded-lg border border-stone-200/50">
-                  <span className="block font-bold text-indigo-900">Archival Ink</span>
+                  <span className="block font-bold text-indigo-900">Real Pen Ink</span>
                   <span className="text-[10px] text-stone-500">Real Pen &amp; Ink</span>
                 </div>
                 <div className="p-2 bg-stone-50/80 rounded-lg border border-stone-200/50">
@@ -1078,7 +1078,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         <p className="flex items-center justify-center gap-2">
           <span>No Account Required</span>
           <span>•</span>
-          <span>Real Pen &amp; Ink on Heavy Cardstock</span>
+          <span>Real Pen &amp; Ink on Cardstock</span>
           <span>•</span>
           <span>USPS First Class Delivery</span>
         </p>

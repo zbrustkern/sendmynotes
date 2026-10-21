@@ -938,7 +938,7 @@ export function Step2NoteComposition({
                 <ArrowRight className="w-4 h-4" />
               </button>
               <p className="text-[11px] text-stone-500 text-center leading-relaxed mt-2">
-                Includes heavy 120lb cotton card, real pen handwriting &amp; First-Class USPS stamp. Don&apos;t know their address yet? You can add it after checkout.
+                Includes a folded cardstock card, your message written in real pen ink, and a First-Class USPS stamp. Don&apos;t know their address yet? You can add it after checkout.
               </p>
             </div>
           </div>

@@ -446,7 +446,7 @@ export default async function OccasionPage({ params, searchParams }: PageProps) 
                   What is included in the $9.00 flat price?
                 </h3>
                 <p className="text-xs text-stone-600 leading-relaxed">
-                  Everything: premium heavyweight greeting card, custom artwork printing, real pen handwriting inside, custom envelope addressing, real USPS First-Class postage stamp, and delivery. No hidden checkout fees.
+                  Everything: a folded cardstock greeting card with custom printed artwork, your message written in real pen ink inside, envelope addressing, a USPS First-Class postage stamp, and mailing. No hidden checkout fees.
                 </p>
               </div>
             </div>
