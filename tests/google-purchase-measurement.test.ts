@@ -30,15 +30,56 @@ async function main() {
       body: JSON.stringify({ orderId: "order_queue_fixture", destination: "google_ads", state: "queued", timestamp: Date.now(), customerEmail: "not-stored@example.test", gclid: "not-stored" }),
     }));
     assert.equal(queueResponse.status, 200, "bounded queue observation is accepted as first-party telemetry");
-    const queueEvents = await firestoreDb.collection("telemetry_events").where("orderId", "==", "order_queue_fixture").get();
-    const queueEvent = queueEvents.docs[0]?.data();
+    const queueRef = firestoreDb.collection("telemetry_events").doc("queue_order_queue_fixture_google_ads");
+    const queueEvent = (await queueRef.get()).data();
     assert.equal(queueEvent?.eventName, "conversion_queue_observed", "queue observation is explicitly non-authoritative telemetry");
     assert.equal(queueEvent?.state, "queued", "the submitted state is persisted");
     assert.equal(queueEvent?.customerEmail, undefined, "queue telemetry never persists customer email");
     assert.equal(queueEvent?.gclid, undefined, "queue telemetry never persists raw attribution IDs");
+
+    const originalDateNow = Date.now;
+    const tiedTimestamp = originalDateNow();
+    Date.now = () => tiedTimestamp;
+    try {
+      for (const state of ["retrying", "queued", "retrying"]) {
+        await queuePost(new NextRequest("https://sendmynotes.com/api/telemetry/conversion-queue", {
+          method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.41" },
+          body: JSON.stringify({ orderId: "order_queue_tie", destination: "google_ads", state, timestamp: tiedTimestamp }),
+        }));
+      }
+    } finally { Date.now = originalDateNow; }
+    assert.equal((await firestoreDb.collection("telemetry_events").doc("queue_order_queue_tie_google_ads").get()).data()?.state, "queued", "same-millisecond diagnostics never downgrade an accepted conversion");
+    await queuePost(new NextRequest("https://sendmynotes.com/api/telemetry/conversion-queue", {
+      method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.41" },
+      body: JSON.stringify({ orderId: "order_queue_tie", destination: "google_ads", state: "retrying", timestamp: Date.now() + 1000 }),
+    }));
+    assert.equal((await firestoreDb.collection("telemetry_events").doc("queue_order_queue_tie_google_ads").get()).data()?.state, "queued", "a later stale retry cannot regress the authoritative client observation");
+
+    const oversized = await queuePost(new NextRequest("https://sendmynotes.com/api/telemetry/conversion-queue", {
+      method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.42" }, body: JSON.stringify({ padding: "x".repeat(5000) }),
+    }));
+    assert.equal(oversized.status, 413, "queue telemetry rejects request bodies above 4KB");
+    let rateLimitResponse: Response | undefined;
+    for (let i = 0; i < 61; i++) {
+      rateLimitResponse = await queuePost(new NextRequest("https://sendmynotes.com/api/telemetry/conversion-queue", {
+        method: "POST", headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.43" }, body: "{}",
+      }));
+    }
+    assert.equal(rateLimitResponse?.status, 429, "queue telemetry rate-limits repeated requests per IP");
+
+    for (let i = 0; i < 150; i++) {
+      await firestoreDb.collection("telemetry_events").doc(`queue_unrelated_${i}_google_ads`).set({ orderId: `unrelated_${i}`, eventName: "conversion_queue_observed", destination: "google_ads", state: "queued", timestamp: i, createdAt: i });
+    }
     const { GET: adminQueueGet } = await import("@/app/api/admin/conversion-queue/route");
     const unauthQueueResponse = await adminQueueGet(new NextRequest("https://sendmynotes.com/api/admin/conversion-queue?orderId=order_queue_fixture"));
     assert.equal(unauthQueueResponse.status, 401, "queue observations are not exposed without admin authorization");
+    const { generateAdminSessionToken, ADMIN_COOKIE_NAME } = await import("@/lib/admin-auth");
+    const adminToken = generateAdminSessionToken("zbrustkern@gmail.com");
+    const authenticatedProjection = await adminQueueGet(new NextRequest("https://sendmynotes.com/api/admin/conversion-queue?orderId=order_queue_fixture", {
+      headers: { cookie: `${ADMIN_COOKIE_NAME}=${adminToken}` },
+    }));
+    const projected = await authenticatedProjection.json();
+    assert.equal(projected.observations.google_ads.state, "queued", "bounded direct reads return this order's latest observation regardless of unrelated volume");
 
     const order = {
       id: "order_fixture_capture",
