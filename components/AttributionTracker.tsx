@@ -5,6 +5,7 @@ import { useSearchParams, usePathname } from "next/navigation";
 import { OrderAttribution } from "@/lib/types";
 import { getGoogleClientId } from "@/lib/telemetry";
 import { GA4_MEASUREMENT_ID } from "@/lib/google-ads";
+import { mayStoreGoogleClientId } from "@/lib/order-attribution";
 import { trackMetaPageView, getMetaBrowserCookie, buildMetaFbcString } from "@/lib/meta-ads";
 
 export const SMN_ATTRIBUTION_KEY = "smn_attribution";
@@ -282,10 +283,13 @@ function AttributionTrackerInner() {
 
   // Keep the historical raw _ga value intact; store Google's normalized client ID separately.
   useEffect(() => {
-    if (typeof window === "undefined" || (typeof navigator !== "undefined" && (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true)) return;
+    if (typeof window === "undefined") return;
+    let active = true;
     let attempts = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
     const attemptBackfill = () => {
+      const gpcActive = typeof navigator !== "undefined" && (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+      if (!active || !mayStoreGoogleClientId(gpcActive, getStoredAttribution())) return;
       attempts++;
       const win = window as unknown as { gtag?: (...args: unknown[]) => void };
       if (typeof win.gtag !== "function") {
@@ -294,15 +298,18 @@ function AttributionTrackerInner() {
       }
       try {
         win.gtag("get", GA4_MEASUREMENT_ID, "client_id", (clientId: unknown) => {
-          if (typeof clientId !== "string" || clientId.length > 100) return;
+          if (!active) return;
+          const callbackGpcActive = typeof navigator !== "undefined" && (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
           const attr = getStoredAttribution();
+          if (!mayStoreGoogleClientId(callbackGpcActive, attr)) return;
+          if (typeof clientId !== "string" || clientId.length > 100) return;
           if (!attr || attr.googleClientIdNormalized) return;
           persistAttribution({ ...attr, googleClientIdNormalized: clientId });
         });
       } catch { /* tag client ID is optional */ }
     };
     attemptBackfill();
-    return () => { if (timer) clearTimeout(timer); };
+    return () => { active = false; if (timer) clearTimeout(timer); };
   }, [pathname]);
 
   return null;

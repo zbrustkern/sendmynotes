@@ -54,3 +54,10 @@ export function sanitizeOrderAttribution(raw: unknown, now = Date.now()): OrderA
   };
   return Object.fromEntries(Object.entries(result).filter(([, value]) => value !== undefined)) as OrderAttribution;
 }
+
+export function mayStoreGoogleClientId(
+  globalPrivacyControl: boolean,
+  attribution?: Pick<OrderAttribution, "gpc" | "optOut"> | null
+): boolean {
+  return !globalPrivacyControl && !attribution?.gpc && !attribution?.optOut;
+}

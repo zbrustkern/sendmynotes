@@ -31,7 +31,7 @@ async function main() {
   Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "", referrer: "" } });
 
   try {
-    const [{ trackGoogleAdsPurchase, markGoogleAdsCheckoutActive, hasGoogleAdsCheckoutProof, cancelGoogleAdsPurchaseRetries }, { sanitizeOrderAttribution }] = await Promise.all([
+    const [{ trackGoogleAdsPurchase, markGoogleAdsCheckoutActive, hasGoogleAdsCheckoutProof, cancelGoogleAdsPurchaseRetries }, { sanitizeOrderAttribution, mayStoreGoogleClientId }] = await Promise.all([
       import("@/lib/google-ads"), import("@/lib/order-attribution"),
     ]);
     const snapshot = (orderId: string) => ({ version: 1 as const, transactionId: orderId, amountInCents: 765, currency: "USD" as const, verifiedAt: Date.now(), eligible: true, reason: "eligible" as const, refundStatus: "unknown" as const });
@@ -46,6 +46,10 @@ async function main() {
     assert.equal(attributed?.fbp, "fb.1.123.456", "existing permitted Meta browser attribution is preserved");
     assert.equal(sanitizeOrderAttribution({ gclid: "bad&id=secret" })?.gclid, undefined, "opaque click IDs reject delimiters");
     assert.equal(sanitizeOrderAttribution({ gclid: "old", capturedAt: 1, expiresAt: 2 }, 3), undefined, "expired attribution is discarded");
+    assert.equal(mayStoreGoogleClientId(true, null), false, "GPC blocks delayed GA client-ID backfill");
+    assert.equal(mayStoreGoogleClientId(false, { gpc: true }), false, "stored GPC choice blocks delayed GA client-ID backfill");
+    assert.equal(mayStoreGoogleClientId(false, { optOut: true }), false, "stored opt-out blocks delayed GA client-ID backfill");
+    assert.equal(mayStoreGoogleClientId(false, { gpc: false, optOut: false }), true, "backfill is allowed only without GPC or opt-out");
 
     storage.denied = true;
     markGoogleAdsCheckoutActive("queue_missing_tag");
