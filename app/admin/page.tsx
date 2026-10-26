@@ -65,7 +65,6 @@ import { CohortAnalytics } from "@/components/admin/CohortAnalytics";
 import { ValuationHeuristicsWidget } from "@/components/admin/ValuationHeuristicsWidget";
 import { VisitorTelemetryDashboard } from "@/components/admin/VisitorTelemetryDashboard";
 import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
-import { CampaignPerformanceWidget } from "@/components/admin/CampaignPerformanceWidget";
 import { HighIntentCartsWidget } from "@/components/admin/HighIntentCartsWidget";
 import { OperationalControlsPanel } from "@/components/admin/OperationalControlsPanel";
 import { getClientId, getSessionId } from "@/lib/telemetry";
@@ -1025,12 +1024,15 @@ export default function AdminDashboardPage() {
       >
         {/* ===================== WORKSPACE: OVERVIEW ===================== */}
         {globalScope.workspace === "overview" && (
+          <div className="space-y-6">
+            <Link href="/admin/measurement" className="block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-950 underline">Open the focused measurement report preview — scoped payment evidence and observed campaign activity</Link>
           <ExecutiveOverview
             report={report}
             scope={globalScope}
             onScopeChange={handleScopeChange}
             isLoading={reportLoading}
           />
+          </div>
         )}
 
         {/* ===================== WORKSPACE: JOURNEYS & DROP-OFF ===================== */}
@@ -2654,10 +2656,7 @@ export default function AdminDashboardPage() {
         {/* ===================== WORKSPACE: GROWTH & ACQUISITION ===================== */}
         {globalScope.workspace === "growth" && (
           <div className="space-y-8">
-            <CampaignPerformanceWidget
-              metrics={metrics}
-              orders={metrics?.recentOrders || []}
-            />
+            <Link href="/admin/measurement" className="block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-950 underline">Open the focused measurement report. The older staged analytics below have not been reconciled by this release.</Link>
             <CohortAnalytics metrics={metrics} />
             {/* KPI METRIC CARDS FOR SCENARIOS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

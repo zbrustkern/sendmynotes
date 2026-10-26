@@ -1,291 +1,63 @@
 "use client";
 
-import React, { useState } from "react";
-import Link from "next/link";
-import {
-  TrendingUp,
-  Globe,
-  ExternalLink,
-  Target,
-  Sparkles,
-  ArrowRight,
-  ShieldCheck,
-  Search,
-  Activity,
-  CheckCircle2,
-} from "lucide-react";
-import { AdminMetrics, Order } from "@/lib/types";
+import type { AdminMeasurementReport } from "@/lib/contracts/admin-measurement-report";
 
 interface CampaignPerformanceWidgetProps {
-  metrics: AdminMetrics | null;
-  orders: Order[];
+  report: AdminMeasurementReport | null;
 }
 
-export function CampaignPerformanceWidget({ metrics, orders }: CampaignPerformanceWidgetProps) {
-  const [search, setSearch] = useState("");
+const money = (cents: number | null) => cents === null ? "Unavailable" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
 
-  const telemetry = metrics?.visitorTelemetry;
-  const sessions = telemetry?.recentSessions || [];
-  const sources = telemetry?.acquisitionSources || [];
-
-  // Group orders by campaign / channel
-  const campaignDataMap = new Map<
-    string,
-    {
-      name: string;
-      channel: string;
-      visitors: number;
-      reachedAddress: number;
-      purchases: number;
-      revenueDollars: number;
-      netMarginDollars: number;
-      landingPage?: string;
-    }
-  >();
-
-  // 1. Populate from sessions
-  for (const s of sessions) {
-    const sSource = (s.source || "").toLowerCase();
-    const sMed = (s.medium || "").toLowerCase();
-    const isMeta = sSource === "meta" || sSource === "facebook" || sSource === "instagram" || sMed === "paid_social";
-    const isPaidMedium = ["paid_social", "paid", "cpc", "cpm", "ppc"].includes(sMed);
-
-    let channel = "Direct";
-    if (s.gclid || (sSource === "google" && sMed === "cpc")) {
-      channel = "Google Ads";
-    } else if (isMeta) {
-      channel = (isPaidMedium || Boolean(s.campaign)) ? "Meta Paid" : "Social";
-    } else if (sMed === "organic") {
-      channel = "Organic";
-    } else if (sMed === "social") {
-      channel = "Social";
-    }
-
-    const campName = s.campaign || (s.gclid ? "Google Ads (Auto-Tagged)" : s.source ? `${s.source} / ${s.medium}` : "Direct / Organic");
-
-    if (!campaignDataMap.has(campName)) {
-      campaignDataMap.set(campName, {
-        name: campName,
-        channel,
-        visitors: 0,
-        reachedAddress: 0,
-        purchases: 0,
-        revenueDollars: 0,
-        netMarginDollars: 0,
-        landingPage: s.landingPath,
-      });
-    }
-
-    const row = campaignDataMap.get(campName)!;
-    row.visitors++;
-    if (s.highestStep >= 3) {
-      row.reachedAddress++;
-    }
-    if (s.completed) {
-      row.purchases++;
-      // Do not invent fixed $9.00 or $3.56 margin
-      row.revenueDollars += 0;
-      row.netMarginDollars += 0;
-    }
-  }
-
-  // 2. Also incorporate completed orders that have attribution
-  for (const ord of orders) {
-    if (ord.status === "PENDING_PAYMENT" || ord.status === "FAILED" || ord.status === "PAYMENT_VERIFICATION_FAILED") continue;
-    const ordSrc = (ord.attribution?.utmSource || "").toLowerCase();
-    const ordMed = (ord.attribution?.utmMedium || "").toLowerCase();
-    const ordIsMeta = ordSrc === "meta" || ordSrc === "facebook" || ordSrc === "instagram" || ordMed === "paid_social";
-    const ordPaidMedium = ["paid_social", "paid", "cpc", "cpm", "ppc"].includes(ordMed);
-
-    let ordChannel = "Direct";
-    if (ord.attribution?.gclid || (ordSrc === "google" && ordMed === "cpc")) {
-      ordChannel = "Google Ads";
-    } else if (ordIsMeta) {
-      ordChannel = (ordPaidMedium || Boolean(ord.attribution?.utmCampaign)) ? "Meta Paid" : "Social";
-    } else if (ordMed === "organic") {
-      ordChannel = "Organic";
-    } else if (ordMed === "social") {
-      ordChannel = "Social";
-    }
-
-    const camp = ord.attribution?.utmCampaign || (ord.attribution?.gclid ? "Google Ads" : "Direct / Organic");
-    const orderRev = typeof ord.amountInCents === "number" && ord.amountInCents > 0 ? ord.amountInCents / 100 : 0;
-
-    if (campaignDataMap.has(camp)) {
-      const r = campaignDataMap.get(camp)!;
-      if (r.purchases === 0) {
-        r.purchases += 1;
-        r.revenueDollars += orderRev;
-      }
-    } else {
-      campaignDataMap.set(camp, {
-        name: camp,
-        channel: ordChannel,
-        visitors: 0,
-        reachedAddress: 0,
-        purchases: 1,
-        revenueDollars: orderRev,
-        netMarginDollars: 0,
-        landingPage: ord.attribution?.landingPath,
-      });
-    }
-  }
-
-  const rows = Array.from(campaignDataMap.values()).filter((r) => {
-    if (!search) return true;
-    return r.name.toLowerCase().includes(search.toLowerCase()) || r.channel.toLowerCase().includes(search.toLowerCase());
-  });
+export function CampaignPerformanceWidget({ report }: CampaignPerformanceWidgetProps) {
+  if (!report) return null;
+  const campaigns = report.campaigns;
 
   return (
-    <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-6">
-      {/* HEADER & TAG HEALTH STATUS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-              <Target className="w-4 h-4 text-amber-600 shrink-0" />
-              <span>Live Campaign Performance &amp; Channel Attribution</span>
-            </h2>
-            <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-800 border border-amber-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-              Legacy Sample (Latest 50 Sessions — Partial Cohort)
-            </span>
-          </div>
-          <p className="text-xs text-stone-500 mt-1">
-            Tracks real ad performance, high-intent address entries, and net contribution without opening Google Ads.
-          </p>
-        </div>
-
-        {/* GOOGLE ADS & GA4 HEALTH STATUS PILLS */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-blue-500" />
-            <span>Google Ads: AW-18474411963</span>
-          </div>
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>GA4: G-5DV25FZ7Q8</span>
-          </div>
-        </div>
+    <section aria-labelledby="campaign-report-heading" className="min-w-0 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
+      <div className="mb-4">
+        <h3 id="campaign-report-heading" className="font-semibold text-stone-900">Recorded campaign attribution</h3>
+        <p className="mt-1 text-sm text-stone-600">Orders and captured amounts are grouped by campaign recorded on the order. This does not confirm Google Ads attribution.</p>
       </div>
-
-      {/* SEARCH & FILTERS */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <span className="text-xs font-semibold text-stone-700">
-          Active Traffic Channels ({rows.length})
-        </span>
-
-        <div className="relative w-full sm:w-64">
-          <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            placeholder="Search campaign or channel..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500 text-stone-800"
-          />
-        </div>
-      </div>
-
-      {/* TABLE */}
-      {rows.length === 0 ? (
-        <div className="text-center py-10 bg-stone-50/60 rounded-2xl border border-stone-200 space-y-2">
-          <Activity className="w-6 h-6 text-stone-400 mx-auto animate-pulse" />
-          <p className="text-xs font-medium text-stone-700">Awaiting Ad Clicks &amp; Visitor Sessions</p>
-          <p className="text-[11px] text-stone-500 max-w-md mx-auto">
-            Once ad traffic hits your landing pages, each campaign (e.g. Pet Loss, Anniversary) will display here with live visitor counts, address entries, and purchases.
-          </p>
-        </div>
+      {campaigns.length === 0 ? (
+        report.sources?.orders?.status === "unavailable" || report.sources?.telemetry?.status === "unavailable" || !report.sources?.orders || !report.sources?.telemetry ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">Campaign records unavailable for part or all of this scope. Orders source: {report.sources?.orders?.status ?? "unavailable"}; observed telemetry source: {report.sources?.telemetry?.status ?? "unavailable"}.</p>
+        ) : report.sources.orders.status === "partial" || report.sources.telemetry.status === "partial" ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">No campaign records observed in the loaded sample. Campaign coverage is partial; see source coverage above.</p>
+        ) : (
+          <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">No campaign records recorded in this scope.</p>
+        )
       ) : (
-        <div className="overflow-x-auto rounded-2xl border border-stone-200">
-          <table className="w-full text-left text-xs bg-white">
-            <thead className="bg-stone-50/80 border-b border-stone-200 text-stone-400 text-[10px] uppercase font-semibold">
-              <tr>
-                <th className="py-2.5 px-3">Campaign / Source</th>
-                <th className="py-2.5 px-3">Channel</th>
-                <th className="py-2.5 px-3 text-center">Visitors</th>
-                <th className="py-2.5 px-3 text-center">Reached Address (Step 3)</th>
-                <th className="py-2.5 px-3 text-center">Purchases</th>
-                <th className="py-2.5 px-3 text-right">Conv. Rate</th>
-                <th className="py-2.5 px-3 text-right">Gross Revenue</th>
-                <th className="py-2.5 px-3 text-right">Net Margin (Pending Invoice)</th>
-              </tr>
+        <>
+          <div className="space-y-3 sm:hidden">
+            {campaigns.map((row) => <article key={row.key} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+              <h4 className="break-words font-semibold text-stone-900">{row.label}</h4>
+              <p className="mt-1 break-words text-xs text-stone-600">{[row.source, row.medium, row.campaign].filter(Boolean).join(" / ") || row.channel}</p>
+              <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                <div><dt className="text-xs text-stone-600">Observed session records{report.activity?.sampled ? " (sample)" : ""}</dt><dd className="font-semibold tabular-nums">{row.observedSessions ?? "Unavailable"}</dd></div>
+                <div><dt className="text-xs text-stone-600">Verified customer orders</dt><dd className="font-semibold tabular-nums">{row.orders ?? "Unavailable"}</dd></div>
+                <div><dt className="text-xs text-stone-600">Captured customer revenue</dt><dd className="font-semibold tabular-nums">{money(row.capturedCents)}</dd></div>
+                <div className="col-span-2"><dt className="text-xs text-stone-600">Observed events{report.activity?.sampled ? " (sample)" : ""}</dt><dd className="break-words text-xs">{row.eventCounts ? Object.entries(row.eventCounts).map(([name,count]) => `${name}: ${count}`).join(" · ") || "None" : "Unavailable"}</dd></div>
+              </dl>
+            </article>)}
+          </div>
+        <div className="hidden overflow-x-auto rounded-xl border border-stone-200 sm:block">
+          <table className="w-full min-w-[42rem] text-left text-sm">
+            <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-500">
+              <tr><th className="px-3 py-2.5">Recorded source / campaign</th><th className="px-3 py-2.5 text-right">Observed session records{report.activity?.sampled ? " (sample)" : ""}</th><th className="px-3 py-2.5 text-right">Observed events{report.activity?.sampled ? " (sample)" : ""}</th><th className="px-3 py-2.5 text-right">Verified customer orders</th><th className="px-3 py-2.5 text-right">Captured customer revenue</th></tr>
             </thead>
             <tbody className="divide-y divide-stone-100">
-              {rows.map((row, idx) => {
-                const convRate = row.visitors > 0 ? ((row.purchases / row.visitors) * 100).toFixed(1) : "0.0";
-                const highIntentRate = row.visitors > 0 ? Math.round((row.reachedAddress / row.visitors) * 100) : 0;
-
-                return (
-                  <tr key={idx} className="hover:bg-stone-50/50 transition-colors">
-                    <td className="py-3 px-3">
-                      <span className="font-semibold text-stone-900 block truncate max-w-[200px]" title={row.name}>
-                        {row.name}
-                      </span>
-                      {row.landingPage && (
-                        <span className="text-[10px] text-stone-400 font-mono truncate block max-w-[180px]">
-                          {row.landingPage}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-3 px-3">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${
-                          row.channel === "Google Ads"
-                            ? "bg-blue-50 text-blue-800 border border-blue-200"
-                            : row.channel === "Meta Paid"
-                            ? "bg-indigo-50 text-indigo-800 border border-indigo-200"
-                            : "bg-stone-100 text-stone-700 border border-stone-200"
-                        }`}
-                      >
-                        {row.channel}
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-3 text-center font-medium text-stone-700">
-                      {row.visitors}
-                    </td>
-
-                    <td className="py-3 px-3 text-center">
-                      <span className="inline-flex items-center gap-1 font-semibold text-stone-800">
-                        {row.reachedAddress}
-                        <span className="text-[10px] font-normal text-stone-400">
-                          ({highIntentRate}%)
-                        </span>
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-3 text-center">
-                      <span
-                        className={`inline-flex items-center px-2 py-0.5 rounded-full font-bold text-xs ${
-                          row.purchases > 0
-                            ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                            : "text-stone-400"
-                        }`}
-                      >
-                        {row.purchases}
-                      </span>
-                    </td>
-
-                    <td className="py-3 px-3 text-right font-medium text-stone-800">
-                      {convRate}%
-                    </td>
-
-                    <td className="py-3 px-3 text-right font-semibold text-stone-900">
-                      ${row.revenueDollars.toFixed(2)}
-                    </td>
-
-                    <td className="py-3 px-3 text-right font-medium text-stone-500">
-                      Unconfirmed
-                    </td>
-                  </tr>
-                );
-              })}
+              {campaigns.map((row) => <tr key={row.key}>
+                <th scope="row" className="max-w-[18rem] break-words px-3 py-3 font-medium text-stone-800">{row.label}<span className="block text-xs font-normal text-stone-500">{[row.source, row.medium, row.campaign].filter(Boolean).join(" / ") || row.channel}</span></th>
+                <td className="px-3 py-3 text-right tabular-nums">{row.observedSessions ?? "Unavailable"}</td>
+                <td className="max-w-[15rem] break-words px-3 py-3 text-right text-xs">{row.eventCounts ? Object.entries(row.eventCounts).map(([name,count]) => `${name}: ${count}`).join(" · ") || "None" : "Unavailable"}</td>
+                <td className="px-3 py-3 text-right tabular-nums">{row.orders === null ? "Unavailable" : row.orders}</td>
+                <td className="px-3 py-3 text-right tabular-nums">{money(row.capturedCents)}</td>
+              </tr>)}
             </tbody>
           </table>
         </div>
+        </>
       )}
-    </div>
+    </section>
   );
 }

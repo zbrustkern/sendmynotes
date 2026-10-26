@@ -460,8 +460,8 @@ export function OrderJourneyDrawer({
             Google click IDs: {[attr?.gclid && "gclid", attr?.wbraid && "wbraid", attr?.gbraid && "gbraid"].filter(Boolean).join(", ") || "Unknown"}
           </p>
           <div className="border-t border-stone-100 pt-2 space-y-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Purchase measurement</span>
-            <p className="text-[11px] text-stone-700">Payment verification: {(order as any).purchaseMeasurement ? `${(order as any).purchaseMeasurement.eligible ? "eligible" : (order as any).purchaseMeasurement.reason} · ${(order as any).purchaseMeasurement.currency} ${(((order as any).purchaseMeasurement.amountInCents || 0) / 100).toFixed(2)}` : "Unknown"}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Original purchase measurement snapshot</span>
+            <p className="text-[11px] text-stone-700">Ads eligibility snapshot: {(order as any).purchaseMeasurement ? `${(order as any).purchaseMeasurement.eligible ? "eligible" : (order as any).purchaseMeasurement.reason} · ${(order as any).purchaseMeasurement.currency} ${(((order as any).purchaseMeasurement.amountInCents || 0) / 100).toFixed(2)}` : "Unknown"}</p>
             <p className="text-[11px] text-stone-700">
               Browser queue: {(["google_ads", "ga4"] as const).map((destination, index) => {
                 const observation = queueObservations[destination];
@@ -495,7 +495,7 @@ export function OrderJourneyDrawer({
             ${grossDollars.toFixed(2)}
           </p>
           <p className="text-[11px] text-stone-500">
-            Supplier COGS: <span className="font-mono text-stone-700">Unconfirmed (Est. $4.88)</span>
+            Profit and contribution unavailable: complete supplier cost and fees are unconfirmed.
           </p>
         </div>
 
