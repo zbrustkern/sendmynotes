@@ -296,12 +296,16 @@ export function trackGoogleAdsPurchase(params: {
 }
 
 function observeQueue(orderId: string, destination: "google_ads" | "ga4", state: "queued" | "retrying" | "retry_exhausted" | "suppressed"): void {
-  void fetch("/api/telemetry/conversion-queue", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ orderId, destination, state, timestamp: Date.now() }),
-    keepalive: true,
-  }).catch(() => {});
+  try {
+    void fetch("/api/telemetry/conversion-queue", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ orderId, destination, state, timestamp: Date.now() }),
+      keepalive: true,
+    }).catch(() => {});
+  } catch {
+    // A synchronous browser transport failure must not block a conversion attempt.
+  }
 }
 
 function queueGA4Purchase(orderId: string, amountInCents: number, consent?: { gpc?: boolean; optOut?: boolean }, attempt = 0): void {
