@@ -1,0 +1,54 @@
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+=================================================
+🚩 RUNNING FEATURE FLAGS & V3 ROLLOUT TESTS
+=================================================
+
+
+--- 1. Testing Default Flags & Fallback Initialization ---
+✅ PASS: reworkV3Experience defaults to false (Got: false)
+✅ PASS: isReworkV3Enabled() returns false when flag is disabled without overrides
+
+--- 2. Testing Flag Persistence & Firestore Updates ---
+✅ PASS: updateFeatureFlag sets reworkV3Experience to true in returned map
+✅ PASS: getFeatureFlags() immediately reflects persisted true flag
+✅ PASS: isReworkV3Enabled() returns true when flag is enabled in Firestore
+✅ PASS: getFeatureFlagsState() includes valid updatedAt timestamp
+✅ PASS: Custom flag persisted without clobbering existing flags
+
+--- 3. Testing Query Parameter Overrides (?v3=1 / ?v3=0) ---
+✅ PASS: searchParams v3=1 overrides false Firestore flag to true
+✅ PASS: searchParams v3=true overrides false Firestore flag to true
+✅ PASS: NextRequest with ?v3=1 overrides false Firestore flag to true
+✅ PASS: searchParams v3=0 overrides true Firestore flag to false
+✅ PASS: searchParams v3=false overrides true Firestore flag to false
+✅ PASS: NextRequest with ?v3=0 overrides true Firestore flag to false
+
+--- 4. Testing Cookie Overrides (smn_rework_v3=1 / smn_rework_v3=0) ---
+✅ PASS: Cookie Map smn_rework_v3=1 overrides false Firestore flag to true
+✅ PASS: Cookie getter { value: '1' } overrides false Firestore flag to true
+✅ PASS: NextRequest with smn_rework_v3=1 cookie header overrides false Firestore flag to true
+✅ PASS: Cookie Map smn_rework_v3=0 overrides true Firestore flag to false
+✅ PASS: NextRequest with smn_rework_v3=0 cookie header overrides true Firestore flag to false
+
+--- 5. Testing Override Precedence Hierarchy ---
+✅ PASS: Query ?v3=1 takes precedence over Cookie smn_rework_v3=0
+✅ PASS: Query ?v3=0 takes precedence over Cookie smn_rework_v3=1
+✅ PASS: Unrelated query allows Cookie smn_rework_v3=0 to override true Firestore flag
+
+--- 6. Testing Admin API Endpoint (/api/admin/feature-flags) ---
+✅ PASS: Admin GET without auth rejected with 401 (Got: 401)
+✅ PASS: Admin GET with valid account-bound session returns 200
+✅ PASS: Admin GET response body contains flags map with reworkV3Experience
+✅ PASS: Admin POST without auth rejected with 401
+✅ PASS: Admin POST with invalid payload returns 400
+✅ PASS: Admin POST with valid payload returns 200
+✅ PASS: Admin POST successfully toggles flag in response
+
+--- 7. Testing Public Read-Only Endpoint (/api/feature-flags) ---
+✅ PASS: Public GET /api/feature-flags returns 200 without auth
+✅ PASS: Public response returns flags and reworkV3Effective
+✅ PASS: Public GET with ?v3=1 reflects reworkV3Effective: true
+
+=================================================
+🏁 TEST RESULTS: 31 Passed, 0 Failed
+=================================================

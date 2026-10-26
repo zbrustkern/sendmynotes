@@ -1,0 +1,32 @@
+{
+  "checkedAt": "2026-10-26T07:27:11.789Z",
+  "source": "7613a4c0d44d1137e3d91f6302dedfb8d37265f6",
+  "status": 200,
+  "previewAvailable": true,
+  "enabled": true,
+  "previewOnly": false,
+  "paymentMeaning": "Server reports Stripe test-mode checkout available; live payments remain guarded; no provider transaction exercised",
+  "destinations": 200,
+  "suspendedAfghanistanPresent": false,
+  "pricing": {
+    "basePriceCents": 900,
+    "discountCents": 0,
+    "internationalSurchargeCents": 500,
+    "currency": "USD"
+  },
+  "quoteVersion": "base900-international500-v1",
+  "health": [
+    {
+      "route": "/",
+      "status": 200
+    },
+    {
+      "route": "/new",
+      "status": 200
+    },
+    {
+      "route": "/send",
+      "status": 200
+    }
+  ]
+}

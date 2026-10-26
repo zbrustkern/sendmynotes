@@ -154,12 +154,13 @@
       "path": "docs/sprints/SPRINT-0013.md",
       "status": "active",
       "run_id": "20261026-international-staging",
-      "updated_at": "2026-10-26",
-      "implementation_status": "implemented_pending_hosted_verification",
-      "acceptance_status": "local_checks_passed_final_review_pending",
-      "planning_notes": "Luna implementation and staging authorized October 26; production and live transaction testing remain separate.",
+      "updated_at": "2026-10-26T07:27:56.790040+00:00",
+      "implementation_status": "deployed_staging_preview",
+      "acceptance_status": "staging_scope_passed_live_activation_pending",
+      "planning_notes": "October 31 founder event; broad 200-destination staging preview. Supplier cost/postal exceptions and actual provider/live tests remain separate gates.",
       "evidence": "docs/sprints/evidence/SPRINT-0013/REPORT.md",
-      "event_date": "2026-10-31"
+      "event_date": "2026-10-31",
+      "staging_commit": "7613a4c0d44d1137e3d91f6302dedfb8d37265f6"
     }
   ]
 }

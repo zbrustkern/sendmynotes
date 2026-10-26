@@ -1,0 +1,45 @@
+=================================================
+🧪 RUNNING RESEND & TRANSACTIONAL EMAIL TEST SUITE
+=================================================
+
+--- 1. Testing Resend API Key Retrieval & In-Memory Caching ---
+Key retrieval result: re_mo...
+✅ PASS: In-memory key caching verified
+
+--- 2. Testing Resend Singleton Client Initialization ---
+getResendClient() returned: Resend instance
+✅ PASS: Singleton Resend client and proxy successfully initialized without boot crash
+
+--- 3. Testing Scenario A (address_deferred === true) Email ---
+[Resend Mock Simulation] Mock key active. Simulating email send to: sender@example.com with subject: "Your card for Eleanor Vance is reserved — add their mailing address whenever you're ready"
+[Email] Scenario A receipt email dispatched to sender@example.com. ID: mock_1792998433548
+Scenario A Dispatch result: { success: true, id: 'mock_1792998433548' }
+✅ PASS: Scenario A receipt email generated and dispatched successfully
+
+--- 4. Testing Scenario B (address completed) Email ---
+[Resend Mock Simulation] Mock key active. Simulating email send to: sender@example.com with subject: "We're penning your card to Eleanor Vance! (Receipt #TEST_ABC)"
+[Email] Scenario B receipt email dispatched to sender@example.com. ID: mock_1792998433602
+Scenario B Dispatch result: { success: true, id: 'mock_1792998433602' }
+✅ PASS: Scenario B penning confirmation email generated and dispatched successfully
+
+--- 5. Testing src/lib/email/resend.ts Re-export Parity ---
+✅ PASS: src/lib/email/resend parity verified
+
+--- 6. Testing Stripe Webhook Handler Wiring ---
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[Webhook] Payment confirmed for Order order_webhook_a_1792998435356 (mode: stripe_test, livemode: false). Processing order...
+[Resend Mock Simulation] Mock key active. Simulating email send to: customer_a@example.com with subject: "Your card for Eleanor Vance is reserved — add their mailing address whenever you're ready"
+[Email] Scenario A receipt email dispatched to customer_a@example.com. ID: mock_1792998435377
+✅ PASS: Webhook correctly dispatched Scenario A receipt and recorded timestamp
+[Webhook] Payment confirmed for Order order_webhook_b_1792998435380 (mode: stripe_test, livemode: false). Processing order...
+[OrderProcessor] Test payment mode active (stripe_test). Skipping live Handwrytten dispatch.
+[Meta CAPI Notice] META_CONVERSIONS_API_ACCESS_TOKEN is not configured. Server-side event skipped safely.
+[OrderProcessor] Order order_webhook_b_1792998435380 successfully dispatched! HW ID: test_hw_order_webhook_b_1792998435380
+[Webhook] Dispatching Scenario B (penning confirmation) receipt email to customer_b@example.com for order order_webhook_b_1792998435380...
+[Resend Mock Simulation] Mock key active. Simulating email send to: customer_b@example.com with subject: "We're penning your card to Eleanor Vance! (Receipt #WEBHOOK_)"
+[Email] Scenario B receipt email dispatched to customer_b@example.com. ID: mock_1792998435390
+✅ PASS: Webhook correctly dispatched Scenario B receipt and recorded timestamp
+
+=================================================
+🎉 ALL RESEND & TRANSACTIONAL EMAIL TESTS PASSED!
+=================================================

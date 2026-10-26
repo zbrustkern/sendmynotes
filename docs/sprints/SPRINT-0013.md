@@ -1,6 +1,6 @@
 # SPRINT-0013: Add a quiet international mailing option
 
-Status: active — implementation and staging authorized October 26, 2026. Original plan October 23, 2026.
+Status: active — staging preview deployed and verified October 26, 2026; live activation gates remain. Original plan October 23, 2026.
 
 The founder authorized Luna implementation, payment-safety enhancements and staging preparation on October 26 for an event in about a week. This supersedes the original planning-only boundary. Staging deployment and a guarded international preview are authorized; production rollout, live charges, email sends and physical orders are reserved for a later explicit testing/release step. Original planning questions below are resolved only where documented in the execution addendum.
 
@@ -11,7 +11,7 @@ The founder authorized Luna implementation, payment-safety enhancements and stag
   - Product: one “International?” link, country-aware modal/sheet, explicit total before payment; US personal return address remains.
   - Correctness: destination survives drafts, payment, order storage, fulfillment, receipts and operational retries.
   - Commercial: $14 is a proposal, actual custom-card cost remains unconfirmed; broader international targeting and copy changes are deferred.
-  - Proof: feature defaults off; isolated regression and independent review precede a separate activation decision.
+  - Proof: guarded staging preview deployed; isolated regressions, independent review and hosted UI checks passed. Production activation and live-payment/physical-mail proof remain separate. See [execution report](evidence/SPRINT-0013/REPORT.md).
 - L2: [Decisions](#decisions-and-boundaries), [UX](#use-cases-and-ui-contract), [Architecture](#architecture), [Tasks](#implementation-plan), [Acceptance](#definition-of-done), [inventory](SPRINT-0013-COPY-IMPACT.md), [validator brief](#independent-validator-handoff).
 
 ## Overview

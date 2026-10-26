@@ -1,0 +1,3 @@
+COMMAND: isolated Playwright mounted international address editor; env -i with NODE_OPTIONS=--require=deny-network.cjs, bundled Playwright and installed Chrome; no provider credentials
+PASS mounted international address editor behavior checks
+EXIT: 0

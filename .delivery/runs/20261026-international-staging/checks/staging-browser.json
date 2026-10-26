@@ -1,0 +1,25 @@
+{
+  "checkedAt": "2026-10-26T07:16:00Z",
+  "source": "ac31ddb7f32f24d77b01257cb9fea136f25b311f",
+  "route": "/new",
+  "observations": [
+    "Domestic recipient view retains $9 total",
+    "International modal displays $14 total and 200 alphabetized country options",
+    "United Kingdom permits an empty region and accepts alphanumeric postal code",
+    "Save changes header/action total to $14 and displays United Kingdom",
+    "Reopening Edit remains $14, not $19",
+    "Cancel discards a modified recipient name",
+    "Switching to US restores $9 and the original domestic draft",
+    "Reopening International restores the saved UK draft",
+    "390x844 mobile modal is legible with accessible Save/Cancel controls"
+  ],
+  "data": "Fictional names and example addresses only",
+  "providerPaymentAttempted": false,
+  "supplierOrderAttempted": false,
+  "finalSource": "7613a4c0d44d1137e3d91f6302dedfb8d37265f6",
+  "finalObservedAt": "2026-10-26T07:27:56.790510+00:00",
+  "finalObservations": [
+    "Test-only no charge/printing/fulfillment/mailing banner visible on final desktop/mobile modal",
+    "No browser console errors observed"
+  ]
+}

@@ -1,0 +1,92 @@
+=================================================
+🧪 RUNNING DRAFT MODEL & STORE TESTS (S1-01)
+=================================================
+
+--- 1. Testing Initial Draft Structure ---
+✅ PASS: Schema version is 1
+✅ PASS: Initial draftRevision is 0
+✅ PASS: Initial selectedDesign is null
+✅ PASS: Experience version initialized
+✅ PASS: Initial note text is empty
+✅ PASS: Initial recipient is null
+✅ PASS: Initial sender is null
+
+--- 2. Testing draftRevision Increments ---
+✅ PASS: draftRevision increments to 1 on SELECT_DESIGN
+✅ PASS: selectedDesign is set
+✅ PASS: Selection is not yet accepted (displaying != acceptance)
+✅ PASS: draftRevision increments to 2 on ACCEPT_DESIGN
+✅ PASS: selectedDesign is marked accepted
+✅ PASS: draftRevision increments to 3 on UPDATE_NOTE
+✅ PASS: Note text updated
+✅ PASS: draftRevision increments to 4 on UPDATE_RECIPIENT
+✅ PASS: draftRevision increments to 5 on UPDATE_SENDER
+
+--- 3. Testing Storage Survival (Page Refresh) ---
+✅ PASS: Draft saved successfully to storage
+✅ PASS: Raw JSON exists in storage
+✅ PASS: Draft successfully loaded from storage
+✅ PASS: Loaded draft preserved draftRevision
+✅ PASS: Loaded draft preserved card selection
+✅ PASS: Loaded draft preserved accepted state
+✅ PASS: Loaded draft preserved note text
+✅ PASS: Loaded draft preserved recipient
+✅ PASS: Loaded draft preserved the international destination country
+✅ PASS: Loaded draft preserved an alphanumeric international postal code
+✅ PASS: Loaded draft preserved sender
+
+--- 4. Testing 24-Hour Expiry ---
+✅ PASS: Draft older than 24h is discarded
+✅ PASS: Storage item removed on expiry
+✅ PASS: Draft updated 2h ago is accepted
+
+--- 5. Testing Schema Version Mismatch ---
+✅ PASS: Mismatched schema version is safely discarded
+✅ PASS: Mismatched storage item cleared
+
+--- 6. Testing Forbidden Sensitive Keys Exclusion ---
+✅ PASS: Stored draft does not contain forbidden key 'clientSecret'
+✅ PASS: Stored draft does not contain forbidden key 'client_secret'
+✅ PASS: Stored draft does not contain forbidden key 'card'
+✅ PASS: Stored draft does not contain forbidden key 'cardNumber'
+✅ PASS: Stored draft does not contain forbidden key 'card_number'
+✅ PASS: Stored draft does not contain forbidden key 'cvc'
+✅ PASS: Stored draft does not contain forbidden key 'cvv'
+✅ PASS: Stored draft does not contain forbidden key 'paymentMethod'
+✅ PASS: Stored draft does not contain forbidden key 'payment_method'
+✅ PASS: Stored draft does not contain forbidden key 'stripeKey'
+✅ PASS: Stored draft does not contain forbidden key 'stripe_key'
+✅ PASS: Stored draft does not contain forbidden key 'viewToken'
+✅ PASS: Stored draft does not contain forbidden key 'view_token'
+✅ PASS: Stored draft does not contain forbidden key 'receiptToken'
+✅ PASS: Stored draft does not contain forbidden key 'receipt_token'
+✅ PASS: Stored draft does not contain forbidden key 'secret'
+✅ PASS: Stored key 'schemaVersion' is on the allowed keys list
+✅ PASS: Stored key 'createdAt' is on the allowed keys list
+✅ PASS: Stored key 'updatedAt' is on the allowed keys list
+✅ PASS: Stored key 'draftRevision' is on the allowed keys list
+✅ PASS: Stored key 'experienceVersion' is on the allowed keys list
+✅ PASS: Stored key 'selectedDesign' is on the allowed keys list
+✅ PASS: Stored key 'note' is on the allowed keys list
+✅ PASS: Stored key 'recipient' is on the allowed keys list
+✅ PASS: Stored key 'sender' is on the allowed keys list
+✅ PASS: Stored key 'schedule' is on the allowed keys list
+✅ PASS: Stored key 'discountCode' is on the allowed keys list
+✅ PASS: Stored key 'appliedOffer' is on the allowed keys list
+✅ PASS: Stored key 'attribution' is on the allowed keys list
+✅ PASS: Stored key 'customGeneration' is on the allowed keys list
+✅ PASS: Stored key 'checkoutSnapshotId' is on the allowed keys list
+✅ PASS: Stored key 'currentStep' is on the allowed keys list
+✅ PASS: Stored key 'completed' is on the allowed keys list
+✅ PASS: Poisoned clientSecret was stripped on save
+✅ PASS: Poisoned card data was stripped on save
+✅ PASS: Poisoned viewToken was stripped on save
+✅ PASS: Poisoned stripeKey was stripped on save
+
+--- 7. Testing clearDraft ---
+✅ PASS: clearDraft removes item from storage
+✅ PASS: loadDraft returns null after clearDraft
+
+=================================================
+🎉 ALL DRAFT MODEL TESTS PASSED (71/71)
+=================================================

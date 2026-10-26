@@ -20,6 +20,10 @@ The [supplier API contract](https://www.handwrytten.com/api-redoc/) supports cou
 
 US personal return addresses remain required. No real supplier order was submitted, and no delivery-time guarantee was added.
 
+## Implementation impact
+
+The candidate changes 26 application/configuration files, plus tests and evidence. The original 41-file copy inventory remains an impact map; acquisition pages and ads were not broadly rewritten. Most changes bind the selected destination and amount across existing shared checkout, order and fulfillment paths.
+
 ## Review and evidence
 
 Luna agents implemented server and UI work and independently reviewed the candidate. Review caught and repaired: double-added upgrade in the edit modal, a stale international total after switching to US, loss of the separate international draft, address edits during pending checkout, base/total mismatch in promotion redemption, missing durable preview markers, missing webhook-only promotion redemption, and deferred-address mutation gaps.
@@ -36,8 +40,12 @@ Evidence lives in `.delivery/runs/20261026-international-staging/`: backend/UI/r
 
 ## Release and remaining gates
 
-Local and hosted verification results and exact deployed source will be recorded after the final gates. Production remains at `0623a0a89b6d948b272f25ad8c9bfb4f4554962f`. Staging rollback baseline is `f97f98f62d0fee461c236c597e33e9f54a7275d3`, build `build-2026-10-21-001`.
+Final staging source: `7613a4c0d44d1137e3d91f6302dedfb8d37265f6`. Firebase project/backend `sendmynotes-staging`, build/rollout `2026-10-26-002`: READY/SUCCEEDED, serving revision `sendmynotes-staging-build-2026-10-26-002` at 100% traffic, verified October 26 at 07:26 UTC. Runtime preview/review-only flags and supplier test mode are true. `/`, `/new`, `/send` and `/api/mailing-options` return HTTP 200. Options expose 200 destinations and server-reported Stripe test checkout availability. No provider transaction was exercised.
 
-Before live activation: confirm complete custom A2 supplier charges and the $14 commercial decision, resolve no-postal-code requirements, refresh destination suspensions, verify a separate Stripe test-key environment, and perform the explicitly chosen founder live-payment/physical-mail scenarios. Hosted staging reports Stripe test checkout enabled; no actual provider test payment was performed during this work. Apple Pay remains unverified. The event checklist distinguishes test payments, real charges, supplier acceptance and eventual delivery.
+Hosted browser review verified $9 domestic → $14 international, UK optional region, save/edit/cancel, domestic and international draft restoration, $9 restoration, and mobile layout at 390×844. Final desktop/mobile screenshots show the explicit staging test-only banner. The final page reported no browser console errors. See `checks/staging-after.json`, `staging-health.json`, `staging-browser.json`, `staging-international.jpg` and `staging-mobile.jpg` in the run evidence directory.
+
+Staging preview scope is delivered; full sprint activation remains pending the supplier/commercial and founder test gates below. Production remains at `0623a0a89b6d948b272f25ad8c9bfb4f4554962f`. Staging rollback baseline is `f97f98f62d0fee461c236c597e33e9f54a7275d3`, build `build-2026-10-21-001`.
+
+Before live activation: confirm complete custom A2 supplier charges and the $14 commercial decision, resolve no-postal-code requirements, refresh destination suspensions, exercise the verified staging Stripe test-key environment without confusing test success with real payment/fulfillment, and perform the explicitly chosen founder live-payment/physical-mail scenarios. Hosted staging reports Stripe test checkout enabled; no actual provider test payment was performed during this work. Apple Pay remains unverified. The event checklist distinguishes test payments, real charges, supplier acceptance and eventual delivery.
 
 A production candidate must apply this scoped change to the verified production base; do not merge all staging history. The international feature currently has no production activation path. The hosted capability check showed existing Stripe test mode is available. A follow-up adds explicit test-only address guidance and held-order confirmation/details, suppressing real fulfillment claims and test purchase telemetry. No real or test provider transaction was executed.
