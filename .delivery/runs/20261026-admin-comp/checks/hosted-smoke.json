@@ -1,0 +1,99 @@
+{
+  "checkedAt": "2026-10-26T21:09:38.235752+00:00",
+  "base": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "authenticated": false,
+  "providerActions": false,
+  "checks": [
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/admin",
+      "status": 200,
+      "expected": 200,
+      "passed": true
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/comp/catalog?countryCode=GB",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "error": "Unauthorized"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/comp/quotes",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "error": "Unauthorized"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/comp/orders",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "error": "Unauthorized"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/comp/orders/nonexistent-staging-smoke",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "error": "Unauthorized"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/comp/orders/nonexistent-staging-smoke/payment-request",
+      "status": 401,
+      "expected": 401,
+      "passed": true,
+      "error": "Unauthorized"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/dispatch-comp",
+      "status": 423,
+      "expected": 423,
+      "passed": true,
+      "error": "Supplier fulfillment is disabled during staging review."
+    },
+    {
+      "method": "GET",
+      "path": "/api/comp-payment/invalid-staging-smoke",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "error": "Payment request is unavailable or expired."
+    },
+    {
+      "method": "POST",
+      "path": "/api/comp-payment/invalid-staging-smoke/payment-intent",
+      "status": 404,
+      "expected": 404,
+      "passed": true,
+      "error": "Payment request is unavailable or expired."
+    },
+    {
+      "method": "GET",
+      "path": "/comp-payment/invalid-staging-smoke",
+      "status": 200,
+      "expected": 200,
+      "passed": true,
+      "privacyHeaders": {
+        "referrer-policy": "no-referrer",
+        "x-robots-tag": "noindex, nofollow, noarchive",
+        "cache-control": "max-age=0, no-store, private"
+      }
+    }
+  ],
+  "passed": true
+}

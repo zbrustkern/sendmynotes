@@ -1,6 +1,6 @@
 # SPRINT-0018: Admin comp experience and verified staging release
 
-Status: active. Authorized October 26, 2026. Depends on SPRINT-0017 contracts; UI work may proceed concurrently after contract agreement.
+Status: complete for the authorized staging scope. Authorized October 26, 2026. Depends on SPRINT-0017 contracts; UI work may proceed concurrently after contract agreement.
 
 ## Pyramid Index
 - L0: Ship the approved admin-only full-comp/item-adjustment flow to guarded staging and verify it for founder review.
@@ -31,3 +31,6 @@ Full comp and individual adjustments visibly follow approved design; existing ca
 
 ## Risks & Mitigations / Dependencies
 Only staging is authorized. Keep review-only flags and provider test controls. No forced push or wholesale staging-to-production merge. If remote changes, integrate/review and repeat relevant checks before release. Old READY staging build/source is rollback target; do not initiate rollback speculatively. Do not equate mocked UI/tests with successful real payment or physical mail. Other reporting and artwork work stays independently owned. No chapter/semantic index configured; no further user approval needed for the authorized staging release.
+
+## Delivery result
+Staging commit `cae1525bbba5d15377ee8829ee6b8b76d14ab7da`, build/rollout `2026-10-26-004` READY/SUCCEEDED at100% traffic. Focused tests, TypeScript, production build, local mounted UI and eleven hosted boundary checks passed. Production unchanged. Founder authenticated review and provider/live testing remain separate; see `.delivery/runs/20261026-admin-comp/REPORT.md` and `REVIEW-CHECKLIST.md`.

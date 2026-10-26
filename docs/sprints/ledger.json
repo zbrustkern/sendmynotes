@@ -165,23 +165,29 @@
       "id": "SPRINT-0017",
       "title": "Auditable admin complimentary and adjusted orders",
       "path": "docs/sprints/SPRINT-0017.md",
-      "status": "active",
+      "status": "complete",
       "run_id": "20261026-admin-comp",
-      "updated_at": "2026-10-26T21:03:09.005271+00:00",
-      "implementation_status": "implemented_reviewed_pending_staging_rollout",
-      "acceptance_status": "local_checks_passed_hosted_verification_pending",
-      "evidence": ".delivery/runs/20261026-admin-comp/REPORT.md"
+      "updated_at": "2026-10-26T21:10:22.800460+00:00",
+      "implementation_status": "deployed_staging",
+      "acceptance_status": "staging_scope_passed_founder_review_pending",
+      "evidence": ".delivery/runs/20261026-admin-comp/REPORT.md",
+      "staging_commit": "cae1525bbba5d15377ee8829ee6b8b76d14ab7da",
+      "release_environment": "staging_only",
+      "live_validation_status": "not_performed_production_activation_separate"
     },
     {
       "id": "SPRINT-0018",
       "title": "Admin comp experience and verified staging release",
       "path": "docs/sprints/SPRINT-0018.md",
-      "status": "active",
+      "status": "complete",
       "run_id": "20261026-admin-comp",
-      "updated_at": "2026-10-26T21:03:09.005414+00:00",
-      "implementation_status": "implemented_reviewed_pending_staging_rollout",
-      "acceptance_status": "local_checks_passed_hosted_verification_pending",
-      "evidence": ".delivery/runs/20261026-admin-comp/REPORT.md"
+      "updated_at": "2026-10-26T21:10:22.800460+00:00",
+      "implementation_status": "deployed_staging",
+      "acceptance_status": "staging_scope_passed_founder_review_pending",
+      "evidence": ".delivery/runs/20261026-admin-comp/REPORT.md",
+      "staging_commit": "cae1525bbba5d15377ee8829ee6b8b76d14ab7da",
+      "release_environment": "staging_only",
+      "live_validation_status": "not_performed_production_activation_separate"
     }
   ]
 }

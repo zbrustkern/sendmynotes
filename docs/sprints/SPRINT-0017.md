@@ -1,6 +1,6 @@
 # SPRINT-0017: Auditable admin complimentary and adjusted orders
 
-Status: active. Authorized October 26, 2026; staging-only implementation/release. Depends on the current international/attribution staging baseline, not the pending reporting or artwork sprints.
+Status: complete for the authorized staging scope. Authorized October 26, 2026; staging-only implementation/release. Depends on the current international/attribution staging baseline, not the pending reporting or artwork sprints.
 
 ## Pyramid Index
 - L0: Add a server-owned admin adjustment contract that supports full comps and partial payments without granting public checkout pricing authority.
@@ -45,3 +45,6 @@ Payment changes are high impact: isolate admin branch, preserve public contract,
 
 ## Dependencies / Open Questions
 No additional product decision blocks the approved scope. The backend/UI lanes agree the exact DTO before edits. Current mockup is design approval, not evidence of provider behavior. No production push, real charge, outbound email, supplier call, secret/config mutation or broad historical migration is authorized.
+
+## Delivery result
+Staging commit `cae1525bbba5d15377ee8829ee6b8b76d14ab7da`, build/rollout `2026-10-26-004` READY/SUCCEEDED at100% traffic. Focused tests, TypeScript, production build, local mounted UI and eleven hosted boundary checks passed. Production unchanged. Founder authenticated review and provider/live testing remain separate; see `.delivery/runs/20261026-admin-comp/REPORT.md` and `REVIEW-CHECKLIST.md`.

@@ -1,0 +1,28 @@
+{
+  "staging": {
+    "stableEnvironmentUnchanged": true,
+    "paymentConfigUnchanged": true,
+    "source": "cae1525bbba5d15377ee8829ee6b8b76d14ab7da",
+    "buildReady": true,
+    "rolloutSucceeded": true,
+    "traffic": [
+      {
+        "revision": "sendmynotes-staging-build-2026-10-26-004",
+        "percent": 100
+      }
+    ]
+  },
+  "production": {
+    "stableEnvironmentUnchanged": true,
+    "paymentConfigUnchanged": true,
+    "source": "0ebfd958c6854623abab177ebeab2754c242f20c",
+    "buildReady": true,
+    "rolloutSucceeded": true,
+    "traffic": [
+      {
+        "revision": "sendmynotes-build-2026-10-26-001",
+        "percent": 100
+      }
+    ]
+  }
+}

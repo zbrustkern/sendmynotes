@@ -1,0 +1,40 @@
+{
+  "checkedAt": "2026-10-26T21:08:40.958Z",
+  "project": "sendmynotes-2a417",
+  "backend": "sendmynotes",
+  "environment": null,
+  "rolloutPolicy": {
+    "codebaseBranch": "main"
+  },
+  "rollout": {
+    "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-10-26-001",
+    "state": "SUCCEEDED",
+    "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-10-26-001"
+  },
+  "build": {
+    "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-10-26-001",
+    "state": "READY",
+    "sourceBranch": "main",
+    "sourceSha": "0ebfd958c6854623abab177ebeab2754c242f20c",
+    "commitTime": "2026-10-26T17:20:23Z"
+  },
+  "service": {
+    "latestReadyRevision": "projects/sendmynotes-2a417/locations/us-central1/services/sendmynotes/revisions/sendmynotes-build-2026-10-26-001",
+    "trafficStatuses": [
+      {
+        "revision": "sendmynotes-build-2026-10-26-001",
+        "percent": 100
+      }
+    ]
+  },
+  "flags": [
+    {
+      "name": "NEXT_PUBLIC_APP_URL",
+      "value": "https://sendmynotes.com"
+    }
+  ],
+  "environmentSha256": "f06137e4c7cb21ee7a26420b095634c2af77ae35aa63feb76762e4e579677f9b",
+  "stableEnvironmentSha256": "eb20a412585beb2f0d1e716c77504167989c85dae9757b76c128efc2cef75cbe",
+  "paymentConfigurationSha256": "04031fc87133f959485b514c1f2170e35fb4f3a5b10c74763bf5edbe316d71e8",
+  "secretValuesLogged": false
+}

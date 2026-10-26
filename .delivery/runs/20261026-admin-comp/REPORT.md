@@ -1,6 +1,6 @@
 # Admin complimentary cards — staging release record
 
-SPRINT-0017 and SPRINT-0018 implement the approved full-comp and item-adjustment flow. Release scope is staging only. This pre-deployment record is supplemented by the final hosting evidence and coordinator report after rollout.
+SPRINT-0017 and SPRINT-0018 implement the approved full-comp and item-adjustment flow. Release scope is staging only. Completed at 2026-10-26T21:10:22.800460+00:00.
 
 ## Implemented
 - Authenticated admin-only composer with new card, country-aware recipient, personal US sender, required reason, full/item adjustment and explicit review.
@@ -12,7 +12,7 @@ SPRINT-0017 and SPRINT-0018 implement the approved full-comp and item-adjustment
 - Private payment pages omit marketing/attribution and set no-referrer/noindex/no-store. Public receipts retain non-sensitive admin origin while removing private quote/request metadata.
 
 ## Validation
-Independent Luna backend, UI and audit lanes completed. Final focused evidence is in `checks/`: admin-comp-adversarial, admin-comp-ui, international-pricing, international-checkout.integration, google-purchase-measurement, transaction-security (10/10), staging-review-safety and admin-google-only-auth. Tests use isolated disk mocks, stripped credentials and external-network denial. TypeScript and production Next build are release gates. A stale transaction-security baseline assertion was corrected to expect no state mutation on a missing untrusted payment identifier.
+Independent Luna backend, UI and audit lanes completed. Final focused evidence is in `checks/`: admin-comp-adversarial, admin-comp-ui, international-pricing, international-checkout.integration, google-purchase-measurement, transaction-security (10/10), staging-review-safety and admin-google-only-auth. Tests use isolated disk mocks, stripped credentials and external-network denial. TypeScript and the production Next build passed; 97 static pages generated. The build used stripped environment variables and external-network denial. Firestore initialization log text is not evidence of a database request. A stale transaction-security baseline assertion was corrected to expect no state mutation on a missing untrusted payment identifier.
 
 Mounted actual modal with mocked APIs was checked using fictional data: UK full $14 → $0, individual $9 waiver → $5, complete address review, held result preserving $5, 390px mobile layout without horizontal overflow, keyboard focus wrap and authorization-failure disabled action. Screenshots are local fixture evidence, not hosted-authenticated or provider evidence.
 
@@ -21,7 +21,11 @@ Base staging `0a4d08205b8077303fe88fd578ecd0397f94b3ab`, prior ready build `buil
 
 Staging: https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/admin
 
-Before push, verify remote staging/main are unchanged, auto-rollout targets staging, and hosting flags/payment config match the baseline. Push only the reviewed candidate to staging; do not create a duplicate rollout. Confirm exact source SHA, READY build, SUCCEEDED rollout and 100% serving traffic. Preserve production source/config and staging review/test flags. No config/secret changes are required.
+Verified deployment: staging source `cae1525bbba5d15377ee8829ee6b8b76d14ab7da`, automatic `build-2026-10-26-004` READY and `rollout-2026-10-26-004` SUCCEEDED, serving revision at 100%. Production source/build/100% traffic and configuration are unchanged. Staging review/test flags and both Firebase IDs are unchanged. Payment configuration hashes match on both environments. Stable environment hashes match after excluding only platform-generated `NG_ALLOWED_HOSTS`; no config or secret mutation was performed.
+
+Eleven hosted smoke checks passed: storefront/admin200; all five new admin endpoints401 without credentials; legacy dispatch423; invalid payment capability and intent404; capability page200 with no-referrer/noindex/no-store. The invalid-intent expectation was corrected from409 to404 because malformed capabilities are rejected before the staging guard; valid staged capability409 is covered by the isolated test. Python's missing CA defaults were resolved using `/etc/ssl/cert.pem`, with TLS verification retained. Evidence: `checks/hosted-smoke.json`, `checks/release-verification.json`, `checks/staging-after.json` and `checks/production-after.json`.
+
+The hosted browser renders the expected authorized Google sign-in screen. No session was manufactured and no authenticated hosted order was created. Local UI fixture server was stopped after testing. Reporting SPRINT-0016 was coordinated separately and was not overwritten. Final evidence is committed on the coordination branch without another staging rollout.
 
 ## Remaining gates
 Hosted authenticated composer testing requires the founder's Google session; the browser currently presents the normal sign-in screen. Local mounted checks do not substitute for that test. Provider-backed payment, Apple Pay, real zero-comp dispatch, supplier charges/address output and physical delivery remain unverified. Positive live admin payment defaults off behind `ALLOW_ADMIN_COMP_LIVE_PAYMENT`; production activation is a separate reviewed release. Do not turn off staging holds to test production behavior.
