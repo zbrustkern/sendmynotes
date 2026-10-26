@@ -36,13 +36,17 @@ import { formatOccasionDate, getOccasionTypeDisplay, MONTH_SHORT_NAMES, MONTH_NA
 import { detectCardIntent } from "@/lib/card-intent";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "@/components/AuthModal";
-import { trackGoogleAdsPurchase } from "@/lib/google-ads";
+import { cancelGoogleAdsPurchaseRetries, hasGoogleAdsCheckoutProof, trackGoogleAdsPurchase } from "@/lib/google-ads";
 import { trackMetaPurchase } from "@/lib/meta-ads";
 
 export default function OrderStatusPage() {
   const params = useParams();
   const orderId = params?.id as string;
   const { user, saveAddress } = useAuth();
+
+  useEffect(() => () => {
+    if (orderId) cancelGoogleAdsPurchaseRetries(orderId);
+  }, [orderId]);
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
@@ -164,7 +168,12 @@ export default function OrderStatusPage() {
             // ignore storage/history errors in restricted sandboxes
           }
         }
-        const tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem(`order_token_${orderId}`) : null;
+        let tokenFromStorage: string | null = null;
+        try {
+          tokenFromStorage = typeof window !== "undefined" ? sessionStorage.getItem(`order_token_${orderId}`) : null;
+        } catch {
+          // A redirect token in the URL can still authorize this fetch when storage is denied.
+        }
         const activeToken = tokenFromUrl || tokenFromStorage;
 
         const endpoint = activeToken
@@ -176,7 +185,14 @@ export default function OrderStatusPage() {
           throw new Error("Order not found or still processing.");
         }
         const data = await res.json();
-        if (data.order && data.order.status === "PENDING_PAYMENT" && typeof window !== "undefined") {
+        if (data.order?.purchaseMeasurement && hasGoogleAdsCheckoutProof(orderId)) {
+          trackGoogleAdsPurchase({
+            orderId,
+            measurement: data.order.purchaseMeasurement,
+            consent: data.order.attribution,
+          });
+        }
+        if (data.order && data.order.status === "PENDING_PAYMENT" && typeof window !== "undefined" && hasGoogleAdsCheckoutProof(orderId)) {
           const paymentIntentId = urlParams?.get("payment_intent") || data.order.stripePaymentId;
           if (paymentIntentId) {
             try {
@@ -193,6 +209,14 @@ export default function OrderStatusPage() {
                 if (confirmData.success && confirmData.status) {
                   data.order.status = confirmData.status;
                   data.order.handwryttenOrderId = confirmData.handwryttenOrderId;
+                  data.order.purchaseMeasurement = confirmData.purchaseMeasurement;
+                  if (confirmData.purchaseMeasurement && hasGoogleAdsCheckoutProof(orderId)) {
+                    trackGoogleAdsPurchase({
+                      orderId,
+                      measurement: confirmData.purchaseMeasurement,
+                      consent: data.order.attribution,
+                    });
+                  }
                 }
               }
             } catch (cErr) {
@@ -206,23 +230,20 @@ export default function OrderStatusPage() {
           setLoading(false);
 
           if (data.order && data.order.status !== "PENDING_PAYMENT") {
-            trackGoogleAdsPurchase({
-              orderId: data.order.id,
-              amountInCents: data.order.amountInCents || 900,
-              customerEmail: data.order.customerEmail,
-            });
-            trackMetaPurchase({
-              orderId: data.order.id,
-              value: data.order.amountInCents ? data.order.amountInCents / 100 : 9.0,
-              customerEmail: data.order.customerEmail,
-              customerName: data.order.returnAddress?.firstName
-                ? `${data.order.returnAddress.firstName} ${data.order.returnAddress.lastName || ""}`.trim()
-                : undefined,
-              recipientCity: data.order.recipientAddress?.city,
-              recipientState: data.order.recipientAddress?.state,
-              recipientZip: data.order.recipientAddress?.zip,
-              itemName: data.order.occasion ? `${data.order.occasion} Card` : undefined,
-            });
+            try {
+              trackMetaPurchase({
+                orderId: data.order.id,
+                value: data.order.amountInCents ? data.order.amountInCents / 100 : 9.0,
+                customerEmail: data.order.customerEmail,
+                customerName: data.order.returnAddress?.firstName
+                  ? `${data.order.returnAddress.firstName} ${data.order.returnAddress.lastName || ""}`.trim()
+                  : undefined,
+                recipientCity: data.order.recipientAddress?.city,
+                recipientState: data.order.recipientAddress?.state,
+                recipientZip: data.order.recipientAddress?.zip,
+                itemName: data.order.occasion ? `${data.order.occasion} Card` : undefined,
+              });
+            } catch { /* independent destination must not break order status */ }
           }
         }
       } catch (err: unknown) {

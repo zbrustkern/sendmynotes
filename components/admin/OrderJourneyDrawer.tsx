@@ -43,7 +43,7 @@ export function OrderJourneyDrawer({
   };
 
   const attr = order.attribution;
-  const isGoogleAds = Boolean(attr?.gclid || attr?.utmSource === "google" || attr?.utmMedium === "cpc");
+  const isGoogleAds = Boolean(attr?.gclid || attr?.wbraid || attr?.gbraid || attr?.utmSource === "google" || attr?.utmMedium === "cpc");
   const channelName = isGoogleAds
     ? "Google Ads"
     : attr?.utmMedium === "organic"
@@ -135,6 +135,15 @@ export function OrderJourneyDrawer({
               </div>
             )}
 
+            <div className="grid grid-cols-2 gap-2">
+              <div><span className="text-[10px] text-stone-400 block font-medium">Keyword</span><p className="text-stone-700 truncate" title={attr?.utmTerm}>{attr?.utmTerm || "Unknown"}</p></div>
+              <div><span className="text-[10px] text-stone-400 block font-medium">Ad ID</span><p className="text-stone-700 truncate" title={attr?.utmContent}>{attr?.utmContent || "Unknown"}</p></div>
+            </div>
+            <div>
+              <span className="text-[10px] text-stone-400 block font-medium">Google identifiers captured</span>
+              <p className="text-stone-700">{[attr?.gclid && "gclid", attr?.wbraid && "wbraid", attr?.gbraid && "gbraid"].filter(Boolean).join(", ") || "Unknown"}</p>
+            </div>
+
             {attr?.googleClientId && (
               <div>
                 <span className="text-[10px] text-stone-400 block font-medium">GA4 Client ID</span>
@@ -159,6 +168,13 @@ export function OrderJourneyDrawer({
               </span>
             </div>
           </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs space-y-2">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Purchase measurement</span>
+          <p className="text-xs text-stone-700">Payment verification: {order.purchaseMeasurement ? `${order.purchaseMeasurement.eligible ? "eligible" : order.purchaseMeasurement.reason} · ${order.purchaseMeasurement.currency} ${(order.purchaseMeasurement.amountInCents / 100).toFixed(2)}` : "Unknown"}</p>
+          <p className="text-xs text-stone-700">Browser queue: Client-reported in telemetry; not authoritative payment state</p>
+          <p className="text-xs text-stone-500">Google Ads attribution: verify separately in Google Ads.</p>
         </div>
 
         {/* 2. CREATIVE CHOICES & CARD MESSAGE */}

@@ -8,6 +8,7 @@ import {
   sendOrderPenningReceiptEmail,
 } from "@/lib/email/transactional";
 import Stripe from "stripe";
+import { buildPurchaseMeasurement, persistPurchaseMeasurement, validateVerifiedCapture } from "@/lib/purchase-measurement";
 
 export async function POST(req: NextRequest) {
   try {
@@ -73,6 +74,37 @@ export async function POST(req: NextRequest) {
       const isTestPayment = event.livemode === false || paymentIntent.livemode === false;
       const paymentMode = isTestPayment ? "stripe_test" : "live";
 
+      const order = await getOrderById(orderId);
+      if (!order) {
+        console.warn("[Webhook] PaymentIntent references a missing order.");
+        return NextResponse.json({ received: true, error: "Order not found" }, { status: 200 });
+      }
+      if (paymentIntent.status !== "succeeded") {
+        return NextResponse.json({ received: true, error: "PaymentIntent is not succeeded" }, { status: 200 });
+      }
+      const captureError = validateVerifiedCapture(order, {
+        paymentIntentId: paymentIntent.id,
+        amount: paymentIntent.amount,
+        amountReceived: paymentIntent.amount_received,
+        currency: paymentIntent.currency,
+      });
+      if (captureError || paymentIntent.metadata?.orderId !== order.id || event.livemode !== paymentIntent.livemode) {
+        const reason = captureError || "PaymentIntent order binding or livemode mismatch.";
+        await logIncident({ type: "WEBHOOK", severity: "error", summary: "Stripe capture verification failed", technicalDetails: reason });
+        return NextResponse.json({ received: true, error: reason }, { status: 200 });
+      }
+      try {
+        await persistPurchaseMeasurement(orderId, buildPurchaseMeasurement(order, {
+          paymentIntentId: paymentIntent.id,
+          amount: paymentIntent.amount,
+          amountReceived: paymentIntent.amount_received,
+          currency: paymentIntent.currency,
+          livemode: paymentIntent.livemode,
+        }));
+      } catch {
+        console.warn("[Webhook] Purchase measurement snapshot write unavailable.");
+      }
+
       console.log(
         `[Webhook] Payment confirmed for Order ${orderId} (mode: ${paymentMode}, livemode: ${!isTestPayment}). Processing order...`
       );
@@ -97,24 +129,24 @@ export async function POST(req: NextRequest) {
 
       // Automated Transactional Email Dispatch (Resend + Google Secret Manager)
       try {
-        const order = await getOrderById(orderId);
-        if (order) {
-          const customerEmail = paymentIntent.receipt_email || order.customerEmail;
+        const latestOrder = await getOrderById(orderId);
+        if (latestOrder) {
+          const customerEmail = paymentIntent.receipt_email || latestOrder.customerEmail;
           const isAddressDeferred = Boolean(
-            order.addressDeferred ||
-            (order as any).address_deferred ||
-            order.status === "AWAITING_RECIPIENT_ADDRESS" ||
+            latestOrder.addressDeferred ||
+            (latestOrder as any).address_deferred ||
+            latestOrder.status === "AWAITING_RECIPIENT_ADDRESS" ||
             paymentIntent.metadata?.address_deferred === "true" ||
             paymentIntent.metadata?.addressDeferred === "true"
           );
 
-          if (customerEmail && !(order as any).receiptEmailSentAt) {
+          if (customerEmail && !(latestOrder as any).receiptEmailSentAt) {
             if (isAddressDeferred) {
               console.log(
                 `[Webhook] Dispatching Scenario A (deferred address) receipt email to ${customerEmail} for order ${orderId}...`
               );
               await sendDeferredAddressReceiptEmail({
-                order,
+                order: latestOrder,
                 customerEmail,
               });
             } else {
@@ -122,7 +154,7 @@ export async function POST(req: NextRequest) {
                 `[Webhook] Dispatching Scenario B (penning confirmation) receipt email to ${customerEmail} for order ${orderId}...`
               );
               await sendOrderPenningReceiptEmail({
-                order,
+                order: latestOrder,
                 customerEmail,
               });
             }

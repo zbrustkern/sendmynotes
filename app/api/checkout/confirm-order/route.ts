@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStripeClient, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
+import { getStripeClient } from "@/lib/stripe";
 import { resolvePaymentMode, PaymentMode } from "@/lib/payment-mode";
 import { processPaidOrder } from "@/lib/order-processor";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { logIncident } from "@/lib/incident-logger";
+import { buildPurchaseMeasurement, persistPurchaseMeasurement, validateVerifiedCapture } from "@/lib/purchase-measurement";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,23 +18,13 @@ export async function POST(req: NextRequest) {
     if (!order) {
       return NextResponse.json({ error: `Order ${orderId} not found` }, { status: 404 });
     }
-
-    // Idempotency: If order is already completed, processing, or actively dispatching, return immediately
-    if (
-      order.status === "DISPATCHING" ||
-      order.status === "PROCESSING_HANDWRYTTEN" ||
-      order.status === "MAILED"
-    ) {
-      return NextResponse.json({
-        success: true,
-        status: order.status,
-        orderId,
-        handwryttenOrderId: order.handwryttenOrderId,
-        alreadyProcessed: true,
-      });
-    }
+    let purchaseMeasurement = order.purchaseMeasurement || null;
 
     const verifiedPaymentIntentId = paymentIntentId || order.stripePaymentId;
+
+    if (!order.stripePaymentId || (paymentIntentId && paymentIntentId !== order.stripePaymentId)) {
+      return NextResponse.json({ success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "PaymentIntent is not bound to this order." }, { status: 400 });
+    }
 
     if (!verifiedPaymentIntentId) {
       await updateOrderStatus(orderId, {
@@ -131,10 +122,7 @@ export async function POST(req: NextRequest) {
       }
 
       // Assert amount matches expected order total
-      const expectedAmountCents =
-        typeof order.amountInCents === "number" && order.amountInCents > 0
-          ? order.amountInCents
-          : CARD_FLAT_RATE_CENTS;
+      const expectedAmountCents = order.amountInCents;
 
       if (pi.amount !== expectedAmountCents) {
         const errorMsg = `Payment amount mismatch: expected ${expectedAmountCents}¢ ($${(
@@ -161,8 +149,18 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Assert metadata orderId matches if present
-      if (pi.metadata?.orderId && pi.metadata.orderId !== orderId) {
+      const captureError = validateVerifiedCapture(order, {
+        paymentIntentId: pi.id,
+        amount: pi.amount,
+        amountReceived: pi.amount_received,
+        currency: pi.currency,
+      });
+      if (captureError) {
+        return NextResponse.json({ success: false, status: "PAYMENT_VERIFICATION_FAILED", error: captureError }, { status: 400 });
+      }
+
+      // PaymentIntent must be explicitly bound to this order.
+      if (pi.metadata?.orderId !== orderId) {
         const mismatchError = `PaymentIntent orderId mismatch: intent metadata has '${pi.metadata.orderId}', expected '${orderId}'`;
         await updateOrderStatus(orderId, {
           status: "PAYMENT_VERIFICATION_FAILED",
@@ -190,6 +188,19 @@ export async function POST(req: NextRequest) {
       customerEmailFromStripe = pi.receipt_email || undefined;
       isTest = !pi.livemode;
       paymentMode = pi.livemode ? "live" : "stripe_test";
+
+      // Persist a minimal immutable snapshot before the fulfillment idempotency path can return early.
+      try {
+        purchaseMeasurement = await persistPurchaseMeasurement(orderId, buildPurchaseMeasurement(order, {
+          paymentIntentId: pi.id,
+          amount: pi.amount,
+          amountReceived: pi.amount_received,
+          currency: pi.currency,
+          livemode: pi.livemode,
+        }));
+      } catch {
+        console.warn("[Confirm Order] Purchase measurement snapshot write unavailable.");
+      }
     } else {
       console.log(`[Confirm Order] Mock mode verification active for order ${orderId}`);
     }
@@ -215,6 +226,7 @@ export async function POST(req: NextRequest) {
       handwryttenOrderId: result.handwryttenOrderId,
       error: result.error,
       alreadyProcessed: result.alreadyProcessed,
+      purchaseMeasurement,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error confirming order";

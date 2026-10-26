@@ -1416,6 +1416,7 @@ export function EntryPrototypeClient({
               customerEmail={customerEmail}
               onChangeCustomerEmail={setCustomerEmail}
               orderId={orderId}
+              viewToken={viewToken}
               clientSecret={clientSecret}
               publishableKey={publishableKey}
               isMock={isMockCheckout}

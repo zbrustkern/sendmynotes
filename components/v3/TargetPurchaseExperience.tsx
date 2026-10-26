@@ -127,6 +127,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
   // 5. Checkout & Payment State (Step 4 & 5)
   const [customerEmail, setCustomerEmail] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
+  const [viewToken, setViewToken] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
   const [isMockCheckout, setIsMockCheckout] = useState<boolean>(false);
@@ -417,6 +418,10 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
       }
 
       setOrderId(data.orderId);
+      setViewToken(data.viewToken || null);
+      if (data.viewToken && typeof window !== "undefined") {
+        try { sessionStorage.setItem(`order_token_${data.orderId}`, data.viewToken); } catch { /* redirect resume may be unavailable */ }
+      }
       setClientSecret(data.clientSecret);
       if (data.publishableKey) {
         setPublishableKey(data.publishableKey);
@@ -486,8 +491,9 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
   };
 
   // Payment Success
-  const handlePaymentSuccess = (completedOrderId: string) => {
+  const handlePaymentSuccess = (completedOrderId: string, returnedViewToken?: string | null) => {
     setOrderId(completedOrderId);
+    if (returnedViewToken) setViewToken(returnedViewToken);
     trackEvent("payment_succeeded", 4, { orderId: completedOrderId });
     goToStep(5);
   };
@@ -636,6 +642,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
             customerEmail={customerEmail}
             onChangeCustomerEmail={setCustomerEmail}
             orderId={orderId}
+            viewToken={viewToken}
             clientSecret={clientSecret}
             publishableKey={publishableKey}
             isMock={isMockCheckout}
@@ -651,6 +658,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         {currentStep === 5 && (
           <Step5Confirmation
             orderId={orderId}
+            viewToken={viewToken}
             cardTitle={selectedCardTitle}
             cardUrl={selectedCardUrl}
             occasion={occasion}

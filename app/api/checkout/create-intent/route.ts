@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { saveOrder, getDiscountCode } from "@/lib/firebase-admin";
+import { saveOrder, getDiscountCode, getSystemConfig } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { PaymentModeConfigError, normalizeStripeSecretKey, resolvePaymentMode } from "@/lib/payment-mode";
 import { validatePersonalSender } from "@/lib/order-processor";
@@ -8,6 +8,7 @@ import { validateDiscount } from "@/lib/discount";
 import { Order, MailingAddress, RecipientOccasion } from "@/lib/types";
 import { logIncident } from "@/lib/incident-logger";
 import { saveOccasionReminder } from "@/lib/reminders";
+import { sanitizeOrderAttribution } from "@/lib/order-attribution";
 
 export async function POST(req: NextRequest) {
   try {
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
       userId,
       scheduledSendDate,
       discountCode: rawDiscountCode,
-      attribution,
+      attribution: rawAttribution,
       recipientOccasion,
       occasion,
       sessionId,
@@ -32,6 +33,16 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const isAddressDeferred = Boolean(body.addressDeferred || body.address_deferred);
+    const attribution = sanitizeOrderAttribution(rawAttribution);
+    let isFounderTest = req.cookies.get("smn_founder_device")?.value === "1";
+    if (!isFounderTest && typeof sessionId === "string") {
+      try {
+        const founderRegistry = await getSystemConfig<{ sessionIds?: string[] }>("founder_device_registry");
+        isFounderTest = Boolean(founderRegistry?.sessionIds?.includes(sessionId));
+      } catch {
+        // Attribution classification is best effort; do not make checkout depend on the admin registry.
+      }
+    }
 
     if (!frontImageUrl) {
       return NextResponse.json({ error: "Card cover image is required." }, { status: 400 });
@@ -136,6 +147,7 @@ export async function POST(req: NextRequest) {
         ...(appliedCode ? { discountCode: appliedCode } : {}),
         discountAmountInCents,
         paymentMethod: "PROMO_CODE",
+        isFounderTest,
         ...(attribution ? { attribution } : {}),
         ...(sessionId ? { sessionId } : {}),
         ...(experienceVersion ? { experienceVersion } : {}),
@@ -197,6 +209,7 @@ export async function POST(req: NextRequest) {
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
       paymentMethod: "STRIPE",
+      isFounderTest,
       ...(attribution ? { attribution } : {}),
       ...(sessionId ? { sessionId } : {}),
       ...(experienceVersion ? { experienceVersion } : {}),

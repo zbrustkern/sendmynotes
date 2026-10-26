@@ -162,11 +162,14 @@ export async function trackEvent(
       utmContent: attr?.utmContent,
       utmTerm: attr?.utmTerm,
       gclid: attr?.gclid,
+      wbraid: attr?.wbraid,
+      gbraid: attr?.gbraid,
       fbclid: attr?.fbclid,
       referrer: cleanReferrer,
       landingPath: cleanLandingPath,
       // Technology & Google Analytics identity
       googleClientId,
+      googleClientIdNormalized: attr?.googleClientIdNormalized,
       deviceType,
       screenResolution,
     };

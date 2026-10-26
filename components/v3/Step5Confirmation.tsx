@@ -23,7 +23,7 @@ import confetti from "canvas-confetti";
 import { detectCardIntent } from "@/lib/card-intent";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { AddressData } from "./Step3EnvelopeAddressing";
-import { trackGoogleAdsPurchase } from "@/lib/google-ads";
+import { cancelGoogleAdsPurchaseRetries, trackGoogleAdsPurchase } from "@/lib/google-ads";
 import { trackMetaPurchase } from "@/lib/meta-ads";
 
 interface Step5ConfirmationProps {
@@ -86,26 +86,40 @@ export function Step5Confirmation({
       }
     }
 
-    // Emit final purchase marketing events only when order is verified (not reconciling)
+    // Google Ads requires the server snapshot and an active checkout marker; receipt views alone cannot emit.
     const isReconciling = fulfillmentStatus === "RECONCILING";
-    if (orderId && !isReconciling) {
-      trackGoogleAdsPurchase({
-        orderId,
-        amountInCents: amountInCents || 900,
-        customerEmail,
-        itemName: cardTitle,
-      });
-      trackMetaPurchase({
-        orderId,
-        value: amountInCents ? amountInCents / 100 : 9.0,
-        customerEmail,
-        customerName: sender.fullName,
-        recipientCity: recipient.city,
-        recipientState: recipient.state,
-        recipientZip: recipient.zip,
-        itemName: cardTitle,
-      });
+    let cancelled = false;
+    if (orderId && viewToken && !isReconciling) {
+      void fetch(`/api/orders/${encodeURIComponent(orderId)}?token=${encodeURIComponent(viewToken)}`)
+        .then((response) => response.ok ? response.json() : null)
+        .then((data) => {
+          if (cancelled || !data?.order?.purchaseMeasurement) return;
+          trackGoogleAdsPurchase({
+            orderId,
+            measurement: data.order.purchaseMeasurement,
+            consent: data.order.attribution,
+          });
+        })
+        .catch(() => { /* measurement delivery must not affect confirmation */ });
     }
+    if (orderId && !isReconciling) {
+      try {
+        trackMetaPurchase({
+          orderId,
+          value: amountInCents ? amountInCents / 100 : 9.0,
+          customerEmail,
+          customerName: sender.fullName,
+          recipientCity: recipient.city,
+          recipientState: recipient.state,
+          recipientZip: recipient.zip,
+          itemName: cardTitle,
+        });
+      } catch { /* independent destination must not affect confirmation UI */ }
+    }
+    return () => {
+      cancelled = true;
+      if (orderId) cancelGoogleAdsPurchaseRetries(orderId);
+    };
   }, [orderId, viewToken, fulfillmentStatus, amountInCents, customerEmail, cardTitle, sender.fullName, recipient.city, recipient.state, recipient.zip]);
 
   // Occasion intent classification

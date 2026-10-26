@@ -203,25 +203,32 @@ export async function processPaidOrder(
     throw err;
   }
 
-  // Record server authority telemetry for verified purchase
-  try {
-    const rawSessionId =
-      (order.attribution as any)?.sessionId ||
-      order.sessionId ||
-      `sess_${orderId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}`;
-    await recordServerTelemetry({
-      eventName: "purchase_verified",
-      sessionId: rawSessionId,
-      orderId,
-      metadata: {
-        amountInCents: order.finalAmountInCents || order.amountInCents || 900,
-        isTest: Boolean(clientContext?.isTest || order.isTest),
-        paymentMode: clientContext?.paymentMode || order.paymentMode || "stripe_test",
-      },
-      experienceVersion: order.experienceVersion,
-    });
-  } catch (telErr) {
-    console.warn("[OrderProcessor] Notice recording purchase_verified telemetry:", telErr);
+  // Record revenue authority only for positive, live Stripe customer captures.
+  const verifiedAmountInCents = order.amountInCents;
+  const isEligibleLiveCustomerPayment =
+    Number.isInteger(verifiedAmountInCents) && verifiedAmountInCents > 0 &&
+    clientContext?.paymentMode === "live" && !clientContext.isTest &&
+    !order.isTest && !order.isComp && !order.isFounderTest && order.paymentMethod === "STRIPE";
+  if (isEligibleLiveCustomerPayment) {
+    try {
+      const rawSessionId =
+        (order.attribution as any)?.sessionId ||
+        order.sessionId ||
+        `sess_${orderId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}`;
+      await recordServerTelemetry({
+        eventName: "purchase_verified",
+        sessionId: rawSessionId,
+        orderId,
+        metadata: {
+          amountInCents: verifiedAmountInCents,
+          isTest: Boolean(clientContext?.isTest || order.isTest),
+          paymentMode: clientContext?.paymentMode || order.paymentMode || "stripe_test",
+        },
+        experienceVersion: order.experienceVersion,
+      });
+    } catch (telErr) {
+      console.warn("[OrderProcessor] Notice recording purchase_verified telemetry:", telErr);
+    }
   }
 
   // 4. Record discount code usage metrics if applicable

@@ -10,6 +10,7 @@ import {
   validateDeviceType,
   sanitizeScreenResolution,
   sanitizeGoogleClientId,
+  sanitizeGoogleClientIdNormalized,
 } from "@/lib/telemetry-schema";
 
 const MAX_BODY_BYTES = 4096; // 4KB
@@ -87,10 +88,13 @@ export async function POST(req: NextRequest) {
       utmContent,
       utmTerm,
       gclid,
+      wbraid,
+      gbraid,
       fbclid,
       referrer,
       landingPath,
       googleClientId,
+      googleClientIdNormalized,
       deviceType,
       screenResolution,
       clientId: rawClientId,
@@ -143,6 +147,8 @@ export async function POST(req: NextRequest) {
     const cleanUtmContent = sanitizeAttribution(utmContent);
     const cleanUtmTerm = sanitizeAttribution(utmTerm);
     const cleanGclid = sanitizeAttribution(gclid, 255);
+    const cleanWbraid = sanitizeAttribution(wbraid, 255);
+    const cleanGbraid = sanitizeAttribution(gbraid, 255);
     const cleanFbclid = sanitizeAttribution(fbclid, 255);
 
     // 8. Common context
@@ -197,11 +203,14 @@ export async function POST(req: NextRequest) {
       utmContent: cleanUtmContent,
       utmTerm: cleanUtmTerm,
       gclid: cleanGclid,
+      wbraid: cleanWbraid,
+      gbraid: cleanGbraid,
       fbclid: cleanFbclid,
       referrer: cleanReferrer,
       landingPath: cleanLandingPath,
       // Identity & Tech
       googleClientId: sanitizeGoogleClientId(googleClientId),
+      googleClientIdNormalized: sanitizeGoogleClientIdNormalized(googleClientIdNormalized),
       deviceType: validateDeviceType(deviceType),
       screenResolution: sanitizeScreenResolution(screenResolution),
       ipCity,
