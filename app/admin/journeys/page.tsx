@@ -85,7 +85,7 @@ export default function AdminJourneysPage() {
       {showCompModal && (
         <StudioCompModal
           onClose={() => setShowCompModal(false)}
-          onSuccess={() => {}}
+          onSuccess={() => setRefreshKey((key) => key + 1)}
         />
       )}
     </>

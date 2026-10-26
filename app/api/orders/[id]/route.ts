@@ -17,8 +17,10 @@ function maskZip(zip?: string): string {
 }
 
 function sanitizeOrderForPublicView(order: Order): Order {
+  const { adminCompQuoteId: _quoteId, adminCompQuote: _quote, adminCompLifecycle: _lifecycle,
+    adminCompPaymentRequestId: _requestId, adminCompPaymentRequestStatus: _requestStatus, ...publicOrder } = order;
   return {
-    ...order,
+    ...publicOrder,
     customerEmail: maskEmail(order.customerEmail),
     recipientAddress: {
       ...order.recipientAddress,

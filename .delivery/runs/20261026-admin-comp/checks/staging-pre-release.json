@@ -1,0 +1,64 @@
+{
+  "checkedAt": "2026-10-26T21:02:15.890Z",
+  "project": "sendmynotes-staging",
+  "backend": "sendmynotes-staging",
+  "environment": "staging",
+  "rolloutPolicy": {
+    "codebaseBranch": "staging"
+  },
+  "rollout": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-10-26-003",
+    "state": "SUCCEEDED",
+    "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-26-003"
+  },
+  "build": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-26-003",
+    "state": "READY",
+    "sourceBranch": "staging",
+    "sourceSha": "0a4d08205b8077303fe88fd578ecd0397f94b3ab",
+    "commitTime": "2026-10-26T17:48:11Z"
+  },
+  "service": {
+    "latestReadyRevision": "projects/sendmynotes-staging/locations/us-central1/services/sendmynotes-staging/revisions/sendmynotes-staging-build-2026-10-26-003",
+    "trafficStatuses": [
+      {
+        "revision": "sendmynotes-staging-build-2026-10-26-003",
+        "percent": 100
+      }
+    ]
+  },
+  "flags": [
+    {
+      "name": "FIREBASE_PROJECT_ID",
+      "value": "sendmynotes-staging"
+    },
+    {
+      "name": "HANDWRYTTEN_TEST_MODE",
+      "value": "true"
+    },
+    {
+      "name": "INTERNATIONAL_MAILING_PREVIEW",
+      "value": "true"
+    },
+    {
+      "name": "NEXT_PUBLIC_APP_URL",
+      "value": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app"
+    },
+    {
+      "name": "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+      "value": "sendmynotes-staging"
+    },
+    {
+      "name": "NEXT_PUBLIC_STAGING_REVIEW_ONLY",
+      "value": "true"
+    },
+    {
+      "name": "STAGING_REVIEW_ONLY",
+      "value": "true"
+    }
+  ],
+  "environmentSha256": "6770fda8818cabbb3b487cc7e408b841059789f1a6900781b5c3ff4ad48ee2e5",
+  "stableEnvironmentSha256": "888a8b1be304e43750fa64c91983b5e065375d15bb1fb239902565ca4582d60c",
+  "paymentConfigurationSha256": "f962e0b0b96d00db456eee679ede54b0f8570ec8264c47da552d10b8421010d8",
+  "secretValuesLogged": false
+}

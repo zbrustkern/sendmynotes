@@ -105,8 +105,9 @@ export async function POST(req: NextRequest) {
         livemode: Boolean(pi.livemode),
         orderId: paymentCheck.valid ? orderId : undefined,
         commercialKind: paymentCheck.valid
-          ? deriveCommercialKind({ amountCents: pi.amount_received ?? pi.amount ?? 0, livemode: Boolean(pi.livemode), isFounderTest: order.isFounderTest, isComp: order.isComp, paymentMethod: order.paymentMethod, explicitKind: (order.discountAmountInCents || 0) > 0 ? "discounted_paid" : undefined })
+          ? deriveCommercialKind({ amountCents: pi.amount_received ?? pi.amount ?? 0, livemode: Boolean(pi.livemode), isFounderTest: order.isFounderTest, isComp: order.isComp, paymentMethod: order.paymentMethod, origin: order.origin, explicitKind: (order.discountAmountInCents || 0) > 0 ? "discounted_paid" : undefined })
           : (pi.livemode ? "unresolved_historical" : "founder_test"),
+        origin: order.origin,
         operationId: order.operationId || pi.metadata?.operationId,
         // Synchronous verification observes success now; intent creation is not capture time.
       });

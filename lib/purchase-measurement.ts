@@ -36,7 +36,7 @@ export function buildPurchaseMeasurement(
   else if (!Number.isInteger(capture.amountReceived) || capture.amountReceived <= 0) reason = "invalid_capture";
   else if (capture.amountReceived !== payableAmountInCents || capture.amount !== payableAmountInCents) reason = "amount_mismatch";
   else if (!capture.livemode || order.isTest || order.paymentMode === "stripe_test" || order.paymentMode === "local_mock") reason = "test_payment";
-  else if (order.isComp || order.isFounderTest || order.paymentMethod !== "STRIPE" || order.isInternationalPreview || order.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") reason = "non_customer";
+  else if (order.origin === "ADMIN_COMP" || order.isComp || order.isFounderTest || order.paymentMethod !== "STRIPE" || order.isInternationalPreview || order.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") reason = "non_customer";
 
   return {
     version: 1,

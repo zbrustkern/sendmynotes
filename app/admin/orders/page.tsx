@@ -94,14 +94,14 @@ export default function AdminOrdersPage() {
         <AddressRetryModal
           order={selectedAddressRetryOrder}
           onClose={() => setSelectedAddressRetryOrder(null)}
-          onSuccess={() => {}}
+          onSuccess={() => setRefreshKey((key) => key + 1)}
         />
       )}
 
       {showCompModal && (
         <StudioCompModal
           onClose={() => setShowCompModal(false)}
-          onSuccess={() => {}}
+          onSuccess={() => setRefreshKey((key) => key + 1)}
         />
       )}
     </>

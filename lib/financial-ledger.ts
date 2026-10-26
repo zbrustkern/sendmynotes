@@ -28,6 +28,7 @@ export interface RecordCaptureFactInput {
   livemode: boolean;
   providerEventId?: string;
   commercialKind?: CommercialKind;
+  origin?: string;
   classification?: ClassificationProvenance;
   stripeFeeCents?: number | null;
   supplierCostCents?: number | null;
@@ -99,6 +100,7 @@ export function deriveCommercialKind(params: {
   isComp?: boolean;
   isFounderTest?: boolean;
   paymentMethod?: string;
+  origin?: string;
   paymentMode?: string;
 }): CommercialKind {
   // Provider mode and trusted founder/comp provenance always override labels.
@@ -108,6 +110,7 @@ export function deriveCommercialKind(params: {
   if (params.isFounderTest || params.classificationRole === "founder" || params.explicitKind === "founder_test") {
     return "founder_test";
   }
+  if (params.origin === "ADMIN_COMP" && params.amountCents > 0) return "admin_comp_balance";
   if (params.isComp || params.paymentMethod === "STUDIO_COMP" || params.explicitKind === "studio_comp") {
     return "studio_comp";
   }
@@ -160,6 +163,7 @@ export async function recordPaymentCaptureFact(
       amountCents: input.amountCents,
       livemode: input.livemode,
       explicitKind: input.commercialKind,
+      origin: input.origin,
       classificationRole: input.classification?.role,
     });
 

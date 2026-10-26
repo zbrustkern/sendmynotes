@@ -1,0 +1,2 @@
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Staging safety: live Stripe, supplier submission and email blocked; staging identity and Stripe-test mode verified.

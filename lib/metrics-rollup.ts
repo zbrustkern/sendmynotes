@@ -636,6 +636,7 @@ export function isExcludedOrderCohort(o: Partial<Order>, founderSessionIds?: Set
   return (
     o.isTest === true ||
     o.isComp === true ||
+    o.origin === "ADMIN_COMP" ||
     o.isFounderTest === true ||
     o.paymentMode === "stripe_test" ||
     o.paymentMode === "local_mock" ||

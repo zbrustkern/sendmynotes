@@ -129,8 +129,9 @@ export async function POST(req: NextRequest) {
         providerEventId: event.id,
         orderId: paymentCheck.valid ? orderId : undefined,
         commercialKind: paymentCheck.valid
-          ? deriveCommercialKind({ amountCents: amountReceived, livemode: !isTestPayment, isFounderTest: order?.isFounderTest, isComp: order?.isComp, paymentMethod: order?.paymentMethod, explicitKind: (order?.discountAmountInCents || 0) > 0 ? "discounted_paid" : undefined })
+          ? deriveCommercialKind({ amountCents: amountReceived, livemode: !isTestPayment, isFounderTest: order?.isFounderTest, isComp: order?.isComp, paymentMethod: order?.paymentMethod, origin: order?.origin, explicitKind: (order?.discountAmountInCents || 0) > 0 ? "discounted_paid" : undefined })
           : (isTestPayment ? "founder_test" : "unresolved_historical"),
+        origin: order?.origin,
         occurredAt: event.created * 1000,
       });
 

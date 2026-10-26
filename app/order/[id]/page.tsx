@@ -32,6 +32,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Order, OccasionType } from "@/lib/types";
+import { isCustomerPurchaseOrder } from "@/lib/customer-purchase-classification";
 import { formatOccasionDate, getOccasionTypeDisplay, MONTH_SHORT_NAMES, MONTH_NAMES } from "@/lib/reminder-utils";
 import { detectCardIntent } from "@/lib/card-intent";
 import { useAuth } from "@/context/AuthContext";
@@ -186,7 +187,7 @@ export default function OrderStatusPage() {
         }
         const data = await res.json();
         if (!isMounted) return;
-        if (data.order?.purchaseMeasurement && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD" && hasGoogleAdsCheckoutProof(orderId)) {
+        if (isCustomerPurchaseOrder(data.order) && data.order?.purchaseMeasurement && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD" && hasGoogleAdsCheckoutProof(orderId)) {
           trackGoogleAdsPurchase({
             orderId,
             measurement: data.order.purchaseMeasurement,
@@ -212,7 +213,7 @@ export default function OrderStatusPage() {
                   data.order.status = confirmData.status;
                   data.order.handwryttenOrderId = confirmData.handwryttenOrderId;
                   data.order.purchaseMeasurement = confirmData.purchaseMeasurement;
-                  if (confirmData.purchaseMeasurement && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD" && hasGoogleAdsCheckoutProof(orderId)) {
+                  if (isCustomerPurchaseOrder(data.order) && confirmData.purchaseMeasurement && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD" && hasGoogleAdsCheckoutProof(orderId)) {
                     trackGoogleAdsPurchase({
                       orderId,
                       measurement: confirmData.purchaseMeasurement,
@@ -231,7 +232,7 @@ export default function OrderStatusPage() {
           setOrder(data.order);
           setLoading(false);
 
-          if (data.order && data.order.status !== "PENDING_PAYMENT" && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD") {
+          if (isCustomerPurchaseOrder(data.order) && data.order.status !== "PENDING_PAYMENT" && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD") {
             try {
             trackMetaPurchase({
               orderId: data.order.id,

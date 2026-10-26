@@ -318,6 +318,9 @@ export async function sendMetaCapiPurchaseEvent(params: {
   testEventCode?: string;
 }): Promise<MetaCapiResult> {
   const { order, clientIp, userAgent, testEventCode } = params;
+  if (order.origin === "ADMIN_COMP" || order.isComp || order.paymentMethod === "STUDIO_COMP") {
+    return { success: false, skipped: true, error: "Non-customer admin/complimentary order excluded from purchase measurement." };
+  }
 
   const valueInDollars =
     typeof order.amountInCents === "number" && order.amountInCents >= 0

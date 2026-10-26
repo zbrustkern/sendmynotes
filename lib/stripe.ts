@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 
 import { resolvePaymentMode, normalizeStripeSecretKey } from "./payment-mode";
+import { BASE_PRICE_CENTS } from "./order-pricing";
 
 export function getStripeSecretKey(): string {
   return normalizeStripeSecretKey(process.env).secret;
@@ -17,13 +18,14 @@ export function getStripeClient(): Stripe {
 // Export singleton for backward compatibility
 export const stripe = getStripeClient();
 
-export const CARD_FLAT_RATE_CENTS = 900; // $9.00 flat rate (Card + Robot Pen + Envelope + USPS Postage)
+export const CARD_FLAT_RATE_CENTS = BASE_PRICE_CENTS; // $9.00 flat rate
 
 export interface CreateIntentParams {
   orderId: string;
   customerEmail?: string;
   amountInCents?: number;
   metadata?: Record<string, string>;
+  idempotencyKey?: string;
 }
 
 export interface PaymentIntentResult {
@@ -39,7 +41,7 @@ export async function createCardPaymentIntent(params: CreateIntentParams): Promi
   if (mode === "local_mock") {
     console.log("[MOCK Stripe] Creating simulated PaymentIntent for order:", params.orderId, "amount:", amountToCharge);
     return {
-      clientSecret: `mock_pi_secret_${params.orderId}_${Date.now()}`,
+      clientSecret: `mock_pi_secret_${params.orderId}`,
       paymentIntentId: `pi_mock_${params.orderId}`,
       isMock: true,
     };
@@ -56,7 +58,7 @@ export async function createCardPaymentIntent(params: CreateIntentParams): Promi
       ...(params.metadata || {}),
     },
     payment_method_types: ["card", "link"],
-  });
+  }, params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : undefined);
 
   return {
     clientSecret: paymentIntent.client_secret,

@@ -21,6 +21,9 @@ export type OrderStatus =
   | "PAYMENT_VERIFICATION_FAILED"
   | "FAILED";
 
+export type OrderOrigin = "CUSTOMER_CHECKOUT" | "ADMIN_COMP";
+export type AdminCompLifecycle = "review_only_held" | "payment_pending" | "paid_ready" | "dispatching" | "supplier_accepted" | "failed";
+
 export type OccasionType = "birthday" | "anniversary" | "holiday" | "milestone" | "custom";
 
 export interface RecipientOccasion {
@@ -144,6 +147,13 @@ export interface Order {
   purchaseMeasurement?: PurchaseMeasurementSnapshot;
   experienceVersion?: string;
   sessionId?: string;
+  /** Commerce classification for exclusion of admin-created orders from customer acquisition metrics. */
+  origin?: OrderOrigin;
+  adminCompQuoteId?: string;
+  adminCompQuote?: import("./admin-comp-types").AdminCompQuoteSnapshot;
+  adminCompLifecycle?: AdminCompLifecycle;
+  adminCompPaymentRequestId?: string;
+  adminCompPaymentRequestStatus?: import("./admin-comp-types").AdminCompPaymentRequestStatus;
   createdAt: number;
   updatedAt: number;
 }

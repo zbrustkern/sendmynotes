@@ -1,0 +1,46 @@
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+=================================================
+🛡️ RUNNING TRANSACTION & CHECKOUT SECURITY TESTS
+=================================================
+
+
+--- 1. Testing Vulnerability 1: Webhook Signature Bypass Remediation ---
+[Webhook Error] STRIPE_WEBHOOK_SECRET is not configured or is a placeholder.
+[Incident Logged] [WEBHOOK] Stripe Webhook Misconfiguration (ID: inc_group_28efeea189e07f0052e9c8f0f75e2d18_1793048368935_yw6644)
+✅ PASS: Caller-controlled 'x-mock-payment-intent' cannot bypass signature (Status: 500, expected 500)
+✅ PASS: Missing stripe-signature header rejected with HTTP 400 (Status: 400)
+[Webhook] Signature verification failed: No signatures found matching the expected signature for payload. Are you passing the raw request body you received from Stripe?
+ If a webhook request is being forwarded by a third-party tool, ensure that the exact request body, including JSON formatting and new line style, is preserved.
+
+Learn more about webhook signing and explore webhook integration examples for various frameworks at https://docs.stripe.com/webhooks/signature
+
+✅ PASS: Forged signature header rejected cryptographically with HTTP 400 (Status: 400)
+
+--- 2. Testing Vulnerability 2: Payment Confirmation Invariant Checks ---
+✅ PASS: Missing paymentIntentId fails closed with HTTP 400 (Status: 400)
+✅ PASS: Missing untrusted payment ID is rejected without mutating the pending order (Status: PENDING_PAYMENT)
+
+--- 3. Testing Vulnerability 3: Fulfillment Concurrency (Atomic Locking) ---
+Simulating 10 concurrent processPaidOrder requests fired in the exact same millisecond...
+[OrderProcessor] Test payment mode active (local_mock). Skipping live Handwrytten dispatch.
+[Meta CAPI Notice] META_CONVERSIONS_API_ACCESS_TOKEN is not configured. Server-side event skipped safely.
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+[OrderProcessor] Order order_race_1793048368956 successfully dispatched! HW ID: test_hw_order_race_1793048368956
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+[OrderProcessor] Idempotency lock active: Order order_race_1793048368956 is currently 'PROCESSING_HANDWRYTTEN' (HW ID: test_hw_order_race_1793048368956). Safely dropping duplicate dispatch.
+Concurrent results: 1 dispatched, 9 deduplicated.
+✅ PASS: Exactly 1 concurrent request acquired lock and dispatched (Got: 1)
+✅ PASS: Remaining 9 concurrent requests safely dropped duplicate dispatch (Got: 9)
+✅ PASS: Final order status in database is PROCESSING_HANDWRYTTEN (Status: PROCESSING_HANDWRYTTEN)
+✅ PASS: Order has a valid Handwrytten Order ID recorded (HW ID: test_hw_order_race_1793048368956)
+✅ PASS: Replay of already completed order returns alreadyProcessed: true without new dispatch
+
+=================================================
+🎉 ALL TRANSACTION & SECURITY AUDIT TESTS PASSED (10/10)
+=================================================

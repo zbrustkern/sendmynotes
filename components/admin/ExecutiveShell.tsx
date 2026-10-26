@@ -183,10 +183,10 @@ export function ExecutiveShell({
               type="button"
               onClick={() => compHandler ? compHandler() : router.push(`/admin?${serializeAdminGlobalScope({ ...scope, workspace: "overview" })}`)}
               className="text-xs font-bold text-stone-950 bg-amber-400 hover:bg-amber-500 active:scale-95 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 shadow-2xs transition cursor-pointer focus-visible:ring-2 focus-visible:ring-amber-500"
-              title={compHandler ? "Dispatch Complimentary Card" : "Open complimentary card tools"}
+              title={compHandler ? "Create a new admin card" : "Open complimentary card tools"}
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">{compHandler ? "Dispatch Comp" : "Comp tools"}</span>
+              <span className="hidden sm:inline">{compHandler ? "New comp card" : "Comp tools"}</span>
             </button>
 
             <button

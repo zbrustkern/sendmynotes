@@ -1,0 +1,3 @@
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[AdminAuth] Access denied for user: unknown@example.com
+Google-only auth: valid allowed account succeeds; passphrase, header key, anonymous/unauthorized sessions and production mock identities rejected.

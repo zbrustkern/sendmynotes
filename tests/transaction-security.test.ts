@@ -5,7 +5,6 @@ import { processPaidOrder } from "../lib/order-processor";
 import {
   saveOrder,
   getOrderById,
-  updateOrderStatus,
   getOrdersCollection,
   firestoreDb,
 } from "../lib/firebase-admin";
@@ -157,12 +156,9 @@ async function runSecurityTests() {
 
   const orderAfterMissingPi = await getOrderById(testOrderId);
   assert(
-    orderAfterMissingPi?.status === "PAYMENT_VERIFICATION_FAILED",
-    `Order status marked PAYMENT_VERIFICATION_FAILED on missing payment ID (Status: ${orderAfterMissingPi?.status})`
+    orderAfterMissingPi?.status === "PENDING_PAYMENT" && !orderAfterMissingPi?.fulfillmentError,
+    `Missing untrusted payment ID is rejected without mutating the pending order (Status: ${orderAfterMissingPi?.status})`
   );
-
-  // Reset order status for next invariant test
-  await updateOrderStatus(testOrderId, { status: "PENDING_PAYMENT" });
 
   // ---------------------------------------------------------------------------
   // VULNERABILITY 3 TESTS: Concurrency & Double-Dispatch Race Condition

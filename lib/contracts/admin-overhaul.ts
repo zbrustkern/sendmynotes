@@ -276,6 +276,7 @@ export type CommercialKind =
   | "discounted_paid"
   | "free_promo"
   | "studio_comp"
+  | "admin_comp_balance"
   | "founder_test"
   | "unresolved_historical";
 

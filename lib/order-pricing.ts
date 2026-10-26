@@ -1,4 +1,5 @@
 export const ORDER_PRICE_VERSION = "base900-international500-v1";
+export const BASE_PRICE_CENTS = 900;
 export const INTERNATIONAL_SURCHARGE_CENTS = 500;
 export interface OrderQuote {
   version: string;
@@ -13,7 +14,7 @@ export interface OrderQuote {
 /** Discounts only reduce the $9 base; the $5 destination surcharge stays payable. */
 export function calculateOrderQuote(input: { countryCode: string; discountCents?: number }): OrderQuote {
   if (!/^[A-Z]{2}$/.test(input.countryCode)) throw new Error("A canonical ISO-2 country code is required.");
-  const basePriceCents = 900;
+  const basePriceCents = BASE_PRICE_CENTS;
   const surcharge = input.countryCode === "US" ? 0 : INTERNATIONAL_SURCHARGE_CENTS;
   const rawDiscount = input.discountCents ?? 0;
   if (!Number.isSafeInteger(rawDiscount) || rawDiscount < 0) throw new Error("Discount must be a nonnegative safe integer amount in cents.");
@@ -33,7 +34,7 @@ export function calculateOrderQuote(input: { countryCode: string; discountCents?
 export function isOrderQuoteValid(quote: OrderQuote | null | undefined): quote is OrderQuote {
   if (!quote || quote.version !== ORDER_PRICE_VERSION || quote.currency !== "USD") return false;
   if (!/^[A-Z]{2}$/.test(quote.countryCode)) return false;
-  if (!Number.isSafeInteger(quote.basePriceCents) || quote.basePriceCents !== 900) return false;
+  if (!Number.isSafeInteger(quote.basePriceCents) || quote.basePriceCents !== BASE_PRICE_CENTS) return false;
   if (!Number.isSafeInteger(quote.discountCents) || quote.discountCents < 0 || quote.discountCents > quote.basePriceCents) return false;
   const expectedSurcharge = quote.countryCode === "US" ? 0 : INTERNATIONAL_SURCHARGE_CENTS;
   return Number.isSafeInteger(quote.internationalSurchargeCents) && Number.isSafeInteger(quote.totalCents) &&

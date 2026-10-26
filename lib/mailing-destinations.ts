@@ -1,6 +1,6 @@
 import { MailingAddress } from "./types";
 import { resolvePaymentMode } from "./payment-mode";
-import { ORDER_PRICE_VERSION } from "./order-pricing";
+import { BASE_PRICE_CENTS, INTERNATIONAL_SURCHARGE_CENTS, ORDER_PRICE_VERSION } from "./order-pricing";
 import catalog from "./handwrytten-country-catalog.json";
 
 /** Snapshot generated from Handwrytten GET /v2/countries/list and USPS service alerts. */
@@ -129,7 +129,7 @@ export function mailingOptionsResponse(env: Record<string, string | undefined> =
       postalCodeRequired: country.postalCodeRequired,
       regions: country.regions,
     })),
-    pricing: { basePriceCents: 900, discountCents: 0, internationalSurchargeCents: 500, currency: "USD" as const },
+    pricing: { basePriceCents: BASE_PRICE_CENTS, discountCents: 0, internationalSurchargeCents: INTERNATIONAL_SURCHARGE_CENTS, currency: "USD" as const },
     quoteVersion: ORDER_PRICE_VERSION,
     destinationCatalogVersion: MAILING_DESTINATIONS_VERSION,
   };

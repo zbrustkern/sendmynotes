@@ -75,7 +75,7 @@ export default function AdminEconomicsPage() {
       {showCompModal && (
         <StudioCompModal
           onClose={() => setShowCompModal(false)}
-          onSuccess={() => {}}
+          onSuccess={() => setRefreshKey((key) => key + 1)}
         />
       )}
     </>

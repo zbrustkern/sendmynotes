@@ -135,20 +135,23 @@ export function getStoredAttribution(): OrderAttribution | null {
 function AttributionTrackerInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const isPrivatePaymentPath = Boolean(pathname?.startsWith("/comp-payment/"));
   const isFirstRender = useRef(true);
 
   // Track Meta Pixel PageView on client-side route transitions (SPA navigation)
   useEffect(() => {
+    if (isPrivatePaymentPath) return;
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
     // Subsequent client-side route transitions
     trackMetaPageView();
-  }, [pathname]);
+  }, [isPrivatePaymentPath, pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isPrivatePaymentPath) return;
 
     try {
       const isGpcActive =
@@ -314,11 +317,12 @@ function AttributionTrackerInner() {
     } catch (e) {
       console.warn("[Attribution Tracker] Non-fatal capture notice:", e);
     }
-  }, [searchParams, pathname]);
+  }, [isPrivatePaymentPath, searchParams, pathname]);
 
   // Keep the historical raw _ga value intact; store Google's normalized client ID separately.
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isPrivatePaymentPath) return;
     let active = true;
     let attempts = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -345,7 +349,7 @@ function AttributionTrackerInner() {
     };
     attemptBackfill();
     return () => { active = false; if (timer) clearTimeout(timer); };
-  }, [pathname]);
+  }, [isPrivatePaymentPath, pathname]);
 
   return null;
 }

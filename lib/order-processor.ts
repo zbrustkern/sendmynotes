@@ -19,6 +19,7 @@ import { isOperationalControlPaused } from "./operational-controls";
 import { getStripeClient } from "./stripe";
 import { normalizeCountryCode, getSupplierCountry } from "./mailing-destinations";
 import { isOrderQuoteValid } from "./order-pricing";
+import { isAdminCompQuoteSnapshotValid } from "./admin-comp-pricing";
 
 export interface ProcessPaidOrderResult {
   success: boolean;
@@ -68,6 +69,19 @@ export function verifyPaymentIntentForOrder(input: {
   }
   if (storedQuote && (!isOrderQuoteValid(storedQuote) || storedQuote.countryCode !== addressCountry || (storedQuote.totalCents !== input.order.finalAmountInCents || storedQuote.totalCents !== input.order.amountInCents))) {
     return { valid: false, reason: "Stored order quote does not match the immutable recipient country and amount.", expectedAmountCents, capturedAmountCents: pi.amount_received ?? pi.amount ?? 0 };
+  }
+  if (input.order.origin === "ADMIN_COMP") {
+    const quote = input.order.adminCompQuote;
+    const required = ["adminCompQuoteId", "adminCompQuoteVersion", "adminCompDestinationCountryCode", "adminCompTotalCents", "adminCompPaymentRequestId"] as const;
+    if (!quote || !isAdminCompQuoteSnapshotValid(quote) || input.order.adminCompQuoteId !== quote.quoteId ||
+        input.order.amountInCents !== quote.customerPayableCents || input.order.finalAmountInCents !== quote.customerPayableCents ||
+        quote.destinationCountryCode !== addressCountry || !required.every((key) => typeof pi.metadata?.[key] === "string" && pi.metadata[key]!.length > 0) ||
+        pi.metadata?.origin !== "ADMIN_COMP" || pi.metadata?.adminCompQuoteId !== quote.quoteId ||
+        pi.metadata?.adminCompQuoteVersion !== quote.version || pi.metadata?.adminCompDestinationCountryCode !== quote.destinationCountryCode ||
+        pi.metadata?.adminCompTotalCents !== String(quote.customerPayableCents) ||
+        pi.metadata?.adminCompPaymentRequestId !== input.order.adminCompPaymentRequestId) {
+      return { valid: false, reason: "Admin comp PaymentIntent is missing or mismatches immutable order/payment-request metadata.", expectedAmountCents, capturedAmountCents: pi.amount_received ?? pi.amount ?? 0 };
+    }
   }
   if (addressCountry !== "US") {
     const verifiedDestination = getSupplierCountry(addressCountry);
@@ -156,6 +170,16 @@ export async function processPaidOrder(
   // cannot assert amount, currency, mode, or metadata through client-supplied fields.
   const authorityOrder = await getOrderById(orderId);
   if (!authorityOrder) return { success: false, status: "NOT_FOUND", error: `Order ${orderId} not found in database.` };
+  if (authorityOrder.origin === "ADMIN_COMP" && !authorityOrder.adminCompQuote) {
+    return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "Admin comp order is missing its accepted quote snapshot." };
+  }
+  // A review hold is an immutable staging decision. A later environment change
+  // must not turn an old held order into a payable or dispatchable order.
+  if (authorityOrder.origin === "ADMIN_COMP" &&
+      (authorityOrder.fulfillmentStatus === "ADMIN_COMP_REVIEW_HOLD" || authorityOrder.adminCompLifecycle === "review_only_held")) {
+    return { success: true, status: authorityOrder.status || "PAYMENT_RECEIVED", alreadyProcessed: true,
+      error: "Admin order is permanently held for staging review; payment capture and supplier fulfillment are disabled." };
+  }
   if (authorityOrder.stripePaymentId && authorityOrder.stripePaymentId !== paymentIntentId) {
     return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "PaymentIntent identifier does not match the PaymentIntent bound to this order." };
   }
@@ -174,11 +198,22 @@ export async function processPaidOrder(
     }
   }
   if (localMockAllowed) {
+    const adminQuote = authorityOrder.origin === "ADMIN_COMP" ? authorityOrder.adminCompQuote : undefined;
     paymentIntent = {
       id: paymentIntentId, status: "succeeded",
       amount: authorityOrder.finalAmountInCents ?? authorityOrder.amountInCents ?? 900,
       amount_received: authorityOrder.finalAmountInCents ?? authorityOrder.amountInCents ?? 900,
-      currency: "usd", livemode: false, metadata: { orderId },
+      currency: "usd", livemode: false, metadata: {
+        orderId,
+        ...(adminQuote ? {
+          origin: "ADMIN_COMP",
+          adminCompQuoteId: adminQuote.quoteId,
+          adminCompQuoteVersion: adminQuote.version,
+          adminCompDestinationCountryCode: adminQuote.destinationCountryCode,
+          adminCompTotalCents: String(adminQuote.customerPayableCents),
+          adminCompPaymentRequestId: authorityOrder.adminCompPaymentRequestId || "",
+        } : {}),
+      },
     };
   }
   if (!paymentIntent || paymentIntent.id !== paymentIntentId) {
@@ -206,16 +241,24 @@ export async function processPaidOrder(
             isComp: authorityOrder.isComp,
             isFounderTest: authorityOrder.isFounderTest,
             paymentMethod: authorityOrder.paymentMethod,
+            origin: authorityOrder.origin,
             explicitKind: (authorityOrder.discountAmountInCents || 0) > 0 ? "discounted_paid" : undefined,
             paymentMode: localMockAllowed ? "local_mock" : (isLivePayment ? "live" : "stripe_test"),
           })
         : (isLivePayment ? "unresolved_historical" : "founder_test"),
+      origin: authorityOrder.origin,
       occurredAt: clientContext?.providerOccurredAt,
     });
   }
   if (!paymentCheck.valid) {
     if (!alreadySubmitted) await updateOrderStatus(orderId, { status: "PAYMENT_VERIFICATION_FAILED", fulfillmentError: paymentCheck.reason } as any);
     return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: paymentCheck.reason || "Payment verification failed." };
+  }
+  if (authorityOrder.origin === "ADMIN_COMP") {
+    try { const { markAdminCompPaymentPaid } = await import("./admin-comp-service"); await markAdminCompPaymentPaid(orderId, paymentIntentId); }
+    catch (error) {
+      return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: `Admin payment binding reconciliation required: ${error instanceof Error ? error.message : "payment request mismatch"}` };
+    }
   }
   // The analytics projection is durable and retryable. If it cannot be enqueued, do
   // not lose the capture-to-analytics boundary; a retry deduplicates the capture and
@@ -225,6 +268,10 @@ export async function processPaidOrder(
     idempotencyKey: `outbox_analytics_${orderId}_${paymentIntentId}`,
     payload: { operationId: operationId || null, amountInCents: capturedAmountCents, currency: paymentCurrency, isLive: isLivePayment, status: authorityOrder.status },
   });
+  if (authorityOrder.origin === "ADMIN_COMP" && process.env.STAGING_REVIEW_ONLY === "true") {
+    await updateOrderStatus(orderId, { status: "PAYMENT_RECEIVED", adminCompLifecycle: "review_only_held", fulfillmentStatus: "ADMIN_COMP_REVIEW_HOLD", fulfillmentError: "Staging review guard prevents supplier fulfillment." } as any);
+    return { success: true, status: "PAYMENT_RECEIVED", error: "Admin order is held for staging review; supplier fulfillment is disabled." };
+  }
   if (authorityOrder.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") {
     return { success: true, status: authorityOrder.status, alreadyProcessed: true, error: "International preview order is held for review; supplier fulfillment is disabled." };
   }
@@ -421,7 +468,7 @@ export async function processPaidOrder(
   const verifiedAmountInCents = order.finalAmountInCents ?? order.amountInCents;
   const isEligibleLiveCustomerPayment =
     Number.isInteger(verifiedAmountInCents) && verifiedAmountInCents > 0 &&
-    clientContext?.paymentMode === "live" && !clientContext.isTest &&
+    authorityOrder.origin !== "ADMIN_COMP" && clientContext?.paymentMode === "live" && !clientContext.isTest &&
     !order.isTest && !order.isComp && !order.isFounderTest && !order.isInternationalPreview &&
     order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD" && order.paymentMethod === "STRIPE";
   if (isEligibleLiveCustomerPayment) {
@@ -647,7 +694,7 @@ export async function processPaidOrder(
   }
 
   // 9. Dispatch Meta Conversions API (CAPI) Purchase Event (deduplicated via event_id: orderId)
-  if (!order.metaCapiTrackedAt) {
+  if (!order.metaCapiTrackedAt && order.origin !== "ADMIN_COMP" && !order.isComp && order.paymentMethod !== "STUDIO_COMP") {
     try {
       await sendMetaCapiPurchaseEvent({
         order: {
@@ -692,4 +739,79 @@ export async function processPaidOrder(
     status: "PROCESSING_HANDWRYTTEN",
     handwryttenOrderId: fulfillment.order_id,
   };
+}
+
+/** Dispatches an explicitly accepted, fully comped admin order without creating a payment. */
+export async function processAdminCompOrder(orderId: string, fulfillmentAdapter: typeof fulfillHandwryttenOrder = fulfillHandwryttenOrder): Promise<ProcessPaidOrderResult> {
+  const existing = await getOrderById(orderId);
+  if (!existing) return { success: false, status: "NOT_FOUND", error: "Order not found." };
+  if (existing.origin !== "ADMIN_COMP" || !existing.adminCompQuote ||
+      !isAdminCompQuoteSnapshotValid(existing.adminCompQuote) || existing.adminCompQuoteId !== existing.adminCompQuote.quoteId ||
+      existing.adminCompQuote.customerPayableCents !== 0) {
+    return { success: false, status: "QUEUED_FOR_FULFILLMENT", error: "Only a verified zero-balance admin comp can be dispatched." };
+  }
+  if (existing.fulfillmentStatus === "ADMIN_COMP_REVIEW_HOLD" || existing.adminCompLifecycle === "review_only_held" || existing.isInternationalPreview) {
+    return { success: false, status: "QUEUED_FOR_FULFILLMENT", error: "Staging-held or international preview admin orders cannot be dispatched after a configuration change." };
+  }
+  if (process.env.STAGING_REVIEW_ONLY === "true") {
+    await updateOrderStatus(orderId, { adminCompLifecycle: "review_only_held", fulfillmentStatus: "ADMIN_COMP_REVIEW_HOLD", updatedAt: Date.now() } as any);
+    return { success: true, status: "PAYMENT_RECEIVED", error: "Staging review only: dispatch is held." };
+  }
+  if (await isOperationalControlPaused("fulfillment")) {
+    await updateOrderStatus(orderId, { adminCompLifecycle: "paid_ready", status: "QUEUED_FOR_FULFILLMENT", fulfillmentError: "Supplier submission is paused by an administrator." } as any);
+    return { success: true, status: "QUEUED_FOR_FULFILLMENT" };
+  }
+  let order: Order;
+  try {
+    order = await firestoreDb.runTransaction(async (tx: any) => {
+      const ref = getOrdersCollection().doc(orderId);
+      const snap = await tx.get(ref);
+      if (!snap.exists) throw new Error("Order not found.");
+      const current = snap.data() as Order;
+      if (current.origin !== "ADMIN_COMP" || current.amountInCents !== 0 || !current.adminCompQuote ||
+          !isAdminCompQuoteSnapshotValid(current.adminCompQuote) || current.adminCompQuote.customerPayableCents !== 0 ||
+          current.adminCompQuoteId !== current.adminCompQuote.quoteId) throw new Error("Only a verified zero-balance admin comp can be dispatched.");
+      if (current.fulfillmentStatus === "ADMIN_COMP_REVIEW_HOLD" || current.isInternationalPreview) throw new Error("Staging-held or international preview admin orders cannot be dispatched after a configuration change.");
+      if (current.addressDeferred || current.address_deferred) throw new Error("Address-deferred admin orders cannot be dispatched.");
+      if (["DISPATCHING", "PROCESSING_HANDWRYTTEN", "MAILED", "AWAITING_RECIPIENT_ADDRESS", "DISPATCH_UNCERTAIN"].includes(current.status)) {
+        throw new DuplicateDispatchError(current.status, current.handwryttenOrderId);
+      }
+      const country = normalizeCountryCode(current.recipientAddress?.country) || (current.recipientAddress?.country ? null : "US");
+      const supplier = country && getSupplierCountry(country);
+      if (!country || !supplier || supplier.suspended || (country !== "US" && current.supplierCountryId !== supplier.supplierCountryId)) throw new Error("Accepted supplier country mapping is missing or invalid.");
+      const sender = validatePersonalSender(current.returnAddress);
+      if (!sender.valid) throw new Error(sender.error || "Personal US return address required.");
+      const { validateMailingAddress } = await import("./mailing-destinations");
+      const address = validateMailingAddress(current.recipientAddress);
+      if (!address.valid) throw new Error(address.errors[0] || "Recipient address is incomplete.");
+      if (current.fulfillmentStatus === "ADMIN_COMP_SUPPLIER_ACCEPTED") throw new DuplicateDispatchError("PROCESSING_HANDWRYTTEN", current.handwryttenOrderId);
+      tx.update(ref, { status: "DISPATCHING", adminCompLifecycle: "dispatching", dispatchStartedAt: Date.now(), updatedAt: Date.now() });
+      return { ...current, status: "DISPATCHING", adminCompLifecycle: "dispatching" };
+    });
+  } catch (error) {
+    if (error instanceof DuplicateDispatchError) {
+      if (error.status === "DISPATCH_UNCERTAIN") return { success: false, status: error.status, handwryttenOrderId: error.handwryttenOrderId, error: "Supplier submission outcome is uncertain; reconcile before retrying." };
+      return { success: true, status: error.status, handwryttenOrderId: error.handwryttenOrderId, alreadyProcessed: true };
+    }
+    return { success: false, status: "QUEUED_FOR_FULFILLMENT", error: error instanceof Error ? error.message : "Admin comp validation failed." };
+  }
+  let fulfillment: Awaited<ReturnType<typeof fulfillHandwryttenOrder>>;
+  try {
+    fulfillment = await fulfillmentAdapter({
+      orderId, imageUrl: order.frontImageUrl, printedGreeting: order.printedMessage,
+      handwrittenMessage: order.handwrittenNote, fontId: order.fontStyleId || "1",
+      recipient: order.recipientAddress, returnAddress: order.returnAddress,
+      scheduledSendDate: order.scheduledSendDate,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Supplier submission outcome is unconfirmed.";
+    await updateOrderStatus(orderId, { status: "DISPATCH_UNCERTAIN", adminCompLifecycle: "failed", fulfillmentError: message } as any);
+    return { success: false, status: "DISPATCH_UNCERTAIN", error: message };
+  }
+  if (!fulfillment.success) {
+    await updateOrderStatus(orderId, { status: "DISPATCH_UNCERTAIN", adminCompLifecycle: "failed", fulfillmentError: fulfillment.error || "Supplier outcome unconfirmed." } as any);
+    return { success: false, status: "DISPATCH_UNCERTAIN", error: fulfillment.error || "Supplier outcome unconfirmed." };
+  }
+  await updateOrderStatus(orderId, { status: "PROCESSING_HANDWRYTTEN", adminCompLifecycle: "supplier_accepted", fulfillmentStatus: "ADMIN_COMP_SUPPLIER_ACCEPTED", handwryttenOrderId: fulfillment.order_id, fulfillmentError: undefined } as any);
+  return { success: true, status: "PROCESSING_HANDWRYTTEN", handwryttenOrderId: fulfillment.order_id };
 }
