@@ -417,28 +417,36 @@ export async function processPaidOrder(
     };
   }
 
-  // Record server authority telemetry for verified purchase
-  try {
-    if (clientContext?.simulateAnalyticsOutage) {
-      throw new Error("Simulated analytics telemetry outage");
+  // Record revenue authority only for positive, live Stripe customer captures.
+  const verifiedAmountInCents = order.finalAmountInCents ?? order.amountInCents;
+  const isEligibleLiveCustomerPayment =
+    Number.isInteger(verifiedAmountInCents) && verifiedAmountInCents > 0 &&
+    clientContext?.paymentMode === "live" && !clientContext.isTest &&
+    !order.isTest && !order.isComp && !order.isFounderTest && !order.isInternationalPreview &&
+    order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD" && order.paymentMethod === "STRIPE";
+  if (isEligibleLiveCustomerPayment) {
+    try {
+      if (clientContext?.simulateAnalyticsOutage) {
+        throw new Error("Simulated analytics telemetry outage");
+      }
+      const rawSessionId =
+        (order.attribution as any)?.sessionId ||
+        order.sessionId ||
+        `sess_${orderId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}`;
+      await recordServerTelemetry({
+        eventName: "purchase_verified",
+        sessionId: rawSessionId,
+        orderId,
+        metadata: {
+          amountInCents: capturedAmountCents,
+          isTest: Boolean(clientContext?.isTest || order.isTest),
+          paymentMode: clientContext?.paymentMode || order.paymentMode || "stripe_test",
+        },
+        experienceVersion: order.experienceVersion,
+      });
+    } catch (telErr) {
+      console.warn("[OrderProcessor] Notice recording purchase_verified telemetry:", telErr);
     }
-    const rawSessionId =
-      (order.attribution as any)?.sessionId ||
-      order.sessionId ||
-      `sess_${orderId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}`;
-    await recordServerTelemetry({
-      eventName: "purchase_verified",
-      sessionId: rawSessionId,
-      orderId,
-      metadata: {
-        amountInCents: capturedAmountCents,
-        isTest: Boolean(clientContext?.isTest || order.isTest),
-        paymentMode: clientContext?.paymentMode || order.paymentMode || "stripe_test",
-      },
-      experienceVersion: order.experienceVersion,
-    });
-  } catch (telErr) {
-    console.warn("[OrderProcessor] Notice recording purchase_verified telemetry:", telErr);
   }
 
   // 4. Record discount code usage metrics if applicable

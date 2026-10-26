@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { saveOrder } from "@/lib/firebase-admin";
+import { saveOrder, getSystemConfig } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { PaymentModeConfigError, normalizeStripeSecretKey, resolvePaymentMode } from "@/lib/payment-mode";
 import { validatePersonalSender } from "@/lib/order-processor";
@@ -12,6 +12,7 @@ import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
 import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout } from "@/lib/mailing-destinations";
 import { calculateOrderQuote } from "@/lib/order-pricing";
+import { sanitizeOrderAttribution } from "@/lib/order-attribution";
 
 export async function POST(req: NextRequest) {
   const operationId = resolveOperationId(req, "checkout");
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
       userId,
       scheduledSendDate,
       discountCode: rawDiscountCode,
-      attribution,
+      attribution: rawAttribution,
       recipientOccasion,
       occasion,
       sessionId,
@@ -40,6 +41,16 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const isAddressDeferred = Boolean(body.addressDeferred || body.address_deferred);
+    const attribution = sanitizeOrderAttribution(rawAttribution);
+    let isFounderTest = req.cookies.get("smn_founder_device")?.value === "1";
+    if (!isFounderTest && typeof sessionId === "string") {
+      try {
+        const founderRegistry = await getSystemConfig<{ sessionIds?: string[] }>("founder_device_registry");
+        isFounderTest = Boolean(founderRegistry?.sessionIds?.includes(sessionId));
+      } catch {
+        // Classification is best effort; checkout must not depend on the admin registry.
+      }
+    }
     const normalizedCountry = recipientAddress?.country === undefined ? "US" : normalizeCountryCode(recipientAddress.country);
     if (!normalizedCountry) return NextResponse.json({ error: "A valid recipient country is required." }, { status: 400 });
     const supplierDestination = normalizedCountry === "US" ? null : getEnabledDestination(normalizedCountry);
@@ -203,6 +214,7 @@ export async function POST(req: NextRequest) {
         ...(appliedOfferId ? { appliedOfferId } : {}),
         ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
         listPriceCents: CARD_FLAT_RATE_CENTS,
+        isFounderTest,
         ...(attribution ? { attribution } : {}),
         ...(sessionId ? { sessionId } : {}),
         ...(experienceVersion ? { experienceVersion } : {}),
@@ -286,6 +298,7 @@ export async function POST(req: NextRequest) {
       ...(appliedOfferId ? { appliedOfferId } : {}),
       ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
       listPriceCents: CARD_FLAT_RATE_CENTS,
+      isFounderTest,
       ...(attribution ? { attribution } : {}),
       ...(sessionId ? { sessionId } : {}),
       ...(experienceVersion ? { experienceVersion } : {}),

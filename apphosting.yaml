@@ -68,7 +68,7 @@ env:
       - RUNTIME
 
   - variable: NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_LABEL
-    value: ZzzVCMqAjoUdELvPpOlE
+    value: RAmzCLzyvKodELvPpOlE
     availability:
       - BUILD
       - RUNTIME
@@ -84,4 +84,3 @@ env:
     availability:
       - BUILD
       - RUNTIME
-

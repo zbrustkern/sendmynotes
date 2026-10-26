@@ -404,6 +404,7 @@ async function runPaymentModeSafetyTests() {
     const testOrderId = `order_testmode_safety_${Date.now()}`;
     const testOrder: Order = {
       id: testOrderId,
+      stripePaymentId: `pi_test_${testOrderId}`,
       customerEmail: "buyer@example.com",
       frontImageUrl: "https://example.com/cover.jpg",
       printedMessage: "Happy Day",

@@ -94,6 +94,7 @@ export const ALLOWED_BROWSER_EVENT_NAMES = new Set<string>([
   "payment_viewed",
   "wallet_availability_observed",
   "payment_confirmation_observed",
+  "conversion_queue_observed",
   "payment_attempted",
   "payment_canceled",
   "payment_failed",
@@ -289,6 +290,10 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     amountInCents: { type: "number" },
     in_app_browser: { type: "boolean" },
     used_address_deferral: { type: "boolean" },
+  },
+  conversion_queue_observed: {
+    destination: { type: "string", maxLength: 20 },
+    state: { type: "string", maxLength: 20 },
   },
   payment_attempted: {
     paymentMethodType: { type: "string", maxLength: 50 },
@@ -706,4 +711,10 @@ export function sanitizeGoogleClientId(raw: unknown): string | undefined {
     return trimmed;
   }
   return undefined;
+}
+
+export function sanitizeGoogleClientIdNormalized(raw: unknown): string | undefined {
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return /^\d{1,20}\.\d{1,20}$/.test(trimmed) ? trimmed : undefined;
 }

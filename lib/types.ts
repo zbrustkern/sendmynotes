@@ -74,6 +74,8 @@ export interface OrderAttribution {
   utmContent?: string;
   utmTerm?: string;
   gclid?: string;
+  wbraid?: string;
+  gbraid?: string;
   fbclid?: string;
   fbp?: string; // Meta Pixel browser cookie (_fbp)
   fbc?: string; // Meta click identifier (_fbc or formatted from fbclid)
@@ -82,9 +84,11 @@ export interface OrderAttribution {
   referrer?: string;
   landingPath?: string;
   googleClientId?: string;
+  googleClientIdNormalized?: string;
   gpc?: boolean; // Global Privacy Control signal detected
   optOut?: boolean; // User opted out of marketing tracking
   capturedAt?: number;
+  expiresAt?: number;
 }
 
 export interface Order {
@@ -137,10 +141,22 @@ export interface Order {
   isFounderTest?: boolean;
   paymentMode?: "live" | "stripe_test" | "local_mock";
   finalAmountInCents?: number;
+  purchaseMeasurement?: PurchaseMeasurementSnapshot;
   experienceVersion?: string;
   sessionId?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+export interface PurchaseMeasurementSnapshot {
+  version: 1;
+  transactionId: string;
+  amountInCents: number;
+  currency: "USD";
+  verifiedAt: number;
+  eligible: boolean;
+  reason: "eligible" | "test_payment" | "non_customer" | "invalid_capture" | "amount_mismatch" | "currency_mismatch" | "binding_mismatch" | "known_refund";
+  refundStatus: "unknown" | "fully_refunded";
 }
 
 export type DiscountType = "PERCENTAGE" | "FIXED_AMOUNT";
@@ -284,6 +300,7 @@ export type TelemetryEventName =
   | "payment_confirmation_observed"
   | "payment_canceled"
   | "reminder_opt_in"
+  | "conversion_queue_observed"
   // Server-only authority events (§10):
   | "purchase_verified"
   | "fulfillment_submitted"
@@ -309,10 +326,13 @@ export interface TelemetryEvent {
   utmContent?: string;
   utmTerm?: string;
   gclid?: string;
+  wbraid?: string;
+  gbraid?: string;
   fbclid?: string;
   referrer?: string;
   landingPath?: string;
   googleClientId?: string; // from _ga cookie
+  googleClientIdNormalized?: string;
   deviceType?: "mobile" | "tablet" | "desktop";
   screenResolution?: string;
   ipCity?: string;
@@ -446,6 +466,8 @@ export interface VisitorSessionRecord {
   medium: string;
   campaign?: string;
   gclid?: string;
+  wbraid?: string;
+  gbraid?: string;
   fbclid?: string;
   deviceType: "mobile" | "tablet" | "desktop";
   screenResolution?: string;
@@ -454,6 +476,7 @@ export interface VisitorSessionRecord {
   country?: string;
   landingPath?: string;
   googleClientId?: string;
+  googleClientIdNormalized?: string;
   userAgent?: string;
   isBot?: boolean;
   inAppBrowser?: boolean;

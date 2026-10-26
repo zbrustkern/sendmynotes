@@ -34,6 +34,8 @@ function sanitizeOrderForPublicView(order: Order): Order {
     },
     handwrittenNote: "Handwritten card note protected for privacy. Verify billing email or delivery ZIP code to view full note.",
     stripePaymentId: undefined,
+    purchaseMeasurement: undefined,
+    attribution: undefined,
     viewToken: undefined,
     isRedacted: true,
   };

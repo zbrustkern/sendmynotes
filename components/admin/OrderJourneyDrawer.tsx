@@ -69,6 +69,7 @@ export function OrderJourneyDrawer({
   const [localTimeline, setLocalTimeline] = useState<UnifiedEvidenceTimeline | null>(externalTimeline || null);
   const [loadingTimeline, setLoadingTimeline] = useState(false);
   const [activeAction, setActiveAction] = useState<string | null>(null);
+  const [queueObservations, setQueueObservations] = useState<Record<string, { state: string; timestamp: number; clientReported: true }>>({});
 
   const orderId = "orderId" in order ? order.orderId : order.id;
 
@@ -99,6 +100,16 @@ export function OrderJourneyDrawer({
       isMounted = false;
     };
   }, [orderId, externalTimeline]);
+
+  useEffect(() => {
+    let active = true;
+    setQueueObservations({});
+    fetch(`/api/admin/conversion-queue?orderId=${encodeURIComponent(orderId)}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (active && data?.observations) setQueueObservations(data.observations); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [orderId]);
 
   const handleCopy = (fieldKey: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -445,6 +456,19 @@ export function OrderJourneyDrawer({
               Campaign: {(order as any).campaign}
             </p>
           )}
+          <p className="text-[11px] text-stone-600 truncate">
+            Google click IDs: {[attr?.gclid && "gclid", attr?.wbraid && "wbraid", attr?.gbraid && "gbraid"].filter(Boolean).join(", ") || "Unknown"}
+          </p>
+          <div className="border-t border-stone-100 pt-2 space-y-1">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Purchase measurement</span>
+            <p className="text-[11px] text-stone-700">Payment verification: {(order as any).purchaseMeasurement ? `${(order as any).purchaseMeasurement.eligible ? "eligible" : (order as any).purchaseMeasurement.reason} · ${(order as any).purchaseMeasurement.currency} ${(((order as any).purchaseMeasurement.amountInCents || 0) / 100).toFixed(2)}` : "Unknown"}</p>
+            <p className="text-[11px] text-stone-700">
+              Browser queue: {(["google_ads", "ga4"] as const).map((destination, index) => {
+                const observation = queueObservations[destination];
+                return <React.Fragment key={destination}>{index ? " · " : ""}{destination === "google_ads" ? "Ads" : "GA4"}: {observation ? `${observation.state} (client-reported ${new Date(observation.timestamp).toLocaleString()})` : "Unknown"}</React.Fragment>;
+              })} · client-reported; not payment authority
+            </p>
+          </div>
         </div>
 
         {/* Customer & Creative */}

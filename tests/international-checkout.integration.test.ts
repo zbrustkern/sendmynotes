@@ -122,7 +122,7 @@ async function run() {
       const wrongPayment = await confirmOrderPost(await postJson("/api/checkout/confirm-order", {
         orderId: discounted.orderId, paymentIntentId: "pi_forged_different_order",
       }));
-      assert.equal(wrongPayment.status, 200);
+      assert.equal(wrongPayment.status, 400, "unbound PaymentIntent is rejected before any payment-provider retrieval");
       const wrongPaymentBody = await wrongPayment.json();
       assert.equal(wrongPaymentBody.success, false, "caller cannot substitute another PaymentIntent identity");
 

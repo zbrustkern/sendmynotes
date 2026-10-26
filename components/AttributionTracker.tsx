@@ -4,10 +4,35 @@ import { useEffect, useRef, Suspense } from "react";
 import { useSearchParams, usePathname } from "next/navigation";
 import { OrderAttribution } from "@/lib/types";
 import { getGoogleClientId } from "@/lib/telemetry";
+import { GA4_MEASUREMENT_ID } from "@/lib/google-ads";
+import { mayStoreGoogleClientId } from "@/lib/order-attribution";
 import { trackMetaPageView, getMetaBrowserCookie, buildMetaFbcString } from "@/lib/meta-ads";
 import { sanitizeUrlOrPath, sanitizeAttribution } from "@/lib/telemetry-schema";
 
 export const SMN_ATTRIBUTION_KEY = "smn_attribution";
+function persistAttribution(attribution: OrderAttribution): void {
+  inMemoryAttribution = attribution;
+  try { sessionStorage.setItem(SMN_ATTRIBUTION_KEY, JSON.stringify(attribution)); } catch { /* in-memory fallback */ }
+  try { localStorage.setItem(SMN_ATTRIBUTION_KEY, JSON.stringify(attribution)); } catch { /* in-memory fallback */ }
+}
+
+function boundedParam(value: string | undefined, max = 255): string | undefined {
+  if (!value) return undefined;
+  const clean = value.trim();
+  if (!clean || clean.length > max || /@|[\r\n\0]/.test(clean)) return undefined;
+  return clean;
+}
+
+function boundedGoogleClickId(value: string | undefined): string | undefined {
+  const clean = boundedParam(value, 255);
+  return clean && /^[A-Za-z0-9._~-]+$/.test(clean) ? clean : undefined;
+}
+
+function normalizedClientIdFromCookie(): string | undefined {
+  const raw = getGoogleClientId();
+  const match = raw?.match(/^GA\d+\.\d+\.(\d+\.\d+)$/);
+  return match?.[1];
+}
 
 // In-memory fallback if sessionStorage/localStorage is blocked or throws (e.g. Safari private quota)
 let inMemoryAttribution: OrderAttribution | null = null;
@@ -68,6 +93,13 @@ export function getStoredAttribution(): OrderAttribution | null {
     if (!raw) return inMemoryAttribution;
 
     const parsed = JSON.parse(raw) as OrderAttribution;
+    const expiresAt = parsed.expiresAt || (parsed.capturedAt ? parsed.capturedAt + 90 * 24 * 60 * 60 * 1000 : 0);
+    if (!expiresAt || expiresAt <= Date.now()) {
+      try { sessionStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
+      try { localStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
+      inMemoryAttribution = null;
+      return null;
+    }
 
     // Check if _fbp or _fbc became available after the initial attribution was saved
     let changed = false;
@@ -91,8 +123,7 @@ export function getStoredAttribution(): OrderAttribution | null {
     }
 
     if (changed) {
-      safeSetStorage(SMN_ATTRIBUTION_KEY, JSON.stringify(parsed));
-      inMemoryAttribution = parsed;
+      persistAttribution(parsed);
     }
 
     return parsed;
@@ -132,16 +163,18 @@ function AttributionTrackerInner() {
         }
       }
 
-      const utmSource = sanitizeAttribution(searchParams.get("utm_source")) || undefined;
-      const utmMedium = sanitizeAttribution(searchParams.get("utm_medium")) || undefined;
-      const utmCampaign = sanitizeAttribution(searchParams.get("utm_campaign")) || undefined;
-      const utmContent = sanitizeAttribution(searchParams.get("utm_content")) || undefined;
-      const utmTerm = sanitizeAttribution(searchParams.get("utm_term")) || undefined;
-      const gclid = sanitizeAttribution(searchParams.get("gclid"), 255) || undefined;
-      const fbclid = sanitizeAttribution(searchParams.get("fbclid"), 255) || undefined;
+      const utmSource = boundedParam(searchParams.get("utm_source") || undefined, 100);
+      const utmMedium = boundedParam(searchParams.get("utm_medium") || undefined, 100);
+      const utmCampaign = boundedParam(searchParams.get("utm_campaign") || undefined, 100);
+      const utmContent = boundedParam(searchParams.get("utm_content") || undefined, 100);
+      const utmTerm = boundedParam(searchParams.get("utm_term") || undefined, 100);
+      const gclid = boundedGoogleClickId(searchParams.get("gclid") || undefined);
+      const wbraid = boundedGoogleClickId(searchParams.get("wbraid") || undefined);
+      const gbraid = boundedGoogleClickId(searchParams.get("gbraid") || undefined);
+      const fbclid = boundedParam(searchParams.get("fbclid") || undefined);
 
       const hasCampaignParams = Boolean(
-        utmSource || utmMedium || utmCampaign || gclid || fbclid || utmContent || utmTerm
+        utmSource || utmMedium || utmCampaign || gclid || wbraid || gbraid || fbclid || utmContent || utmTerm
       );
 
       // Extract Meta cookies
@@ -156,9 +189,10 @@ function AttributionTrackerInner() {
 
       // If user landed with campaign parameters, overwrite or set attribution
       if (hasCampaignParams) {
-        const defaultSource = gclid ? "google" : fbclid ? "meta" : undefined;
-        const defaultMedium = gclid || fbclid ? "cpc" : undefined;
-        const defaultCampaign = gclid ? "Google Ads" : fbclid ? "Meta Ads" : undefined;
+        const googleClick = gclid || wbraid || gbraid;
+        const defaultSource = googleClick ? "google" : fbclid ? "meta" : undefined;
+        const defaultMedium = googleClick || fbclid ? "cpc" : undefined;
+        const defaultCampaign = googleClick ? "Google Ads" : fbclid ? "Meta Ads" : undefined;
 
         const attribution: OrderAttribution = {
           utmSource: utmSource || defaultSource,
@@ -166,19 +200,22 @@ function AttributionTrackerInner() {
           utmCampaign: utmCampaign || defaultCampaign,
           utmContent,
           utmTerm,
-          gclid,
+          gclid: isGpcActive ? undefined : gclid,
+          wbraid: isGpcActive ? undefined : wbraid,
+          gbraid: isGpcActive ? undefined : gbraid,
           fbclid,
           fbp: fbp || undefined,
           fbc: fbc || undefined,
           referrer: cleanReferrer,
           landingPath: cleanLandingPath,
-          googleClientId: getGoogleClientId(),
+          googleClientId: isGpcActive ? undefined : getGoogleClientId(),
+          googleClientIdNormalized: isGpcActive ? undefined : normalizedClientIdFromCookie(),
           gpc: isGpcActive || undefined,
           capturedAt: Date.now(),
+          expiresAt: Date.now() + 90 * 24 * 60 * 60 * 1000,
         };
 
-        inMemoryAttribution = attribution;
-        safeSetStorage(SMN_ATTRIBUTION_KEY, JSON.stringify(attribution));
+        persistAttribution(attribution);
         return;
       }
 
@@ -187,6 +224,12 @@ function AttributionTrackerInner() {
       if (existing) {
         try {
           const parsed = JSON.parse(existing) as OrderAttribution;
+          const expiresAt = parsed.expiresAt || (parsed.capturedAt ? parsed.capturedAt + 90 * 24 * 60 * 60 * 1000 : 0);
+          if (!expiresAt || expiresAt <= Date.now()) {
+            try { sessionStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
+            try { localStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
+            inMemoryAttribution = null;
+          } else {
           let updated = false;
           if (!parsed.fbp && fbp) {
             parsed.fbp = fbp;
@@ -197,15 +240,13 @@ function AttributionTrackerInner() {
             updated = true;
           }
           if (updated) {
-            inMemoryAttribution = parsed;
-            safeSetStorage(SMN_ATTRIBUTION_KEY, JSON.stringify(parsed));
-          } else {
-            inMemoryAttribution = parsed;
+            persistAttribution(parsed);
+          }
+          return;
           }
         } catch {
           // ignore
         }
-        return;
       }
 
       // First time visitor without UTMs: classify referrer
@@ -266,14 +307,45 @@ function AttributionTrackerInner() {
         fbc: fbc || undefined,
         gpc: isGpcActive || undefined,
         capturedAt: Date.now(),
+        expiresAt: Date.now() + 90 * 24 * 60 * 60 * 1000,
       };
 
-      inMemoryAttribution = defaultAttribution;
-      safeSetStorage(SMN_ATTRIBUTION_KEY, JSON.stringify(defaultAttribution));
+      persistAttribution(defaultAttribution);
     } catch (e) {
       console.warn("[Attribution Tracker] Non-fatal capture notice:", e);
     }
   }, [searchParams, pathname]);
+
+  // Keep the historical raw _ga value intact; store Google's normalized client ID separately.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let active = true;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attemptBackfill = () => {
+      const gpcActive = typeof navigator !== "undefined" && (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+      if (!active || !mayStoreGoogleClientId(gpcActive, getStoredAttribution())) return;
+      attempts++;
+      const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+      if (typeof win.gtag !== "function") {
+        if (attempts < 6) timer = setTimeout(attemptBackfill, 500);
+        return;
+      }
+      try {
+        win.gtag("get", GA4_MEASUREMENT_ID, "client_id", (clientId: unknown) => {
+          if (!active) return;
+          const callbackGpcActive = typeof navigator !== "undefined" && (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+          const attr = getStoredAttribution();
+          if (!mayStoreGoogleClientId(callbackGpcActive, attr)) return;
+          if (typeof clientId !== "string" || clientId.length > 100) return;
+          if (!attr || attr.googleClientIdNormalized) return;
+          persistAttribution({ ...attr, googleClientIdNormalized: clientId });
+        });
+      } catch { /* tag client ID is optional */ }
+    };
+    attemptBackfill();
+    return () => { active = false; if (timer) clearTimeout(timer); };
+  }, [pathname]);
 
   return null;
 }

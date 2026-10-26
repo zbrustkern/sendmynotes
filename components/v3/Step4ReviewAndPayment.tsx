@@ -33,6 +33,7 @@ import { evaluatePaymentSubmission } from "@/lib/payment-mode";
 import { trackEvent, trackEventV2 } from "@/lib/telemetry";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
+import { markGoogleAdsCheckoutActive, clearGoogleAdsCheckoutActive } from "@/lib/google-ads";
 
 export interface AppliedDiscountInfo {
   code: string;
@@ -58,6 +59,7 @@ interface Step4ReviewAndPaymentProps {
   customerEmail: string;
   onChangeCustomerEmail: (email: string) => void;
   orderId: string;
+  viewToken?: string | null;
   clientSecret: string | null;
   publishableKey: string | null;
   isMock: boolean;
@@ -88,6 +90,7 @@ interface InnerPaymentProps {
   customerEmail: string;
   onChangeCustomerEmail: (email: string) => void;
   orderId: string;
+  viewToken?: string | null;
   isMock: boolean;
   isFree: boolean;
   amountInCents?: number;
@@ -113,6 +116,7 @@ function InnerPaymentForm({
   customerEmail,
   onChangeCustomerEmail,
   orderId,
+  viewToken,
   isMock,
   isFree,
   amountInCents,
@@ -239,6 +243,7 @@ function InnerPaymentForm({
         return;
       }
 
+      markGoogleAdsCheckoutActive(orderId, viewToken);
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
@@ -249,6 +254,7 @@ function InnerPaymentForm({
       });
 
       if (error) {
+        clearGoogleAdsCheckoutActive(orderId);
         setErrorMessage(error.message || "Wallet payment failed. Please use card below.");
         trackEventV2("payment_failed", {
           attemptId,
@@ -313,6 +319,7 @@ function InnerPaymentForm({
         onPaymentSuccess(orderId, null, "RECONCILING");
       }
     } catch (err) {
+      clearGoogleAdsCheckoutActive(orderId);
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
       trackEventV2("payment_failed", {
@@ -449,6 +456,7 @@ function InnerPaymentForm({
     });
 
     try {
+      markGoogleAdsCheckoutActive(orderId, viewToken);
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
@@ -459,6 +467,7 @@ function InnerPaymentForm({
       });
 
       if (error) {
+        clearGoogleAdsCheckoutActive(orderId);
         setErrorMessage(error.message || "Payment declined. Please check your card information.");
         trackEventV2("payment_failed", {
           attemptId,
@@ -523,6 +532,7 @@ function InnerPaymentForm({
         onPaymentSuccess(orderId, null, "RECONCILING");
       }
     } catch (err) {
+      clearGoogleAdsCheckoutActive(orderId);
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
       trackEventV2("payment_failed", {

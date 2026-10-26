@@ -18,6 +18,7 @@ import {
   recordPaymentDisputeFact,
 } from "@/lib/financial-ledger";
 import Stripe from "stripe";
+import { buildPurchaseMeasurement, persistPurchaseMeasurement, validateVerifiedCapture } from "@/lib/purchase-measurement";
 
 
 export async function POST(req: NextRequest) {
@@ -149,6 +150,37 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      const latestOrder = await getOrderById(orderId);
+      if (!latestOrder) {
+        console.warn("[Webhook] PaymentIntent references a missing order.");
+        return NextResponse.json({ received: true, error: "Order not found" }, { status: 200 });
+      }
+      if (paymentIntent.status !== "succeeded") {
+        return NextResponse.json({ received: true, error: "PaymentIntent is not succeeded" }, { status: 200 });
+      }
+      const captureError = validateVerifiedCapture(latestOrder, {
+        paymentIntentId: paymentIntent.id,
+        amount: paymentIntent.amount,
+        amountReceived: paymentIntent.amount_received,
+        currency: paymentIntent.currency,
+      });
+      if (captureError || paymentIntent.metadata?.orderId !== latestOrder.id || event.livemode !== paymentIntent.livemode) {
+        const reason = captureError || "PaymentIntent order binding or livemode mismatch.";
+        await logIncident({ type: "WEBHOOK", severity: "error", summary: "Stripe capture verification failed", technicalDetails: reason });
+        return NextResponse.json({ received: true, error: reason }, { status: 200 });
+      }
+      try {
+        await persistPurchaseMeasurement(orderId, buildPurchaseMeasurement(latestOrder, {
+          paymentIntentId: paymentIntent.id,
+          amount: paymentIntent.amount,
+          amountReceived: paymentIntent.amount_received,
+          currency: paymentIntent.currency,
+          livemode: paymentIntent.livemode,
+        }));
+      } catch {
+        console.warn("[Webhook] Purchase measurement snapshot write unavailable.");
+      }
+
       console.log(
         `[Webhook] Payment confirmed for Order ${orderId} (mode: ${paymentMode}, livemode: ${!isTestPayment}). Processing order...`
       );
@@ -183,14 +215,14 @@ export async function POST(req: NextRequest) {
       // A verified webhook may be the only completion signal the server receives. Redeem
       // the bound promotion here as well; the transaction is idempotent with client confirm.
       let offerRedemption: { status: "not_applicable" | "redeemed" | "reconciliation_required"; error?: string } = { status: "not_applicable" };
-      if (order?.discountCode) {
+      if (latestOrder.discountCode) {
         const redemption = await redeemOfferForOrder({
-          code: order.discountCode,
+          code: latestOrder.discountCode,
           orderId,
-          quoteId: order.quoteId,
-          discountAmountCents: order.discountAmountInCents || 0,
-          finalAmountCents: order.finalAmountInCents ?? order.amountInCents,
-          destinationSurchargeCents: order.quote?.internationalSurchargeCents || 0,
+          quoteId: latestOrder.quoteId,
+          discountAmountCents: latestOrder.discountAmountInCents || 0,
+          finalAmountCents: latestOrder.finalAmountInCents ?? latestOrder.amountInCents,
+          destinationSurchargeCents: latestOrder.quote?.internationalSurchargeCents || 0,
           verifiedCaptureId: paymentIntent.id,
           requireAuthoritativeBinding: true,
         });
@@ -210,25 +242,25 @@ export async function POST(req: NextRequest) {
 
       // Automated Transactional Email Dispatch (Resend + Google Secret Manager)
       try {
-        const order = await getOrderById(orderId);
-        if (order && !order.isInternationalPreview && !(process.env.STAGING_REVIEW_ONLY === "true" && (normalizeCountryCode(order.quote?.countryCode || order.recipientAddress?.country) || (order.recipientAddress?.country ? null : "US")) !== "US")) {
-          const customerEmail = paymentIntent.receipt_email || order.customerEmail;
+        const refreshedOrder = await getOrderById(orderId);
+        if (refreshedOrder && !refreshedOrder.isInternationalPreview && !(process.env.STAGING_REVIEW_ONLY === "true" && (normalizeCountryCode(refreshedOrder.quote?.countryCode || refreshedOrder.recipientAddress?.country) || (refreshedOrder.recipientAddress?.country ? null : "US")) !== "US")) {
+          const customerEmail = paymentIntent.receipt_email || refreshedOrder.customerEmail;
           const isAddressDeferred = Boolean(
-            order.addressDeferred ||
-              (order as any).address_deferred ||
-              order.status === "AWAITING_RECIPIENT_ADDRESS" ||
+            refreshedOrder.addressDeferred ||
+              (refreshedOrder as any).address_deferred ||
+              refreshedOrder.status === "AWAITING_RECIPIENT_ADDRESS" ||
               paymentIntent.metadata?.address_deferred === "true" ||
               paymentIntent.metadata?.addressDeferred === "true"
           );
 
-          if (customerEmail && !order.receiptEmailSentAt && !order.addressDeferredEmailSentAt) {
+          if (customerEmail && !refreshedOrder.receiptEmailSentAt && !refreshedOrder.addressDeferredEmailSentAt) {
             let delivery: { success: boolean; error?: string };
             if (isAddressDeferred) {
               console.log(
                 `[Webhook] Dispatching Scenario A (deferred address) receipt email to ${customerEmail} for order ${orderId}...`
               );
               delivery = await sendDeferredAddressReceiptEmail({
-                order,
+                order: refreshedOrder,
                 customerEmail,
               });
             } else {
@@ -236,7 +268,7 @@ export async function POST(req: NextRequest) {
                 `[Webhook] Dispatching Scenario B (penning confirmation) receipt email to ${customerEmail} for order ${orderId}...`
               );
               delivery = await sendOrderPenningReceiptEmail({
-                order,
+                order: refreshedOrder,
                 customerEmail,
               });
             }

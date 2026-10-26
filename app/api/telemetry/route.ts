@@ -10,6 +10,7 @@ import {
   validateDeviceType,
   sanitizeScreenResolution,
   sanitizeGoogleClientId,
+  sanitizeGoogleClientIdNormalized,
 } from "@/lib/telemetry-schema";
 import {
   ingestEventV2,
@@ -131,6 +132,8 @@ export async function POST(req: NextRequest) {
     const cleanUtmContent = sanitizeAttribution(body.utmContent);
     const cleanUtmTerm = sanitizeAttribution(body.utmTerm);
     const cleanGclid = sanitizeAttribution(body.gclid, 255);
+    const cleanWbraid = sanitizeAttribution(body.wbraid, 255);
+    const cleanGbraid = sanitizeAttribution(body.gbraid, 255);
     const cleanFbclid = sanitizeAttribution(body.fbclid, 255);
 
     // 8. Common context
@@ -255,11 +258,14 @@ export async function POST(req: NextRequest) {
       utmContent: cleanUtmContent,
       utmTerm: cleanUtmTerm,
       gclid: cleanGclid,
+      wbraid: cleanWbraid,
+      gbraid: cleanGbraid,
       fbclid: cleanFbclid,
       referrer: cleanReferrer,
       landingPath: cleanLandingPath,
       // Identity & Tech
       googleClientId: sanitizeGoogleClientId(body.googleClientId),
+      googleClientIdNormalized: sanitizeGoogleClientIdNormalized(body.googleClientIdNormalized),
       deviceType: validateDeviceType(body.deviceType),
       screenResolution: sanitizeScreenResolution(body.screenResolution),
       ipCity,
