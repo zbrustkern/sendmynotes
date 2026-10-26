@@ -6,7 +6,7 @@ import { recordPaymentCaptureFact, deriveCommercialKind } from "@/lib/financial-
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { logIncident } from "@/lib/incident-logger";
 import { verifyCheckoutQuoteIntegrity, redeemOfferForOrder } from "@/lib/offer-engine";
-import { buildPurchaseMeasurement, persistPurchaseMeasurement, validateVerifiedCapture } from "@/lib/purchase-measurement";
+import { buildPurchaseMeasurement, persistPurchaseMeasurement, projectPurchaseMeasurementForOrder, validateVerifiedCapture } from "@/lib/purchase-measurement";
 
 export async function POST(req: NextRequest) {
   try {
@@ -258,6 +258,7 @@ export async function POST(req: NextRequest) {
           currency: pi.currency,
           livemode: pi.livemode,
         }));
+        purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
       } catch {
         console.warn("[Confirm Order] Purchase measurement snapshot write unavailable.");
       }

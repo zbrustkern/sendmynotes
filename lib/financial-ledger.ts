@@ -386,6 +386,23 @@ export async function getFinancialFactsByPaymentIntent(
   return facts.sort((a, b) => a.occurredAt - b.occurredAt);
 }
 
+/** Retrieves only durable refund facts explicitly linked to a PaymentIntent. */
+export async function getPaymentIntentRefundFacts(
+  paymentIntentId: string
+): Promise<FinancialFactRecord[]> {
+  if (!paymentIntentId) return [];
+  const snapshot = await firestoreDb
+    .collection(FINANCIAL_FACTS_COLLECTION)
+    .where("paymentIntentId", "==", paymentIntentId)
+    .get();
+  const refunds: FinancialFactRecord[] = [];
+  snapshot.forEach((doc) => {
+    const fact = doc.data() as FinancialFactRecord;
+    if (fact.factType === "refund") refunds.push(fact);
+  });
+  return refunds.sort((a, b) => a.occurredAt - b.occurredAt);
+}
+
 /**
  * Lists all financial facts across the system.
  */

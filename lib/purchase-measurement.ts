@@ -1,4 +1,5 @@
 import { firestoreDb, getOrdersCollection } from "@/lib/firebase-admin";
+import { getPaymentIntentRefundFacts } from "@/lib/financial-ledger";
 import { Order, PurchaseMeasurementSnapshot } from "@/lib/types";
 
 export type VerifiedCapture = {
@@ -26,7 +27,6 @@ export function buildPurchaseMeasurement(
   capture: VerifiedCapture,
   now = Date.now()
 ): PurchaseMeasurementSnapshot {
-  const knownFullyRefunded = (order as Order & { fullyRefunded?: boolean }).fullyRefunded === true;
   const payableAmountInCents = Number.isInteger(order.finalAmountInCents)
     ? order.finalAmountInCents as number
     : order.amountInCents;
@@ -37,7 +37,6 @@ export function buildPurchaseMeasurement(
   else if (capture.amountReceived !== payableAmountInCents || capture.amount !== payableAmountInCents) reason = "amount_mismatch";
   else if (!capture.livemode || order.isTest || order.paymentMode === "stripe_test" || order.paymentMode === "local_mock") reason = "test_payment";
   else if (order.isComp || order.isFounderTest || order.paymentMethod !== "STRIPE" || order.isInternationalPreview || order.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") reason = "non_customer";
-  else if (knownFullyRefunded) reason = "known_refund";
 
   return {
     version: 1,
@@ -47,7 +46,7 @@ export function buildPurchaseMeasurement(
     verifiedAt: now,
     eligible: reason === "eligible",
     reason,
-    refundStatus: knownFullyRefunded ? "fully_refunded" : "unknown",
+    refundStatus: "unknown",
   };
 }
 
@@ -65,4 +64,29 @@ export async function persistPurchaseMeasurement(
     transaction.update(ref, { purchaseMeasurement: candidate, updatedAt: Date.now() });
     return candidate;
   });
+}
+
+/** Apply linked refund facts only to a returned view; the verified capture stays immutable. */
+export async function projectPurchaseMeasurementForOrder(
+  order: Order,
+  measurement: PurchaseMeasurementSnapshot | null | undefined
+): Promise<PurchaseMeasurementSnapshot | null> {
+  if (!measurement) return null;
+  if (measurement.refundStatus === "fully_refunded") {
+    return { ...measurement, eligible: false, reason: "known_refund", refundStatus: "fully_refunded" };
+  }
+
+  if (!order.stripePaymentId || measurement.amountInCents <= 0) return measurement;
+  try {
+    const refunds = await getPaymentIntentRefundFacts(order.stripePaymentId);
+    const fullyRefundedCents = refunds
+      .filter((fact) => fact.livemode && fact.currency?.toLowerCase() === "usd")
+      .reduce((total, fact) => total + Math.max(0, fact.amountCents), 0);
+    if (fullyRefundedCents >= measurement.amountInCents) {
+      return { ...measurement, eligible: false, reason: "known_refund", refundStatus: "fully_refunded" };
+    }
+  } catch {
+    // Unavailable ledger evidence remains unknown and does not block the receipt.
+  }
+  return measurement;
 }

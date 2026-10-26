@@ -17,11 +17,13 @@ async function main() {
   delete process.env.K_SERVICE;
 
   try {
-    const [{ saveOrder, getOrderById, firestoreDb }, { POST: confirmPost }, { POST: webhookPost }, { POST: queuePost }, measurement] = await Promise.all([
+    const [{ saveOrder, getOrderById, firestoreDb }, { POST: confirmPost }, { POST: webhookPost }, { POST: queuePost }, { GET: orderGet }, { recordPaymentRefundFact }, measurement] = await Promise.all([
       import("@/lib/firebase-admin"),
       import("@/app/api/checkout/confirm-order/route"),
       import("@/app/api/webhooks/stripe/route"),
       import("@/app/api/telemetry/conversion-queue/route"),
+      import("@/app/api/orders/[id]/route"),
+      import("@/lib/financial-ledger"),
       import("@/lib/purchase-measurement"),
     ]);
 
@@ -130,10 +132,10 @@ async function main() {
     assert.equal(measurement.buildPurchaseMeasurement({ ...order, amountInCents: 0 }, {
       paymentIntentId: order.stripePaymentId, amount: 0, amountReceived: 0, currency: "usd", livemode: true,
     }).eligible, false, "zero-total/free orders are excluded");
-    const refunded = measurement.buildPurchaseMeasurement({ ...order, fullyRefunded: true } as any, {
+    const refunded = measurement.buildPurchaseMeasurement(order, {
       paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
     });
-    assert.equal(refunded.reason, "known_refund", "an explicitly known full-refund state suppresses a customer conversion");
+    assert.equal(refunded.reason, "eligible", "capture snapshot records verified purchase facts before refund evidence is projected");
     assert.equal(measurement.buildPurchaseMeasurement({ ...order, isInternationalPreview: true }, {
       paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
     }).reason, "non_customer", "staging international preview orders are never eligible for customer conversion");
@@ -206,6 +208,34 @@ async function main() {
     const saved = await getOrderById(webhookOrder.id);
     assert.equal(saved?.status, "PROCESSING_HANDWRYTTEN", "early fulfillment return preserves the existing order state");
     assert.equal(saved?.purchaseMeasurement?.eligible, true, "webhook persists the verified capture snapshot before the idempotent fulfillment return");
+
+    const refundOrder = {
+      ...order,
+      id: "order_fixture_refund_projection",
+      stripePaymentId: "pi_fixture_refund_projection",
+      viewToken: "fixture-view-token",
+    };
+    await saveOrder(refundOrder as any);
+    const immutableCapture = await measurement.persistPurchaseMeasurement(refundOrder.id, measurement.buildPurchaseMeasurement(refundOrder, {
+      paymentIntentId: refundOrder.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
+    }));
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_projection",
+      amountCents: 765,
+      currency: "usd",
+      livemode: true,
+    });
+    const refundRead = await orderGet(new NextRequest(`https://sendmynotes.com/api/orders/${refundOrder.id}?token=${refundOrder.viewToken}`), { params: Promise.resolve({ id: refundOrder.id }) });
+    assert.equal(refundRead.status, 200, "authorized order read remains available when refund evidence exists");
+    const refundReadBody = await refundRead.json();
+    assert.equal(refundReadBody.order.purchaseMeasurement.reason, "known_refund", "actual linked financial-ledger full-refund fact suppresses conversion at the authorized read boundary");
+    assert.equal(refundReadBody.order.purchaseMeasurement.eligible, false, "full refund projection is ineligible for Purchase tracking");
+    assert.equal(refundReadBody.order.purchaseMeasurement.refundStatus, "fully_refunded", "returned view identifies authoritative linked refund evidence");
+    const unchangedAfterRefundRead = await getOrderById(refundOrder.id);
+    assert.equal(unchangedAfterRefundRead?.purchaseMeasurement?.eligible, immutableCapture.eligible, "read projection does not mutate the verified capture snapshot");
+    assert.equal(unchangedAfterRefundRead?.purchaseMeasurement?.refundStatus, "unknown", "persisted capture evidence preserves unknown refund status");
     console.log("google-purchase-measurement: all fixture assertions passed");
   } finally {
     process.chdir(originalCwd);

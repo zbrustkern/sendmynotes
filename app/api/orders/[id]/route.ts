@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getOrderById } from "@/lib/firebase-admin";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { Order } from "@/lib/types";
+import { projectPurchaseMeasurementForOrder } from "@/lib/purchase-measurement";
 
 function maskEmail(email?: string): string {
   if (!email || !email.includes("@")) return "Customer";
@@ -71,9 +72,11 @@ export async function GET(
       verifyAdminAuth(req);
 
     if (isAuthorized) {
+      const purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, order.purchaseMeasurement);
       return NextResponse.json({
         order: {
           ...order,
+          purchaseMeasurement,
           isRedacted: false,
         },
       });
