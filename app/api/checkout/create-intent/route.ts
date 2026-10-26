@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { saveOrder, getDiscountCode } from "@/lib/firebase-admin";
+import { saveOrder } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { PaymentModeConfigError, normalizeStripeSecretKey, resolvePaymentMode } from "@/lib/payment-mode";
 import { validatePersonalSender } from "@/lib/order-processor";
-import { validateDiscount } from "@/lib/discount";
 import { issueOfferPriceQuote, reserveOfferForCheckout } from "@/lib/offer-engine";
 import { Order, MailingAddress, RecipientOccasion } from "@/lib/types";
 import { logIncident } from "@/lib/incident-logger";
 import { saveOccasionReminder } from "@/lib/reminders";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
+import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout } from "@/lib/mailing-destinations";
+import { calculateOrderQuote } from "@/lib/order-pricing";
 
 export async function POST(req: NextRequest) {
   const operationId = resolveOperationId(req, "checkout");
@@ -39,14 +40,35 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const isAddressDeferred = Boolean(body.addressDeferred || body.address_deferred);
+    const normalizedCountry = recipientAddress?.country === undefined ? "US" : normalizeCountryCode(recipientAddress.country);
+    if (!normalizedCountry) return NextResponse.json({ error: "A valid recipient country is required." }, { status: 400 });
+    const supplierDestination = normalizedCountry === "US" ? null : getEnabledDestination(normalizedCountry);
+    let requestedPaymentMode: string | undefined;
+    if (normalizedCountry !== "US") {
+      try { requestedPaymentMode = resolvePaymentMode(); } catch { requestedPaymentMode = undefined; }
+      const authorization = authorizeInternationalCheckout({ countryCode: normalizedCountry, addressDeferred: isAddressDeferred, paymentMode: requestedPaymentMode });
+      if (!supplierDestination || !authorization.allowed) {
+        return NextResponse.json({ error: authorization.reason || "International destination is unavailable.", code: "DESTINATION_UNAVAILABLE" }, { status: 503 });
+      }
+    }
+    if (normalizedCountry !== "US" && isAddressDeferred) {
+      return NextResponse.json({ error: "International mailing requires a complete recipient address before checkout." }, { status: 400 });
+    }
+    const canonicalRecipientAddress = recipientAddress ? { ...recipientAddress, country: normalizedCountry } : recipientAddress;
+    const normalizedReturnCountry = returnAddress?.country === undefined ? "US" : normalizeCountryCode(returnAddress.country);
+    if (!normalizedReturnCountry || normalizedReturnCountry !== "US") {
+      return NextResponse.json({ error: "A personal United States return address is required." }, { status: 400 });
+    }
+    const canonicalReturnAddress = returnAddress ? { ...returnAddress, country: "US" } : returnAddress;
 
     if (!frontImageUrl) {
       return NextResponse.json({ error: "Card cover image is required." }, { status: 400 });
     }
 
     if (!isAddressDeferred) {
-      if (!recipientAddress || !recipientAddress.street1 || !recipientAddress.city || !recipientAddress.state || !recipientAddress.zip) {
-        return NextResponse.json({ error: "Complete recipient address is required." }, { status: 400 });
+      const addressCheck = validateMailingAddress(canonicalRecipientAddress);
+      if (!addressCheck.valid) {
+        return NextResponse.json({ error: addressCheck.errors[0] || "Complete recipient address is required." }, { status: 400 });
       }
 
       const senderValidation = validatePersonalSender(returnAddress);
@@ -116,6 +138,11 @@ export async function POST(req: NextRequest) {
       appliedOfferVersion = quoteResult.offer?.version;
     }
 
+    const orderQuote = calculateOrderQuote({ countryCode: normalizedCountry, discountCents: discountAmountInCents });
+    // Existing offer engine remains the authority for eligible base discounts. The
+    // destination upgrade is added server-side and is never discounted.
+    finalAmountInCents = orderQuote.totalCents;
+
     const maybeSaveReminder = async () => {
       if (
         recipientOccasion &&
@@ -129,7 +156,7 @@ export async function POST(req: NextRequest) {
           "Recipient";
         await saveOccasionReminder({
           recipientName: recName,
-          recipientAddress: recipientAddress as MailingAddress,
+          recipientAddress: canonicalRecipientAddress as MailingAddress,
           userEmail: customerEmail,
           ...(userId ? { userId } : {}),
           occasionType: recipientOccasion.occasionType || "birthday",
@@ -158,14 +185,16 @@ export async function POST(req: NextRequest) {
         handwrittenNote: handwrittenNote || "",
         fontStyleId,
         ...(occasion ? { occasion } : {}),
-        recipientAddress: recipientAddress as MailingAddress,
-        returnAddress: returnAddress as MailingAddress,
+        recipientAddress: canonicalRecipientAddress as MailingAddress,
+        returnAddress: canonicalReturnAddress as MailingAddress,
         ...(scheduledSendDate ? { scheduledSendDate } : {}),
         ...(recipientOccasion ? { recipientOccasion: recipientOccasion as RecipientOccasion } : {}),
         status: "PENDING_PAYMENT",
         amountInCents: 0,
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
         finalAmountInCents: 0,
+        quote: orderQuote,
+        ...(supplierDestination ? { supplierCountryId: supplierDestination.supplierCountryId, supplierCountryName: supplierDestination.supplierCountryName, isInternationalPreview: true } : {}),
         ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
         ...(appliedCode ? { discountCode: appliedCode } : {}),
         discountAmountInCents,
@@ -193,6 +222,7 @@ export async function POST(req: NextRequest) {
         amountInCents: 0,
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
         finalAmountInCents: 0,
+        quote: orderQuote,
         discountCode: appliedCode,
         discountAmountInCents,
         quoteId,
@@ -211,6 +241,10 @@ export async function POST(req: NextRequest) {
       amountInCents: finalAmountInCents,
       metadata: {
         operationId,
+        recipientCountryCode: normalizedCountry,
+        quoteVersion: orderQuote.version,
+        quotedTotalCents: String(orderQuote.totalCents),
+        surchargeCents: String(orderQuote.internationalSurchargeCents),
         ...(appliedCode
         ? {
             discountCode: appliedCode,
@@ -234,14 +268,16 @@ export async function POST(req: NextRequest) {
       handwrittenNote: handwrittenNote || "",
       fontStyleId,
       ...(occasion ? { occasion } : {}),
-      recipientAddress: recipientAddress as MailingAddress,
-      returnAddress: returnAddress as MailingAddress,
+      recipientAddress: canonicalRecipientAddress as MailingAddress,
+      returnAddress: canonicalReturnAddress as MailingAddress,
       ...(scheduledSendDate ? { scheduledSendDate } : {}),
       ...(recipientOccasion ? { recipientOccasion: recipientOccasion as RecipientOccasion } : {}),
       status: "PENDING_PAYMENT",
       amountInCents: finalAmountInCents,
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
       finalAmountInCents,
+      quote: orderQuote,
+      ...(supplierDestination ? { supplierCountryId: supplierDestination.supplierCountryId, supplierCountryName: supplierDestination.supplierCountryName, isInternationalPreview: true } : {}),
       ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
@@ -282,6 +318,7 @@ export async function POST(req: NextRequest) {
       amountInCents: finalAmountInCents,
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
       finalAmountInCents,
+      quote: orderQuote,
       discountCode: appliedCode,
       discountAmountInCents,
       quoteId,

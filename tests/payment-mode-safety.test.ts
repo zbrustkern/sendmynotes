@@ -442,6 +442,9 @@ async function runPaymentModeSafetyTests() {
           object: {
             id: `pi_test_${testOrderId}`,
             amount: CARD_FLAT_RATE_CENTS,
+            amount_received: CARD_FLAT_RATE_CENTS,
+            currency: "usd",
+            status: "succeeded",
             livemode: false,
             metadata: { orderId: testOrderId },
             receipt_email: "buyer@example.com",

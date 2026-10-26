@@ -5,6 +5,7 @@ export const FEATURE_FLAGS_CONFIG_ID = "feature_flags";
 
 export const FEATURE_FLAG_KEYS = {
   REWORK_V3_EXPERIENCE: "reworkV3Experience",
+  INTERNATIONAL_MAILING: "internationalMailing",
 } as const;
 
 export type FeatureFlagKey = (typeof FEATURE_FLAG_KEYS)[keyof typeof FEATURE_FLAG_KEYS] | string;
@@ -29,6 +30,7 @@ export interface FeatureFlagsState {
 
 export const DEFAULT_FEATURE_FLAGS: FeatureFlagsMap = {
   reworkV3Experience: true,
+  internationalMailing: false,
 };
 
 export const COOKIE_REWORK_V3 = "smn_rework_v3";

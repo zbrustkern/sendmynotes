@@ -179,6 +179,7 @@ export async function POST(req: NextRequest) {
         code: order.discountCode,
         expectedFinalCents: expectedAmountCents,
         paymentIntentAmountCents: pi.amount,
+        surchargeCents: order.quote?.internationalSurchargeCents || 0,
       });
 
       if (!integrityCheck.valid) {
@@ -260,6 +261,7 @@ export async function POST(req: NextRequest) {
         code: order.discountCode,
         expectedFinalCents: expectedAmountCents,
         paymentIntentAmountCents: expectedAmountCents,
+        surchargeCents: order.quote?.internationalSurchargeCents || 0,
       });
 
       if (!integrityCheck.valid) {
@@ -288,8 +290,9 @@ export async function POST(req: NextRequest) {
       { clientIp, userAgent, isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent }
     );
 
+    let offerRedemption: { status: "not_applicable" | "redeemed" | "reconciliation_required"; error?: string } = { status: "not_applicable" };
     if (result.success && order.discountCode) {
-      await redeemOfferForOrder({
+      const redemption = await redeemOfferForOrder({
         code: order.discountCode,
         orderId,
         quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
@@ -298,9 +301,22 @@ export async function POST(req: NextRequest) {
           typeof order.finalAmountInCents === "number"
             ? order.finalAmountInCents
             : order.amountInCents ?? CARD_FLAT_RATE_CENTS,
+        destinationSurchargeCents: order.quote?.internationalSurchargeCents || 0,
         verifiedCaptureId: verifiedPaymentIntentId,
         requireAuthoritativeBinding: true,
       });
+      offerRedemption = redemption.redeemed
+        ? { status: "redeemed" }
+        : { status: "reconciliation_required", error: redemption.error || "Offer redemption could not be confirmed." };
+      if (!redemption.redeemed) {
+        await logIncident({
+          type: "STRIPE",
+          severity: "error",
+          summary: `Paid order offer redemption requires reconciliation (${orderId})`,
+          technicalDetails: redemption.error || "Promotion redemption failed after verified payment.",
+          metadata: { orderId, paymentIntentId: verifiedPaymentIntentId },
+        });
+      }
     }
 
     return NextResponse.json({
@@ -310,6 +326,7 @@ export async function POST(req: NextRequest) {
       handwryttenOrderId: result.handwryttenOrderId,
       error: result.error,
       alreadyProcessed: result.alreadyProcessed,
+      offerRedemption,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error confirming order";

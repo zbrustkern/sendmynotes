@@ -119,6 +119,13 @@ export interface Order {
   originalAmountInCents?: number;
   discountCode?: string;
   discountAmountInCents?: number;
+  /** Legacy offer-engine quote reference retained for redemption/audit flows. */
+  quoteId?: string;
+  /** Immutable server-authored destination and price snapshot. */
+  quote?: { version: string; countryCode: string; basePriceCents: number; discountCents: number; internationalSurchargeCents: number; totalCents: number; currency: "USD" };
+  supplierCountryId?: number;
+  supplierCountryName?: string;
+  isInternationalPreview?: boolean;
   paymentMethod?: "STRIPE" | "PROMO_CODE" | "STUDIO_COMP";
   attribution?: OrderAttribution;
   metaCapiTrackedAt?: number; // Timestamp when Meta Conversions API purchase was dispatched

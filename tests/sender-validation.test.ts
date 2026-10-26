@@ -9,6 +9,7 @@ import {
   saveDiscountCode,
 } from "../lib/firebase-admin";
 import { Order, DiscountCode } from "../lib/types";
+import { issueOfferPriceQuote, reserveOfferForCheckout } from "../lib/offer-engine";
 
 async function runSenderValidationTests() {
   console.log("=================================================");
@@ -355,11 +356,24 @@ async function runSenderValidationTests() {
     });
 
     const defectiveFreeOrderId = `order_free_defect_${Date.now()}`;
+    const freeQuote = await issueOfferPriceQuote({ code: freeCode, listPriceCents: 900 });
+    if (!freeQuote.valid || !freeQuote.quote?.quoteId) {
+      throw new Error(`Could not create authoritative free-order test quote: ${freeQuote.error || "missing quote"}`);
+    }
+    await reserveOfferForCheckout({
+      code: freeCode,
+      orderId: defectiveFreeOrderId,
+      sessionId: `session_${defectiveFreeOrderId}`,
+      quoteId: freeQuote.quote.quoteId,
+    });
     await saveOrder({
       ...defectiveOrder,
       id: defectiveFreeOrderId,
       amountInCents: 0,
       discountCode: freeCode,
+      quoteId: freeQuote.quote.quoteId,
+      finalAmountInCents: freeQuote.finalAmountInCents,
+      discountAmountInCents: freeQuote.discountAmountInCents,
     });
 
     const freeOrderReq = new NextRequest("http://localhost:3000/api/checkout/complete-free-order", {

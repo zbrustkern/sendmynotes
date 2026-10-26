@@ -1,6 +1,8 @@
+import { normalizeCountryCode } from "@/lib/mailing-destinations";
 import { NextRequest, NextResponse } from "next/server";
 import { constructWebhookEvent } from "@/lib/stripe";
 import { processPaidOrder, verifyPaymentIntentForOrder } from "@/lib/order-processor";
+import { redeemOfferForOrder } from "@/lib/offer-engine";
 import { logIncident } from "@/lib/incident-logger";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import {
@@ -178,10 +180,38 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // A verified webhook may be the only completion signal the server receives. Redeem
+      // the bound promotion here as well; the transaction is idempotent with client confirm.
+      let offerRedemption: { status: "not_applicable" | "redeemed" | "reconciliation_required"; error?: string } = { status: "not_applicable" };
+      if (order?.discountCode) {
+        const redemption = await redeemOfferForOrder({
+          code: order.discountCode,
+          orderId,
+          quoteId: order.quoteId,
+          discountAmountCents: order.discountAmountInCents || 0,
+          finalAmountCents: order.finalAmountInCents ?? order.amountInCents,
+          destinationSurchargeCents: order.quote?.internationalSurchargeCents || 0,
+          verifiedCaptureId: paymentIntent.id,
+          requireAuthoritativeBinding: true,
+        });
+        offerRedemption = redemption.redeemed
+          ? { status: "redeemed" }
+          : { status: "reconciliation_required", error: redemption.error || "Offer redemption could not be confirmed." };
+        if (!redemption.redeemed) {
+          await logIncident({
+            type: "STRIPE",
+            severity: "error",
+            summary: `Paid order offer redemption requires reconciliation (${orderId})`,
+            technicalDetails: redemption.error || "Promotion redemption failed after verified payment.",
+            metadata: { orderId, paymentIntentId: paymentIntent.id, eventId: event.id },
+          });
+        }
+      }
+
       // Automated Transactional Email Dispatch (Resend + Google Secret Manager)
       try {
         const order = await getOrderById(orderId);
-        if (order) {
+        if (order && !order.isInternationalPreview && !(process.env.STAGING_REVIEW_ONLY === "true" && (normalizeCountryCode(order.quote?.countryCode || order.recipientAddress?.country) || (order.recipientAddress?.country ? null : "US")) !== "US")) {
           const customerEmail = paymentIntent.receipt_email || order.customerEmail;
           const isAddressDeferred = Boolean(
             order.addressDeferred ||
@@ -235,6 +265,7 @@ export async function POST(req: NextRequest) {
         orderId,
         handwryttenOrderId: result.handwryttenOrderId,
         status: result.status,
+        offerRedemption,
       });
     }
 
@@ -300,7 +331,7 @@ export async function POST(req: NextRequest) {
     }
 
     await markWebhookInboxProcessed(event.id);
-    return NextResponse.json({ received: true });
+      return NextResponse.json({ received: true });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Webhook handler exception";
     if (acceptedEventId) {

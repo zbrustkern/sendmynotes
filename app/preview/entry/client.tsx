@@ -12,7 +12,7 @@ import {
   FlowStep,
 } from "@/components/flow";
 import { Step2NoteComposition, HANDWRITING_STYLES } from "@/components/v3/Step2NoteComposition";
-import { Step3EnvelopeAddressing, AddressData } from "@/components/v3/Step3EnvelopeAddressing";
+import { Step3EnvelopeAddressing, AddressData, MailingOption, isInternationalCountry } from "@/components/v3/Step3EnvelopeAddressing";
 import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step4ReviewAndPayment";
 import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
@@ -177,6 +177,10 @@ export function EntryPrototypeClient({
     state: "",
     zip: "",
   });
+  const [domesticRecipient, setDomesticRecipient] = useState<AddressData>({ fullName: "", street1: "", street2: "", city: "", state: "", zip: "" });
+  const [internationalRecipient, setInternationalRecipient] = useState<AddressData | null>(null);
+  const [mailingOptions, setMailingOptions] = useState<{ destinations: MailingOption[]; enabled: boolean; previewAvailable?: boolean } | null>(null);
+  const isInternational = isInternationalCountry(recipient.country);
 
   const [sender, setSender] = useState<AddressData>({
     fullName: "",
@@ -205,6 +209,22 @@ export function EntryPrototypeClient({
   const [isInitializingCheckout, setIsInitializingCheckout] = useState(false);
   const checkoutRequestInFlight = React.useRef(false);
   const discountRequestInFlight = React.useRef(false);
+  const addressRevision = React.useRef(0);
+  const currentDisplayTotalCents = isInternational
+    ? (appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900) + 500
+    : amountInCents;
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/mailing-options", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((options) => {
+        if (!alive || !options || !Array.isArray(options.destinations)) return;
+        setMailingOptions({ destinations: options.destinations, enabled: options.enabled === true, previewAvailable: options.previewAvailable === true });
+      })
+      .catch(() => { if (alive) setMailingOptions(null); });
+    return () => { alive = false; };
+  }, []);
 
   // Pre-fill user email if authenticated
   useEffect(() => {
@@ -298,14 +318,18 @@ export function EntryPrototypeClient({
     }
 
     if (draft.recipient) {
-      setRecipient({
+      const restoredRecipient = {
         fullName: draft.recipient.name || "",
         street1: draft.recipient.addressLine1 || "",
         street2: draft.recipient.addressLine2 || "",
         city: draft.recipient.city || "",
         state: draft.recipient.state || "",
         zip: draft.recipient.zip || "",
-      });
+        country: draft.recipient.country || "US",
+      };
+      setRecipient(restoredRecipient);
+      if (!isInternationalCountry(restoredRecipient.country)) setDomesticRecipient(restoredRecipient);
+      else setInternationalRecipient(restoredRecipient);
       if (draft.recipient.name) {
         setUserCustomizedRecipientName(true);
       }
@@ -403,6 +427,8 @@ export function EntryPrototypeClient({
 
         if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
           setRecipient(parsed.recipientAddress);
+          if (parsed.domesticRecipientAddress) setDomesticRecipient(parsed.domesticRecipientAddress);
+          else if (isInternationalCountry(parsed.recipientAddress.country)) setInternationalRecipient(parsed.recipientAddress);
         }
         if (parsed.senderAddress && !sender.fullName && !sender.street1) {
           setSender(parsed.senderAddress);
@@ -434,10 +460,15 @@ export function EntryPrototypeClient({
           dispatch({ type: "UPDATE_NOTE", payload: { text: parsed.insideNoteText } });
         }
         if (parsed.addressDeferred !== undefined) {
-          setIsAddressDeferred(Boolean(parsed.addressDeferred));
+          const savedCountry = parsed.recipientAddress?.country;
+          const savedInternational = isInternationalCountry(savedCountry);
+          setIsAddressDeferred(savedInternational ? false : Boolean(parsed.addressDeferred));
         }
         if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
           setRecipient(parsed.recipientAddress);
+          if (parsed.domesticRecipientAddress) setDomesticRecipient(parsed.domesticRecipientAddress);
+          if (parsed.internationalRecipientAddress) setInternationalRecipient(parsed.internationalRecipientAddress);
+          else if (isInternationalCountry(parsed.recipientAddress.country)) setInternationalRecipient(parsed.recipientAddress);
         }
         if (parsed.senderAddress && !sender.fullName && !sender.street1) {
           setSender(parsed.senderAddress);
@@ -618,6 +649,8 @@ export function EntryPrototypeClient({
         senderName: sender.fullName,
         recipientName: recipient.fullName,
         recipientAddress: recipient,
+        domesticRecipientAddress: domesticRecipient,
+        internationalRecipientAddress: internationalRecipient,
         senderAddress: sender,
         currentStep: step,
         addressDeferred: isAddressDeferred,
@@ -645,6 +678,8 @@ export function EntryPrototypeClient({
     signOff,
     sender,
     recipient,
+    domesticRecipient,
+    internationalRecipient,
     step,
     isAddressDeferred,
     hasCustomUserEdits,
@@ -812,6 +847,8 @@ export function EntryPrototypeClient({
 
   // Handle recipient address updates
   const handleUpdateRecipient = (field: keyof AddressData, value: string) => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
     markUserCustomEdit();
     if (field === "fullName") {
       setUserCustomizedRecipientName(true);
@@ -826,9 +863,44 @@ export function EntryPrototypeClient({
       city: updated.city,
       state: updated.state,
       zip: updated.zip,
-      country: "USA",
+      country: updated.country || "USA",
     };
     dispatch({ type: "UPDATE_RECIPIENT", payload: mapped });
+  };
+
+  const handleSaveInternationalRecipient = (address: AddressData) => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
+    if (!isInternational) setDomesticRecipient(recipient);
+    setInternationalRecipient(address);
+    setRecipient(address);
+    setIsAddressDeferred(false);
+    // Immediately unbind any previously initialized domestic payment form. A fresh
+    // server response is required before payment can be shown for this destination.
+    setClientSecret(null);
+    setOrderId("");
+    setViewToken(null);
+    setCheckoutInitError(null);
+    dispatch({ type: "SET_CHECKOUT_SNAPSHOT", payload: null });
+    const mapped: AddressDraft = { name: address.fullName, addressLine1: address.street1, addressLine2: address.street2, city: address.city, state: address.state, zip: address.zip, country: address.country };
+    dispatch({ type: "UPDATE_RECIPIENT", payload: mapped });
+    markUserCustomEdit();
+  };
+
+  const handleUseUSRecipient = () => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
+    if (isInternational) setInternationalRecipient(recipient);
+    const restored = { ...domesticRecipient, country: "US" };
+    setRecipient(restored);
+    setAmountInCents(appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900);
+    setIsAddressDeferred(false);
+    setClientSecret(null);
+    setOrderId("");
+    setViewToken(null);
+    setCheckoutInitError(null);
+    dispatch({ type: "SET_CHECKOUT_SNAPSHOT", payload: null });
+    dispatch({ type: "UPDATE_RECIPIENT", payload: { name: restored.fullName, addressLine1: restored.street1, addressLine2: restored.street2, city: restored.city, state: restored.state, zip: restored.zip, country: "US" } });
   };
 
   // Handle sender address updates
@@ -972,8 +1044,11 @@ export function EntryPrototypeClient({
         });
         return;
       }
-      if (!recipient.city.trim() || !recipient.state.trim() || !recipient.zip.trim()) {
-        const err = "Please complete the recipient's City, State, and ZIP code.";
+      const mailingRule = mailingOptions?.destinations.find((destination) => destination.countryCode === recipient.country);
+      const needsRegion = isInternational ? Boolean(mailingRule?.regionRequired) : true;
+      const needsPostal = isInternational ? Boolean(mailingRule?.postalCodeRequired) : true;
+      if (!recipient.city.trim() || (needsRegion && !recipient.state.trim()) || (needsPostal && !recipient.zip.trim())) {
+        const err = isInternational ? "Please complete the required locality, region, and postal details for this destination." : "Please complete the recipient's City, State, and ZIP code.";
         setAddressValidationError(err);
         trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
         trackEventV2("address_validation_failed", {
@@ -1027,8 +1102,17 @@ export function EntryPrototypeClient({
   ) => {
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
     checkoutRequestInFlight.current = true;
+    const requestedAddressRevision = addressRevision.current;
     setCheckoutInitError(null);
     setIsInitializingCheckout(true);
+    // Invalidate the previous provider/order binding while the server recalculates
+    // the current destination and offer. The prior offer remains visible until the
+    // matching replacement response succeeds, but its payment form cannot submit.
+    setClientSecret(null);
+    setOrderId("");
+    setViewToken(null);
+    setIsFreeOrder(false);
+    dispatch({ type: "SET_CHECKOUT_SNAPSHOT", payload: null });
 
     try {
       const discountCodeToUse =
@@ -1070,7 +1154,7 @@ export function EntryPrototypeClient({
       }
 
       trackEventV2("checkout_requested", {
-        amountInCents,
+        amountInCents: currentDisplayTotalCents,
         hasDiscount: Boolean(discountCodeToUse),
         isAddressDeferred,
       });
@@ -1106,7 +1190,7 @@ export function EntryPrototypeClient({
             city: recipient.city,
             state: recipient.state,
             zip: recipient.zip,
-            country: "USA",
+            country: recipient.country || "US",
           },
           returnAddress: {
             firstName: senderFirstName,
@@ -1130,14 +1214,19 @@ export function EntryPrototypeClient({
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize payment gateway.");
       }
+      if (requestedAddressRevision !== addressRevision.current) {
+        throw new Error("The recipient address changed while checkout was updating. Please review it and try again.");
+      }
 
       const decision = evaluateCheckoutInitTransition(true);
       if (!decision.canAdvance) {
         throw new Error(decision.errorMessage || "Unable to proceed to payment.");
       }
 
-      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? discountToApply?.finalAmountInCents : 900);
-      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
+      const expectedPrice = expectedAmountInCents !== undefined
+        ? expectedAmountInCents + (isInternational ? 500 : 0)
+        : discountCodeToUse ? (discountToApply?.finalAmountInCents ?? 900) + (isInternational ? 500 : 0) : 900 + (isInternational ? 500 : 0);
+      const serverPrice = data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents;
       if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
         throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
       }
@@ -1163,7 +1252,7 @@ export function EntryPrototypeClient({
       }
       setIsMockCheckout(Boolean(data.isMock));
       setIsFreeOrder(Boolean(data.isFree));
-      setAmountInCents(data.finalAmountInCents ?? data.amountInCents ?? 900);
+      setAmountInCents(data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900);
       setAppliedDiscount(discountToApply);
       if (discountToApply) {
         dispatch({
@@ -1189,7 +1278,7 @@ export function EntryPrototypeClient({
         orderId: data.orderId,
         isMock: Boolean(data.isMock),
         isFree: Boolean(data.isFree),
-        amountInCents: data.finalAmountInCents ?? data.amountInCents ?? 900,
+        amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
       });
 
       trackEvent("address_completed", 3, {
@@ -1199,13 +1288,13 @@ export function EntryPrototypeClient({
       trackEvent("step_5_checkout_initiated", 5, {
         isMock: Boolean(data.isMock),
         isFree: Boolean(data.isFree),
-        amountInCents: data.finalAmountInCents ?? data.amountInCents ?? 900,
+        amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
       });
       trackGA4AddShippingInfo({
         itemId: currentCard.presetId || "card",
         itemName: currentCard.title,
-        price: 9.0,
-        shippingTier: "USPS First Class",
+        price: (data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900) / 100,
+        shippingTier: isInternational ? "International mailing" : "USPS First Class",
       });
 
       setStep("pay");
@@ -1263,8 +1352,13 @@ export function EntryPrototypeClient({
         }).catch(() => {});
       }
       setAppliedDiscount(data);
-      setIsFreeOrder(Boolean(data.isFree));
-      setAmountInCents(data.finalAmountInCents ?? 900);
+      // On the payment step initializeCheckout has already atomically created a
+      // new server-priced intent. Keep its authoritative international total
+      // and free-order status (a base-only 100% offer still owes the surcharge).
+      if (step !== "pay") {
+        setIsFreeOrder(Boolean(data.isFree));
+        setAmountInCents(data.finalAmountInCents ?? 900);
+      }
       dispatch({ type: "SET_DISCOUNT_CODE", payload: data.code });
       trackEventV2("discount_applied", {
         promoCode: data.code,
@@ -1314,8 +1408,10 @@ export function EntryPrototypeClient({
         }).catch(() => {});
       }
       setAppliedDiscount(null);
-      setIsFreeOrder(false);
-      setAmountInCents(900);
+      if (step !== "pay") {
+        setIsFreeOrder(false);
+        setAmountInCents(900);
+      }
       dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
       dispatch({ type: "SET_APPLIED_OFFER", payload: null });
       if (appliedDiscount) {
@@ -1396,6 +1492,8 @@ export function EntryPrototypeClient({
       state: "",
       zip: "",
     });
+    setDomesticRecipient({ fullName: "", street1: "", street2: "", city: "", state: "", zip: "" });
+    setInternationalRecipient(null);
     setSender({
       fullName: "",
       street1: "",
@@ -1485,7 +1583,7 @@ export function EntryPrototypeClient({
   if (isOrderConfirmed) {
     return (
       <div className={`min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col antialiased ${embedded ? "rounded-3xl border border-stone-200/90 shadow-xs overflow-hidden" : ""}`}>
-        {!embedded && <FlowHeader showClearDraft={false} onClearDraft={resetEntireFlow} />}
+        {!embedded && <FlowHeader showClearDraft={false} onClearDraft={resetEntireFlow} orderTotalCents={isInternational ? currentDisplayTotalCents : undefined} />}
         <main className="flex-1 max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
           <Step5Confirmation
             orderId={orderId}
@@ -1520,7 +1618,7 @@ export function EntryPrototypeClient({
       )}
 
       {/* 1. COMPACT SENDMYNOTES FLOW HEADER (suppressed when embedded in an occasion/scenario landing page with its own navbar) */}
-      {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} />}
+      {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} orderTotalCents={isInternational ? currentDisplayTotalCents : undefined} />}
 
       {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
       <ProgressIndicator currentStep={step} />
@@ -1609,11 +1707,20 @@ export function EntryPrototypeClient({
               onChangeSender={handleUpdateSender}
               fontClass={activeFont.fontClass}
               isAddressDeferred={isAddressDeferred}
+              mailingOptions={mailingOptions}
+              isBusy={isInitializingCheckout}
+              isInternational={isInternational}
+              onSaveInternational={handleSaveInternationalRecipient}
+              savedInternationalRecipient={internationalRecipient}
+              onUseUSAddress={handleUseUSRecipient}
+              displayTotalCents={currentDisplayTotalCents}
               onChangeAddressDeferred={setIsAddressDeferred}
               onValidationError={(err) => setAddressValidationError(err)}
               onBack={() => {
-                setStep("note");
-                dispatch({ type: "SET_STEP", payload: "note" });
+                if (!isInitializingCheckout) {
+                  setStep("note");
+                  dispatch({ type: "SET_STEP", payload: "note" });
+                }
               }}
               onContinue={handleAddressSubmit}
             />
@@ -1643,6 +1750,8 @@ export function EntryPrototypeClient({
               publishableKey={publishableKey}
               isMock={isMockCheckout}
               isFree={isFreeOrder}
+              amountInCents={amountInCents}
+              destinationCountry={recipient.country || "US"}
               onApplyDiscount={handleApplyDiscount}
               onRemoveDiscount={handleRemoveDiscount}
               appliedDiscount={appliedDiscount}
@@ -1659,8 +1768,8 @@ export function EntryPrototypeClient({
       {/* 4. PERSISTENT BOTTOM ACTION BAR (Steps 1 and 3) */}
       {step !== "pay" && step !== "note" && (
         <ActionBar
-          priceDisplay="$9 total"
-          priceSubtext="USPS mailing included"
+          priceDisplay={isInternational || currentDisplayTotalCents !== 900 ? `$${(currentDisplayTotalCents / 100).toFixed(2)} total` : "$9 total"}
+          priceSubtext={isInternational ? "International mailing included" : "USPS mailing included"}
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
           isDisabled={step === "card" ? !draft.selectedDesign : false}

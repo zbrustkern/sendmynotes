@@ -17,6 +17,8 @@ import { recordPaymentCaptureFact, deriveCommercialKind } from "./financial-ledg
 import { enqueueOutboxEntry } from "./transactional-outbox";
 import { isOperationalControlPaused } from "./operational-controls";
 import { getStripeClient } from "./stripe";
+import { normalizeCountryCode, getSupplierCountry } from "./mailing-destinations";
+import { isOrderQuoteValid } from "./order-pricing";
 
 export interface ProcessPaidOrderResult {
   success: boolean;
@@ -52,13 +54,31 @@ export function verifyPaymentIntentForOrder(input: {
   order: Order;
 }): { valid: boolean; reason?: string; expectedAmountCents: number; capturedAmountCents: number } {
   const pi = input.paymentIntent;
-  const expectedAmountCents =
-    typeof input.order.finalAmountInCents === "number" && input.order.finalAmountInCents >= 0
+  const storedQuote = input.order.quote;
+  const expectedAmountCents = storedQuote && Number.isInteger(storedQuote.totalCents)
+      ? storedQuote.totalCents
+      : typeof input.order.finalAmountInCents === "number" && input.order.finalAmountInCents >= 0
       ? input.order.finalAmountInCents
       : typeof input.order.amountInCents === "number" && input.order.amountInCents >= 0
       ? input.order.amountInCents
       : 900;
+  const addressCountry = normalizeCountryCode(input.order.recipientAddress?.country) || (input.order.recipientAddress?.country ? null : "US");
+  if (!addressCountry) {
+    return { valid: false, reason: "Recipient country is unknown and cannot be defaulted to the United States.", expectedAmountCents, capturedAmountCents: pi.amount_received ?? pi.amount ?? 0 };
+  }
+  if (storedQuote && (!isOrderQuoteValid(storedQuote) || storedQuote.countryCode !== addressCountry || (storedQuote.totalCents !== input.order.finalAmountInCents || storedQuote.totalCents !== input.order.amountInCents))) {
+    return { valid: false, reason: "Stored order quote does not match the immutable recipient country and amount.", expectedAmountCents, capturedAmountCents: pi.amount_received ?? pi.amount ?? 0 };
+  }
+  if (addressCountry !== "US") {
+    const verifiedDestination = getSupplierCountry(addressCountry);
+    if (!verifiedDestination || input.order.supplierCountryId !== verifiedDestination.supplierCountryId) {
+      return { valid: false, reason: "Stored supplier destination mapping does not match the recipient country.", expectedAmountCents, capturedAmountCents: pi.amount_received ?? pi.amount ?? 0 };
+    }
+  }
   const capturedAmountCents = pi.amount_received ?? pi.amount ?? 0;
+  if (storedQuote && pi.metadata?.recipientCountryCode && pi.metadata.recipientCountryCode !== addressCountry) return { valid: false, reason: "Payment intent destination does not match the order quote.", expectedAmountCents, capturedAmountCents };
+  if (storedQuote && pi.metadata?.quoteVersion && pi.metadata.quoteVersion !== storedQuote.version) return { valid: false, reason: "Payment intent quote version does not match the order snapshot.", expectedAmountCents, capturedAmountCents };
+  if (storedQuote && pi.metadata?.quotedTotalCents && Number(pi.metadata.quotedTotalCents) !== storedQuote.totalCents) return { valid: false, reason: "Payment intent total does not match the order snapshot.", expectedAmountCents, capturedAmountCents };
   if (pi.status !== "succeeded") return { valid: false, reason: `Payment status is ${pi.status || "unknown"}, expected succeeded`, expectedAmountCents, capturedAmountCents };
   if ((pi.currency || "").toLowerCase() !== "usd") return { valid: false, reason: `Currency mismatch: expected usd, got ${pi.currency || "unknown"}`, expectedAmountCents, capturedAmountCents };
   if (capturedAmountCents !== expectedAmountCents) return { valid: false, reason: `Payment amount mismatch: expected ${expectedAmountCents}¢, got ${capturedAmountCents}¢`, expectedAmountCents, capturedAmountCents };
@@ -71,6 +91,10 @@ export function validatePersonalSender(
 ): SenderValidationResult {
   if (!address) {
     return { valid: false, error: "Return address is required." };
+  }
+  const senderCountry = normalizeCountryCode(address.country);
+  if (address.country !== undefined && (!senderCountry || senderCountry !== "US")) {
+    return { valid: false, error: "A personal United States return address is required." };
   }
 
   const firstName = (address.firstName || "").trim();
@@ -132,7 +156,11 @@ export async function processPaidOrder(
   // cannot assert amount, currency, mode, or metadata through client-supplied fields.
   const authorityOrder = await getOrderById(orderId);
   if (!authorityOrder) return { success: false, status: "NOT_FOUND", error: `Order ${orderId} not found in database.` };
-  const alreadySubmitted = ["PROCESSING_HANDWRYTTEN", "MAILED", "AWAITING_RECIPIENT_ADDRESS", "DISPATCH_UNCERTAIN"].includes(authorityOrder.status);
+  if (authorityOrder.stripePaymentId && authorityOrder.stripePaymentId !== paymentIntentId) {
+    return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "PaymentIntent identifier does not match the PaymentIntent bound to this order." };
+  }
+  const authorityCountry = normalizeCountryCode(authorityOrder.recipientAddress?.country) || (authorityOrder.recipientAddress?.country ? null : "US");
+  const alreadySubmitted = ["PROCESSING_HANDWRYTTEN", "MAILED", "AWAITING_RECIPIENT_ADDRESS", "DISPATCH_UNCERTAIN"].includes(authorityOrder.status) || authorityOrder.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD";
 
 
   const localMockAllowed = clientContext?.paymentMode === "local_mock" && process.env.NODE_ENV !== "production";
@@ -197,6 +225,20 @@ export async function processPaidOrder(
     idempotencyKey: `outbox_analytics_${orderId}_${paymentIntentId}`,
     payload: { operationId: operationId || null, amountInCents: capturedAmountCents, currency: paymentCurrency, isLive: isLivePayment, status: authorityOrder.status },
   });
+  if (authorityOrder.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") {
+    return { success: true, status: authorityOrder.status, alreadyProcessed: true, error: "International preview order is held for review; supplier fulfillment is disabled." };
+  }
+  if (authorityCountry && authorityCountry !== "US" && (authorityOrder.isInternationalPreview || process.env.STAGING_REVIEW_ONLY === "true")) {
+    await updateOrderStatus(orderId, { status: "QUEUED_FOR_FULFILLMENT", fulfillmentStatus: "INTERNATIONAL_PREVIEW_HOLD", fulfillmentError: "Staging review guard prevents supplier fulfillment." } as any);
+    return { success: true, status: "QUEUED_FOR_FULFILLMENT", error: "Staging review order is held; supplier fulfillment is disabled." };
+  }
+  if (authorityCountry && authorityCountry !== "US") {
+    const verifiedDestination = getSupplierCountry(authorityCountry);
+    if (!verifiedDestination || authorityOrder.supplierCountryId !== verifiedDestination.supplierCountryId) {
+      await updateOrderStatus(orderId, { status: "QUEUED_FOR_FULFILLMENT", fulfillmentError: "Supplier country mapping does not match the accepted order snapshot." } as any);
+      return { success: false, status: "QUEUED_FOR_FULFILLMENT", error: "Supplier country mapping does not match the accepted order snapshot." };
+    }
+  }
   if (alreadySubmitted) {
     if (authorityOrder.status === "DISPATCH_UNCERTAIN") return { success: false, status: "DISPATCH_UNCERTAIN", error: "Supplier submission outcome is uncertain; reconcile before retrying." };
     return { success: true, status: authorityOrder.status, handwryttenOrderId: authorityOrder.handwryttenOrderId, alreadyProcessed: true };

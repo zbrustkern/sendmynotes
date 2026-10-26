@@ -4,9 +4,13 @@ import { verifyAdminAuth } from "@/lib/admin-auth";
 import { saveOrder, updateOrderStatus } from "@/lib/firebase-admin";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { Order, MailingAddress } from "@/lib/types";
+import { normalizeCountryCode } from "@/lib/mailing-destinations";
 
 export async function POST(req: NextRequest) {
   try {
+    if (process.env.STAGING_REVIEW_ONLY === "true") {
+      return NextResponse.json({ error: "Supplier fulfillment is disabled during staging review.", code: "STAGING_REVIEW_ONLY" }, { status: 423 });
+    }
     if (!verifyAdminAuth(req)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -25,6 +29,9 @@ export async function POST(req: NextRequest) {
 
     if (!frontImageUrl) {
       return NextResponse.json({ error: "Card cover image is required" }, { status: 400 });
+    }
+    if ((recipientAddress?.country === undefined ? "US" : normalizeCountryCode(recipientAddress.country)) !== "US") {
+      return NextResponse.json({ error: "Comp dispatch is restricted to domestic destinations." }, { status: 400 });
     }
     if (!recipientAddress || !recipientAddress.street1 || !recipientAddress.city || !recipientAddress.state || !recipientAddress.zip) {
       return NextResponse.json({ error: "Complete recipient address is required" }, { status: 400 });

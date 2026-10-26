@@ -120,6 +120,7 @@ async function runTests() {
   const webhookOrderA: Order = {
     ...mockDeferredOrder,
     id: `order_webhook_a_${Date.now()}`,
+    stripePaymentId: `pi_webhook_a_${Date.now()}`,
     status: "PENDING_PAYMENT",
     addressDeferred: true,
     address_deferred: true,
@@ -130,12 +131,17 @@ async function runTests() {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
+      id: `evt_webhook_a_${Date.now()}`,
       type: "payment_intent.succeeded",
       livemode: false,
       data: {
         object: {
-          id: `pi_webhook_a_${Date.now()}`,
+          id: webhookOrderA.stripePaymentId!,
           amount: 900,
+          amount_received: 900,
+          currency: "usd",
+          status: "succeeded",
+          livemode: false,
           receipt_email: "customer_a@example.com",
           metadata: {
             orderId: webhookOrderA.id,
@@ -154,13 +160,14 @@ async function runTests() {
   const updatedOrderA = await getOrderById(webhookOrderA.id);
   assert(updatedOrderA !== null, "Order A must exist in database");
   assert.strictEqual(updatedOrderA?.status, "AWAITING_RECIPIENT_ADDRESS", "Order A status must be AWAITING_RECIPIENT_ADDRESS");
-  assert((updatedOrderA as any)?.receiptEmailSentAt !== undefined, "Order A must record receiptEmailSentAt");
+  assert((updatedOrderA as any)?.addressDeferredEmailSentAt !== undefined, "Order A must record addressDeferredEmailSentAt");
   console.log("✅ PASS: Webhook correctly dispatched Scenario A receipt and recorded timestamp");
 
   // 6B. Completed address order in webhook
   const webhookOrderB: Order = {
     ...mockCompletedOrder,
     id: `order_webhook_b_${Date.now()}`,
+    stripePaymentId: `pi_webhook_b_${Date.now()}`,
     status: "PENDING_PAYMENT",
     addressDeferred: false,
     address_deferred: false,
@@ -171,12 +178,17 @@ async function runTests() {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
+      id: `evt_webhook_b_${Date.now()}`,
       type: "payment_intent.succeeded",
       livemode: false,
       data: {
         object: {
-          id: `pi_webhook_b_${Date.now()}`,
+          id: webhookOrderB.stripePaymentId!,
           amount: 900,
+          amount_received: 900,
+          currency: "usd",
+          status: "succeeded",
+          livemode: false,
           receipt_email: "customer_b@example.com",
           metadata: {
             orderId: webhookOrderB.id,

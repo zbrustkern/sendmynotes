@@ -1,0 +1,3180 @@
+{
+  "checkedAt": "2026-10-26T06:50:07.452Z",
+  "source": "https://api.handwrytten.com/v2/countries/list",
+  "suspensionsChecked": "2026-10-26",
+  "suspensionsSource": "https://about.usps.com/newsroom/service-alerts/international/",
+  "suspensionsPageUpdated": "2026-10-23",
+  "countries": [
+    {
+      "countryCode": "AF",
+      "countryName": "Afghanistan",
+      "supplierCountryId": 7,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AF"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "AL",
+      "countryName": "Albania",
+      "supplierCountryId": 8,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AL"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "DZ",
+      "countryName": "Algeria",
+      "supplierCountryId": 9,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "DZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AD",
+      "countryName": "Andorra",
+      "supplierCountryId": 10,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AD"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AO",
+      "countryName": "Angola",
+      "supplierCountryId": 11,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AI",
+      "countryName": "Anguilla",
+      "supplierCountryId": 12,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AI"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AG",
+      "countryName": "Antigua",
+      "supplierCountryId": 13,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AG",
+        "Antigua and Barbuda",
+        "\r\n\r\n"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AR",
+      "countryName": "Argentina",
+      "supplierCountryId": 14,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "AM",
+      "countryName": "Armenia",
+      "supplierCountryId": 15,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AW",
+      "countryName": "Aruba",
+      "supplierCountryId": 16,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AW"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AU",
+      "countryName": "Australia",
+      "supplierCountryId": 5,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AU"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AT",
+      "countryName": "Austria",
+      "supplierCountryId": 18,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AT"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AZ",
+      "countryName": "Azerbaijan",
+      "supplierCountryId": 19,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BS",
+      "countryName": "Bahamas",
+      "supplierCountryId": 20,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BS"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BH",
+      "countryName": "Bahrain",
+      "supplierCountryId": 21,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BH"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BD",
+      "countryName": "Bangladesh",
+      "supplierCountryId": 22,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BD"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BB",
+      "countryName": "Barbados",
+      "supplierCountryId": 23,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BB"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BY",
+      "countryName": "Belarus",
+      "supplierCountryId": 25,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BY"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "BE",
+      "countryName": "Belgium",
+      "supplierCountryId": 26,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BZ",
+      "countryName": "Belize",
+      "supplierCountryId": 27,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BJ",
+      "countryName": "Benin",
+      "supplierCountryId": 28,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BJ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BM",
+      "countryName": "Bermuda",
+      "supplierCountryId": 29,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BT",
+      "countryName": "Bhutan",
+      "supplierCountryId": 30,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BT"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "BO",
+      "countryName": "Bolivia",
+      "supplierCountryId": 31,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BA",
+      "countryName": "Bosnia-Herzegovina",
+      "supplierCountryId": 33,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BW",
+      "countryName": "Botswana",
+      "supplierCountryId": 34,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BW"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BR",
+      "countryName": "Brazil",
+      "supplierCountryId": 35,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "VG",
+      "countryName": "British Virgin Islands",
+      "supplierCountryId": 36,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "VG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BN",
+      "countryName": "Brunei Darussalam",
+      "supplierCountryId": 37,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BG",
+      "countryName": "Bulgaria",
+      "supplierCountryId": 38,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BF",
+      "countryName": "Burkina Faso",
+      "supplierCountryId": 39,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BF"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MM",
+      "countryName": "Burma",
+      "supplierCountryId": 40,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "Myanmar",
+        "MM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BI",
+      "countryName": "Burundi",
+      "supplierCountryId": 41,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BI"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KH",
+      "countryName": "Cambodia",
+      "supplierCountryId": 42,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KH",
+        "Kampuchea"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CM",
+      "countryName": "Cameroon",
+      "supplierCountryId": 43,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CA",
+      "countryName": "Canada",
+      "supplierCountryId": 2,
+      "deliveryCostUSD": "1.10",
+      "aliases": [
+        "CA"
+      ],
+      "regionRequired": true,
+      "postalCodeRequired": true,
+      "regions": [
+        {
+          "code": "AB",
+          "name": "Alberta"
+        },
+        {
+          "code": "BC",
+          "name": "British Columbia"
+        },
+        {
+          "code": "MB",
+          "name": "Manitoba"
+        },
+        {
+          "code": "NB",
+          "name": "New Brunswick"
+        },
+        {
+          "code": "NL",
+          "name": "Newfoundland and Labrador"
+        },
+        {
+          "code": "NS",
+          "name": "Nova Scotia"
+        },
+        {
+          "code": "NT",
+          "name": "Northwest Territories"
+        },
+        {
+          "code": "NU",
+          "name": "Nunavut"
+        },
+        {
+          "code": "ON",
+          "name": "Ontario"
+        },
+        {
+          "code": "PE",
+          "name": "Prince Edward Island"
+        },
+        {
+          "code": "QC",
+          "name": "Quebec"
+        },
+        {
+          "code": "SK",
+          "name": "Saskatchewan"
+        },
+        {
+          "code": "YT",
+          "name": "Yukon Territory"
+        }
+      ],
+      "suspended": false
+    },
+    {
+      "countryCode": "CV",
+      "countryName": "Cape Verde",
+      "supplierCountryId": 44,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CV"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KY",
+      "countryName": "Cayman Islands",
+      "supplierCountryId": 45,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KY"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CF",
+      "countryName": "Central African Republic",
+      "supplierCountryId": 46,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CF"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TD",
+      "countryName": "Chad",
+      "supplierCountryId": 47,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TD"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CL",
+      "countryName": "Chile",
+      "supplierCountryId": 48,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CL"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CN",
+      "countryName": "China",
+      "supplierCountryId": 49,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CO",
+      "countryName": "Colombia",
+      "supplierCountryId": 50,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KM",
+      "countryName": "Comoros",
+      "supplierCountryId": 51,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CR",
+      "countryName": "Costa Rica",
+      "supplierCountryId": 52,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CI",
+      "countryName": "Cote d\u2019Ivoire",
+      "supplierCountryId": 53,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CI",
+        "Cote d'Ivoire",
+        "C\u00f4te d'Ivoire"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "HR",
+      "countryName": "Croatia",
+      "supplierCountryId": 54,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "HR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CU",
+      "countryName": "Cuba",
+      "supplierCountryId": 228,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CU"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "CW",
+      "countryName": "Curacao",
+      "supplierCountryId": 56,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CW"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CY",
+      "countryName": "Cyprus",
+      "supplierCountryId": 57,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CY"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CZ",
+      "countryName": "Czech Republic",
+      "supplierCountryId": 58,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CZ",
+        "Czechia"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CG",
+      "countryName": "Democratic Republic of the Congo",
+      "supplierCountryId": 59,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "DK",
+      "countryName": "Denmark",
+      "supplierCountryId": 60,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "DK"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "DJ",
+      "countryName": "Djibouti",
+      "supplierCountryId": 61,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "DJ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "DM",
+      "countryName": "Dominica",
+      "supplierCountryId": 62,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "DM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "DO",
+      "countryName": "Dominican Republic",
+      "supplierCountryId": 63,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "DO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "EC",
+      "countryName": "Ecuador",
+      "supplierCountryId": 64,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "EC"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "EG",
+      "countryName": "Egypt",
+      "supplierCountryId": 65,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "EG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SV",
+      "countryName": "El Salvador",
+      "supplierCountryId": 66,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SV"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GQ",
+      "countryName": "Equatorial Guinea",
+      "supplierCountryId": 67,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GQ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ER",
+      "countryName": "Eritrea",
+      "supplierCountryId": 68,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ER"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "EE",
+      "countryName": "Estonia",
+      "supplierCountryId": 69,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "EE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ET",
+      "countryName": "Ethiopia",
+      "supplierCountryId": 70,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ET"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "FK",
+      "countryName": "Falkland Islands",
+      "supplierCountryId": 71,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "FK"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "FO",
+      "countryName": "Faroe Islands",
+      "supplierCountryId": 72,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "FO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "FJ",
+      "countryName": "Fiji",
+      "supplierCountryId": 73,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "FJ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "FI",
+      "countryName": "Finland",
+      "supplierCountryId": 74,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "FI"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "FR",
+      "countryName": "France",
+      "supplierCountryId": 75,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "FR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GF",
+      "countryName": "French Guiana",
+      "supplierCountryId": 76,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GF"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PF",
+      "countryName": "French Polynesia",
+      "supplierCountryId": 77,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PF"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GA",
+      "countryName": "Gabon",
+      "supplierCountryId": 78,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GM",
+      "countryName": "Gambia",
+      "supplierCountryId": 79,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "DE",
+      "countryName": "Germany",
+      "supplierCountryId": 80,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "DE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GH",
+      "countryName": "Ghana",
+      "supplierCountryId": 81,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GH"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GI",
+      "countryName": "Gibraltar",
+      "supplierCountryId": 82,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GI"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GR",
+      "countryName": "Greece",
+      "supplierCountryId": 83,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GL",
+      "countryName": "Greenland",
+      "supplierCountryId": 84,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GL"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GD",
+      "countryName": "Grenada",
+      "supplierCountryId": 85,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GD"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GP",
+      "countryName": "Guadeloupe",
+      "supplierCountryId": 86,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GP"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GT",
+      "countryName": "Guatemala",
+      "supplierCountryId": 87,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GT"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GN",
+      "countryName": "Guinea",
+      "supplierCountryId": 88,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GW",
+      "countryName": "Guinea-Bissau",
+      "supplierCountryId": 89,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GW"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GY",
+      "countryName": "Guyana",
+      "supplierCountryId": 90,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GY"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "HT",
+      "countryName": "Haiti",
+      "supplierCountryId": 91,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "HT"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "HN",
+      "countryName": "Honduras",
+      "supplierCountryId": 229,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "HN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "HK",
+      "countryName": "Hong Kong",
+      "supplierCountryId": 93,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "HK"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "HU",
+      "countryName": "Hungary",
+      "supplierCountryId": 94,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "HU"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "IS",
+      "countryName": "Iceland",
+      "supplierCountryId": 95,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "IS"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "IN",
+      "countryName": "India",
+      "supplierCountryId": 96,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "IN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ID",
+      "countryName": "Indonesia",
+      "supplierCountryId": 97,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ID"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "IR",
+      "countryName": "Iran",
+      "supplierCountryId": 98,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "IR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "IQ",
+      "countryName": "Iraq",
+      "supplierCountryId": 99,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "IQ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "IE",
+      "countryName": "Ireland",
+      "supplierCountryId": 100,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "IE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "IL",
+      "countryName": "Israel",
+      "supplierCountryId": 101,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "IL"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "IT",
+      "countryName": "Italy",
+      "supplierCountryId": 102,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "IT"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "JM",
+      "countryName": "Jamaica",
+      "supplierCountryId": 103,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "JM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "JP",
+      "countryName": "Japan",
+      "supplierCountryId": 104,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "JP"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "JE",
+      "countryName": "Jersey",
+      "supplierCountryId": 237,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "JE",
+        "Channel Islands"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "JO",
+      "countryName": "Jordan",
+      "supplierCountryId": 236,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "JO",
+        "Hashemite Kingdom"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KZ",
+      "countryName": "Kazakhstan",
+      "supplierCountryId": 106,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KE",
+      "countryName": "Kenya",
+      "supplierCountryId": 107,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KI",
+      "countryName": "Kiribati",
+      "supplierCountryId": 108,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KI"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "XK",
+      "countryName": "Kosovo",
+      "supplierCountryId": 109,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "Republic of Kosovo",
+        "XK"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KW",
+      "countryName": "Kuwait",
+      "supplierCountryId": 110,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KW"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KG",
+      "countryName": "Kyrgyzstan",
+      "supplierCountryId": 111,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LA",
+      "countryName": "Laos",
+      "supplierCountryId": 112,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LA",
+        "Lao PDR",
+        "Lao People's Democratic Republic"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LV",
+      "countryName": "Latvia",
+      "supplierCountryId": 113,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LV"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LS",
+      "countryName": "Lesotho",
+      "supplierCountryId": 115,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LS"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LR",
+      "countryName": "Liberia",
+      "supplierCountryId": 116,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LY",
+      "countryName": "Libya",
+      "supplierCountryId": 117,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LY"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LI",
+      "countryName": "Liechtenstein",
+      "supplierCountryId": 118,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LI"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LT",
+      "countryName": "Lithuania",
+      "supplierCountryId": 119,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LT"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LU",
+      "countryName": "Luxembourg",
+      "supplierCountryId": 120,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LU"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MO",
+      "countryName": "Macau",
+      "supplierCountryId": 121,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MG",
+      "countryName": "Madagascar",
+      "supplierCountryId": 123,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MW",
+      "countryName": "Malawi",
+      "supplierCountryId": 124,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MW"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MY",
+      "countryName": "Malaysia",
+      "supplierCountryId": 125,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MY"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MV",
+      "countryName": "Maldives",
+      "supplierCountryId": 126,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MV"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ML",
+      "countryName": "Mali",
+      "supplierCountryId": 127,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ML"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MT",
+      "countryName": "Malta",
+      "supplierCountryId": 128,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MT"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MQ",
+      "countryName": "Martinique",
+      "supplierCountryId": 129,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MQ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MR",
+      "countryName": "Mauritania",
+      "supplierCountryId": 130,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MU",
+      "countryName": "Mauritius",
+      "supplierCountryId": 231,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MU"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MX",
+      "countryName": "Mexico",
+      "supplierCountryId": 3,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MX"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MD",
+      "countryName": "Moldova",
+      "supplierCountryId": 133,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MD",
+        "Republic of Moldova"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MC",
+      "countryName": "Monaco",
+      "supplierCountryId": 226,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MC"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MN",
+      "countryName": "Mongolia",
+      "supplierCountryId": 134,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ME",
+      "countryName": "Montenegro",
+      "supplierCountryId": 135,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ME"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MS",
+      "countryName": "Montserrat",
+      "supplierCountryId": 136,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MS"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MA",
+      "countryName": "Morocco",
+      "supplierCountryId": 137,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MZ",
+      "countryName": "Mozambique",
+      "supplierCountryId": 138,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NA",
+      "countryName": "Namibia",
+      "supplierCountryId": 139,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NR",
+      "countryName": "Nauru",
+      "supplierCountryId": 140,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NP",
+      "countryName": "Nepal",
+      "supplierCountryId": 141,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NP"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NL",
+      "countryName": "Netherlands",
+      "supplierCountryId": 142,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NL"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NC",
+      "countryName": "New Caledonia",
+      "supplierCountryId": 143,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NC"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NZ",
+      "countryName": "New Zealand",
+      "supplierCountryId": 6,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NI",
+      "countryName": "Nicaragua",
+      "supplierCountryId": 144,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NI"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NE",
+      "countryName": "Niger",
+      "supplierCountryId": 145,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NG",
+      "countryName": "Nigeria",
+      "supplierCountryId": 146,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KP",
+      "countryName": "North Korea",
+      "supplierCountryId": 147,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KP"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "MK",
+      "countryName": "North Macedonia",
+      "supplierCountryId": 239,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "MK"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "NO",
+      "countryName": "Norway",
+      "supplierCountryId": 148,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "NO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "OM",
+      "countryName": "Oman",
+      "supplierCountryId": 149,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "OM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PK",
+      "countryName": "Pakistan",
+      "supplierCountryId": 150,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PK"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PA",
+      "countryName": "Panama",
+      "supplierCountryId": 232,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PG",
+      "countryName": "Papua New Guinea",
+      "supplierCountryId": 152,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PY",
+      "countryName": "Paraguay",
+      "supplierCountryId": 153,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PY"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PE",
+      "countryName": "Peru",
+      "supplierCountryId": 154,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PH",
+      "countryName": "Philippines",
+      "supplierCountryId": 155,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PH"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PN",
+      "countryName": "Pitcairn Island",
+      "supplierCountryId": 156,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PL",
+      "countryName": "Poland",
+      "supplierCountryId": 157,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PL"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PT",
+      "countryName": "Portugal",
+      "supplierCountryId": 158,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PT"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "QA",
+      "countryName": "Qatar",
+      "supplierCountryId": 159,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "QA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GE",
+      "countryName": "Republic of Georgia",
+      "supplierCountryId": 160,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "GE",
+        "Georgia"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "RE",
+      "countryName": "Reunion",
+      "supplierCountryId": 161,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "RE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "RO",
+      "countryName": "Romania",
+      "supplierCountryId": 162,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "RO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "RU",
+      "countryName": "Russia",
+      "supplierCountryId": 163,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "Russian Federation",
+        "Federation of Russia",
+        "RU"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "BL",
+      "countryName": "Saint Barth\u00e9lemy",
+      "supplierCountryId": 233,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "BL",
+        "Saint Barthelemy",
+        "St. Barth\u00e9lemy",
+        "St. Barthelemy",
+        "St. Barts",
+        "Barthelemy"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SH",
+      "countryName": "Saint Helena",
+      "supplierCountryId": 165,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SH"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KN",
+      "countryName": "Saint Kitts and Nevis",
+      "supplierCountryId": 167,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KN",
+        "Saint Kitts",
+        "St. Kitts",
+        "Nevis",
+        "St. Kitts and Nevis"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LC",
+      "countryName": "Saint Lucia",
+      "supplierCountryId": 168,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LC"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "VC",
+      "countryName": "Saint Vincent and the Grenadines",
+      "supplierCountryId": 172,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "VC",
+        "Saint Vincent & the Grenadines",
+        "Saint Vincent And The Grenadines"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "WS",
+      "countryName": "Samoa",
+      "supplierCountryId": 174,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "WS"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SM",
+      "countryName": "San Marino",
+      "supplierCountryId": 175,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ST",
+      "countryName": "Sao Tome",
+      "supplierCountryId": 176,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ST"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SA",
+      "countryName": "Saudi Arabia",
+      "supplierCountryId": 178,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SN",
+      "countryName": "Senegal",
+      "supplierCountryId": 179,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "RS",
+      "countryName": "Serbia",
+      "supplierCountryId": 180,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "RS"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SC",
+      "countryName": "Seychelles",
+      "supplierCountryId": 230,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SC"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "SG",
+      "countryName": "Singapore",
+      "supplierCountryId": 183,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SX",
+      "countryName": "Sint Maarten",
+      "supplierCountryId": 184,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SX",
+        "Saint Martin"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SK",
+      "countryName": "Slovakia",
+      "supplierCountryId": 185,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SK"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SI",
+      "countryName": "Slovenia",
+      "supplierCountryId": 186,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SI"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SO",
+      "countryName": "Somalia",
+      "supplierCountryId": 188,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ZA",
+      "countryName": "South Africa",
+      "supplierCountryId": 189,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ZA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "KR",
+      "countryName": "South Korea",
+      "supplierCountryId": 170,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "KR",
+        "Republic of Korea"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ES",
+      "countryName": "Spain",
+      "supplierCountryId": 190,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ES"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "LK",
+      "countryName": "Sri Lanka",
+      "supplierCountryId": 191,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "LK"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "PM",
+      "countryName": "St. Pierre and Miquelon",
+      "supplierCountryId": 132,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "PM",
+        "St. Pierre",
+        "Saint Pierre",
+        "Miquelon"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SD",
+      "countryName": "Sudan",
+      "supplierCountryId": 192,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SD"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": true
+    },
+    {
+      "countryCode": "SR",
+      "countryName": "Suriname",
+      "supplierCountryId": 193,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SZ",
+      "countryName": "Swaziland",
+      "supplierCountryId": 194,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SE",
+      "countryName": "Sweden",
+      "supplierCountryId": 195,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "CH",
+      "countryName": "Switzerland",
+      "supplierCountryId": 196,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "CH"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "SY",
+      "countryName": "Syria",
+      "supplierCountryId": 197,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "SY",
+        "Syrian Arab Republic"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TW",
+      "countryName": "Taiwan",
+      "supplierCountryId": 198,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TW"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TJ",
+      "countryName": "Tajikistan",
+      "supplierCountryId": 199,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TJ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TZ",
+      "countryName": "Tanzania",
+      "supplierCountryId": 200,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TH",
+      "countryName": "Thailand",
+      "supplierCountryId": 201,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TH"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TL",
+      "countryName": "Timor-Leste",
+      "supplierCountryId": 202,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TL",
+        "East Timor"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TG",
+      "countryName": "Togo",
+      "supplierCountryId": 203,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TO",
+      "countryName": "Tonga",
+      "supplierCountryId": 204,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TO"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TT",
+      "countryName": "Trinidad and Tobago",
+      "supplierCountryId": 205,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TT",
+        "Trinidad",
+        "Tobago"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TN",
+      "countryName": "Tunisia",
+      "supplierCountryId": 208,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TR",
+      "countryName": "Turkey",
+      "supplierCountryId": 209,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TR"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TC",
+      "countryName": "Turks and Caicos Islands",
+      "supplierCountryId": 234,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TC"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "TV",
+      "countryName": "Tuvalu",
+      "supplierCountryId": 212,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "TV"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "UG",
+      "countryName": "Uganda",
+      "supplierCountryId": 213,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "UG"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "UA",
+      "countryName": "Ukraine",
+      "supplierCountryId": 214,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "UA"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "AE",
+      "countryName": "United Arab Emirates",
+      "supplierCountryId": 215,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "AE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "GB",
+      "countryName": "United Kingdom",
+      "supplierCountryId": 4,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "U.K.",
+        "England",
+        "GB",
+        "UK",
+        "Great Britain"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "US",
+      "countryName": "United States",
+      "supplierCountryId": 1,
+      "deliveryCostUSD": "0.82",
+      "aliases": [
+        "USA",
+        "U.S.A.",
+        "United States of America",
+        "US",
+        "U.S.",
+        "Puerto Rico"
+      ],
+      "regionRequired": true,
+      "postalCodeRequired": true,
+      "regions": [
+        {
+          "code": "AK",
+          "name": "Alaska"
+        },
+        {
+          "code": "AL",
+          "name": "Alabama"
+        },
+        {
+          "code": "AR",
+          "name": "Arkansas"
+        },
+        {
+          "code": "AZ",
+          "name": "Arizona"
+        },
+        {
+          "code": "CA",
+          "name": "California"
+        },
+        {
+          "code": "CO",
+          "name": "Colorado"
+        },
+        {
+          "code": "CT",
+          "name": "Connecticut"
+        },
+        {
+          "code": "DC",
+          "name": "District of Columbia"
+        },
+        {
+          "code": "DE",
+          "name": "Delaware"
+        },
+        {
+          "code": "FL",
+          "name": "Florida"
+        },
+        {
+          "code": "GA",
+          "name": "Georgia"
+        },
+        {
+          "code": "HI",
+          "name": "Hawaii"
+        },
+        {
+          "code": "IA",
+          "name": "Iowa"
+        },
+        {
+          "code": "ID",
+          "name": "Idaho"
+        },
+        {
+          "code": "IL",
+          "name": "Illinois"
+        },
+        {
+          "code": "IN",
+          "name": "Indiana"
+        },
+        {
+          "code": "KS",
+          "name": "Kansas"
+        },
+        {
+          "code": "KY",
+          "name": "Kentucky"
+        },
+        {
+          "code": "LA",
+          "name": "Louisiana"
+        },
+        {
+          "code": "MA",
+          "name": "Massachusetts"
+        },
+        {
+          "code": "MD",
+          "name": "Maryland"
+        },
+        {
+          "code": "ME",
+          "name": "Maine"
+        },
+        {
+          "code": "MI",
+          "name": "Michigan"
+        },
+        {
+          "code": "MN",
+          "name": "Minnesota"
+        },
+        {
+          "code": "MO",
+          "name": "Missouri"
+        },
+        {
+          "code": "MS",
+          "name": "Mississippi"
+        },
+        {
+          "code": "MT",
+          "name": "Montana"
+        },
+        {
+          "code": "NC",
+          "name": "North Carolina"
+        },
+        {
+          "code": "ND",
+          "name": "North Dakota"
+        },
+        {
+          "code": "NE",
+          "name": "Nebraska"
+        },
+        {
+          "code": "NH",
+          "name": "New Hampshire"
+        },
+        {
+          "code": "NJ",
+          "name": "New Jersey"
+        },
+        {
+          "code": "NM",
+          "name": "New Mexico"
+        },
+        {
+          "code": "NV",
+          "name": "Nevada"
+        },
+        {
+          "code": "NY",
+          "name": "New York"
+        },
+        {
+          "code": "OH",
+          "name": "Ohio"
+        },
+        {
+          "code": "OK",
+          "name": "Oklahoma"
+        },
+        {
+          "code": "OR",
+          "name": "Oregon"
+        },
+        {
+          "code": "PA",
+          "name": "Pennsylvania"
+        },
+        {
+          "code": "RI",
+          "name": "Rhode Island"
+        },
+        {
+          "code": "SC",
+          "name": "South Carolina"
+        },
+        {
+          "code": "SD",
+          "name": "South Dakota"
+        },
+        {
+          "code": "TN",
+          "name": "Tennessee"
+        },
+        {
+          "code": "TX",
+          "name": "Texas"
+        },
+        {
+          "code": "UT",
+          "name": "Utah"
+        },
+        {
+          "code": "VA",
+          "name": "Virginia"
+        },
+        {
+          "code": "VT",
+          "name": "Vermont"
+        },
+        {
+          "code": "WA",
+          "name": "Washington"
+        },
+        {
+          "code": "WI",
+          "name": "Wisconsin"
+        },
+        {
+          "code": "WV",
+          "name": "West Virginia"
+        },
+        {
+          "code": "WY",
+          "name": "Wyoming"
+        },
+        {
+          "code": "AS",
+          "name": "American Samoa"
+        },
+        {
+          "code": "GU",
+          "name": "Guam"
+        },
+        {
+          "code": "MP",
+          "name": "Northern Mariana Islands"
+        },
+        {
+          "code": "PR",
+          "name": "Puerto Rico"
+        },
+        {
+          "code": "VI",
+          "name": "U.S. Virgin Islands"
+        },
+        {
+          "code": "AE",
+          "name": "Armed Forces Middle East/Africa"
+        },
+        {
+          "code": "AA",
+          "name": "Armed Forces Americas"
+        },
+        {
+          "code": "AP",
+          "name": "Armed Forces Pacific"
+        }
+      ],
+      "suspended": false
+    },
+    {
+      "countryCode": "UY",
+      "countryName": "Uruguay",
+      "supplierCountryId": 216,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "UY"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "UZ",
+      "countryName": "Uzbekistan",
+      "supplierCountryId": 241,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "UZ"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "VU",
+      "countryName": "Vanuatu",
+      "supplierCountryId": 235,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "VU",
+        "Banks Island"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "VA",
+      "countryName": "Vatican City",
+      "supplierCountryId": 219,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "VA",
+        "Holy See",
+        "Vatican City State"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "VE",
+      "countryName": "Venezuela",
+      "supplierCountryId": 220,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "VE"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "VN",
+      "countryName": "Vietnam",
+      "supplierCountryId": 221,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "VN"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "WF",
+      "countryName": "Wallis Futuna Islands",
+      "supplierCountryId": 222,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "WF",
+        "Wallis and Futuna",
+        "Wallis",
+        "Futuna"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ZM",
+      "countryName": "Zambia",
+      "supplierCountryId": 224,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ZM"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    },
+    {
+      "countryCode": "ZW",
+      "countryName": "Zimbabwe",
+      "supplierCountryId": 225,
+      "deliveryCostUSD": "1.85",
+      "aliases": [
+        "ZW"
+      ],
+      "regionRequired": false,
+      "postalCodeRequired": true,
+      "regions": [],
+      "suspended": false
+    }
+  ],
+  "excludedRecords": [
+    {
+      "id": 17,
+      "name": "Ascension",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 32,
+      "name": "Bonaire",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 122,
+      "name": "Macedonia",
+      "reason": "Duplicate supplier alias; canonical North Macedonia / Saint Kitts and Nevis record retained"
+    },
+    {
+      "id": 164,
+      "name": "Rwanda",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 171,
+      "name": "Nevis",
+      "reason": "Duplicate supplier alias; canonical North Macedonia / Saint Kitts and Nevis record retained"
+    },
+    {
+      "id": 177,
+      "name": "Principe",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 207,
+      "name": "Tristan da Cunha",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 227,
+      "name": "Lebanon",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 238,
+      "name": "Solomon Islands",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 240,
+      "name": "Sierra Leone",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 242,
+      "name": "Scotland",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 243,
+      "name": "Wales",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    },
+    {
+      "id": 1000,
+      "name": "Presort First Class",
+      "reason": "No unambiguous ISO2 alias in supplier response; not guessed"
+    }
+  ],
+  "notes": [
+    "Country catalog costs are delivery only, not complete custom A2 order costs.",
+    "Postal required and state required for US/Canada follow supplier singleStepOrder contract.",
+    "Scotland/Wales can be addressed through the United Kingdom option; ambiguous duplicate/vendor-only records omitted.",
+    "Catalog membership is not proof of current deliverability; dated USPS suspensions excluded. Reverify before live activation.",
+    "No dummy postal code supplied for countries without postal codes; supplier exception handling remains unresolved."
+  ]
+}

@@ -1,0 +1,2017 @@
+{
+  "checkedAt": "2026-10-26T06:50:07.452Z",
+  "endpoint": "/v2/countries/list",
+  "countries": [
+    {
+      "id": 1,
+      "name": "United States",
+      "delivery_cost": "0.82",
+      "aliases": "|USA|U.S.A.|United States of America|US|U.S.|Puerto Rico|",
+      "states": [
+        {
+          "name": "Alaska",
+          "short_name": "AK",
+          "id": 1,
+          "country_id": 1
+        },
+        {
+          "name": "Alabama",
+          "short_name": "AL",
+          "id": 2,
+          "country_id": 1
+        },
+        {
+          "name": "Arkansas",
+          "short_name": "AR",
+          "id": 3,
+          "country_id": 1
+        },
+        {
+          "name": "Arizona",
+          "short_name": "AZ",
+          "id": 4,
+          "country_id": 1
+        },
+        {
+          "name": "California",
+          "short_name": "CA",
+          "id": 5,
+          "country_id": 1
+        },
+        {
+          "name": "Colorado",
+          "short_name": "CO",
+          "id": 6,
+          "country_id": 1
+        },
+        {
+          "name": "Connecticut",
+          "short_name": "CT",
+          "id": 7,
+          "country_id": 1
+        },
+        {
+          "name": "District of Columbia",
+          "short_name": "DC",
+          "id": 8,
+          "country_id": 1
+        },
+        {
+          "name": "Delaware",
+          "short_name": "DE",
+          "id": 9,
+          "country_id": 1
+        },
+        {
+          "name": "Florida",
+          "short_name": "FL",
+          "id": 10,
+          "country_id": 1
+        },
+        {
+          "name": "Georgia",
+          "short_name": "GA",
+          "id": 11,
+          "country_id": 1
+        },
+        {
+          "name": "Hawaii",
+          "short_name": "HI",
+          "id": 12,
+          "country_id": 1
+        },
+        {
+          "name": "Iowa",
+          "short_name": "IA",
+          "id": 13,
+          "country_id": 1
+        },
+        {
+          "name": "Idaho",
+          "short_name": "ID",
+          "id": 14,
+          "country_id": 1
+        },
+        {
+          "name": "Illinois",
+          "short_name": "IL",
+          "id": 15,
+          "country_id": 1
+        },
+        {
+          "name": "Indiana",
+          "short_name": "IN",
+          "id": 16,
+          "country_id": 1
+        },
+        {
+          "name": "Kansas",
+          "short_name": "KS",
+          "id": 17,
+          "country_id": 1
+        },
+        {
+          "name": "Kentucky",
+          "short_name": "KY",
+          "id": 18,
+          "country_id": 1
+        },
+        {
+          "name": "Louisiana",
+          "short_name": "LA",
+          "id": 19,
+          "country_id": 1
+        },
+        {
+          "name": "Massachusetts",
+          "short_name": "MA",
+          "id": 20,
+          "country_id": 1
+        },
+        {
+          "name": "Maryland",
+          "short_name": "MD",
+          "id": 21,
+          "country_id": 1
+        },
+        {
+          "name": "Maine",
+          "short_name": "ME",
+          "id": 22,
+          "country_id": 1
+        },
+        {
+          "name": "Michigan",
+          "short_name": "MI",
+          "id": 23,
+          "country_id": 1
+        },
+        {
+          "name": "Minnesota",
+          "short_name": "MN",
+          "id": 24,
+          "country_id": 1
+        },
+        {
+          "name": "Missouri",
+          "short_name": "MO",
+          "id": 25,
+          "country_id": 1
+        },
+        {
+          "name": "Mississippi",
+          "short_name": "MS",
+          "id": 26,
+          "country_id": 1
+        },
+        {
+          "name": "Montana",
+          "short_name": "MT",
+          "id": 27,
+          "country_id": 1
+        },
+        {
+          "name": "North Carolina",
+          "short_name": "NC",
+          "id": 28,
+          "country_id": 1
+        },
+        {
+          "name": "North Dakota",
+          "short_name": "ND",
+          "id": 29,
+          "country_id": 1
+        },
+        {
+          "name": "Nebraska",
+          "short_name": "NE",
+          "id": 30,
+          "country_id": 1
+        },
+        {
+          "name": "New Hampshire",
+          "short_name": "NH",
+          "id": 31,
+          "country_id": 1
+        },
+        {
+          "name": "New Jersey",
+          "short_name": "NJ",
+          "id": 32,
+          "country_id": 1
+        },
+        {
+          "name": "New Mexico",
+          "short_name": "NM",
+          "id": 33,
+          "country_id": 1
+        },
+        {
+          "name": "Nevada",
+          "short_name": "NV",
+          "id": 34,
+          "country_id": 1
+        },
+        {
+          "name": "New York",
+          "short_name": "NY",
+          "id": 35,
+          "country_id": 1
+        },
+        {
+          "name": "Ohio",
+          "short_name": "OH",
+          "id": 36,
+          "country_id": 1
+        },
+        {
+          "name": "Oklahoma",
+          "short_name": "OK",
+          "id": 37,
+          "country_id": 1
+        },
+        {
+          "name": "Oregon",
+          "short_name": "OR",
+          "id": 38,
+          "country_id": 1
+        },
+        {
+          "name": "Pennsylvania",
+          "short_name": "PA",
+          "id": 39,
+          "country_id": 1
+        },
+        {
+          "name": "Rhode Island",
+          "short_name": "RI",
+          "id": 40,
+          "country_id": 1
+        },
+        {
+          "name": "South Carolina",
+          "short_name": "SC",
+          "id": 41,
+          "country_id": 1
+        },
+        {
+          "name": "South Dakota",
+          "short_name": "SD",
+          "id": 42,
+          "country_id": 1
+        },
+        {
+          "name": "Tennessee",
+          "short_name": "TN",
+          "id": 43,
+          "country_id": 1
+        },
+        {
+          "name": "Texas",
+          "short_name": "TX",
+          "id": 44,
+          "country_id": 1
+        },
+        {
+          "name": "Utah",
+          "short_name": "UT",
+          "id": 45,
+          "country_id": 1
+        },
+        {
+          "name": "Virginia",
+          "short_name": "VA",
+          "id": 46,
+          "country_id": 1
+        },
+        {
+          "name": "Vermont",
+          "short_name": "VT",
+          "id": 47,
+          "country_id": 1
+        },
+        {
+          "name": "Washington",
+          "short_name": "WA",
+          "id": 48,
+          "country_id": 1
+        },
+        {
+          "name": "Wisconsin",
+          "short_name": "WI",
+          "id": 49,
+          "country_id": 1
+        },
+        {
+          "name": "West Virginia",
+          "short_name": "WV",
+          "id": 50,
+          "country_id": 1
+        },
+        {
+          "name": "Wyoming",
+          "short_name": "WY",
+          "id": 51,
+          "country_id": 1
+        },
+        {
+          "name": "American Samoa",
+          "short_name": "AS",
+          "id": 52,
+          "country_id": 1
+        },
+        {
+          "name": "Guam",
+          "short_name": "GU",
+          "id": 53,
+          "country_id": 1
+        },
+        {
+          "name": "Northern Mariana Islands",
+          "short_name": "MP",
+          "id": 54,
+          "country_id": 1
+        },
+        {
+          "name": "Puerto Rico",
+          "short_name": "PR",
+          "id": 55,
+          "country_id": 1
+        },
+        {
+          "name": "U.S. Virgin Islands",
+          "short_name": "VI",
+          "id": 56,
+          "country_id": 1
+        },
+        {
+          "name": "Armed Forces Middle East/Africa",
+          "short_name": "AE",
+          "id": 70,
+          "country_id": 1
+        },
+        {
+          "name": "Armed Forces Americas",
+          "short_name": "AA",
+          "id": 71,
+          "country_id": 1
+        },
+        {
+          "name": "Armed Forces Pacific",
+          "short_name": "AP",
+          "id": 72,
+          "country_id": 1
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Canada",
+      "delivery_cost": "1.10",
+      "aliases": "|CA|",
+      "states": [
+        {
+          "name": "Alberta",
+          "short_name": "AB",
+          "id": 57,
+          "country_id": 2
+        },
+        {
+          "name": "British Columbia",
+          "short_name": "BC",
+          "id": 58,
+          "country_id": 2
+        },
+        {
+          "name": "Manitoba",
+          "short_name": "MB",
+          "id": 59,
+          "country_id": 2
+        },
+        {
+          "name": "New Brunswick",
+          "short_name": "NB",
+          "id": 60,
+          "country_id": 2
+        },
+        {
+          "name": "Newfoundland and Labrador",
+          "short_name": "NL",
+          "id": 61,
+          "country_id": 2
+        },
+        {
+          "name": "Nova Scotia",
+          "short_name": "NS",
+          "id": 62,
+          "country_id": 2
+        },
+        {
+          "name": "Northwest Territories",
+          "short_name": "NT",
+          "id": 63,
+          "country_id": 2
+        },
+        {
+          "name": "Nunavut",
+          "short_name": "NU",
+          "id": 64,
+          "country_id": 2
+        },
+        {
+          "name": "Ontario",
+          "short_name": "ON",
+          "id": 65,
+          "country_id": 2
+        },
+        {
+          "name": "Prince Edward Island",
+          "short_name": "PE",
+          "id": 66,
+          "country_id": 2
+        },
+        {
+          "name": "Quebec",
+          "short_name": "QC",
+          "id": 67,
+          "country_id": 2
+        },
+        {
+          "name": "Saskatchewan",
+          "short_name": "SK",
+          "id": 68,
+          "country_id": 2
+        },
+        {
+          "name": "Yukon Territory",
+          "short_name": "YT",
+          "id": 69,
+          "country_id": 2
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Mexico",
+      "delivery_cost": "1.85",
+      "aliases": "|MX|",
+      "states": []
+    },
+    {
+      "id": 4,
+      "name": "United Kingdom",
+      "delivery_cost": "1.85",
+      "aliases": "|U.K.|England|GB|UK|Great Britain|",
+      "states": []
+    },
+    {
+      "id": 5,
+      "name": "Australia",
+      "delivery_cost": "1.85",
+      "aliases": "|AU|",
+      "states": []
+    },
+    {
+      "id": 6,
+      "name": "New Zealand",
+      "delivery_cost": "1.85",
+      "aliases": "|NZ|",
+      "states": []
+    },
+    {
+      "id": 7,
+      "name": "Afghanistan",
+      "delivery_cost": "1.85",
+      "aliases": "|AF|",
+      "states": []
+    },
+    {
+      "id": 8,
+      "name": "Albania",
+      "delivery_cost": "1.85",
+      "aliases": "|AL|",
+      "states": []
+    },
+    {
+      "id": 9,
+      "name": "Algeria",
+      "delivery_cost": "1.85",
+      "aliases": "|DZ|",
+      "states": []
+    },
+    {
+      "id": 10,
+      "name": "Andorra",
+      "delivery_cost": "1.85",
+      "aliases": "|AD|",
+      "states": []
+    },
+    {
+      "id": 11,
+      "name": "Angola",
+      "delivery_cost": "1.85",
+      "aliases": "|AO|",
+      "states": []
+    },
+    {
+      "id": 12,
+      "name": "Anguilla",
+      "delivery_cost": "1.85",
+      "aliases": "|AI|",
+      "states": []
+    },
+    {
+      "id": 13,
+      "name": "Antigua",
+      "delivery_cost": "1.85",
+      "aliases": "|AG|Antigua and Barbuda|\r\n\r\n",
+      "states": []
+    },
+    {
+      "id": 14,
+      "name": "Argentina",
+      "delivery_cost": "1.85",
+      "aliases": "|AR|",
+      "states": []
+    },
+    {
+      "id": 15,
+      "name": "Armenia",
+      "delivery_cost": "1.85",
+      "aliases": "|AM|",
+      "states": []
+    },
+    {
+      "id": 16,
+      "name": "Aruba",
+      "delivery_cost": "1.85",
+      "aliases": "|AW|",
+      "states": []
+    },
+    {
+      "id": 17,
+      "name": "Ascension",
+      "delivery_cost": "1.85",
+      "aliases": "",
+      "states": []
+    },
+    {
+      "id": 18,
+      "name": "Austria",
+      "delivery_cost": "1.85",
+      "aliases": "|AT|",
+      "states": []
+    },
+    {
+      "id": 19,
+      "name": "Azerbaijan",
+      "delivery_cost": "1.85",
+      "aliases": "|AZ|",
+      "states": []
+    },
+    {
+      "id": 20,
+      "name": "Bahamas",
+      "delivery_cost": "1.85",
+      "aliases": "|BS|",
+      "states": []
+    },
+    {
+      "id": 21,
+      "name": "Bahrain",
+      "delivery_cost": "1.85",
+      "aliases": "|BH|",
+      "states": []
+    },
+    {
+      "id": 22,
+      "name": "Bangladesh",
+      "delivery_cost": "1.85",
+      "aliases": "|BD|",
+      "states": []
+    },
+    {
+      "id": 23,
+      "name": "Barbados",
+      "delivery_cost": "1.85",
+      "aliases": "|BB|",
+      "states": []
+    },
+    {
+      "id": 25,
+      "name": "Belarus",
+      "delivery_cost": "1.85",
+      "aliases": "|BY|",
+      "states": []
+    },
+    {
+      "id": 26,
+      "name": "Belgium",
+      "delivery_cost": "1.85",
+      "aliases": "|BE|",
+      "states": []
+    },
+    {
+      "id": 27,
+      "name": "Belize",
+      "delivery_cost": "1.85",
+      "aliases": "|BZ|",
+      "states": []
+    },
+    {
+      "id": 28,
+      "name": "Benin",
+      "delivery_cost": "1.85",
+      "aliases": "|BJ|",
+      "states": []
+    },
+    {
+      "id": 29,
+      "name": "Bermuda",
+      "delivery_cost": "1.85",
+      "aliases": "|BM|",
+      "states": []
+    },
+    {
+      "id": 30,
+      "name": "Bhutan",
+      "delivery_cost": "1.85",
+      "aliases": "|BT|",
+      "states": []
+    },
+    {
+      "id": 31,
+      "name": "Bolivia",
+      "delivery_cost": "1.85",
+      "aliases": "|BO|",
+      "states": []
+    },
+    {
+      "id": 32,
+      "name": "Bonaire",
+      "delivery_cost": "1.85",
+      "aliases": "",
+      "states": []
+    },
+    {
+      "id": 33,
+      "name": "Bosnia-Herzegovina",
+      "delivery_cost": "1.85",
+      "aliases": "|BA|",
+      "states": []
+    },
+    {
+      "id": 34,
+      "name": "Botswana",
+      "delivery_cost": "1.85",
+      "aliases": "|BW|",
+      "states": []
+    },
+    {
+      "id": 35,
+      "name": "Brazil",
+      "delivery_cost": "1.85",
+      "aliases": "|BR|",
+      "states": []
+    },
+    {
+      "id": 36,
+      "name": "British Virgin Islands",
+      "delivery_cost": "1.85",
+      "aliases": "|VG|",
+      "states": []
+    },
+    {
+      "id": 37,
+      "name": "Brunei Darussalam",
+      "delivery_cost": "1.85",
+      "aliases": "|BN|",
+      "states": []
+    },
+    {
+      "id": 38,
+      "name": "Bulgaria",
+      "delivery_cost": "1.85",
+      "aliases": "|BG|",
+      "states": []
+    },
+    {
+      "id": 39,
+      "name": "Burkina Faso",
+      "delivery_cost": "1.85",
+      "aliases": "|BF|",
+      "states": []
+    },
+    {
+      "id": 40,
+      "name": "Burma",
+      "delivery_cost": "1.85",
+      "aliases": "|Myanmar|MM|",
+      "states": []
+    },
+    {
+      "id": 41,
+      "name": "Burundi",
+      "delivery_cost": "1.85",
+      "aliases": "|BI|",
+      "states": []
+    },
+    {
+      "id": 42,
+      "name": "Cambodia",
+      "delivery_cost": "1.85",
+      "aliases": "|KH|Kampuchea|",
+      "states": []
+    },
+    {
+      "id": 43,
+      "name": "Cameroon",
+      "delivery_cost": "1.85",
+      "aliases": "|CM|",
+      "states": []
+    },
+    {
+      "id": 44,
+      "name": "Cape Verde",
+      "delivery_cost": "1.85",
+      "aliases": "|CV|",
+      "states": []
+    },
+    {
+      "id": 45,
+      "name": "Cayman Islands",
+      "delivery_cost": "1.85",
+      "aliases": "|KY|",
+      "states": []
+    },
+    {
+      "id": 46,
+      "name": "Central African Republic",
+      "delivery_cost": "1.85",
+      "aliases": "|CF|",
+      "states": []
+    },
+    {
+      "id": 47,
+      "name": "Chad",
+      "delivery_cost": "1.85",
+      "aliases": "|TD|",
+      "states": []
+    },
+    {
+      "id": 48,
+      "name": "Chile",
+      "delivery_cost": "1.85",
+      "aliases": "|CL|",
+      "states": []
+    },
+    {
+      "id": 49,
+      "name": "China",
+      "delivery_cost": "1.85",
+      "aliases": "|CN|",
+      "states": []
+    },
+    {
+      "id": 50,
+      "name": "Colombia",
+      "delivery_cost": "1.85",
+      "aliases": "|CO|",
+      "states": []
+    },
+    {
+      "id": 51,
+      "name": "Comoros",
+      "delivery_cost": "1.85",
+      "aliases": "|KM|",
+      "states": []
+    },
+    {
+      "id": 52,
+      "name": "Costa Rica",
+      "delivery_cost": "1.85",
+      "aliases": "|CR|",
+      "states": []
+    },
+    {
+      "id": 53,
+      "name": "Cote d’Ivoire",
+      "delivery_cost": "1.85",
+      "aliases": "|CI|Cote d'Ivoire|Côte d'Ivoire|",
+      "states": []
+    },
+    {
+      "id": 54,
+      "name": "Croatia",
+      "delivery_cost": "1.85",
+      "aliases": "|HR|",
+      "states": []
+    },
+    {
+      "id": 56,
+      "name": "Curacao",
+      "delivery_cost": "1.85",
+      "aliases": "|CW|",
+      "states": []
+    },
+    {
+      "id": 57,
+      "name": "Cyprus",
+      "delivery_cost": "1.85",
+      "aliases": "|CY|",
+      "states": []
+    },
+    {
+      "id": 58,
+      "name": "Czech Republic",
+      "delivery_cost": "1.85",
+      "aliases": "|CZ|Czechia|",
+      "states": []
+    },
+    {
+      "id": 59,
+      "name": "Democratic Republic of the Congo",
+      "delivery_cost": "1.85",
+      "aliases": "|CG|",
+      "states": []
+    },
+    {
+      "id": 60,
+      "name": "Denmark",
+      "delivery_cost": "1.85",
+      "aliases": "|DK|",
+      "states": []
+    },
+    {
+      "id": 61,
+      "name": "Djibouti",
+      "delivery_cost": "1.85",
+      "aliases": "|DJ|",
+      "states": []
+    },
+    {
+      "id": 62,
+      "name": "Dominica",
+      "delivery_cost": "1.85",
+      "aliases": "|DM|",
+      "states": []
+    },
+    {
+      "id": 63,
+      "name": "Dominican Republic",
+      "delivery_cost": "1.85",
+      "aliases": "|DO|",
+      "states": []
+    },
+    {
+      "id": 64,
+      "name": "Ecuador",
+      "delivery_cost": "1.85",
+      "aliases": "|EC|",
+      "states": []
+    },
+    {
+      "id": 65,
+      "name": "Egypt",
+      "delivery_cost": "1.85",
+      "aliases": "|EG|",
+      "states": []
+    },
+    {
+      "id": 66,
+      "name": "El Salvador",
+      "delivery_cost": "1.85",
+      "aliases": "|SV|",
+      "states": []
+    },
+    {
+      "id": 67,
+      "name": "Equatorial Guinea",
+      "delivery_cost": "1.85",
+      "aliases": "|GQ|",
+      "states": []
+    },
+    {
+      "id": 68,
+      "name": "Eritrea",
+      "delivery_cost": "1.85",
+      "aliases": "|ER|",
+      "states": []
+    },
+    {
+      "id": 69,
+      "name": "Estonia",
+      "delivery_cost": "1.85",
+      "aliases": "|EE|",
+      "states": []
+    },
+    {
+      "id": 70,
+      "name": "Ethiopia",
+      "delivery_cost": "1.85",
+      "aliases": "|ET|",
+      "states": []
+    },
+    {
+      "id": 71,
+      "name": "Falkland Islands",
+      "delivery_cost": "1.85",
+      "aliases": "|FK|",
+      "states": []
+    },
+    {
+      "id": 72,
+      "name": "Faroe Islands",
+      "delivery_cost": "1.85",
+      "aliases": "|FO|",
+      "states": []
+    },
+    {
+      "id": 73,
+      "name": "Fiji",
+      "delivery_cost": "1.85",
+      "aliases": "|FJ|",
+      "states": []
+    },
+    {
+      "id": 74,
+      "name": "Finland",
+      "delivery_cost": "1.85",
+      "aliases": "|FI|",
+      "states": []
+    },
+    {
+      "id": 75,
+      "name": "France",
+      "delivery_cost": "1.85",
+      "aliases": "|FR|",
+      "states": []
+    },
+    {
+      "id": 76,
+      "name": "French Guiana",
+      "delivery_cost": "1.85",
+      "aliases": "|GF|",
+      "states": []
+    },
+    {
+      "id": 77,
+      "name": "French Polynesia",
+      "delivery_cost": "1.85",
+      "aliases": "|PF|",
+      "states": []
+    },
+    {
+      "id": 78,
+      "name": "Gabon",
+      "delivery_cost": "1.85",
+      "aliases": "|GA|",
+      "states": []
+    },
+    {
+      "id": 79,
+      "name": "Gambia",
+      "delivery_cost": "1.85",
+      "aliases": "|GM|",
+      "states": []
+    },
+    {
+      "id": 80,
+      "name": "Germany",
+      "delivery_cost": "1.85",
+      "aliases": "|DE|",
+      "states": []
+    },
+    {
+      "id": 81,
+      "name": "Ghana",
+      "delivery_cost": "1.85",
+      "aliases": "|GH|",
+      "states": []
+    },
+    {
+      "id": 82,
+      "name": "Gibraltar",
+      "delivery_cost": "1.85",
+      "aliases": "|GI|",
+      "states": []
+    },
+    {
+      "id": 83,
+      "name": "Greece",
+      "delivery_cost": "1.85",
+      "aliases": "|GR|",
+      "states": []
+    },
+    {
+      "id": 84,
+      "name": "Greenland",
+      "delivery_cost": "1.85",
+      "aliases": "|GL|",
+      "states": []
+    },
+    {
+      "id": 85,
+      "name": "Grenada",
+      "delivery_cost": "1.85",
+      "aliases": "|GD|",
+      "states": []
+    },
+    {
+      "id": 86,
+      "name": "Guadeloupe",
+      "delivery_cost": "1.85",
+      "aliases": "|GP|",
+      "states": []
+    },
+    {
+      "id": 87,
+      "name": "Guatemala",
+      "delivery_cost": "1.85",
+      "aliases": "|GT|",
+      "states": []
+    },
+    {
+      "id": 88,
+      "name": "Guinea",
+      "delivery_cost": "1.85",
+      "aliases": "|GN|",
+      "states": []
+    },
+    {
+      "id": 89,
+      "name": "Guinea-Bissau",
+      "delivery_cost": "1.85",
+      "aliases": "|GW|",
+      "states": []
+    },
+    {
+      "id": 90,
+      "name": "Guyana",
+      "delivery_cost": "1.85",
+      "aliases": "|GY|",
+      "states": []
+    },
+    {
+      "id": 91,
+      "name": "Haiti",
+      "delivery_cost": "1.85",
+      "aliases": "|HT|",
+      "states": []
+    },
+    {
+      "id": 93,
+      "name": "Hong Kong",
+      "delivery_cost": "1.85",
+      "aliases": "|HK|",
+      "states": []
+    },
+    {
+      "id": 94,
+      "name": "Hungary",
+      "delivery_cost": "1.85",
+      "aliases": "|HU|",
+      "states": []
+    },
+    {
+      "id": 95,
+      "name": "Iceland",
+      "delivery_cost": "1.85",
+      "aliases": "|IS|",
+      "states": []
+    },
+    {
+      "id": 96,
+      "name": "India",
+      "delivery_cost": "1.85",
+      "aliases": "|IN|",
+      "states": []
+    },
+    {
+      "id": 97,
+      "name": "Indonesia",
+      "delivery_cost": "1.85",
+      "aliases": "|ID|",
+      "states": []
+    },
+    {
+      "id": 98,
+      "name": "Iran",
+      "delivery_cost": "1.85",
+      "aliases": "|IR|",
+      "states": []
+    },
+    {
+      "id": 99,
+      "name": "Iraq",
+      "delivery_cost": "1.85",
+      "aliases": "|IQ|",
+      "states": []
+    },
+    {
+      "id": 100,
+      "name": "Ireland",
+      "delivery_cost": "1.85",
+      "aliases": "|IE|",
+      "states": []
+    },
+    {
+      "id": 101,
+      "name": "Israel",
+      "delivery_cost": "1.85",
+      "aliases": "|IL|",
+      "states": []
+    },
+    {
+      "id": 102,
+      "name": "Italy",
+      "delivery_cost": "1.85",
+      "aliases": "|IT|",
+      "states": []
+    },
+    {
+      "id": 103,
+      "name": "Jamaica",
+      "delivery_cost": "1.85",
+      "aliases": "|JM|",
+      "states": []
+    },
+    {
+      "id": 104,
+      "name": "Japan",
+      "delivery_cost": "1.85",
+      "aliases": "|JP|",
+      "states": []
+    },
+    {
+      "id": 106,
+      "name": "Kazakhstan",
+      "delivery_cost": "1.85",
+      "aliases": "|KZ|",
+      "states": []
+    },
+    {
+      "id": 107,
+      "name": "Kenya",
+      "delivery_cost": "1.85",
+      "aliases": "|KE|",
+      "states": []
+    },
+    {
+      "id": 108,
+      "name": "Kiribati",
+      "delivery_cost": "1.85",
+      "aliases": "|KI|",
+      "states": []
+    },
+    {
+      "id": 109,
+      "name": "Kosovo",
+      "delivery_cost": "1.85",
+      "aliases": "|Republic of Kosovo|XK|",
+      "states": []
+    },
+    {
+      "id": 110,
+      "name": "Kuwait",
+      "delivery_cost": "1.85",
+      "aliases": "|KW|",
+      "states": []
+    },
+    {
+      "id": 111,
+      "name": "Kyrgyzstan",
+      "delivery_cost": "1.85",
+      "aliases": "|KG|",
+      "states": []
+    },
+    {
+      "id": 112,
+      "name": "Laos",
+      "delivery_cost": "1.85",
+      "aliases": "|LA|Lao PDR|Lao People's Democratic Republic|",
+      "states": []
+    },
+    {
+      "id": 113,
+      "name": "Latvia",
+      "delivery_cost": "1.85",
+      "aliases": "|LV|",
+      "states": []
+    },
+    {
+      "id": 115,
+      "name": "Lesotho",
+      "delivery_cost": "1.85",
+      "aliases": "|LS|",
+      "states": []
+    },
+    {
+      "id": 116,
+      "name": "Liberia",
+      "delivery_cost": "1.85",
+      "aliases": "|LR|",
+      "states": []
+    },
+    {
+      "id": 117,
+      "name": "Libya",
+      "delivery_cost": "1.85",
+      "aliases": "|LY|",
+      "states": []
+    },
+    {
+      "id": 118,
+      "name": "Liechtenstein",
+      "delivery_cost": "1.85",
+      "aliases": "|LI|",
+      "states": []
+    },
+    {
+      "id": 119,
+      "name": "Lithuania",
+      "delivery_cost": "1.85",
+      "aliases": "|LT|",
+      "states": []
+    },
+    {
+      "id": 120,
+      "name": "Luxembourg",
+      "delivery_cost": "1.85",
+      "aliases": "|LU|",
+      "states": []
+    },
+    {
+      "id": 121,
+      "name": "Macau",
+      "delivery_cost": "1.85",
+      "aliases": "|MO|",
+      "states": []
+    },
+    {
+      "id": 122,
+      "name": "Macedonia",
+      "delivery_cost": "1.85",
+      "aliases": "|MK|",
+      "states": []
+    },
+    {
+      "id": 123,
+      "name": "Madagascar",
+      "delivery_cost": "1.85",
+      "aliases": "|MG|",
+      "states": []
+    },
+    {
+      "id": 124,
+      "name": "Malawi",
+      "delivery_cost": "1.85",
+      "aliases": "|MW|",
+      "states": []
+    },
+    {
+      "id": 125,
+      "name": "Malaysia",
+      "delivery_cost": "1.85",
+      "aliases": "|MY|",
+      "states": []
+    },
+    {
+      "id": 126,
+      "name": "Maldives",
+      "delivery_cost": "1.85",
+      "aliases": "|MV|",
+      "states": []
+    },
+    {
+      "id": 127,
+      "name": "Mali",
+      "delivery_cost": "1.85",
+      "aliases": "|ML|",
+      "states": []
+    },
+    {
+      "id": 128,
+      "name": "Malta",
+      "delivery_cost": "1.85",
+      "aliases": "|MT|",
+      "states": []
+    },
+    {
+      "id": 129,
+      "name": "Martinique",
+      "delivery_cost": "1.85",
+      "aliases": "|MQ|",
+      "states": []
+    },
+    {
+      "id": 130,
+      "name": "Mauritania",
+      "delivery_cost": "1.85",
+      "aliases": "|MR|",
+      "states": []
+    },
+    {
+      "id": 132,
+      "name": "St. Pierre and Miquelon",
+      "delivery_cost": "1.85",
+      "aliases": "|PM|St. Pierre|Saint Pierre|Miquelon|",
+      "states": []
+    },
+    {
+      "id": 133,
+      "name": "Moldova",
+      "delivery_cost": "1.85",
+      "aliases": "|MD|Republic of Moldova|",
+      "states": []
+    },
+    {
+      "id": 134,
+      "name": "Mongolia",
+      "delivery_cost": "1.85",
+      "aliases": "|MN|",
+      "states": []
+    },
+    {
+      "id": 135,
+      "name": "Montenegro",
+      "delivery_cost": "1.85",
+      "aliases": "|ME|",
+      "states": []
+    },
+    {
+      "id": 136,
+      "name": "Montserrat",
+      "delivery_cost": "1.85",
+      "aliases": "|MS|",
+      "states": []
+    },
+    {
+      "id": 137,
+      "name": "Morocco",
+      "delivery_cost": "1.85",
+      "aliases": "|MA|",
+      "states": []
+    },
+    {
+      "id": 138,
+      "name": "Mozambique",
+      "delivery_cost": "1.85",
+      "aliases": "|MZ|",
+      "states": []
+    },
+    {
+      "id": 139,
+      "name": "Namibia",
+      "delivery_cost": "1.85",
+      "aliases": "|NA|",
+      "states": []
+    },
+    {
+      "id": 140,
+      "name": "Nauru",
+      "delivery_cost": "1.85",
+      "aliases": "|NR|",
+      "states": []
+    },
+    {
+      "id": 141,
+      "name": "Nepal",
+      "delivery_cost": "1.85",
+      "aliases": "|NP|",
+      "states": []
+    },
+    {
+      "id": 142,
+      "name": "Netherlands",
+      "delivery_cost": "1.85",
+      "aliases": "|NL|",
+      "states": []
+    },
+    {
+      "id": 143,
+      "name": "New Caledonia",
+      "delivery_cost": "1.85",
+      "aliases": "|NC|",
+      "states": []
+    },
+    {
+      "id": 144,
+      "name": "Nicaragua",
+      "delivery_cost": "1.85",
+      "aliases": "|NI|",
+      "states": []
+    },
+    {
+      "id": 145,
+      "name": "Niger",
+      "delivery_cost": "1.85",
+      "aliases": "|NE|",
+      "states": []
+    },
+    {
+      "id": 146,
+      "name": "Nigeria",
+      "delivery_cost": "1.85",
+      "aliases": "|NG|",
+      "states": []
+    },
+    {
+      "id": 147,
+      "name": "North Korea",
+      "delivery_cost": "1.85",
+      "aliases": "|KP|",
+      "states": []
+    },
+    {
+      "id": 148,
+      "name": "Norway",
+      "delivery_cost": "1.85",
+      "aliases": "|NO|",
+      "states": []
+    },
+    {
+      "id": 149,
+      "name": "Oman",
+      "delivery_cost": "1.85",
+      "aliases": "|OM|",
+      "states": []
+    },
+    {
+      "id": 150,
+      "name": "Pakistan",
+      "delivery_cost": "1.85",
+      "aliases": "|PK|",
+      "states": []
+    },
+    {
+      "id": 152,
+      "name": "Papua New Guinea",
+      "delivery_cost": "1.85",
+      "aliases": "|PG|",
+      "states": []
+    },
+    {
+      "id": 153,
+      "name": "Paraguay",
+      "delivery_cost": "1.85",
+      "aliases": "|PY|",
+      "states": []
+    },
+    {
+      "id": 154,
+      "name": "Peru",
+      "delivery_cost": "1.85",
+      "aliases": "|PE|",
+      "states": []
+    },
+    {
+      "id": 155,
+      "name": "Philippines",
+      "delivery_cost": "1.85",
+      "aliases": "|PH|",
+      "states": []
+    },
+    {
+      "id": 156,
+      "name": "Pitcairn Island",
+      "delivery_cost": "1.85",
+      "aliases": "|PN|",
+      "states": []
+    },
+    {
+      "id": 157,
+      "name": "Poland",
+      "delivery_cost": "1.85",
+      "aliases": "|PL|",
+      "states": []
+    },
+    {
+      "id": 158,
+      "name": "Portugal",
+      "delivery_cost": "1.85",
+      "aliases": "|PT|",
+      "states": []
+    },
+    {
+      "id": 159,
+      "name": "Qatar",
+      "delivery_cost": "1.85",
+      "aliases": "|QA|",
+      "states": []
+    },
+    {
+      "id": 160,
+      "name": "Republic of Georgia",
+      "delivery_cost": "1.85",
+      "aliases": "|GE|Georgia|",
+      "states": []
+    },
+    {
+      "id": 161,
+      "name": "Reunion",
+      "delivery_cost": "1.85",
+      "aliases": "|RE|",
+      "states": []
+    },
+    {
+      "id": 162,
+      "name": "Romania",
+      "delivery_cost": "1.85",
+      "aliases": "|RO|",
+      "states": []
+    },
+    {
+      "id": 163,
+      "name": "Russia",
+      "delivery_cost": "1.85",
+      "aliases": "|Russian Federation|Federation of Russia|RU|",
+      "states": []
+    },
+    {
+      "id": 164,
+      "name": "Rwanda",
+      "delivery_cost": "1.85",
+      "aliases": null,
+      "states": []
+    },
+    {
+      "id": 165,
+      "name": "Saint Helena",
+      "delivery_cost": "1.85",
+      "aliases": "|SH|",
+      "states": []
+    },
+    {
+      "id": 167,
+      "name": "Saint Kitts and Nevis",
+      "delivery_cost": "1.85",
+      "aliases": "|KN|Saint Kitts|St. Kitts|Nevis|St. Kitts and Nevis|",
+      "states": []
+    },
+    {
+      "id": 168,
+      "name": "Saint Lucia",
+      "delivery_cost": "1.85",
+      "aliases": "|LC|",
+      "states": []
+    },
+    {
+      "id": 170,
+      "name": "South Korea",
+      "delivery_cost": "1.85",
+      "aliases": "|KR|Republic of Korea|",
+      "states": []
+    },
+    {
+      "id": 171,
+      "name": "Nevis",
+      "delivery_cost": "1.85",
+      "aliases": "|KN|",
+      "states": []
+    },
+    {
+      "id": 172,
+      "name": "Saint Vincent and the Grenadines",
+      "delivery_cost": "1.85",
+      "aliases": "|VC|Saint Vincent & the Grenadines|Saint Vincent And The Grenadines|",
+      "states": []
+    },
+    {
+      "id": 174,
+      "name": "Samoa",
+      "delivery_cost": "1.85",
+      "aliases": "|WS|",
+      "states": []
+    },
+    {
+      "id": 175,
+      "name": "San Marino",
+      "delivery_cost": "1.85",
+      "aliases": "|SM|",
+      "states": []
+    },
+    {
+      "id": 176,
+      "name": "Sao Tome",
+      "delivery_cost": "1.85",
+      "aliases": "|ST|",
+      "states": []
+    },
+    {
+      "id": 177,
+      "name": "Principe",
+      "delivery_cost": "1.85",
+      "aliases": "",
+      "states": []
+    },
+    {
+      "id": 178,
+      "name": "Saudi Arabia",
+      "delivery_cost": "1.85",
+      "aliases": "|SA|",
+      "states": []
+    },
+    {
+      "id": 179,
+      "name": "Senegal",
+      "delivery_cost": "1.85",
+      "aliases": "|SN|",
+      "states": []
+    },
+    {
+      "id": 180,
+      "name": "Serbia",
+      "delivery_cost": "1.85",
+      "aliases": "|RS|",
+      "states": []
+    },
+    {
+      "id": 183,
+      "name": "Singapore",
+      "delivery_cost": "1.85",
+      "aliases": "|SG|",
+      "states": []
+    },
+    {
+      "id": 184,
+      "name": "Sint Maarten",
+      "delivery_cost": "1.85",
+      "aliases": "|SX|Saint Martin|",
+      "states": []
+    },
+    {
+      "id": 185,
+      "name": "Slovakia",
+      "delivery_cost": "1.85",
+      "aliases": "|SK|",
+      "states": []
+    },
+    {
+      "id": 186,
+      "name": "Slovenia",
+      "delivery_cost": "1.85",
+      "aliases": "|SI|",
+      "states": []
+    },
+    {
+      "id": 188,
+      "name": "Somalia",
+      "delivery_cost": "1.85",
+      "aliases": "|SO|",
+      "states": []
+    },
+    {
+      "id": 189,
+      "name": "South Africa",
+      "delivery_cost": "1.85",
+      "aliases": "|ZA|",
+      "states": []
+    },
+    {
+      "id": 190,
+      "name": "Spain",
+      "delivery_cost": "1.85",
+      "aliases": "|ES|",
+      "states": []
+    },
+    {
+      "id": 191,
+      "name": "Sri Lanka",
+      "delivery_cost": "1.85",
+      "aliases": "|LK|",
+      "states": []
+    },
+    {
+      "id": 192,
+      "name": "Sudan",
+      "delivery_cost": "1.85",
+      "aliases": "|SD|",
+      "states": []
+    },
+    {
+      "id": 193,
+      "name": "Suriname",
+      "delivery_cost": "1.85",
+      "aliases": "|SR|",
+      "states": []
+    },
+    {
+      "id": 194,
+      "name": "Swaziland",
+      "delivery_cost": "1.85",
+      "aliases": "|SZ|",
+      "states": []
+    },
+    {
+      "id": 195,
+      "name": "Sweden",
+      "delivery_cost": "1.85",
+      "aliases": "|SE|",
+      "states": []
+    },
+    {
+      "id": 196,
+      "name": "Switzerland",
+      "delivery_cost": "1.85",
+      "aliases": "|CH|",
+      "states": []
+    },
+    {
+      "id": 197,
+      "name": "Syria",
+      "delivery_cost": "1.85",
+      "aliases": "|SY|Syrian Arab Republic|",
+      "states": []
+    },
+    {
+      "id": 198,
+      "name": "Taiwan",
+      "delivery_cost": "1.85",
+      "aliases": "|TW|",
+      "states": []
+    },
+    {
+      "id": 199,
+      "name": "Tajikistan",
+      "delivery_cost": "1.85",
+      "aliases": "|TJ|",
+      "states": []
+    },
+    {
+      "id": 200,
+      "name": "Tanzania",
+      "delivery_cost": "1.85",
+      "aliases": "|TZ|",
+      "states": []
+    },
+    {
+      "id": 201,
+      "name": "Thailand",
+      "delivery_cost": "1.85",
+      "aliases": "|TH|",
+      "states": []
+    },
+    {
+      "id": 202,
+      "name": "Timor-Leste",
+      "delivery_cost": "1.85",
+      "aliases": "|TL|East Timor|",
+      "states": []
+    },
+    {
+      "id": 203,
+      "name": "Togo",
+      "delivery_cost": "1.85",
+      "aliases": "|TG|",
+      "states": []
+    },
+    {
+      "id": 204,
+      "name": "Tonga",
+      "delivery_cost": "1.85",
+      "aliases": "|TO|",
+      "states": []
+    },
+    {
+      "id": 205,
+      "name": "Trinidad and Tobago",
+      "delivery_cost": "1.85",
+      "aliases": "|TT|Trinidad|Tobago|",
+      "states": []
+    },
+    {
+      "id": 207,
+      "name": "Tristan da Cunha",
+      "delivery_cost": "1.85",
+      "aliases": "",
+      "states": []
+    },
+    {
+      "id": 208,
+      "name": "Tunisia",
+      "delivery_cost": "1.85",
+      "aliases": "|TN|",
+      "states": []
+    },
+    {
+      "id": 209,
+      "name": "Turkey",
+      "delivery_cost": "1.85",
+      "aliases": "|TR|",
+      "states": []
+    },
+    {
+      "id": 212,
+      "name": "Tuvalu",
+      "delivery_cost": "1.85",
+      "aliases": "|TV|",
+      "states": []
+    },
+    {
+      "id": 213,
+      "name": "Uganda",
+      "delivery_cost": "1.85",
+      "aliases": "|UG|",
+      "states": []
+    },
+    {
+      "id": 214,
+      "name": "Ukraine",
+      "delivery_cost": "1.85",
+      "aliases": "|UA|",
+      "states": []
+    },
+    {
+      "id": 215,
+      "name": "United Arab Emirates",
+      "delivery_cost": "1.85",
+      "aliases": "|AE|",
+      "states": []
+    },
+    {
+      "id": 216,
+      "name": "Uruguay",
+      "delivery_cost": "1.85",
+      "aliases": "|UY|",
+      "states": []
+    },
+    {
+      "id": 219,
+      "name": "Vatican City",
+      "delivery_cost": "1.85",
+      "aliases": "|VA|Holy See|Vatican City State|",
+      "states": []
+    },
+    {
+      "id": 220,
+      "name": "Venezuela",
+      "delivery_cost": "1.85",
+      "aliases": "|VE|",
+      "states": []
+    },
+    {
+      "id": 221,
+      "name": "Vietnam",
+      "delivery_cost": "1.85",
+      "aliases": "|VN|",
+      "states": []
+    },
+    {
+      "id": 222,
+      "name": "Wallis Futuna Islands",
+      "delivery_cost": "1.85",
+      "aliases": "|WF|Wallis and Futuna|Wallis|Futuna|",
+      "states": []
+    },
+    {
+      "id": 224,
+      "name": "Zambia",
+      "delivery_cost": "1.85",
+      "aliases": "|ZM|",
+      "states": []
+    },
+    {
+      "id": 225,
+      "name": "Zimbabwe",
+      "delivery_cost": "1.85",
+      "aliases": "|ZW|",
+      "states": []
+    },
+    {
+      "id": 226,
+      "name": "Monaco",
+      "delivery_cost": "1.85",
+      "aliases": "|MC|",
+      "states": []
+    },
+    {
+      "id": 227,
+      "name": "Lebanon",
+      "delivery_cost": "1.85",
+      "aliases": "||",
+      "states": []
+    },
+    {
+      "id": 228,
+      "name": "Cuba",
+      "delivery_cost": "1.85",
+      "aliases": "||CU||",
+      "states": []
+    },
+    {
+      "id": 229,
+      "name": "Honduras",
+      "delivery_cost": "1.85",
+      "aliases": "||HN||",
+      "states": []
+    },
+    {
+      "id": 230,
+      "name": "Seychelles",
+      "delivery_cost": "1.85",
+      "aliases": "||SC||",
+      "states": []
+    },
+    {
+      "id": 231,
+      "name": "Mauritius",
+      "delivery_cost": "1.85",
+      "aliases": "||MU||",
+      "states": []
+    },
+    {
+      "id": 232,
+      "name": "Panama",
+      "delivery_cost": "1.85",
+      "aliases": "||PA||",
+      "states": []
+    },
+    {
+      "id": 233,
+      "name": "Saint Barthélemy",
+      "delivery_cost": "1.85",
+      "aliases": "|BL|Saint Barthelemy|St. Barthélemy|St. Barthelemy|St. Barts|Barthelemy|",
+      "states": []
+    },
+    {
+      "id": 234,
+      "name": "Turks and Caicos Islands",
+      "delivery_cost": "1.85",
+      "aliases": "|TC|",
+      "states": []
+    },
+    {
+      "id": 235,
+      "name": "Vanuatu",
+      "delivery_cost": "1.85",
+      "aliases": "|VU|Banks Island|",
+      "states": []
+    },
+    {
+      "id": 236,
+      "name": "Jordan",
+      "delivery_cost": "1.85",
+      "aliases": "|JO|Hashemite Kingdom|",
+      "states": []
+    },
+    {
+      "id": 237,
+      "name": "Jersey",
+      "delivery_cost": "1.85",
+      "aliases": "|JE|Channel Islands|",
+      "states": []
+    },
+    {
+      "id": 238,
+      "name": "Solomon Islands",
+      "delivery_cost": "1.85",
+      "aliases": "||",
+      "states": []
+    },
+    {
+      "id": 239,
+      "name": "North Macedonia",
+      "delivery_cost": "1.85",
+      "aliases": "|MK|",
+      "states": []
+    },
+    {
+      "id": 240,
+      "name": "Sierra Leone",
+      "delivery_cost": "1.85",
+      "aliases": null,
+      "states": []
+    },
+    {
+      "id": 241,
+      "name": "Uzbekistan",
+      "delivery_cost": "1.85",
+      "aliases": "|UZ|",
+      "states": []
+    },
+    {
+      "id": 242,
+      "name": "Scotland",
+      "delivery_cost": "1.85",
+      "aliases": "SCT|SCO|Scot.",
+      "states": []
+    },
+    {
+      "id": 243,
+      "name": "Wales",
+      "delivery_cost": "1.85",
+      "aliases": "WAL|WLS",
+      "states": []
+    },
+    {
+      "id": 1000,
+      "name": "Presort First Class",
+      "delivery_cost": "1.85",
+      "aliases": "PFC|Presort|PRESORT",
+      "states": []
+    }
+  ],
+  "totalCountries": 225,
+  "limits": "Country catalog delivery costs do not establish full custom A2 order charge."
+}

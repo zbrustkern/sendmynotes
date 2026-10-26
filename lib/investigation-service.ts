@@ -39,6 +39,7 @@ import { TELEMETRY_V2_COLLECTION } from "./telemetry-v2";
 import { TELEMETRY_COLLECTION } from "./telemetry";
 import { getWindowBounds, evaluateCohortAndFunnelReport } from "./reporting-engine";
 import { Order, OrderStatus, MailingAddress } from "./types";
+import { normalizeCountryCode, validateMailingAddress } from "./mailing-destinations";
 
 export const ADMIN_AUDIT_LOG_COLLECTION = "admin_audit_log";
 
@@ -416,12 +417,10 @@ export function deriveOrderStates(
     addressState = "deferred_awaiting_recipient";
   } else if (!order.recipientAddress || !order.recipientAddress.street1) {
     addressState = "missing";
-  } else if (
-    !order.recipientAddress.city ||
-    !order.recipientAddress.state ||
-    !order.recipientAddress.zip
-  ) {
-    addressState = "validation_failed";
+  } else {
+    const normalizedCountry = order.recipientAddress.country === undefined ? "US" : normalizeCountryCode(order.recipientAddress.country);
+    const validation = validateMailingAddress({ ...order.recipientAddress, country: normalizedCountry || order.recipientAddress.country });
+    if (!validation.valid) addressState = "validation_failed";
   }
 
   // 3. Fulfillment State
@@ -631,10 +630,10 @@ export async function evaluateFulfillmentRetryGate(orderId: string): Promise<Ful
     order.address_deferred ||
     order.status === "AWAITING_RECIPIENT_ADDRESS" ||
     !order.recipientAddress ||
-    !order.recipientAddress.street1 ||
-    !order.recipientAddress.city ||
-    !order.recipientAddress.state ||
-    !order.recipientAddress.zip
+    !validateMailingAddress({
+      ...order.recipientAddress,
+      country: order.recipientAddress.country === undefined ? "US" : order.recipientAddress.country,
+    }).valid
   ) {
     return {
       allowed: false,

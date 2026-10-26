@@ -372,6 +372,8 @@ export interface VerifyQuoteIntegrityInput {
   code?: string;
   expectedFinalCents?: number;
   paymentIntentAmountCents?: number;
+  /** Destination upgrade added after the offer discount, never discounted. */
+  surchargeCents?: number;
   nowMs?: number;
 }
 
@@ -402,13 +404,15 @@ export async function verifyCheckoutQuoteIntegrity(
         const quote = quoteDoc.data() as OfferPriceQuoteSnapshot;
 
         // 1. Expiration check
+        const surchargeCents = Math.max(0, Math.floor(input.surchargeCents || 0));
+        const authoritativeQuotedTotal = quote.payableAmountCents + surchargeCents;
         if (nowMs > quote.expiresAt) {
-          // Re-evaluate fresh pricing
+          // Re-evaluate fresh base pricing, then reapply the immutable destination surcharge.
           const fresh = await issueOfferPriceQuote({ code: quote.code, nowMs });
           return {
             valid: false,
             requiresPriceReconfirmation: true,
-            authoritativeFinalCents: fresh.finalAmountInCents ?? CARD_FLAT_RATE_CENTS,
+            authoritativeFinalCents: (fresh.finalAmountInCents ?? CARD_FLAT_RATE_CENTS) + surchargeCents,
             staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
             reason: "Price quote has expired. Please reconfirm total before paying.",
             quote,
@@ -417,22 +421,22 @@ export async function verifyCheckoutQuoteIntegrity(
 
         // 2. Amount match check
         if (
-          input.paymentIntentAmountCents != null &&
-          input.paymentIntentAmountCents !== quote.payableAmountCents
+          (input.paymentIntentAmountCents != null && input.paymentIntentAmountCents !== authoritativeQuotedTotal) ||
+          (input.expectedFinalCents != null && input.expectedFinalCents !== authoritativeQuotedTotal)
         ) {
           return {
             valid: false,
             requiresPriceReconfirmation: true,
-            authoritativeFinalCents: quote.payableAmountCents,
+            authoritativeFinalCents: authoritativeQuotedTotal,
             staleAmountCents: input.paymentIntentAmountCents,
-            reason: `Payment intent amount (${input.paymentIntentAmountCents}¢) does not match authoritative quote (${quote.payableAmountCents}¢).`,
+            reason: "Payment intent amount or saved total does not match the immutable base quote plus destination surcharge.",
             quote,
           };
         }
 
         return {
           valid: true,
-          authoritativeFinalCents: quote.payableAmountCents,
+          authoritativeFinalCents: authoritativeQuotedTotal,
           quote,
         };
       }
@@ -448,50 +452,48 @@ export async function verifyCheckoutQuoteIntegrity(
       return {
         valid: false,
         requiresPriceReconfirmation: true,
-        authoritativeFinalCents: CARD_FLAT_RATE_CENTS,
+        authoritativeFinalCents: CARD_FLAT_RATE_CENTS + Math.max(0, Math.floor(input.surchargeCents || 0)),
         staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
         reason: fresh.error || "Discount code is no longer valid.",
       };
     }
 
+    const authoritativeTotal = fresh.finalAmountInCents + Math.max(0, Math.floor(input.surchargeCents || 0));
     if (
-      input.paymentIntentAmountCents != null &&
-      input.paymentIntentAmountCents !== fresh.finalAmountInCents
+      (input.paymentIntentAmountCents != null && input.paymentIntentAmountCents !== authoritativeTotal) ||
+      (input.expectedFinalCents != null && input.expectedFinalCents !== authoritativeTotal)
     ) {
       return {
         valid: false,
         requiresPriceReconfirmation: true,
-        authoritativeFinalCents: fresh.finalAmountInCents,
-        staleAmountCents: input.paymentIntentAmountCents,
-        reason: `Payment amount (${input.paymentIntentAmountCents}¢) does not match current discount price (${fresh.finalAmountInCents}¢).`,
+        authoritativeFinalCents: authoritativeTotal,
+        staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
+        reason: "Payment amount does not match current discounted base plus destination surcharge.",
         quote: fresh.quote,
       };
     }
 
-    return {
-      valid: true,
-      authoritativeFinalCents: fresh.finalAmountInCents,
-      quote: fresh.quote,
-    };
+    return { valid: true, authoritativeFinalCents: authoritativeTotal, quote: fresh.quote };
   }
 
-  // No discount: expected price must be canonical flat rate (900)
+  // No discount: destination surcharge is added after the canonical domestic base.
+  const noDiscountTotal = CARD_FLAT_RATE_CENTS + Math.max(0, Math.floor(input.surchargeCents || 0));
   if (
-    input.paymentIntentAmountCents != null &&
-    input.paymentIntentAmountCents !== CARD_FLAT_RATE_CENTS
+    (input.paymentIntentAmountCents != null && input.paymentIntentAmountCents !== noDiscountTotal) ||
+    (input.expectedFinalCents != null && input.expectedFinalCents !== noDiscountTotal)
   ) {
     return {
       valid: false,
       requiresPriceReconfirmation: true,
-      authoritativeFinalCents: CARD_FLAT_RATE_CENTS,
-      staleAmountCents: input.paymentIntentAmountCents,
-      reason: "Standard order price is $9.00.",
+      authoritativeFinalCents: noDiscountTotal,
+      staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
+      reason: "Standard order price does not match the current destination quote.",
     };
   }
 
   return {
     valid: true,
-    authoritativeFinalCents: CARD_FLAT_RATE_CENTS,
+    authoritativeFinalCents: noDiscountTotal,
   };
 }
 
@@ -741,6 +743,8 @@ export interface RedeemOfferInput {
   quoteId?: string;
   discountAmountCents: number;
   finalAmountCents: number;
+  /** Amount added outside the discountable offer base, such as the destination upgrade. */
+  destinationSurchargeCents?: number;
   isFreePromo?: boolean;
   isStudioComp?: boolean;
   verifiedCaptureId?: string;
@@ -766,6 +770,11 @@ export async function redeemOfferForOrder(
 ): Promise<RedemptionResult> {
   const nowMs = input.nowMs ?? Date.now();
   const normalized = input.code.trim().toUpperCase();
+  const surchargeCents = input.destinationSurchargeCents ?? 0;
+  const basePayableCents = input.finalAmountCents - surchargeCents;
+  if (!Number.isSafeInteger(surchargeCents) || surchargeCents < 0 || !Number.isSafeInteger(basePayableCents) || basePayableCents < 0) {
+    return { redeemed: false, error: "Checkout amount breakdown is invalid." };
+  }
   const redemptionDocId = `redemption_${input.orderId}`;
 
   return await firestoreDb.runTransaction(async (transaction: any) => {
@@ -778,7 +787,7 @@ export async function redeemOfferForOrder(
       const sameTerms =
         existing.offerId === `offer_${normalized}` &&
         existing.discountAmountCents === input.discountAmountCents &&
-        existing.payableAmountCents === input.finalAmountCents &&
+        existing.payableAmountCents === basePayableCents &&
         (!input.quoteId || existing.quoteId === input.quoteId) &&
         (!input.verifiedCaptureId || existing.verifiedCaptureId === input.verifiedCaptureId);
       if (!sameTerms) return { redeemed: false, error: "Order already has a redemption with different terms." };
@@ -795,14 +804,17 @@ export async function redeemOfferForOrder(
     if (input.requireAuthoritativeBinding && !quote) {
       return { redeemed: false, error: "Authoritative checkout quote is missing." };
     }
-    if (input.requireAuthoritativeBinding && quote && (quote.code !== normalized || quote.payableAmountCents !== input.finalAmountCents || quote.discountAmountCents !== input.discountAmountCents || quote.expiresAt < nowMs)) {
+    if (input.requireAuthoritativeBinding && quote && (quote.code !== normalized || quote.payableAmountCents !== basePayableCents || quote.discountAmountCents !== input.discountAmountCents || quote.expiresAt < nowMs)) {
       return { redeemed: false, error: "Checkout terms do not match the authoritative quote." };
     }
 
     if (input.requireAuthoritativeBinding) {
       const orderSnap = await transaction.get(firestoreDb.collection("orders").doc(input.orderId));
       const boundOrder = orderSnap.exists ? orderSnap.data() as any : null;
-      if (!boundOrder || String(boundOrder.discountCode || "").toUpperCase() !== normalized || boundOrder.quoteId !== input.quoteId || boundOrder.finalAmountInCents !== input.finalAmountCents || boundOrder.discountAmountInCents !== input.discountAmountCents) {
+      const totalSnapshotMatches = surchargeCents > 0
+        ? boundOrder?.amountInCents === input.finalAmountCents && boundOrder?.quote?.totalCents === input.finalAmountCents && boundOrder?.quote?.discountCents === input.discountAmountCents && boundOrder?.quote?.internationalSurchargeCents === surchargeCents
+        : (!boundOrder?.quote || (boundOrder.quote.totalCents === input.finalAmountCents && boundOrder.quote.discountCents === input.discountAmountCents));
+      if (!boundOrder || String(boundOrder.discountCode || "").toUpperCase() !== normalized || boundOrder.quoteId !== input.quoteId || boundOrder.finalAmountInCents !== input.finalAmountCents || !totalSnapshotMatches || boundOrder.discountAmountInCents !== input.discountAmountCents) {
         return { redeemed: false, error: "Persisted order terms do not match the checkout quote." };
       }
     }
@@ -889,7 +901,7 @@ export async function redeemOfferForOrder(
       commercialKind,
       quoteId: input.quoteId || `quote_${input.orderId}`,
       discountAmountCents: input.discountAmountCents,
-      payableAmountCents: input.finalAmountCents,
+      payableAmountCents: basePayableCents,
       verifiedCaptureId: input.verifiedCaptureId,
       redeemedAt: nowMs,
       refunded: false,

@@ -28,7 +28,7 @@ import {
   Eye,
 } from "lucide-react";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
-import { AddressData } from "./Step3EnvelopeAddressing";
+import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { evaluatePaymentSubmission } from "@/lib/payment-mode";
 import { trackEvent, trackEventV2 } from "@/lib/telemetry";
 import { Sheet } from "@/components/flow/Sheet";
@@ -62,6 +62,8 @@ interface Step4ReviewAndPaymentProps {
   publishableKey: string | null;
   isMock: boolean;
   isFree: boolean;
+  amountInCents?: number;
+  destinationCountry?: string;
   isUpdatingCheckout?: boolean;
   checkoutError?: string | null;
   onRetryCheckout?: () => void;
@@ -88,6 +90,8 @@ interface InnerPaymentProps {
   orderId: string;
   isMock: boolean;
   isFree: boolean;
+  amountInCents?: number;
+  destinationCountry?: string;
   appliedDiscount: AppliedDiscountInfo | null;
   onApplyDiscount: (code: string) => Promise<{ success: boolean; error?: string }>;
   onRemoveDiscount: () => void;
@@ -111,6 +115,8 @@ function InnerPaymentForm({
   orderId,
   isMock,
   isFree,
+  amountInCents,
+  destinationCountry = "US",
   appliedDiscount,
   onApplyDiscount,
   onRemoveDiscount,
@@ -147,7 +153,8 @@ function InnerPaymentForm({
     return combined.slice(0, 110) + "...";
   }, [salutation, bodyNote, signOff]);
 
-  const finalPriceCents = appliedDiscount ? appliedDiscount.finalAmountInCents : 900;
+  const finalPriceCents = amountInCents ?? (appliedDiscount ? appliedDiscount.finalAmountInCents : 900);
+  const isInternational = isInternationalCountry(destinationCountry);
   const isZeroCost = isFree || finalPriceCents === 0;
 
   const handleApplyPromo = async (e: React.FormEvent) => {
@@ -261,13 +268,13 @@ function InnerPaymentForm({
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
         trackEventV2("payment_confirmation_observed", {
           orderId,
-          amountInCents: appliedDiscount?.finalAmountInCents ?? 900,
+          amountInCents: finalPriceCents,
           in_app_browser: false,
           used_address_deferral: !recipient.street1?.trim(),
         });
         trackEvent("payment_confirmation_observed", 4, {
           orderId,
-          amountInCents: appliedDiscount?.finalAmountInCents ?? 900,
+          amountInCents: finalPriceCents,
           in_app_browser: false,
           used_address_deferral: !recipient.street1?.trim(),
         });
@@ -471,13 +478,13 @@ function InnerPaymentForm({
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
         trackEventV2("payment_confirmation_observed", {
           orderId,
-          amountInCents: appliedDiscount?.finalAmountInCents ?? 900,
+          amountInCents: finalPriceCents,
           in_app_browser: false,
           used_address_deferral: !recipient.street1?.trim(),
         });
         trackEvent("payment_confirmation_observed", 4, {
           orderId,
-          amountInCents: appliedDiscount?.finalAmountInCents ?? 900,
+          amountInCents: finalPriceCents,
           in_app_browser: false,
           used_address_deferral: !recipient.street1?.trim(),
         });
@@ -546,11 +553,11 @@ function InnerPaymentForm({
     if (!recipient.street1?.trim()) {
       return "Address Added Later";
     }
-    if (recipient.city?.trim() && recipient.state?.trim()) {
-      return `${recipient.city.trim()}, ${recipient.state.trim()}`;
+    if (recipient.city?.trim()) {
+      return `${recipient.city.trim()}${recipient.state?.trim() ? `, ${recipient.state.trim()}` : ""}${isInternational ? `, ${recipient.country || destinationCountry}` : ""}`;
     }
     return recipient.street1.trim();
-  }, [recipient]);
+  }, [recipient, isInternational, destinationCountry]);
 
   const paymentElementOptions = useMemo(
     () => ({
@@ -632,7 +639,7 @@ function InnerPaymentForm({
 
             <div className="text-[11px] text-stone-500 flex items-center gap-1">
               <Truck className="w-3 h-3 text-amber-700 shrink-0" />
-              <span>Est. Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}</span>
+              <span>{isInternational ? "Delivery timing varies by destination" : `Est. Arrival: ${deliveryEstimate.earliestDate} – ${deliveryEstimate.latestDate}`}</span>
             </div>
           </div>
         </div>
@@ -643,7 +650,7 @@ function InnerPaymentForm({
             {isZeroCost ? "$0.00 Total" : `$${(finalPriceCents / 100).toFixed(2)} Total`}
           </div>
           <div className="text-[10px] sm:text-[11px] text-stone-500 whitespace-nowrap">
-            Postage &amp; Real Pen Included
+            {isInternational ? "International mailing included" : "Postage & Real Pen Included"}
           </div>
         </div>
       </div>
@@ -663,7 +670,7 @@ function InnerPaymentForm({
                   {cardTitle}
                 </h2>
                 <p className="text-[11px] text-stone-500 mt-0.5">
-                  Folded Cardstock Card • Real Pen Ink • USPS 1st Class Stamp
+                  {isInternational ? "Folded Cardstock Card • Real Pen Ink • International mailing" : "Folded Cardstock Card • Real Pen Ink • USPS 1st Class Stamp"}
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -734,7 +741,8 @@ function InnerPaymentForm({
                   {recipient.street1?.trim() ? (
                     <div className="text-stone-600 text-[11px] leading-tight mt-0.5">
                       <div>{recipient.street1}{recipient.street2 ? `, ${recipient.street2}` : ""}</div>
-                      <div>{recipient.city}, {recipient.state} {recipient.zip}</div>
+                      <div>{recipient.city}{recipient.state ? `, ${recipient.state}` : ""}{recipient.zip ? ` ${recipient.zip}` : ""}</div>
+                      {isInternational && <div>{recipient.country || destinationCountry}</div>}
                     </div>
                   ) : (
                     <div className="text-amber-800 text-[11px] font-medium mt-0.5">
@@ -772,10 +780,10 @@ function InnerPaymentForm({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-stone-900">
-                  Est. USPS Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
+                  {isInternational ? "Delivery timing varies by destination" : `Est. USPS Arrival: ${deliveryEstimate.earliestDate} – ${deliveryEstimate.latestDate}`}
                 </div>
                 <div className="text-[11px] text-stone-500">
-                  Sent via First-Class Mail. Tracking details appear when provided by the mail service.
+                  {isInternational ? "Delivery estimates depend on the destination. Tracking appears when provided by the mail service." : "Sent via First-Class Mail. Tracking details appear when provided by the mail service."}
                 </div>
               </div>
             </div>
@@ -850,7 +858,7 @@ function InnerPaymentForm({
                 <span>100% Free Order Voucher</span>
               </div>
               <p className="text-xs text-emerald-800 leading-relaxed">
-                Your card, real ballpoint inking, and USPS postage are completely covered by voucher{" "}
+                Your card, real ballpoint inking, and {isInternational ? "international mailing" : "USPS postage"} are completely covered by voucher{" "}
                 <strong className="font-mono">{appliedDiscount?.code}</strong>. Zero billing info needed.
               </p>
             </div>

@@ -4,7 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Step1CardSelection } from "./Step1CardSelection";
 import { Step2NoteComposition, HANDWRITING_STYLES } from "./Step2NoteComposition";
-import { Step3EnvelopeAddressing, AddressData } from "./Step3EnvelopeAddressing";
+import { Step3EnvelopeAddressing, AddressData, MailingOption, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { Step4ReviewAndPayment, AppliedDiscountInfo } from "./Step4ReviewAndPayment";
 import { Step5Confirmation } from "./Step5Confirmation";
 import { CARD_PRESETS, OCCASIONS, CardPreset } from "@/lib/card-presets";
@@ -114,7 +114,12 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
     city: "",
     state: "",
     zip: "",
+    country: "US",
   });
+  const [domesticRecipient, setDomesticRecipient] = useState<AddressData>({ fullName: "", street1: "", street2: "", city: "", state: "", zip: "", country: "US" });
+  const [internationalRecipient, setInternationalRecipient] = useState<AddressData | null>(null);
+  const [mailingOptions, setMailingOptions] = useState<{ destinations: MailingOption[]; enabled: boolean; previewAvailable?: boolean } | null>(null);
+  const isInternational = isInternationalCountry(recipient.country);
 
   const [sender, setSender] = useState<AddressData>({
     fullName: "",
@@ -133,10 +138,27 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
   const [isFreeOrder, setIsFreeOrder] = useState<boolean>(false);
   const [amountInCents, setAmountInCents] = useState<number>(900);
   const [appliedDiscount, setAppliedDiscount] = useState<AppliedDiscountInfo | null>(null);
+  const currentDisplayTotalCents = isInternational
+    ? (appliedDiscount?.finalAmountInCents ?? 900) + 500
+    : amountInCents;
   const [checkoutInitError, setCheckoutInitError] = useState<string | null>(null);
   const [isInitializingCheckout, setIsInitializingCheckout] = useState<boolean>(false);
   const checkoutRequestInFlight = React.useRef(false);
   const discountRequestInFlight = React.useRef(false);
+  const addressRevision = React.useRef(0);
+
+  useEffect(() => {
+    let mounted = true;
+    fetch("/api/mailing-options", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((options) => {
+        if (mounted && options && Array.isArray(options.destinations)) {
+          setMailingOptions({ destinations: options.destinations, enabled: Boolean(options.enabled), previewAvailable: Boolean(options.previewAvailable) });
+        }
+      })
+      .catch(() => { if (mounted) setMailingOptions(null); });
+    return () => { mounted = false; };
+  }, []);
 
   // Pre-fill user email and default return address if logged in
   useEffect(() => {
@@ -233,10 +255,40 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
   // Recipient address updates
   const handleUpdateRecipient = (field: keyof AddressData, value: string) => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
     if (field === "fullName") {
       setUserCustomizedRecipientName(true);
     }
     setRecipient((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const clearCheckoutForAddressChange = () => {
+    setClientSecret(null);
+    setOrderId("");
+    setIsFreeOrder(false);
+    setCheckoutInitError(null);
+    setCurrentStep(3);
+  };
+
+  const handleSaveInternationalRecipient = (address: AddressData) => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
+    if (!isInternational) setDomesticRecipient(recipient);
+    setInternationalRecipient(address);
+    setRecipient({ ...address, country: address.country });
+    setAmountInCents((appliedDiscount?.finalAmountInCents ?? 900) + 500);
+    setIsFreeOrder(false);
+    clearCheckoutForAddressChange();
+  };
+
+  const handleUseUSRecipient = () => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
+    if (isInternational) setInternationalRecipient(recipient);
+    setRecipient({ ...domesticRecipient, country: "US" });
+    setAmountInCents(appliedDiscount?.finalAmountInCents ?? 900);
+    clearCheckoutForAddressChange();
   };
 
   // Sender address updates
@@ -313,12 +365,12 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         value: price,
       });
     } else if (stepNumber === 4) {
-      const price = amountInCents / 100;
+      const price = (isInternational ? currentDisplayTotalCents : amountInCents) / 100;
       trackGA4AddShippingInfo({
         itemId: occasion,
         itemName: selectedCardTitle || `${occasion} Card`,
         price,
-        shippingTier: "USPS First Class",
+        shippingTier: isInternational ? "International mailing" : "USPS First Class",
       });
       trackGA4AddPaymentInfo({
         itemId: occasion,
@@ -347,6 +399,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
   ) => {
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
     checkoutRequestInFlight.current = true;
+    const requestedAddressRevision = addressRevision.current;
     setCheckoutInitError(null);
     setIsInitializingCheckout(true);
     try {
@@ -382,7 +435,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
             city: recipient.city,
             state: recipient.state,
             zip: recipient.zip,
-            country: "USA",
+            country: recipient.country || "US",
           },
           returnAddress: {
             firstName: senderFirstName,
@@ -404,14 +457,19 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize payment gateway.");
       }
+      if (requestedAddressRevision !== addressRevision.current) {
+        throw new Error("The recipient address changed while checkout was updating. Please review it and try again.");
+      }
 
       const decision = evaluateCheckoutInitTransition(true);
       if (!decision.canAdvance) {
         throw new Error(decision.errorMessage || "Unable to proceed to payment.");
       }
 
-      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? appliedDiscount?.finalAmountInCents : 900);
-      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
+      const expectedPrice = expectedAmountInCents !== undefined
+        ? expectedAmountInCents + (isInternational ? 500 : 0)
+        : (discountCodeToUse ? appliedDiscount?.finalAmountInCents ?? 900 : 900) + (isInternational ? 500 : 0);
+      const serverPrice = data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents;
       if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
         throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
       }
@@ -423,7 +481,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
       }
       setIsMockCheckout(Boolean(data.isMock));
       setIsFreeOrder(Boolean(data.isFree));
-      setAmountInCents(data.amountInCents ?? 900);
+      setAmountInCents(data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900);
       setCheckoutInitError(null);
       goToStep(4);
       return true;
@@ -459,8 +517,10 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
       }
       setAppliedDiscount(data);
-      setIsFreeOrder(Boolean(data.isFree));
-      setAmountInCents(data.finalAmountInCents ?? 900);
+      if (currentStep !== 4) {
+        setIsFreeOrder(Boolean(data.isFree));
+        setAmountInCents((data.finalAmountInCents ?? 900) + (isInternational ? 500 : 0));
+      }
 
       return { success: true };
     } catch {
@@ -476,8 +536,10 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
     try {
       if (currentStep === 4 && !await initializeCheckout("", 900, true)) return;
       setAppliedDiscount(null);
-      setIsFreeOrder(false);
-      setAmountInCents(900);
+      if (currentStep !== 4) {
+        setIsFreeOrder(false);
+        setAmountInCents(900 + (isInternational ? 500 : 0));
+      }
     } finally {
       discountRequestInFlight.current = false;
     }
@@ -546,7 +608,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
               </span>
               <span className="text-stone-300">→</span>
               <span className={`font-semibold ${currentStep === 4 ? "text-amber-800" : "text-stone-700"}`}>
-                4. Pay ($9)
+                4. Pay (${(isInternational ? currentDisplayTotalCents : amountInCents) / 100})
               </span>
             </div>
           )}
@@ -554,7 +616,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
           {/* Right badge */}
           <div className="flex items-center gap-1.5 text-xs text-stone-600 font-medium">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
-            <span className="hidden sm:inline">$9 Flat Rate</span>
+            <span className="hidden sm:inline">{isInternational ? `$${(currentDisplayTotalCents / 100).toFixed(2)} total` : "$9 Flat Rate"}</span>
           </div>
         </div>
       </header>
@@ -612,8 +674,15 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
               sender={sender}
               onChangeSender={handleUpdateSender}
               fontClass={activeFont.fontClass}
-              onBack={() => goToStep(2)}
+              onBack={() => { if (!isInitializingCheckout) goToStep(2); }}
               onContinue={() => initializeCheckout()}
+              mailingOptions={mailingOptions}
+              isBusy={isInitializingCheckout}
+              isInternational={isInternational}
+              onSaveInternational={handleSaveInternationalRecipient}
+              savedInternationalRecipient={internationalRecipient}
+              onUseUSAddress={handleUseUSRecipient}
+              displayTotalCents={currentDisplayTotalCents}
             />
           </div>
         )}
@@ -638,6 +707,8 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
             publishableKey={publishableKey}
             isMock={isMockCheckout}
             isFree={isFreeOrder}
+            amountInCents={amountInCents}
+            destinationCountry={recipient.country || "US"}
             onApplyDiscount={handleApplyDiscount}
             onRemoveDiscount={handleRemoveDiscount}
             appliedDiscount={appliedDiscount}

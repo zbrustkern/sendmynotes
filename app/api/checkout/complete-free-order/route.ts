@@ -15,6 +15,8 @@ import { sendAddressDeferredEmail } from "@/lib/email-alerts";
 import { redeemOfferForOrder } from "@/lib/offer-engine";
 import { Order, DiscountCode } from "@/lib/types";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
+import { normalizeCountryCode } from "@/lib/mailing-destinations";
+import { isFreeOrderEligible } from "@/lib/order-pricing";
 
 export async function POST(req: NextRequest) {
   try {
@@ -47,6 +49,17 @@ export async function POST(req: NextRequest) {
 
         const existingOrder = orderDoc.data() as Order;
 
+        const country = normalizeCountryCode(existingOrder.recipientAddress?.country) || (existingOrder.recipientAddress?.country ? null : "US");
+        if (!isFreeOrderEligible({
+          countryCode: country,
+          amountInCents: existingOrder.amountInCents,
+          finalAmountInCents: existingOrder.finalAmountInCents,
+          quoteCountryCode: existingOrder.quote?.countryCode,
+          quoteTotalCents: existingOrder.quote?.totalCents,
+        })) {
+          if (country !== "US") throw new Error("INTERNATIONAL_REQUIRES_PAYMENT");
+          throw new Error("REQUIRES_PAYMENT");
+        }
         if (existingOrder.amountInCents > 0) {
           throw new Error("REQUIRES_PAYMENT");
         }
@@ -124,6 +137,9 @@ export async function POST(req: NextRequest) {
       const msg = txErr instanceof Error ? txErr.message : String(txErr);
       if (msg === "ORDER_NOT_FOUND") {
         return NextResponse.json({ error: "Order not found" }, { status: 404 });
+      }
+      if (msg === "INTERNATIONAL_REQUIRES_PAYMENT") {
+        return NextResponse.json({ error: "International checkout requires a paid order; free completion cannot bypass its mailing surcharge." }, { status: 400 });
       }
       if (msg === "REQUIRES_PAYMENT") {
         return NextResponse.json(

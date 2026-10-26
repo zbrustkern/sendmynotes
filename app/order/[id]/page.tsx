@@ -319,7 +319,7 @@ export default function OrderStatusPage() {
       case "COMPLETED":
       case "MAILED":
         return {
-          label: "Mailed via USPS",
+          label: isInternational ? "Mailed internationally" : "Mailed via USPS",
           className: "text-emerald-700 bg-emerald-50 border-emerald-200",
         };
       case "PENDING_PAYMENT":
@@ -347,10 +347,12 @@ export default function OrderStatusPage() {
     order.status === "FAILED" ||
     isInking ||
     isMailed;
+  const orderTotalCents = order.quote?.totalCents ?? order.finalAmountInCents ?? order.amountInCents ?? 900;
+  const isInternational = Boolean((order.quote?.countryCode || order.recipientAddress.country) && !["US", "USA", "United States"].includes(order.quote?.countryCode || order.recipientAddress.country || ""));
 
   const trackingSteps = [
     {
-      title: "Payment Confirmed ($9.00 Paid)",
+      title: `Payment Confirmed ($${(orderTotalCents / 100).toFixed(2)} Paid)`,
       description: "Transaction complete. Receipt delivered to email.",
       icon: CheckCircle2,
       status: "complete",
@@ -381,21 +383,21 @@ export default function OrderStatusPage() {
     },
     {
       title: "Enveloped & Stamped",
-      description: `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} with USPS First Class postage.`,
+      description: isInternational ? `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} in ${order.quote?.countryCode || order.recipientAddress.country}. Delivery timing varies by destination.` : `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} with USPS First Class postage.`,
       icon: Mail,
       status: isMailed ? "complete" : "upcoming",
     },
     {
-      title: "Mailed via USPS First Class",
+      title: isInternational ? "Mailed internationally" : "Mailed via USPS First Class",
       description: isMailed
         ? `Dispatched into USPS postal stream${
             order.handwryttenMailedDate ? ` on ${order.handwryttenMailedDate}` : ""
           }.${
             order.handwryttenTrackingNumber
               ? ` Tracking: ${order.handwryttenTrackingNumber}`
-              : " Domestic transit typically takes 2–7 business days; delivery timing is estimated."
+              : isInternational ? " Delivery timing varies by destination." : " Domestic transit typically takes 2–7 business days; delivery timing is estimated."
           }`
-        : "Domestic transit typically takes 2–7 business days; delivery timing is estimated, not guaranteed.",
+        : isInternational ? "Delivery timing varies by destination; no delivery date is guaranteed." : "Domestic transit typically takes 2–7 business days; delivery timing is estimated, not guaranteed.",
       icon: Truck,
       status: isMailed ? "complete" : "upcoming",
     },
@@ -471,7 +473,7 @@ export default function OrderStatusPage() {
             Order Confirmed & Queued for Inking!
           </h1>
           <p className="text-stone-600 text-sm max-w-lg mx-auto">
-            Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient.
+            {isInternational ? "Your card is queued for real ink writing and international mailing. Delivery timing varies by destination." : "Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient."}
           </p>
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-2 text-xs">
@@ -482,7 +484,7 @@ export default function OrderStatusPage() {
               Real Ink: Active
             </span>
             <span className="bg-emerald-50 text-emerald-800 font-semibold px-3 py-1 rounded-full border border-emerald-200">
-              USPS Postage: Included
+              {isInternational ? "International Mailing: Included" : "USPS Postage: Included"}
             </span>
           </div>
         </div>
@@ -875,9 +877,9 @@ export default function OrderStatusPage() {
                 <p>{order.recipientAddress.street1}</p>
                 {order.recipientAddress.street2 && <p>{order.recipientAddress.street2}</p>}
                 <p>
-                  {order.recipientAddress.city}, {order.recipientAddress.state} {order.recipientAddress.zip}
+                  {[order.recipientAddress.city, order.recipientAddress.state, order.recipientAddress.zip].filter(Boolean).join(" ")}
                 </p>
-                <p className="text-stone-400 text-[11px] pt-1">United States of America</p>
+                <p className="text-stone-400 text-[11px] pt-1">{isInternational ? order.quote?.countryCode || order.recipientAddress.country : "United States of America"}</p>
               </div>
             </div>
 
@@ -899,7 +901,7 @@ export default function OrderStatusPage() {
 
             <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/60 text-xs flex items-center justify-between text-amber-900">
               <span>Amount Paid</span>
-              <span className="font-serif font-bold text-base">$9.00 Flat Rate</span>
+              <span className="font-serif font-bold text-base">${(orderTotalCents / 100).toFixed(2)} Total</span>
             </div>
           </div>
         </div>

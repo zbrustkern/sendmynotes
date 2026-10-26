@@ -1,6 +1,9 @@
 # Selected only by the sendmynotes-staging backend environment name.
 # Staging is an admin review environment; live payments, mail and physical orders are blocked.
 env:
+  - variable: INTERNATIONAL_MAILING_PREVIEW
+    value: "true"
+    availability: [RUNTIME]
   - variable: NEXT_PUBLIC_STAGING_REVIEW_ONLY
     value: "true"
     availability: [BUILD, RUNTIME]

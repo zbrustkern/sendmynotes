@@ -3,6 +3,7 @@ import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { processPaidOrder } from "@/lib/order-processor";
 import { US_STATES } from "@/components/v3/Step3EnvelopeAddressing";
 import { sendOrderPenningReceiptEmail } from "@/lib/email/transactional";
+import { normalizeCountryCode } from "@/lib/mailing-destinations";
 
 export async function POST(
   req: NextRequest,
@@ -25,6 +26,19 @@ export async function POST(
     // Verify view token
     if (!token || order.viewToken !== token) {
       return NextResponse.json({ error: "Invalid or expired access token" }, { status: 401 });
+    }
+
+    // This public token endpoint may complete only an unpaid-address workflow's already-paid
+    // domestic order. Do not let it reroute a processed order or change a quoted destination.
+    if (!(order.addressDeferred || order.address_deferred || order.status === "AWAITING_RECIPIENT_ADDRESS")) {
+      return NextResponse.json({ error: "This order is not awaiting a recipient address." }, { status: 409 });
+    }
+    const orderCountry = normalizeCountryCode(order.quote?.countryCode || order.recipientAddress?.country) || (order.recipientAddress?.country ? null : "US");
+    if (orderCountry !== "US" || (order.quote && order.quote.countryCode !== "US")) {
+      return NextResponse.json({ error: "Address deferral is unavailable for international destinations." }, { status: 409 });
+    }
+    if (body.country !== undefined && normalizeCountryCode(body.country) !== "US") {
+      return NextResponse.json({ error: "A deferred address must remain in the quoted United States destination." }, { status: 409 });
     }
 
     const street1 = (body.street1 || "").trim();
@@ -54,7 +68,7 @@ export async function POST(
       city,
       state,
       zip,
-      country: "USA",
+      country: "US",
     };
 
     await updateOrderStatus(id, {

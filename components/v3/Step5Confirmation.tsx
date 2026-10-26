@@ -22,7 +22,7 @@ import {
 import confetti from "canvas-confetti";
 import { detectCardIntent } from "@/lib/card-intent";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
-import { AddressData } from "./Step3EnvelopeAddressing";
+import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { trackGoogleAdsPurchase } from "@/lib/google-ads";
 import { trackMetaPurchase } from "@/lib/meta-ads";
 
@@ -64,6 +64,7 @@ export function Step5Confirmation({
   isAddressDeferred = false,
 }: Step5ConfirmationProps) {
   const deliveryEstimate = useMemo(() => calculateDeliveryEstimate(), []);
+  const isInternational = isInternationalCountry(recipient.country);
 
   // Launch celebration confetti and fire purchase conversions on mount
   useEffect(() => {
@@ -121,6 +122,7 @@ export function Step5Confirmation({
         city: recipient.city,
         state: recipient.state,
         zip: recipient.zip,
+        country: recipient.country || "US",
       },
     });
   }, [occasion, salutation, bodyNote, signOff, recipient]);
@@ -198,6 +200,7 @@ export function Step5Confirmation({
             city: recipient.city,
             state: recipient.state,
             zip: recipient.zip,
+            country: recipient.country || "US",
           },
         }),
       });
@@ -347,7 +350,7 @@ export function Step5Confirmation({
                 </span>
               </div>
               <p className="text-xs text-stone-500">
-                Payment verified securely. Flat rate card, pen inking, and First-Class USPS postage paid in full.
+                {isInternational ? "Payment verified securely. Card, pen inking, and international mailing paid in full." : "Payment verified securely. Flat rate card, pen inking, and First-Class USPS postage paid in full."}
               </p>
             </div>
           </div>
@@ -384,17 +387,17 @@ export function Step5Confirmation({
             </div>
           </div>
 
-          {/* Stage 3: USPS First-Class Stamped */}
+          {/* Stage 3: mailing */}
           <div className="relative flex items-start gap-4">
             <div className="relative z-10 w-8 h-8 rounded-full bg-stone-100 text-stone-400 border border-stone-300 flex items-center justify-center shrink-0">
               <Mail className="w-4 h-4" />
             </div>
             <div className="space-y-0.5">
               <span className="text-xs font-bold text-stone-700">
-                3. USPS First-Class Stamped
+                {isInternational ? "3. Mailing" : "3. USPS First-Class Stamped"}
               </span>
               <p className="text-xs text-stone-500">
-                Enclosed in an envelope with an authentic USPS stamp. Typically prepared in 1–2 business days.
+                {isInternational ? "Delivery timing varies by destination. Preparation and transit are separate." : "Enclosed in an envelope with an authentic USPS stamp. Typically prepared in 1–2 business days."}
               </p>
             </div>
           </div>
@@ -406,10 +409,10 @@ export function Step5Confirmation({
             </div>
             <div className="space-y-0.5">
               <span className="text-xs font-bold text-stone-700">
-                4. Estimated USPS Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
+                {isInternational ? "4. Delivery timing varies by destination" : `4. Estimated USPS Arrival: ${deliveryEstimate.earliestDate} – ${deliveryEstimate.latestDate}`}
               </span>
               <p className="text-xs text-stone-500">
-                Typically 2–7 business days domestic transit delivered directly to {recipient.fullName}&apos;s physical mailbox. Timing is estimated, not guaranteed.
+                {isInternational ? `Transit time depends on the destination for ${recipient.fullName}.` : `Typically 2–7 business days domestic transit delivered directly to ${recipient.fullName}'s physical mailbox. Timing is estimated, not guaranteed.`}
               </p>
             </div>
           </div>
@@ -475,7 +478,7 @@ export function Step5Confirmation({
         </div>
 
         <div className="text-right shrink-0">
-          <span className="font-bold text-stone-900 text-sm">$9.00</span>
+          <span className="font-bold text-stone-900 text-sm">${(amountInCents / 100).toFixed(2)}</span>
           <span className="text-[10px] text-emerald-700 font-semibold block">Paid</span>
         </div>
       </div>
