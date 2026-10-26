@@ -296,8 +296,11 @@ export function trackGoogleAdsPurchase(params: {
 }
 
 function observeQueue(orderId: string, destination: "google_ads" | "ga4", state: "queued" | "retrying" | "retry_exhausted" | "suppressed"): void {
-  import("@/lib/telemetry").then(({ trackEvent }) => {
-    void trackEvent("conversion_queue_observed", undefined, { destination, state }, orderId).catch(() => {});
+  void fetch("/api/telemetry/conversion-queue", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ orderId, destination, state, timestamp: Date.now() }),
+    keepalive: true,
   }).catch(() => {});
 }
 

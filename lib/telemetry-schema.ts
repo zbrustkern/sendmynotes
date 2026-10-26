@@ -53,7 +53,6 @@ export const ALLOWED_BROWSER_EVENT_NAMES = new Set<TelemetryEventName>([
   "checkout_initiated",
   "payment_viewed",
   "wallet_availability_observed",
-  "conversion_queue_observed",
   "payment_attempted",
   "payment_canceled",
   "payment_failed",

@@ -185,6 +185,7 @@ export default function OrderStatusPage() {
           throw new Error("Order not found or still processing.");
         }
         const data = await res.json();
+        if (!isMounted) return;
         if (data.order?.purchaseMeasurement && hasGoogleAdsCheckoutProof(orderId)) {
           trackGoogleAdsPurchase({
             orderId,
@@ -206,6 +207,7 @@ export default function OrderStatusPage() {
               });
               if (confirmRes.ok) {
                 const confirmData = await confirmRes.json();
+                if (!isMounted) return;
                 if (confirmData.success && confirmData.status) {
                   data.order.status = confirmData.status;
                   data.order.handwryttenOrderId = confirmData.handwryttenOrderId;

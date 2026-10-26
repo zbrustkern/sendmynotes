@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
 import {
   Globe,
@@ -35,6 +35,17 @@ export function OrderJourneyDrawer({
   onRetryAddress,
 }: OrderJourneyDrawerProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [queueObservations, setQueueObservations] = useState<Record<string, { state: string; timestamp: number; clientReported: true }>>({});
+
+  useEffect(() => {
+    let active = true;
+    setQueueObservations({});
+    fetch(`/api/admin/conversion-queue?orderId=${encodeURIComponent(order.id)}`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (active && data?.observations) setQueueObservations(data.observations); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [order.id]);
 
   const handleCopy = (fieldKey: string, text: string) => {
     navigator.clipboard.writeText(text);
@@ -173,7 +184,12 @@ export function OrderJourneyDrawer({
         <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs space-y-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Purchase measurement</span>
           <p className="text-xs text-stone-700">Payment verification: {order.purchaseMeasurement ? `${order.purchaseMeasurement.eligible ? "eligible" : order.purchaseMeasurement.reason} · ${order.purchaseMeasurement.currency} ${(order.purchaseMeasurement.amountInCents / 100).toFixed(2)}` : "Unknown"}</p>
-          <p className="text-xs text-stone-700">Browser queue: Client-reported in telemetry; not authoritative payment state</p>
+          <p className="text-xs text-stone-700">
+            Browser queue: {(["google_ads", "ga4"] as const).map((destination, index) => {
+              const observation = queueObservations[destination];
+              return <React.Fragment key={destination}>{index ? " · " : ""}{destination === "google_ads" ? "Ads" : "GA4"}: {observation ? `${observation.state} (client-reported ${new Date(observation.timestamp).toLocaleString()})` : "Unknown"}</React.Fragment>;
+            })} · client-reported; not payment authority
+          </p>
           <p className="text-xs text-stone-500">Google Ads attribution: verify separately in Google Ads.</p>
         </div>
 

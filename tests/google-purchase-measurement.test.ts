@@ -17,12 +17,28 @@ async function main() {
   delete process.env.K_SERVICE;
 
   try {
-    const [{ saveOrder, getOrderById }, { POST: confirmPost }, { POST: webhookPost }, measurement] = await Promise.all([
+    const [{ saveOrder, getOrderById, firestoreDb }, { POST: confirmPost }, { POST: webhookPost }, { POST: queuePost }, measurement] = await Promise.all([
       import("@/lib/firebase-admin"),
       import("@/app/api/checkout/confirm-order/route"),
       import("@/app/api/webhooks/stripe/route"),
+      import("@/app/api/telemetry/conversion-queue/route"),
       import("@/lib/purchase-measurement"),
     ]);
+
+    const queueResponse = await queuePost(new NextRequest("https://sendmynotes.com/api/telemetry/conversion-queue", {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ orderId: "order_queue_fixture", destination: "google_ads", state: "queued", timestamp: Date.now(), customerEmail: "not-stored@example.test", gclid: "not-stored" }),
+    }));
+    assert.equal(queueResponse.status, 200, "bounded queue observation is accepted as first-party telemetry");
+    const queueEvents = await firestoreDb.collection("telemetry_events").where("orderId", "==", "order_queue_fixture").get();
+    const queueEvent = queueEvents.docs[0]?.data();
+    assert.equal(queueEvent?.eventName, "conversion_queue_observed", "queue observation is explicitly non-authoritative telemetry");
+    assert.equal(queueEvent?.state, "queued", "the submitted state is persisted");
+    assert.equal(queueEvent?.customerEmail, undefined, "queue telemetry never persists customer email");
+    assert.equal(queueEvent?.gclid, undefined, "queue telemetry never persists raw attribution IDs");
+    const { GET: adminQueueGet } = await import("@/app/api/admin/conversion-queue/route");
+    const unauthQueueResponse = await adminQueueGet(new NextRequest("https://sendmynotes.com/api/admin/conversion-queue?orderId=order_queue_fixture"));
+    assert.equal(unauthQueueResponse.status, 401, "queue observations are not exposed without admin authorization");
 
     const order = {
       id: "order_fixture_capture",
@@ -64,6 +80,22 @@ async function main() {
       livemode: true,
     });
     assert.equal(excluded.eligible, false, "founder test classification suppresses a customer conversion");
+    assert.equal(measurement.buildPurchaseMeasurement({ ...order, isComp: true }, {
+      paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
+    }).eligible, false, "comp orders are excluded");
+    assert.equal(measurement.buildPurchaseMeasurement({ ...order, isTest: true }, {
+      paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
+    }).eligible, false, "test orders are excluded");
+    assert.equal(measurement.buildPurchaseMeasurement({ ...order, amountInCents: 0 }, {
+      paymentIntentId: order.stripePaymentId, amount: 0, amountReceived: 0, currency: "usd", livemode: true,
+    }).eligible, false, "zero-total/free orders are excluded");
+    const refunded = measurement.buildPurchaseMeasurement({ ...order, fullyRefunded: true } as any, {
+      paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
+    });
+    assert.equal(refunded.reason, "known_refund", "an explicitly trusted full-refund marker suppresses conversion");
+    assert.equal(measurement.buildPurchaseMeasurement(order, {
+      paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 0, currency: "usd", livemode: true,
+    }).reason, "invalid_capture", "uncaptured or zero-captured payments are excluded");
 
     await saveOrder(order);
     const syncMismatch = await confirmPost(new NextRequest("https://sendmynotes.com/api/checkout/confirm-order", {
