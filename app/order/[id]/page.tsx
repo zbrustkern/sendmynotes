@@ -205,7 +205,7 @@ export default function OrderStatusPage() {
           setOrder(data.order);
           setLoading(false);
 
-          if (data.order && data.order.status !== "PENDING_PAYMENT") {
+          if (data.order && data.order.status !== "PENDING_PAYMENT" && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD") {
             trackGoogleAdsPurchase({
               orderId: data.order.id,
               amountInCents: data.order.amountInCents || 900,
@@ -309,18 +309,25 @@ export default function OrderStatusPage() {
     );
   }
 
+  const orderTotalCents = order.quote?.totalCents ?? order.finalAmountInCents ?? order.amountInCents ?? 900;
+  const isInternational = Boolean((order.quote?.countryCode || order.recipientAddress.country) && !["US", "USA", "United States"].includes(order.quote?.countryCode || order.recipientAddress.country || ""));
+  const isPreviewHold = isInternational && Boolean(order.isInternationalPreview || order.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD");
+  const isMailed = !isPreviewHold && order.status === "MAILED";
+  const isInking = !isPreviewHold && order.status === "PROCESSING_HANDWRYTTEN";
+  const isQueuedOrPaid = order.status === "PAYMENT_RECEIVED" || order.status === "QUEUED_FOR_FULFILLMENT" || order.status === "FAILED" || isInking || isMailed;
+
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case "PROCESSING_HANDWRYTTEN":
         return {
-          label: "Inking in Progress",
-          className: "text-emerald-700 bg-emerald-50 border-emerald-200",
+          label: isPreviewHold ? "Held for staging review" : "Inking in Progress",
+          className: isPreviewHold ? "text-amber-700 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200",
         };
       case "COMPLETED":
       case "MAILED":
         return {
-          label: isInternational ? "Mailed internationally" : "Mailed via USPS",
-          className: "text-emerald-700 bg-emerald-50 border-emerald-200",
+          label: isPreviewHold ? "Held for staging review" : isInternational ? "Mailed internationally" : "Mailed via USPS",
+          className: isPreviewHold ? "text-amber-700 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200",
         };
       case "PENDING_PAYMENT":
         return {
@@ -332,44 +339,34 @@ export default function OrderStatusPage() {
       case "FAILED":
       default:
         return {
-          label: "Queued for Inking",
+          label: isPreviewHold ? "Held for staging review" : "Queued for Inking",
           className: "text-amber-700 bg-amber-50 border-amber-200",
         };
     }
   };
 
   const statusDisplay = getStatusDisplay(order.status);
-  const isMailed = order.status === "MAILED";
-  const isInking = order.status === "PROCESSING_HANDWRYTTEN";
-  const isQueuedOrPaid =
-    order.status === "PAYMENT_RECEIVED" ||
-    order.status === "QUEUED_FOR_FULFILLMENT" ||
-    order.status === "FAILED" ||
-    isInking ||
-    isMailed;
-  const orderTotalCents = order.quote?.totalCents ?? order.finalAmountInCents ?? order.amountInCents ?? 900;
-  const isInternational = Boolean((order.quote?.countryCode || order.recipientAddress.country) && !["US", "USA", "United States"].includes(order.quote?.countryCode || order.recipientAddress.country || ""));
 
   const trackingSteps = [
     {
-      title: `Payment Confirmed ($${(orderTotalCents / 100).toFixed(2)} Paid)`,
-      description: "Transaction complete. Receipt delivered to email.",
+      title: isPreviewHold ? `Test payment recorded ($${(orderTotalCents / 100).toFixed(2)})` : `Payment Confirmed ($${(orderTotalCents / 100).toFixed(2)} Paid)`,
+      description: isPreviewHold ? "No real charge occurred. Receipt email is suppressed in staging." : "Transaction complete. Receipt delivered to email.",
       icon: CheckCircle2,
       status: "complete",
     },
     {
-      title: "Artwork Printed on Quality Cardstock",
-      description: "Folded card printed with rich front cover artwork.",
+      title: isPreviewHold ? "Held for staging review" : "Artwork Printed on Quality Cardstock",
+      description: isPreviewHold ? "No card was printed, inked, or sent to fulfillment." : "Folded card printed with rich front cover artwork.",
       icon: Sparkles,
-      status: "complete",
+      status: isPreviewHold ? "current" : "complete",
     },
     {
-      title: order.scheduledSendDate
+      title: isPreviewHold ? "No handwriting started" : order.scheduledSendDate
         ? `Scheduled Handwriting (${order.scheduledSendDate})`
         : isMailed
         ? "Real Ink Handwriting Complete"
         : "Real Ink Handwriting In Progress",
-      description: order.scheduledSendDate
+      description: isPreviewHold ? "This test order remains held in staging; no physical production occurred." : order.scheduledSendDate
         ? `Order confirmed. Queued to be penned with real ink and mailed for ${order.scheduledSendDate}.`
         : isMailed
         ? `Penned with real blue ballpoint ink. (Handwrytten Order ID: ${order.handwryttenOrderId || "confirmed"})`
@@ -379,17 +376,17 @@ export default function OrderStatusPage() {
           }`
         : "Order confirmed. Queued for real ink handwriting in our studio.",
       icon: order.scheduledSendDate ? Calendar : PenTool,
-      status: isMailed ? "complete" : isQueuedOrPaid ? "current" : "upcoming",
+      status: isPreviewHold ? "current" : isMailed ? "complete" : isQueuedOrPaid ? "current" : "upcoming",
     },
     {
-      title: "Enveloped & Stamped",
-      description: isInternational ? `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} in ${order.quote?.countryCode || order.recipientAddress.country}. Delivery timing varies by destination.` : `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} with USPS First Class postage.`,
+      title: isPreviewHold ? "Mailing not started" : "Enveloped & Stamped",
+      description: isPreviewHold ? "No postage or shipment was created for this staging test." : isInternational ? `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} in ${order.quote?.countryCode || order.recipientAddress.country}. Delivery timing varies by destination.` : `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} with USPS First Class postage.`,
       icon: Mail,
       status: isMailed ? "complete" : "upcoming",
     },
     {
-      title: isInternational ? "Mailed internationally" : "Mailed via USPS First Class",
-      description: isMailed
+      title: isPreviewHold ? "Delivery not scheduled" : isInternational ? "Mailed internationally" : "Mailed via USPS First Class",
+      description: isPreviewHold ? "This preview order will not be mailed; no delivery estimate applies." : isMailed
         ? `Dispatched into USPS postal stream${
             order.handwryttenMailedDate ? ` on ${order.handwryttenMailedDate}` : ""
           }.${
@@ -470,21 +467,21 @@ export default function OrderStatusPage() {
             <CheckCircle2 className="w-8 h-8 stroke-[2.5]" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900">
-            Order Confirmed & Queued for Inking!
+            {isPreviewHold ? "International Staging Test · Held" : "Order Confirmed & Queued for Inking!"}
           </h1>
           <p className="text-stone-600 text-sm max-w-lg mx-auto">
-            {isInternational ? "Your card is queued for real ink writing and international mailing. Delivery timing varies by destination." : "Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient."}
+            {isPreviewHold ? "Test checkout recorded. No real charge, receipt email, card printing, fulfillment, or mailing occurred." : isInternational ? "Your card is queued for real ink writing and international mailing. Delivery timing varies by destination." : "Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient."}
           </p>
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-2 text-xs">
             <span className="bg-amber-50 text-amber-800 font-semibold px-3 py-1 rounded-full border border-amber-200">
-              Receipt Sent: {order.customerEmail || "Delivered"}
+              {isPreviewHold ? "Staging test · no receipt email sent" : `Receipt Sent: ${order.customerEmail || "Delivered"}`}
             </span>
             <span className="bg-indigo-50 text-indigo-800 font-semibold px-3 py-1 rounded-full border border-indigo-200">
-              Real Ink: Active
+              {isPreviewHold ? "Fulfillment: Held" : "Real Ink: Active"}
             </span>
             <span className="bg-emerald-50 text-emerald-800 font-semibold px-3 py-1 rounded-full border border-emerald-200">
-              {isInternational ? "International Mailing: Included" : "USPS Postage: Included"}
+              {isPreviewHold ? "Mailing: Not started" : isInternational ? "International Mailing: Included" : "USPS Postage: Included"}
             </span>
           </div>
         </div>
@@ -728,7 +725,7 @@ export default function OrderStatusPage() {
           <div className="flex items-center justify-between pb-4 border-b border-stone-100">
             <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
               <PenTool className="w-4 h-4 text-indigo-600" />
-              Real Ink Fulfillment Tracker
+              {isPreviewHold ? "International Preview Status" : "Real Ink Fulfillment Tracker"}
             </h2>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusDisplay.className}`}>
               {statusDisplay.label}

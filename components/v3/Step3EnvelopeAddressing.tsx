@@ -581,7 +581,9 @@ export function Step3EnvelopeAddressing({
                   <p className="text-sm text-stone-700">{recipient.street1}{recipient.street2 ? `, ${recipient.street2}` : ""}</p>
                   <p className="text-sm text-stone-700">{[recipient.city, recipient.state, recipient.zip].filter(Boolean).join(", ")}</p>
                   <p className="text-sm font-medium text-stone-800">{countries.find((item) => item.countryCode === recipient.country)?.countryName || recipient.country}</p>
-                  {mailingOptions?.previewAvailable && !mailingOptions.enabled && <p className="mt-2 text-xs text-amber-800">Preview only. International checkout is not enabled.</p>}
+                  {mailingOptions?.previewAvailable && (mailingOptions.enabled
+                    ? <p className="mt-2 text-xs text-amber-900">Staging test only: no real charge, card printing, fulfillment, or mailing will occur.</p>
+                    : <p className="mt-2 text-xs text-amber-800">Preview only. International checkout is not enabled.</p>)}
                 </div>
                 <button ref={internationalTriggerRef} type="button" disabled={isBusy} onClick={openInternationalEditor} className="text-xs font-semibold text-emerald-800 underline underline-offset-2 disabled:opacity-50">Edit</button>
               </div>
@@ -892,7 +894,9 @@ export function Step3EnvelopeAddressing({
             <div>
               <h2 id="international-address-title" className="font-serif text-xl font-bold text-stone-900">Send internationally</h2>
               <p className="mt-1 text-sm text-stone-600">{internationalTotalLabel} total, including international mailing. Your US return address stays on the envelope.</p>
-              {mailingOptions?.previewAvailable && !mailingOptions.enabled && <p className="mt-2 text-xs text-amber-800">Staging preview only. You can save this address to review the flow; checkout remains unavailable.</p>}
+              {mailingOptions?.previewAvailable && (mailingOptions.enabled
+                ? <p className="mt-2 text-xs text-amber-900">Staging test only: no real charge, card printing, fulfillment, or mailing will occur.</p>
+                : <p className="mt-2 text-xs text-amber-800">Staging preview only. You can save this address to review the flow; checkout remains unavailable.</p>)}
             </div>
             <label className="block text-xs font-semibold text-stone-700">Country or region
               <select autoFocus disabled={isBusy} value={internationalDraft.country || ""} onChange={(event) => setInternationalDraft({ ...internationalDraft, country: event.target.value, state: "", zip: "" })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base">

@@ -1601,6 +1601,7 @@ export function EntryPrototypeClient({
             customerEmail={customerEmail}
             amountInCents={amountInCents}
             onSendAnotherCard={resetEntireFlow}
+            isPreviewHold={isInternational && Boolean(mailingOptions?.previewAvailable)}
             isAddressDeferred={isAddressDeferred || !recipient.street1?.trim()}
           />
         </main>

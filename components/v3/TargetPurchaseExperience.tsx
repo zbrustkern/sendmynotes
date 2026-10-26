@@ -732,6 +732,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
             customerEmail={customerEmail}
             amountInCents={amountInCents}
             onSendAnotherCard={handleSendAnotherCard}
+            isPreviewHold={isInternational && Boolean(mailingOptions?.previewAvailable)}
           />
         )}
       </main>

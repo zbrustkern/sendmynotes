@@ -20,4 +20,6 @@ Date: 2026-10-26. Scope: customer-facing UI and draft handling in the isolated c
 
 ## Follow-up
 
-Preview orders are held before fulfillment by the server. If a later Stripe-test staging journey is enabled, confirmation and order-detail copy should add preview-hold-specific language so ordinary fulfillment language does not imply dispatch. This is not a current hosted-checkout path while the feature is disabled. Production activation still depends on server-side mapping/configuration and separate supplier-cost and delivery validation.
+Preview orders are held before fulfillment by the server. Because the deployed staging options now report `enabled: true`, both confirmation and order-detail views identify the test as held, state that no real charge, receipt email, printing, fulfillment, or mailing occurred, and suppress purchase telemetry and ordinary fulfillment claims. The options page and editor distinguish preview availability from test-payment availability. Production activation still depends on server-side mapping/configuration and separate supplier-cost and delivery validation.
+
+Follow-up validation: `node --import ./node_modules/tsx/dist/loader.mjs tests/international-addressing-ui.test.tsx` passed with server-rendered preview-hold assertions and order-page source guards; `npx tsc --noEmit` passed. The normal non-hold confirmation string was also corrected to use an ampersand rather than a literal `&amp;` entity.

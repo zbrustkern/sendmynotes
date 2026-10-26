@@ -4,15 +4,15 @@ Prepared October 26, 2026. Founder event: Saturday, October 31, 2026. Requested 
 
 ## Environments
 
-- Staging: https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app . Review-only; outbound email and physical fulfillment remain blocked. Existing live Stripe keys, if present, remain blocked. International editor can be reviewed independently of payment readiness.
-- A Stripe **test-mode** staging payment, when configured and verified, is not a live payment or physical-mail test.
+- Staging: https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app . Review-only; outbound email and physical fulfillment remain blocked. The deployed capability endpoint reports Stripe test checkout enabled. Live Stripe keys remain blocked. International editor can be reviewed independently of payment readiness.
+- A Stripe **test-mode** staging payment is not a live payment or physical-mail test. Configuration capability is verified; an actual provider payment has not been exercised in this sprint.
 - Production: unchanged by this sprint. A later production candidate must be derived selectively from the production base; do not merge all staging history to prepare the event.
 
 ## Before event live testing
 
 1. Record the exact candidate revision and enabled destinations, final total, discount behavior and rollback target. Review local and staging evidence and all unresolved findings.
-2. Confirm actual custom A2 supplier charges and destination requirements. Country catalog delivery_cost is not full order COGS. Confirm the $14 price/promotion disclosure before charging customers for international orders.
-3. Agree whether each founder test should actually send a physical card, and to which consented address. A successful charge without dispatch and an actual mailed order are different outcomes.
+2. Refresh supplier country mappings and USPS suspensions immediately before launch; review the excluded records and confirm no-postal-code handling. Confirm actual custom A2 supplier charges and destination requirements. Country catalog delivery_cost is not full order COGS. Confirm the $14 price/promotion disclosure before charging customers for international orders.
+3. Verify the preview-hold-specific confirmation/order-page wording during any hosted Stripe test payment; a held test order must not appear to be queued for actual mailing. Agree whether each founder test should actually send a physical card, and to which consented address. A successful charge without dispatch and an actual mailed order are different outcomes.
 4. Use explicit authorization for the selected production/live-payment environment. Do not remove staging safety guards to make a live test work. Keep test credentials separate from live credentials.
 5. Preserve the previous production revision and compatible country/quote readers for outstanding orders. Feature-off is a new-sales control, not a deletion of accepted commitments.
 
