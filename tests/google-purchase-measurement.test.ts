@@ -213,6 +213,7 @@ async function main() {
       ...order,
       id: "order_fixture_refund_projection",
       stripePaymentId: "pi_fixture_refund_projection",
+      status: "PROCESSING_HANDWRYTTEN" as const,
       viewToken: "fixture-view-token",
     };
     await saveOrder(refundOrder as any);
@@ -222,17 +223,94 @@ async function main() {
     await recordPaymentRefundFact({
       orderId: refundOrder.id,
       paymentIntentId: refundOrder.stripePaymentId,
-      refundId: "re_fixture_refund_projection",
+      refundId: "re_fixture_refund_pending",
       amountCents: 765,
       currency: "usd",
+      providerRefundStatus: "pending",
+      livemode: true,
+    });
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_failed",
+      amountCents: 765,
+      currency: "usd",
+      providerRefundStatus: "failed",
+      livemode: true,
+    });
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_legacy_statusless",
+      amountCents: 765,
+      currency: "usd",
+      livemode: true,
+    });
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_partial_succeeded",
+      amountCents: 500,
+      currency: "usd",
+      providerRefundStatus: "succeeded",
+      livemode: true,
+    });
+    const partialRefundRead = await orderGet(new NextRequest(`https://sendmynotes.com/api/orders/${refundOrder.id}?token=${refundOrder.viewToken}`), { params: Promise.resolve({ id: refundOrder.id }) });
+    const partialRefundBody = await partialRefundRead.json();
+    assert.equal(partialRefundBody.order.purchaseMeasurement.eligible, true, "pending, failed, status-less and partial succeeded facts cannot suppress a purchase as fully refunded");
+    assert.equal(partialRefundBody.order.purchaseMeasurement.refundStatus, "unknown", "legacy status-less refund records remain unknown for conversion suppression");
+
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_final_succeeded",
+      amountCents: 265,
+      currency: "usd",
+      providerRefundStatus: "succeeded",
       livemode: true,
     });
     const refundRead = await orderGet(new NextRequest(`https://sendmynotes.com/api/orders/${refundOrder.id}?token=${refundOrder.viewToken}`), { params: Promise.resolve({ id: refundOrder.id }) });
     assert.equal(refundRead.status, 200, "authorized order read remains available when refund evidence exists");
     const refundReadBody = await refundRead.json();
-    assert.equal(refundReadBody.order.purchaseMeasurement.reason, "known_refund", "actual linked financial-ledger full-refund fact suppresses conversion at the authorized read boundary");
-    assert.equal(refundReadBody.order.purchaseMeasurement.eligible, false, "full refund projection is ineligible for Purchase tracking");
-    assert.equal(refundReadBody.order.purchaseMeasurement.refundStatus, "fully_refunded", "returned view identifies authoritative linked refund evidence");
+    assert.equal(refundReadBody.order.purchaseMeasurement.reason, "known_refund", "actual linked successful financial-ledger full-refund facts suppress conversion at the authorized read boundary");
+    assert.equal(refundReadBody.order.purchaseMeasurement.eligible, false, "successful full refund projection is ineligible for Purchase tracking");
+    assert.equal(refundReadBody.order.purchaseMeasurement.refundStatus, "fully_refunded", "returned view identifies authoritative linked succeeded refund evidence");
+    const originalAllowMock = process.env.ALLOW_LOCAL_MOCK_PAYMENTS;
+    process.env.ALLOW_LOCAL_MOCK_PAYMENTS = "true";
+    try {
+      const syncRefundOrder = {
+        ...refundOrder,
+        id: "order_fixture_refund_confirmation",
+        stripePaymentId: "pi_fixture_refund_confirmation",
+        amountInCents: 900,
+        status: "PROCESSING_HANDWRYTTEN" as const,
+      };
+      await saveOrder(syncRefundOrder as any);
+      await measurement.persistPurchaseMeasurement(syncRefundOrder.id, measurement.buildPurchaseMeasurement(syncRefundOrder, {
+        paymentIntentId: syncRefundOrder.stripePaymentId, amount: 900, amountReceived: 900, currency: "usd", livemode: true,
+      }));
+      await recordPaymentRefundFact({
+        orderId: syncRefundOrder.id,
+        paymentIntentId: syncRefundOrder.stripePaymentId,
+        refundId: "re_fixture_refund_confirmation_succeeded",
+        amountCents: 900,
+        currency: "usd",
+        providerRefundStatus: "succeeded",
+        livemode: true,
+      });
+      const confirmation = await confirmPost(new NextRequest("https://sendmynotes.com/api/checkout/confirm-order", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId: syncRefundOrder.id, paymentIntentId: syncRefundOrder.stripePaymentId }),
+      }));
+      const confirmationBody = await confirmation.json();
+      assert.equal(confirmation.status, 200, "confirmation completes through the local mock path for an already-processed fixture");
+      assert.equal(confirmationBody.purchaseMeasurement.reason, "known_refund", "synchronous confirmation returns the full-refund projection too");
+      assert.equal(confirmationBody.purchaseMeasurement.eligible, false, "synchronous confirmation cannot expose an eligible refunded Purchase");
+      assert.equal((await getOrderById(syncRefundOrder.id))?.purchaseMeasurement?.refundStatus, "unknown", "synchronous response projection leaves persisted capture evidence immutable");
+    } finally {
+      if (originalAllowMock === undefined) delete process.env.ALLOW_LOCAL_MOCK_PAYMENTS;
+      else process.env.ALLOW_LOCAL_MOCK_PAYMENTS = originalAllowMock;
+    }
     const unchangedAfterRefundRead = await getOrderById(refundOrder.id);
     assert.equal(unchangedAfterRefundRead?.purchaseMeasurement?.eligible, immutableCapture.eligible, "read projection does not mutate the verified capture snapshot");
     assert.equal(unchangedAfterRefundRead?.purchaseMeasurement?.refundStatus, "unknown", "persisted capture evidence preserves unknown refund status");

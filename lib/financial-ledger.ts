@@ -44,6 +44,8 @@ export interface RecordRefundFactInput {
   chargeId?: string;
   amountCents: number;
   currency?: string;
+  /** Stripe Refund.status; legacy or manual facts without this remain non-authoritative for conversion suppression. */
+  providerRefundStatus?: string;
   livemode: boolean;
   providerEventId?: string;
   commercialKind?: CommercialKind;
@@ -242,7 +244,7 @@ export async function recordPaymentRefundFact(
     });
 
     const now = Date.now();
-    const record: FinancialFactRecord & { paymentIntentId?: string; providerRelationshipStatus?: string; relatedChargeId?: string } = {
+    const record: FinancialFactRecord & { paymentIntentId?: string; providerRelationshipStatus?: string; relatedChargeId?: string; providerRefundStatus?: string } = {
       factId,
       factType: "refund",
       commercialKind,
@@ -250,6 +252,7 @@ export async function recordPaymentRefundFact(
       provider: "stripe",
       providerObjectId: input.refundId || input.chargeId || input.paymentIntentId || "unmatched_refund",
       providerRelationshipStatus: input.paymentIntentId ? "linked" : "unmatched",
+      ...(input.providerRefundStatus ? { providerRefundStatus: input.providerRefundStatus } : {}),
       relatedChargeId: input.chargeId,
       providerEventId: input.providerEventId,
       amountCents: Math.abs(input.amountCents),
@@ -397,7 +400,7 @@ export async function getPaymentIntentRefundFacts(
     .get();
   const refunds: FinancialFactRecord[] = [];
   snapshot.forEach((doc) => {
-    const fact = doc.data() as FinancialFactRecord;
+    const fact = doc.data() as FinancialFactRecord & { paymentIntentId?: string; providerRelationshipStatus?: string; providerRefundStatus?: string; provider?: string };
     if (fact.factType === "refund") refunds.push(fact);
   });
   return refunds.sort((a, b) => a.occurredAt - b.occurredAt);

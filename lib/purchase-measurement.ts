@@ -80,7 +80,11 @@ export async function projectPurchaseMeasurementForOrder(
   try {
     const refunds = await getPaymentIntentRefundFacts(order.stripePaymentId);
     const fullyRefundedCents = refunds
-      .filter((fact) => fact.livemode && fact.currency?.toLowerCase() === "usd")
+      .filter((fact) => {
+        const linkedRefund = fact as typeof fact & { provider?: string; providerRelationshipStatus?: string; providerRefundStatus?: string };
+        return linkedRefund.provider === "stripe" && linkedRefund.providerRelationshipStatus === "linked" &&
+          linkedRefund.providerRefundStatus === "succeeded" && fact.livemode && fact.currency?.toLowerCase() === "usd";
+      })
       .reduce((total, fact) => total + Math.max(0, fact.amountCents), 0);
     if (fullyRefundedCents >= measurement.amountInCents) {
       return { ...measurement, eligible: false, reason: "known_refund", refundStatus: "fully_refunded" };

@@ -258,7 +258,6 @@ export async function POST(req: NextRequest) {
           currency: pi.currency,
           livemode: pi.livemode,
         }));
-        purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
       } catch {
         console.warn("[Confirm Order] Purchase measurement snapshot write unavailable.");
       }
@@ -290,6 +289,8 @@ export async function POST(req: NextRequest) {
         );
       }
     }
+
+    purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
 
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||

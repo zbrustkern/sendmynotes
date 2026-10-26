@@ -318,6 +318,7 @@ export async function POST(req: NextRequest) {
             chargeId: charge.id,
             amountCents: r.amount,
             currency: r.currency || charge.currency || "usd",
+            providerRefundStatus: r.status || undefined,
             livemode: !isTestPayment,
             commercialKind: paymentIntentId ? undefined : "unresolved_historical",
             providerEventId: event.id,
