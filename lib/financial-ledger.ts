@@ -46,6 +46,7 @@ export interface RecordRefundFactInput {
   currency?: string;
   /** Stripe Refund.status; legacy or manual facts without this remain non-authoritative for conversion suppression. */
   providerRefundStatus?: string;
+  providerStatusObservedAt?: number;
   livemode: boolean;
   providerEventId?: string;
   commercialKind?: CommercialKind;
@@ -212,7 +213,24 @@ export async function recordPaymentRefundFact(
     const snapshot = await transaction.get(docRef);
 
     if (snapshot.exists) {
-      const existingFact = snapshot.data() as FinancialFactRecord;
+      const existingFact = snapshot.data() as FinancialFactRecord & { paymentIntentId?: string; providerRelationshipStatus?: string; relatedChargeId?: string; providerRefundStatus?: string; providerStatusObservedAt?: number };
+      // Legacy/manual records without an explicit provider refund ID/status keep
+      // the pre-existing idempotent no-op behavior and remain unknown to suppression.
+      if (!input.refundId || !input.providerRefundStatus) return { fact: existingFact, duplicate: true };
+      const expectedAmount = Math.abs(input.amountCents);
+      const evidenceMatches = existingFact.provider === "stripe" && existingFact.providerObjectId === input.refundId &&
+        existingFact.amountCents === expectedAmount && existingFact.currency === (input.currency || "usd").toLowerCase() &&
+        existingFact.livemode === Boolean(input.livemode) && existingFact.paymentIntentId === input.paymentIntentId &&
+        existingFact.relatedChargeId === input.chargeId && existingFact.providerRelationshipStatus === (input.paymentIntentId ? "linked" : "unmatched");
+      if (!evidenceMatches) throw new Error("Repeated refund evidence does not match the immutable linked refund fact.");
+      if (input.providerRefundStatus === "succeeded" && existingFact.providerRefundStatus !== "succeeded") {
+        const observedAt = input.providerStatusObservedAt || Date.now();
+        transaction.update(docRef, { providerRefundStatus: "succeeded", providerStatusObservedAt: observedAt });
+        return {
+          fact: { ...existingFact, providerRefundStatus: "succeeded", providerStatusObservedAt: observedAt },
+          duplicate: true,
+        };
+      }
       return { fact: existingFact, duplicate: true };
     }
 
@@ -244,7 +262,7 @@ export async function recordPaymentRefundFact(
     });
 
     const now = Date.now();
-    const record: FinancialFactRecord & { paymentIntentId?: string; providerRelationshipStatus?: string; relatedChargeId?: string; providerRefundStatus?: string } = {
+    const record: FinancialFactRecord & { paymentIntentId?: string; providerRelationshipStatus?: string; relatedChargeId?: string; providerRefundStatus?: string; providerStatusObservedAt?: number } = {
       factId,
       factType: "refund",
       commercialKind,
@@ -253,6 +271,7 @@ export async function recordPaymentRefundFact(
       providerObjectId: input.refundId || input.chargeId || input.paymentIntentId || "unmatched_refund",
       providerRelationshipStatus: input.paymentIntentId ? "linked" : "unmatched",
       ...(input.providerRefundStatus ? { providerRefundStatus: input.providerRefundStatus } : {}),
+      ...(input.providerStatusObservedAt ? { providerStatusObservedAt: input.providerStatusObservedAt } : {}),
       relatedChargeId: input.chargeId,
       providerEventId: input.providerEventId,
       amountCents: Math.abs(input.amountCents),

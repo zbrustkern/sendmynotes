@@ -301,7 +301,31 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 3. Handle Charge Refunded (supports partial and multiple refunds)
+    // 3. Handle asynchronous status changes for an existing Stripe refund.
+    if (event.type === "refund.updated") {
+      const refund = event.data.object as Stripe.Refund;
+      const paymentIntentId = resolvePaymentIntentReference(refund.payment_intent);
+      if (paymentIntentId) {
+        const chargeId = typeof refund.charge === "string" ? refund.charge : refund.charge?.id;
+        await recordPaymentRefundFact({
+          refundId: refund.id,
+          paymentIntentId,
+          chargeId: chargeId || undefined,
+          amountCents: refund.amount,
+          currency: refund.currency || "usd",
+          providerRefundStatus: refund.status || undefined,
+          providerStatusObservedAt: event.created * 1000,
+          livemode: event.livemode,
+          providerEventId: event.id,
+          occurredAt: refund.created * 1000,
+          reason: refund.reason || undefined,
+        });
+      }
+      await markWebhookInboxProcessed(event.id);
+      return NextResponse.json({ received: true, event: "refund.updated" });
+    }
+
+    // 4. Handle Charge Refunded (supports partial and multiple refunds)
     if (event.type === "charge.refunded") {
       const charge = event.data.object as Stripe.Charge;
       const paymentIntentId = resolvePaymentIntentReference(charge.payment_intent);
@@ -319,6 +343,7 @@ export async function POST(req: NextRequest) {
             amountCents: r.amount,
             currency: r.currency || charge.currency || "usd",
             providerRefundStatus: r.status || undefined,
+            providerStatusObservedAt: event.created * 1000,
             livemode: !isTestPayment,
             commercialKind: paymentIntentId ? undefined : "unresolved_historical",
             providerEventId: event.id,
