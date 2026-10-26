@@ -63,13 +63,6 @@ export function OrderJourneyDrawer({
     ? "Social Media"
     : attr?.utmSource || "Direct / Organic";
 
-  // Financial unit calculation
-  const grossDollars = (order.amountInCents || 900) / 100;
-  const stripeFeeDollars = Number((grossDollars * 0.029 + 0.3).toFixed(2));
-  const handwryttenCogs = 4.88;
-  const netMarginDollars = Number((grossDollars - stripeFeeDollars - handwryttenCogs).toFixed(2));
-  const marginPercent = grossDollars > 0 ? Math.round((netMarginDollars / grossDollars) * 100) : 0;
-
   return (
     <div className="bg-stone-50/70 border-t border-b border-stone-200 p-4 sm:p-6 space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-stone-200/80">
@@ -182,8 +175,9 @@ export function OrderJourneyDrawer({
         </div>
 
         <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs space-y-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Purchase measurement</span>
-          <p className="text-xs text-stone-700">Payment verification: {order.purchaseMeasurement ? `${order.purchaseMeasurement.eligible ? "eligible" : order.purchaseMeasurement.reason} · ${order.purchaseMeasurement.currency} ${(order.purchaseMeasurement.amountInCents / 100).toFixed(2)}` : "Unknown"}</p>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 block">Original purchase measurement snapshot</span>
+          <p className="text-xs text-stone-700">Ads eligibility snapshot: {order.purchaseMeasurement ? `${order.purchaseMeasurement.eligible ? "eligible" : order.purchaseMeasurement.reason} · ${order.purchaseMeasurement.currency} ${(order.purchaseMeasurement.amountInCents / 100).toFixed(2)}` : "Unavailable on this order record"}</p>
+          <p className="text-xs text-stone-500">This original snapshot may be absent on older orders. Verified payment evidence and customer classification are shown in the Measurement Report.</p>
           <p className="text-xs text-stone-700">
             Browser queue: {(["google_ads", "ga4"] as const).map((destination, index) => {
               const observation = queueObservations[destination];
@@ -239,54 +233,15 @@ export function OrderJourneyDrawer({
           )}
         </div>
 
-        {/* 3. UNIT FINANCIALS & MARGINS */}
+        {/* 3. UNIT FINANCIALS */}
         <div className="bg-white p-4 rounded-2xl border border-stone-200 shadow-2xs space-y-3">
           <div className="flex items-center justify-between pb-2 border-b border-stone-100">
             <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400 flex items-center gap-1.5">
               <DollarSign className="w-3.5 h-3.5 text-emerald-600" />
-              Order Financials
-            </span>
-            <span
-              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                netMarginDollars > 0
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200"
-                  : "bg-rose-50 text-rose-800 border border-rose-200"
-              }`}
-            >
-              +{marginPercent}% Margin
+              Unit economics
             </span>
           </div>
-
-          <div className="space-y-2 text-xs">
-            <div className="flex items-center justify-between text-stone-600">
-              <span>Customer Paid</span>
-              <span className="font-bold text-stone-900">${grossDollars.toFixed(2)}</span>
-            </div>
-
-            <div className="flex items-center justify-between text-stone-500 text-[11px]">
-              <span>Stripe Processing</span>
-              <span className="text-rose-600">-${stripeFeeDollars.toFixed(2)}</span>
-            </div>
-
-            <div className="flex items-center justify-between text-stone-500 text-[11px]">
-              <span>Handwrytten Pen COGS</span>
-              <span className="text-indigo-600">-${handwryttenCogs.toFixed(2)}</span>
-            </div>
-
-            {order.discountCode && (
-              <div className="flex items-center justify-between text-amber-700 text-[11px]">
-                <span>Discount ({order.discountCode})</span>
-                <span>-${((order.discountAmountInCents || 0) / 100).toFixed(2)}</span>
-              </div>
-            )}
-
-            <div className="pt-2 border-t border-stone-100 flex items-center justify-between font-bold">
-              <span className="text-stone-800">Net Studio Margin</span>
-              <span className="text-emerald-700 text-sm">
-                +${netMarginDollars.toFixed(2)}
-              </span>
-            </div>
-          </div>
+          <p className="text-xs leading-relaxed text-stone-700">Profit and contribution are unavailable. The complete supplier charge for this custom product, postage, taxes, and payment fees have not been confirmed here.</p>
         </div>
 
         {/* 4. PHYSICAL FULFILLMENT & POSTAL DISPATCH */}

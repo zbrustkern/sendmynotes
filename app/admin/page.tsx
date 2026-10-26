@@ -60,13 +60,10 @@ import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWid
 import { ProofInspectorModal } from "@/components/admin/ProofInspectorModal";
 import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
 import { StudioCompModal } from "@/components/admin/StudioCompModal";
-import { CohortAnalytics } from "@/components/admin/CohortAnalytics";
-import { ValuationHeuristicsWidget } from "@/components/admin/ValuationHeuristicsWidget";
+import { AdminMeasurementPanel } from "@/components/admin/AdminMeasurementPanel";
 import { VisitorTelemetryDashboard } from "@/components/admin/VisitorTelemetryDashboard";
 import { AdminFeatureFlagsTab } from "@/components/admin/AdminFeatureFlagsTab";
 import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
-import { CampaignPerformanceWidget } from "@/components/admin/CampaignPerformanceWidget";
-import { HighIntentCartsWidget } from "@/components/admin/HighIntentCartsWidget";
 import { getClientId, getSessionId } from "@/lib/telemetry";
 
 export default function AdminDashboardPage() {
@@ -110,6 +107,7 @@ export default function AdminDashboardPage() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingStripeId, setSyncingStripeId] = useState<string | null>(null);
   const [expandedJourneyOrderId, setExpandedJourneyOrderId] = useState<string | null>(null);
+  const [measurementOrderId, setMeasurementOrderId] = useState<string | null>(null);
 
   // Studio & Operator Modals State
   const [selectedProofOrderId, setSelectedProofOrderId] = useState<string | null>(null);
@@ -1017,12 +1015,6 @@ export default function AdminDashboardPage() {
     return true; // "ALL"
   });
 
-  const revenueDollars = ((metrics?.totalRevenueCents || 0) / 100).toFixed(2);
-  const conversionRate =
-    metrics && metrics.funnel.totalSessions > 0
-      ? ((metrics.funnel.paid / metrics.funnel.totalSessions) * 100).toFixed(1)
-      : "0.0";
-
   return (
     <div className="min-h-screen w-full overflow-x-hidden bg-[#FAF8F5] pb-24 md:pb-20 text-stone-900">
       {/* ADMIN HEADER */}
@@ -1328,15 +1320,7 @@ export default function AdminDashboardPage() {
             >
               <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
               <span>Unit Economics</span>
-              {metrics?.margins?.netContributionMarginPercent !== undefined && (
-                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                  activeTab === "margins"
-                    ? "bg-stone-800 text-emerald-300 sm:bg-emerald-100 sm:text-emerald-800"
-                    : "bg-stone-100 text-stone-600 sm:bg-emerald-100 sm:text-emerald-800"
-                }`}>
-                  {metrics.margins.netContributionMarginPercent}%
-                </span>
-              )}
+
             </button>
 
             <button
@@ -1413,63 +1397,36 @@ export default function AdminDashboardPage() {
         {/* ===================== TAB: ORDERS & OPERATIONS ===================== */}
         {activeTab === "orders" && (
           <div className="space-y-5 sm:space-y-8">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-relaxed text-amber-950">
-              <strong>Founder report — October 20, 2026:</strong> Purchases reviewed to date were founder tests. This dated report does not reconcile live paid totals or visit ratios; those figures alone do not establish independent customer demand.
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-950">
+              <strong>Founder review — October 26, 2026:</strong> One external $9 sale was confirmed in the reviewed history; the other paid orders were founder tests. The report below uses payment evidence and reporting reconciliation, and counts later verified customer orders normally.
             </div>
-            {/* KPI METRIC CARDS (2x2 on Mobile, 4x1 on Desktop) */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-                  <span>Gross Revenue</span>
-                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+            <AdminMeasurementPanel onInspectOrder={setMeasurementOrderId} />
+            {measurementOrderId && (
+              <section className="rounded-2xl border border-stone-200 bg-white p-4" aria-label="Selected order diagnostics">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <h2 className="text-sm font-bold">Order attribution diagnostics</h2>
+                  <button type="button" onClick={() => setMeasurementOrderId(null)} className="min-h-10 px-3 text-sm underline">Close diagnostics</button>
                 </div>
-                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">${revenueDollars}</p>
-                <p className="text-[10px] sm:text-[11px] text-stone-400">$9.00 flat per card</p>
+                {(() => {
+                  const order = metrics?.recentOrders.find((item) => item.id === measurementOrderId);
+                  return order ? <OrderJourneyDrawer order={order} onInspectProof={setSelectedProofOrderId} onRetryAddress={setAddressRetryOrder} /> : (
+                    <p className="text-sm text-stone-600">This order is outside the currently loaded operational list. Its payment evidence is in the measurement report above. Select All Time and include founder/test records in the operational controls below to load its browser delivery diagnostics.</p>
+                  );
+                })()}
+              </section>
+            )}
+            <div className="grid grid-cols-2 gap-3" aria-label="Operational counts from the legacy order list">
+              <div className="rounded-2xl border border-stone-200 bg-white p-4">
+                <p className="text-xs font-semibold text-stone-500">Inking queue · operational</p>
+                <p className="mt-1 text-2xl font-bold">{metrics?.ordersByStatus.processing ?? "Unavailable"}</p>
+                <p className="text-xs text-stone-500">Fulfillment status, not a payment count</p>
               </div>
-
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-                  <span>Inking Queue</span>
-                  <PenTool className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
-                </div>
-                <p className="font-serif text-xl sm:text-2xl font-bold text-indigo-900">
-                  {metrics?.ordersByStatus.processing || 0}
-                </p>
-                <p className="text-[10px] sm:text-[11px] text-indigo-600 font-medium">Dispatched to HW</p>
-              </div>
-
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-                  <span>Total Orders</span>
-                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
-                </div>
-                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">
-                  {metrics?.totalOrders || 0}
-                </p>
-                <p className="text-[10px] sm:text-[11px] text-stone-400">
-                  {metrics?.ordersByStatus.pending || 0} pending drafts
-                </p>
-              </div>
-
-              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
-                  <span>Conversion</span>
-                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
-                </div>
-                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">{conversionRate}%</p>
-                <p className="text-[10px] sm:text-[11px] text-stone-400">
-                  {metrics?.funnel.paid || 0} paid / {metrics?.funnel.totalSessions || 0} visits
-                </p>
+              <div className="rounded-2xl border border-stone-200 bg-white p-4">
+                <p className="text-xs font-semibold text-stone-500">Order records · operational</p>
+                <p className="mt-1 text-2xl font-bold">{metrics?.totalOrders ?? "Unavailable"}</p>
+                <p className="text-xs text-stone-500">Legacy list scope includes drafts and testing</p>
               </div>
             </div>
-
-            {/* ALL-IN-ONE COMMAND CENTER: CAMPAIGN PERFORMANCE & HIGH-INTENT CART RECOVERY */}
-            <CampaignPerformanceWidget
-              metrics={metrics}
-              orders={metrics?.recentOrders || []}
-            />
-
-            <HighIntentCartsWidget metrics={metrics} />
 
             {/* ENRICHED VISITOR TELEMETRY & DROP-OFF WATERFALL */}
             <VisitorTelemetryDashboard
@@ -1492,8 +1449,6 @@ export default function AdminDashboardPage() {
               unflagFounderSuccess={unflagFounderSuccess}
             />
 
-            {/* COHORT & HANDWRITING STYLE ANALYTICS */}
-            <CohortAnalytics metrics={metrics} />
 
             {/* RECENT ORDERS TABLE & MOBILE CARDS */}
             <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden">
@@ -2032,445 +1987,21 @@ export default function AdminDashboardPage() {
         {/* ===================== TAB: UNIT ECONOMICS & MARGINS ===================== */}
         {activeTab === "margins" && (
           <div className="space-y-8">
-            {/* UNIT ECONOMICS KPI SUMMARY */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Gross Retail Revenue</span>
-                  <DollarSign className="w-4 h-4 text-emerald-600" />
+            <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
+              <h2 className="text-lg font-bold">Costs and acquisition economics</h2>
+              <p className="text-sm text-stone-700">Supplier costs, processing fees, reconciled ad spend, CAC and net contribution are unavailable here. Captured customer revenue is gross; it does not establish profit or a break-even acquisition cost.</p>
+              <p className="text-sm text-stone-600">The former $4.88 cost, $3.56 contribution and 39.6% margin were assumptions. They are not measured results for these orders.</p>
+              <div className="space-y-2 border-t border-stone-100 pt-4">
+                <label htmlFor="manual-ad-spend" className="block text-sm font-medium">Manual ad spend note (USD)</label>
+                <p className="text-xs text-stone-500">Retained for your notes. This amount has no reconciled campaign or date scope and is not used to calculate performance.</p>
+                <div className="flex flex-wrap gap-3">
+                  <input id="manual-ad-spend" type="number" min="0" step="0.01" value={adSpendInput} onChange={(event) => setAdSpendInput(event.target.value)} className="min-h-11 w-full rounded-xl border border-stone-300 px-3 sm:w-48" />
+                  <button type="button" onClick={handleSaveAdSpend} disabled={savingAdSpend} className="min-h-11 rounded-xl bg-stone-900 px-4 text-sm font-medium text-white disabled:opacity-50">{savingAdSpend ? "Saving…" : "Save ad spend note"}</button>
                 </div>
-                <p className="font-serif text-2xl font-bold text-stone-900">
-                  ${((metrics?.margins?.grossRevenueCents || 0) / 100).toFixed(2)}
-                </p>
-                <p className="text-[11px] text-stone-400">
-                  {metrics?.margins?.paidCardsCount || 0} delivered cards @ $9.00 flat
-                </p>
+                {adSpendSuccess && <p role="status" className="text-sm text-stone-700">{adSpendSuccess}</p>}
               </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Stripe Gateway Fees</span>
-                  <Receipt className="w-4 h-4 text-rose-500" />
-                </div>
-                <p className="font-serif text-2xl font-bold text-rose-700">
-                  -${((metrics?.margins?.stripeFeesCents || 0) / 100).toFixed(2)}
-                </p>
-                <p className="text-[11px] text-stone-400">2.9% + 30¢ (~$0.56 per standard card)</p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Fulfillment COGS</span>
-                  <Package className="w-4 h-4 text-indigo-600" />
-                </div>
-                <p className="font-serif text-2xl font-bold text-indigo-900">
-                  -${((metrics?.margins?.fulfillmentCogsCents || 0) / 100).toFixed(2)}
-                </p>
-                <p className="text-[11px] text-stone-400">$4.88 ink + cardstock + First Class</p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-emerald-200 shadow-sm space-y-1 bg-emerald-50/30">
-                <div className="flex items-center justify-between text-emerald-800 text-xs font-semibold uppercase tracking-wider">
-                  <span>Net Contribution Margin</span>
-                  <Coins className="w-4 h-4 text-emerald-600" />
-                </div>
-                <p className="font-serif text-2xl font-bold text-emerald-700">
-                  +${((metrics?.margins?.netContributionMarginCents || 0) / 100).toFixed(2)}
-                </p>
-                <p className="text-[11px] text-emerald-800 font-medium">
-                  {metrics?.margins?.netContributionMarginPercent || 39.6}% margin ($3.56/card)
-                </p>
-              </div>
-            </div>
-
-            {/* INTERACTIVE AD SPEND & CPA SIMULATOR */}
-            {(() => {
-              const enteredAdSpend = parseFloat(adSpendInput) || 0;
-              const paidCount = metrics?.margins?.paidCardsCount || 0;
-              const netContribDollars = (metrics?.margins?.netContributionMarginCents || 0) / 100;
-              const grossRevDollars = (metrics?.margins?.grossRevenueCents || 0) / 100;
-              const cpaDollars = paidCount > 0 ? enteredAdSpend / paidCount : (enteredAdSpend > 0 ? enteredAdSpend : 0);
-              const netProfitAfterAds = netContribDollars - enteredAdSpend;
-              const roasRatio = enteredAdSpend > 0 ? (grossRevDollars / enteredAdSpend).toFixed(2) : "—";
-              const isProfitable = paidCount > 0 ? cpaDollars <= 3.56 : netProfitAfterAds >= 0;
-
-              return (
-                <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
-                          Interactive Calculator
-                        </span>
-                        <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                          <Calculator className="w-4 h-4 text-amber-600" />
-                          Ad Spend, CAC &amp; Profitability Simulator
-                        </h2>
-                      </div>
-                      <p className="text-xs text-stone-500">
-                        Input your Google Ads expenditure to evaluate live Customer Acquisition Cost (CAC), Return on Ad Spend (ROAS), and net studio profit.
-                      </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={handleSaveAdSpend}
-                        disabled={savingAdSpend}
-                        className="text-xs font-semibold text-white bg-stone-900 hover:bg-stone-800 px-4 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-sm cursor-pointer disabled:opacity-50"
-                      >
-                        <RefreshCw className={`w-3.5 h-3.5 ${savingAdSpend ? "animate-spin" : ""}`} />
-                        <span>{savingAdSpend ? "Saving..." : "Save Ad Spend"}</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {adSpendSuccess && (
-                    <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs rounded-xl flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span>{adSpendSuccess}</span>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-                    {/* LEFT: Ad Spend Input Controls */}
-                    <div className="lg:col-span-5 space-y-4 bg-stone-50 p-5 rounded-2xl border border-stone-200">
-                      <div>
-                        <label className="block text-xs font-semibold text-stone-700 mb-1.5">
-                          Total Ad Spend (USD)
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-400">
-                            $
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={adSpendInput}
-                            onChange={(e) => setAdSpendInput(e.target.value)}
-                            placeholder="0.00"
-                            className="w-full pl-8 pr-4 py-2.5 bg-white border border-stone-300 rounded-xl text-stone-900 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Quick Increments */}
-                      <div className="space-y-1.5">
-                        <span className="text-[11px] font-medium text-stone-500">Quick Simulation Presets:</span>
-                        <div className="flex flex-wrap gap-2">
-                          {[
-                            { label: "+$10", val: 10 },
-                            { label: "+$25", val: 25 },
-                            { label: "+$50", val: 50 },
-                            { label: "+$100", val: 100 },
-                          ].map((preset) => (
-                            <button
-                              key={preset.label}
-                              type="button"
-                              onClick={() => {
-                                const curr = parseFloat(adSpendInput) || 0;
-                                setAdSpendInput((curr + preset.val).toFixed(2));
-                              }}
-                              className="text-xs font-medium px-2.5 py-1 bg-white hover:bg-stone-100 text-stone-700 border border-stone-300 rounded-lg transition cursor-pointer"
-                            >
-                              {preset.label}
-                            </button>
-                          ))}
-                          <button
-                            type="button"
-                            onClick={() => setAdSpendInput("0.00")}
-                            className="text-xs font-medium px-2.5 py-1 bg-stone-200 hover:bg-stone-300 text-stone-700 rounded-lg transition cursor-pointer"
-                          >
-                            Reset
-                          </button>
-                        </div>
-                      </div>
-
-                      <div className="pt-2 border-t border-stone-200/80 text-[11px] text-stone-500 space-y-1">
-                        <p className="flex items-center gap-1.5 font-medium text-stone-700">
-                          <Target className="w-3.5 h-3.5 text-amber-600" />
-                          <span>Break-even Target CPA: <strong>$3.56</strong></span>
-                        </p>
-                        <p>
-                          Any Google Ads click-to-order cost under $3.56 is instantly profitable on the first card mailed.
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* RIGHT: Live Simulated Metrics */}
-                    <div className="lg:col-span-7 space-y-4">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                        <div className="p-4 rounded-2xl border bg-stone-50 border-stone-200 space-y-1">
-                          <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
-                            Blended CPA / CAC
-                          </span>
-                          <p className={`font-serif text-xl font-bold ${cpaDollars <= 3.56 ? "text-emerald-700" : "text-amber-700"}`}>
-                            ${cpaDollars.toFixed(2)}
-                          </p>
-                          <p className="text-[10px] text-stone-400">
-                            {paidCount > 0 ? `Across ${paidCount} paid orders` : "Based on ad spend"}
-                          </p>
-                        </div>
-
-                        <div className="p-4 rounded-2xl border bg-stone-50 border-stone-200 space-y-1">
-                          <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
-                            ROAS Multiple
-                          </span>
-                          <p className="font-serif text-xl font-bold text-stone-900">
-                            {roasRatio !== "—" ? `${roasRatio}x` : "—"}
-                          </p>
-                          <p className="text-[10px] text-stone-400">Gross Rev / Ad Spend</p>
-                        </div>
-
-                        <div className={`p-4 rounded-2xl border space-y-1 ${netProfitAfterAds >= 0 ? "bg-emerald-50/50 border-emerald-200" : "bg-rose-50/50 border-rose-200"}`}>
-                          <span className="text-[10px] font-semibold text-stone-500 uppercase tracking-wider">
-                            Net Studio Profit
-                          </span>
-                          <p className={`font-serif text-xl font-bold ${netProfitAfterAds >= 0 ? "text-emerald-700" : "text-rose-700"}`}>
-                            {netProfitAfterAds >= 0 ? `+$${netProfitAfterAds.toFixed(2)}` : `-$${Math.abs(netProfitAfterAds).toFixed(2)}`}
-                          </p>
-                          <p className="text-[10px] text-stone-400">After COGS, fees &amp; ads</p>
-                        </div>
-                      </div>
-
-                      {/* Profitability Status Callout */}
-                      <div
-                        className={`p-4 rounded-2xl border flex items-start gap-3 ${
-                          isProfitable
-                            ? "bg-emerald-50 border-emerald-200 text-emerald-900"
-                            : "bg-amber-50 border-amber-200 text-amber-900"
-                        }`}
-                      >
-                        {isProfitable ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                        ) : (
-                          <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                        )}
-                        <div className="space-y-1 text-xs">
-                          <p className="font-bold">
-                            {isProfitable
-                              ? "Profitable First-Order Acquisition (CPA ≤ $3.56)"
-                              : "Growth & Customer Acquisition Investment (CPA > $3.56)"}
-                          </p>
-                          <p className="text-stone-600 leading-relaxed">
-                            {isProfitable
-                              ? `At a CPA of $${cpaDollars.toFixed(2)}, you are clearing positive cash flow on card #1. Repeat sends generated from recipient address book reminders are 100% organic profit.`
-                              : `At a CPA of $${cpaDollars.toFixed(2)}, the first card operates as customer acquisition. Customers who save recipients average 3+ card orders per year, achieving full breakeven on repeat sends.`}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })()}
-
-            {/* LTV, CAC & VALUATION HEURISTICS ENGINE */}
-            {(() => {
-              const parsedAdSpend = parseFloat(adSpendInput) || 0;
-              const currentPaidCount = metrics?.margins?.paidCardsCount || 0;
-              const currentCac =
-                currentPaidCount > 0
-                  ? parsedAdSpend / currentPaidCount
-                  : parsedAdSpend > 0
-                  ? parsedAdSpend
-                  : 3.56;
-
-              return (
-                <ValuationHeuristicsWidget
-                  initialAssumptions={metrics?.valuationAssumptions}
-                  actualCacDollars={currentCac}
-                  paidOrdersCount={currentPaidCount}
-                />
-              );
-            })()}
-
-            {/* THE $9.00 UNIT WATERFALL EXPLAINER */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
-              <div className="space-y-1">
-                <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-stone-700" />
-                  Unit Economics Anatomy: The $9.00 Card Waterfall
-                </h3>
-                <p className="text-xs text-stone-500">
-                  Every standard card sent on sendmynotes is structured around deterministic, ultra-predictable unit economics.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2">
-                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-stone-700">Retail Price</span>
-                    <span className="text-xs font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      +$9.00
-                    </span>
-                  </div>
-                  <p className="text-xs text-stone-500 leading-relaxed">
-                    Customer pays $9.00 flat with free First Class shipping, envelope addressing, and physical stamp included.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-stone-700">Stripe Processing</span>
-                    <span className="text-xs font-bold text-rose-700 bg-rose-100 px-2 py-0.5 rounded-full">
-                      -$0.56
-                    </span>
-                  </div>
-                  <p className="text-xs text-stone-500 leading-relaxed">
-                    Standard credit card interchange fee of 2.9% + $0.30 ($0.26 + $0.30 = $0.56 on $9.00). $0 for comp promo codes.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-stone-700">Fulfillment COGS</span>
-                    <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-0.5 rounded-full">
-                      -$4.88
-                    </span>
-                  </div>
-                  <p className="text-xs text-stone-500 leading-relaxed">
-                    Handwrytten robotic pen drawing, custom cardstock, envelope addressing, and USPS First Class postage.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-emerald-900">Net Gross Margin</span>
-                    <span className="text-xs font-bold text-white bg-emerald-600 px-2 py-0.5 rounded-full">
-                      +$3.56
-                    </span>
-                  </div>
-                  <p className="text-xs text-emerald-800 leading-relaxed">
-                    <strong>39.6% net contribution margin.</strong> This is your exact break-even budget for Google Ads CAC.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* CAMPAIGN ATTRIBUTION & GOOGLE ADS INTEL */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
-                <div className="space-y-1">
-                  <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                    <Target className="w-4 h-4 text-indigo-600" />
-                    Campaign Attribution &amp; Traffic Intelligence
-                  </h3>
-                  <p className="text-xs text-stone-500">
-                    Live attribution grouped by UTM parameters and Google Ads Click Identifiers (GCLID).
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      placeholder="Search campaigns..."
-                      value={campaignSearchQuery}
-                      onChange={(e) => setCampaignSearchQuery(e.target.value)}
-                      className="pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Attribution Table */}
-              {(() => {
-                const attributions = (metrics?.campaignAttributions || []).filter((c) => {
-                  const q = campaignSearchQuery.toLowerCase();
-                  return (
-                    c.campaignKey.toLowerCase().includes(q) ||
-                    c.utmSource.toLowerCase().includes(q) ||
-                    c.utmMedium.toLowerCase().includes(q)
-                  );
-                });
-
-                if (attributions.length === 0) {
-                  return (
-                    <div className="py-12 text-center space-y-3 bg-stone-50/50 rounded-2xl border border-stone-200/60 p-6">
-                      <div className="w-12 h-12 rounded-full bg-indigo-50 text-indigo-600 flex items-center justify-center mx-auto">
-                        <Compass className="w-6 h-6" />
-                      </div>
-                      <div className="space-y-1 max-w-md mx-auto">
-                        <p className="text-sm font-semibold text-stone-800">
-                          {campaignSearchQuery ? "No matching campaigns found" : "Ready for Incoming Campaign Traffic"}
-                        </p>
-                        <p className="text-xs text-stone-500">
-                          {campaignSearchQuery
-                            ? "Try broadening your search term."
-                            : "As visitors arrive with Google Ads parameters (gclid) or UTM tags, their order revenue and net margins will automatically display here."}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="overflow-x-auto rounded-2xl border border-stone-200">
-                    <table className="w-full text-left text-xs text-stone-600">
-                      <thead className="bg-stone-50 text-stone-500 uppercase tracking-wider font-semibold border-b border-stone-200 text-[10px]">
-                        <tr>
-                          <th className="py-3 px-4">Campaign Name</th>
-                          <th className="py-3 px-4">Source / Medium</th>
-                          <th className="py-3 px-4">Google Tag</th>
-                          <th className="py-3 px-4 text-center">Paid Orders</th>
-                          <th className="py-3 px-4 text-right">Gross Rev</th>
-                          <th className="py-3 px-4 text-right">Net Margin</th>
-                          <th className="py-3 px-4 text-right">Margin %</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-stone-100">
-                        {attributions.map((c) => {
-                          const marginPct =
-                            c.grossRevenueCents > 0
-                              ? Math.round((c.netContributionMarginCents / c.grossRevenueCents) * 100)
-                              : 0;
-
-                          return (
-                            <tr key={c.campaignKey} className="hover:bg-stone-50/80 transition">
-                              <td className="py-3.5 px-4">
-                                <div className="font-semibold text-stone-900">{c.campaignKey}</div>
-                                {c.utmCampaign && c.utmCampaign !== "(not set)" && (
-                                  <div className="text-[10px] text-stone-400 font-mono">
-                                    utm_campaign={c.utmCampaign}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-3.5 px-4 font-mono text-[11px] text-stone-700">
-                                {c.utmSource} / {c.utmMedium}
-                              </td>
-                              <td className="py-3.5 px-4">
-                                {c.hasGclid ? (
-                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-full">
-                                    <Check className="w-3 h-3" /> GCLID
-                                  </span>
-                                ) : (
-                                  <span className="text-[10px] text-stone-400">—</span>
-                                )}
-                              </td>
-                              <td className="py-3.5 px-4 text-center font-bold text-stone-900">
-                                {c.orderCount}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-mono font-medium text-stone-900">
-                                ${(c.grossRevenueCents / 100).toFixed(2)}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
-                                +${(c.netContributionMarginCents / 100).toFixed(2)}
-                              </td>
-                              <td className="py-3.5 px-4 text-right font-bold text-stone-700">
-                                {marginPct}%
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                );
-              })()}
-            </div>
+              <button type="button" onClick={() => setActiveTab("orders")} className="min-h-10 text-sm font-semibold underline">View verified customer measurement in Command Center</button>
+            </section>
 
             {/* GOOGLE ADS TRACKING TEMPLATE & SETUP ASSISTANT */}
             <div className="bg-stone-900 text-white rounded-3xl p-6 sm:p-8 border border-stone-800 space-y-6">
@@ -2484,7 +2015,7 @@ export default function AdminDashboardPage() {
                   Auto-Tagging &amp; UTM Tracking Template
                 </h3>
                 <p className="text-xs text-stone-300">
-                  Paste this tracking template into your Google Ads Campaign or Account settings. sendmynotes will automatically detect every ad click, keyword, and creative variant.
+                  This template can record campaign parameters when they reach the site. Recorded parameters do not confirm an accepted Google Ads conversion.
                 </p>
               </div>
 
@@ -2999,107 +2530,9 @@ export default function AdminDashboardPage() {
         {/* ===================== TAB: SEO & SCENARIOS ===================== */}
         {activeTab === "scenarios" && (
           <div className="space-y-8">
-            {/* KPI METRIC CARDS FOR SCENARIOS */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Scenario Traffic</span>
-                  <Globe className="w-4 h-4 text-indigo-600" />
-                </div>
-                <p className="font-serif text-2xl font-bold text-stone-900">
-                  {scenarioSummary?.totalViews ?? 0}
-                </p>
-                <p className="text-[11px] text-stone-400">Total organic landing page visits</p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Scenario Orders</span>
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                </div>
-                <p className="font-serif text-2xl font-bold text-emerald-900">
-                  {scenarioSummary?.totalOrders ?? 0}
-                </p>
-                <p className="text-[11px] text-stone-400">Physical cards placed ($9 flat)</p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Scenario Conversion</span>
-                  <TrendingUp className="w-4 h-4 text-amber-600" />
-                </div>
-                <p className="font-serif text-2xl font-bold text-stone-900">
-                  {scenarioSummary?.overallConversionRate ?? 0}%
-                </p>
-                <p className="text-[11px] text-stone-400">Visitor to paid order conversion</p>
-              </div>
-
-              <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
-                <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Active Engine Pages</span>
-                  <Layers className="w-4 h-4 text-indigo-600" />
-                </div>
-                <p className="font-serif text-2xl font-bold text-indigo-900">
-                  {scenarioSummary?.activeScenariosCount ?? 12}
-                </p>
-                <p className="text-[11px] text-stone-400">Curated high-intent landing pages</p>
-              </div>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+              <strong>Landing-page diagnostics:</strong> These legacy view counters are not unique visitors or verified customer conversions. Use the Command Center payment report for customer sales. Conversion rates and automated performance recommendations are unavailable until their cohorts are validated.
             </div>
-
-            {/* CONTINUOUS IMPROVEMENT & AUTOMATED INSIGHTS */}
-            <div className="bg-gradient-to-br from-indigo-900 via-stone-900 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                    Continuous Improvement Engine
-                  </span>
-                </div>
-                <Link
-                  href="/send"
-                  target="_blank"
-                  className="text-xs font-medium text-stone-300 hover:text-white underline inline-flex items-center gap-1"
-                >
-                  <span>View Public Occasion Directory</span>
-                  <ExternalLink className="w-3 h-3" />
-                </Link>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                <div className="p-4 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-xs space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-300">
-                    Top Converting Anchor
-                  </span>
-                  <p className="font-bold text-sm text-white">
-                    {scenarioSummary?.topScenario || "Job Interview Thank You"}
-                  </p>
-                  <p className="text-[11px] text-stone-300">
-                    High intent searchers with immediate urgency convert at above average rates.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-xs space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                    Anti-Spam Safeguard
-                  </span>
-                  <p className="font-bold text-sm text-white">12 Hand-Curated Pages</p>
-                  <p className="text-[11px] text-stone-300">
-                    Protected against Google Helpful Content updates with custom etiquette guides and FAQ schema.
-                  </p>
-                </div>
-
-                <div className="p-4 rounded-2xl bg-white/10 border border-white/10 backdrop-blur-xs space-y-1">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-300">
-                    Rich Schema Status
-                  </span>
-                  <p className="font-bold text-sm text-white">Product &amp; Offer Enabled</p>
-                  <p className="text-[11px] text-stone-300">
-                    Google SERP rich snippets active: $9.00 flat, in-stock, free USPS First Class delivery.
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {/* SCENARIOS PERFORMANCE TABLE */}
             <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
@@ -3109,7 +2542,7 @@ export default function AdminDashboardPage() {
                     Programmatic Landing Pages Telemetry
                   </h2>
                   <p className="text-xs text-stone-500">
-                    Monitor traffic volume, conversion rates, drop-off bottlenecks, and automated recommendations.
+                    Inspect recorded page-view activity and open or copy existing landing-page links.
                   </p>
                 </div>
 
@@ -3137,20 +2570,12 @@ export default function AdminDashboardPage() {
                       <tr>
                         <th className="py-3 px-4">Scenario &amp; Query</th>
                         <th className="py-3 px-4">Category</th>
-                        <th className="py-3 px-4 text-center">Views</th>
-                        <th className="py-3 px-4 text-center">Funnel (View→Edit→Pay)</th>
-                        <th className="py-3 px-4 text-center">Conversion</th>
-                        <th className="py-3 px-4 text-center">Health Status</th>
-                        <th className="py-3 px-4">Optimization Recommendation</th>
+                        <th className="py-3 px-4 text-center">Recorded views</th>
                         <th className="py-3 px-4 text-center">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-stone-100">
                       {filteredScenarioMetrics.map((item) => {
-                        const isTop = item.status === "top_performer";
-                        const isNeedsAttention = item.status === "needs_attention";
-                        const isHealthy = item.status === "healthy";
-
                         return (
                           <tr key={item.slug} className="hover:bg-stone-50/50 transition">
                             <td className="py-3.5 px-4">
@@ -3170,55 +2595,6 @@ export default function AdminDashboardPage() {
 
                             <td className="py-3.5 px-4 text-center font-bold text-stone-900">
                               {item.views}
-                            </td>
-
-                            <td className="py-3.5 px-4 text-center">
-                              <div className="inline-flex items-center gap-1 font-mono text-[11px] text-stone-700 bg-stone-50 px-2 py-1 rounded-lg border border-stone-200">
-                                <span>{item.views}</span>
-                                <span className="text-stone-300">&rarr;</span>
-                                <span className="text-amber-700">{item.customizations}</span>
-                                <span className="text-stone-300">&rarr;</span>
-                                <span className="text-indigo-700">{item.checkouts}</span>
-                                <span className="text-stone-300">&rarr;</span>
-                                <span className="font-bold text-emerald-700">{item.paidOrders}</span>
-                              </div>
-                            </td>
-
-                            <td className="py-3.5 px-4 text-center font-serif font-bold text-stone-900 text-sm">
-                              {item.conversionRate}%
-                            </td>
-
-                            <td className="py-3.5 px-4 text-center">
-                              <span
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                  isTop
-                                    ? "bg-emerald-100 text-emerald-800 border-emerald-300"
-                                    : isHealthy
-                                    ? "bg-blue-100 text-blue-800 border-blue-300"
-                                    : isNeedsAttention
-                                    ? "bg-rose-100 text-rose-800 border-rose-300"
-                                    : "bg-stone-100 text-stone-600 border-stone-200"
-                                }`}
-                              >
-                                {isTop
-                                  ? "Top Performer"
-                                  : isHealthy
-                                  ? "Healthy"
-                                  : isNeedsAttention
-                                  ? "Needs Tweak"
-                                  : "Gathering Data"}
-                              </span>
-                            </td>
-
-                            <td className="py-3.5 px-4 max-w-[240px]">
-                              <p className="text-[11px] text-stone-600 leading-snug">
-                                {item.actionableInsight}
-                              </p>
-                              {item.primaryDropoffStep !== "None (Initial Traffic)" && (
-                                <span className="text-[10px] text-amber-800 font-medium block mt-0.5">
-                                  Bottleneck: {item.primaryDropoffStep}
-                                </span>
-                              )}
                             </td>
 
                             <td className="py-3.5 px-4 text-center">
