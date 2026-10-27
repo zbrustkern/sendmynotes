@@ -57,6 +57,14 @@ export function isStagingInternationalPreview(env: Record<string, string | undef
   return staging || localFake;
 }
 
+export function isProductionInternationalEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return env.ENABLE_INTERNATIONAL_MAILING === "true" && env.STAGING_REVIEW_ONLY !== "true";
+}
+
+export function isInternationalFeatureEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  return isStagingInternationalPreview(env) || isProductionInternationalEnabled(env);
+}
+
 export function isStagingInternationalCheckoutEnabled(env: Record<string, string | undefined> = process.env): boolean {
   if (!isStagingInternationalPreview(env)) return false;
   try {
@@ -66,30 +74,62 @@ export function isStagingInternationalCheckoutEnabled(env: Record<string, string
   } catch { return false; }
 }
 
+export function isInternationalCheckoutEnabled(env: Record<string, string | undefined> = process.env): boolean {
+  if (isProductionInternationalEnabled(env)) {
+    try {
+      const mode = resolvePaymentMode(env);
+      return mode === "live" || (env.ALLOW_STRIPE_TEST_IN_PRODUCTION === "true" && mode === "stripe_test");
+    } catch {
+      return false;
+    }
+  }
+  return isStagingInternationalCheckoutEnabled(env);
+}
+
 export function authorizeInternationalCheckout(input: { countryCode: string; addressDeferred: boolean; env?: Record<string, string | undefined>; paymentMode?: string }): { allowed: boolean; reason?: string } {
   const env = input.env || process.env;
   if (input.countryCode === "US") return { allowed: true };
   const destination = getSupplierCountry(input.countryCode);
   if (!destination || destination.suspended) return { allowed: false, reason: "This destination is not currently available for mailing." };
   if (input.addressDeferred) return { allowed: false, reason: "International mailing requires a complete recipient address." };
-  if (!isStagingInternationalPreview(env)) return { allowed: false, reason: "International checkout is disabled." };
-  if (env.INTERNATIONAL_MAILING_FAKE_ADAPTERS === "true") {
-    return env.NODE_ENV !== "production" && env.ALLOW_LOCAL_MOCK_PAYMENTS === "true" && input.paymentMode === "local_mock"
-      ? { allowed: true } : { allowed: false, reason: "The explicit local fake-adapter mode is required." };
+  if (isProductionInternationalEnabled(env)) {
+    if (input.paymentMode === "stripe_live" || input.paymentMode === "live") {
+      return { allowed: true };
+    }
+    if (env.ALLOW_STRIPE_TEST_IN_PRODUCTION === "true" && input.paymentMode === "stripe_test") {
+      return { allowed: true };
+    }
+    return { allowed: false, reason: "Production international checkout requires live payment mode." };
   }
-  return input.paymentMode === "stripe_test" ? { allowed: true } : { allowed: false, reason: "Staging review requires Stripe test mode." };
+  if (isStagingInternationalPreview(env)) {
+    if (env.INTERNATIONAL_MAILING_FAKE_ADAPTERS === "true") {
+      return env.NODE_ENV !== "production" && env.ALLOW_LOCAL_MOCK_PAYMENTS === "true" && input.paymentMode === "local_mock"
+        ? { allowed: true } : { allowed: false, reason: "The explicit local fake-adapter mode is required." };
+    }
+    return input.paymentMode === "stripe_test" ? { allowed: true } : { allowed: false, reason: "Staging review requires Stripe test mode." };
+  }
+  return { allowed: false, reason: "International checkout is disabled." };
 }
 
-export function isInternationalFeatureEnabled(): boolean {
-  return isStagingInternationalPreview();
-}
-
-export function getEnabledDestination(country: unknown) {
+export function getEnabledDestination(country: unknown, env: Record<string, string | undefined> = process.env) {
   const countryCode = normalizeCountryCode(country);
-  if (!countryCode || countryCode === "US" || !isInternationalFeatureEnabled()) return null;
+  if (!countryCode || countryCode === "US" || !isInternationalFeatureEnabled(env)) return null;
   const destination = getSupplierCountry(countryCode);
   if (!destination || destination.suspended) return null;
   return { countryCode, supplierCountryId: destination.supplierCountryId, supplierCountryName: destination.countryName };
+}
+
+export function listEnabledInternationalDestinations(env: Record<string, string | undefined> = process.env) {
+  if (!isInternationalFeatureEnabled(env)) return [];
+  return COUNTRIES.filter((country) => country.countryCode !== "US" && !country.suspended).map((country) => ({
+    countryCode: country.countryCode,
+    countryName: country.countryName,
+    supplierCountryId: country.supplierCountryId,
+    supplierCountryName: country.countryName,
+    regionRequired: country.regionRequired,
+    postalCodeRequired: country.postalCodeRequired,
+    regions: country.regions,
+  }));
 }
 
 export function validateMailingAddress(address: Partial<MailingAddress> | null | undefined): { valid: boolean; errors: string[] } {
@@ -116,15 +156,19 @@ export function validateMailingAddress(address: Partial<MailingAddress> | null |
 
 export function mailingOptionsResponse(env: Record<string, string | undefined> = process.env) {
   const previewAvailable = isStagingInternationalPreview(env);
-  const enabled = isStagingInternationalCheckoutEnabled(env);
+  const prodEnabled = isProductionInternationalEnabled(env);
+  const checkoutEnabled = isInternationalCheckoutEnabled(env);
+  const enabled = checkoutEnabled;
+  const previewOnly = previewAvailable && !prodEnabled;
   return {
     previewAvailable,
     enabled,
-    previewOnly: previewAvailable && !enabled,
+    checkoutEnabled,
+    previewOnly,
     destinations: COUNTRIES.filter((country) => country.countryCode !== "US" && !country.suspended).map((country) => ({
       countryCode: country.countryCode,
       countryName: country.countryName,
-      available: previewAvailable,
+      available: prodEnabled || previewAvailable,
       regionRequired: country.regionRequired,
       postalCodeRequired: country.postalCodeRequired,
       regions: country.regions,

@@ -17,7 +17,7 @@ import { recordPaymentCaptureFact, deriveCommercialKind } from "./financial-ledg
 import { enqueueOutboxEntry } from "./transactional-outbox";
 import { isOperationalControlPaused } from "./operational-controls";
 import { getStripeClient } from "./stripe";
-import { normalizeCountryCode, getSupplierCountry } from "./mailing-destinations";
+import { normalizeCountryCode, getSupplierCountry, isProductionInternationalEnabled } from "./mailing-destinations";
 import { isOrderQuoteValid } from "./order-pricing";
 import { isAdminCompQuoteSnapshotValid } from "./admin-comp-pricing";
 
@@ -275,9 +275,12 @@ export async function processPaidOrder(
   if (authorityOrder.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") {
     return { success: true, status: authorityOrder.status, alreadyProcessed: true, error: "International preview order is held for review; supplier fulfillment is disabled." };
   }
-  if (authorityCountry && authorityCountry !== "US" && (authorityOrder.isInternationalPreview || process.env.STAGING_REVIEW_ONLY === "true")) {
-    await updateOrderStatus(orderId, { status: "QUEUED_FOR_FULFILLMENT", fulfillmentStatus: "INTERNATIONAL_PREVIEW_HOLD", fulfillmentError: "Staging review guard prevents supplier fulfillment." } as any);
-    return { success: true, status: "QUEUED_FOR_FULFILLMENT", error: "Staging review order is held; supplier fulfillment is disabled." };
+  if (authorityCountry && authorityCountry !== "US") {
+    const isProductionApproved = isProductionInternationalEnabled() && process.env.STAGING_REVIEW_ONLY !== "true" && !authorityOrder.isInternationalPreview;
+    if (!isProductionApproved) {
+      await updateOrderStatus(orderId, { status: "QUEUED_FOR_FULFILLMENT", fulfillmentStatus: "INTERNATIONAL_PREVIEW_HOLD", fulfillmentError: "Staging review guard prevents supplier fulfillment." } as any);
+      return { success: true, status: "QUEUED_FOR_FULFILLMENT", error: "Staging review order is held; supplier fulfillment is disabled." };
+    }
   }
   if (authorityCountry && authorityCountry !== "US") {
     const verifiedDestination = getSupplierCountry(authorityCountry);

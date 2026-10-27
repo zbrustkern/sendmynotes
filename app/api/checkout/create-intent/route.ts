@@ -10,7 +10,7 @@ import { logIncident } from "@/lib/incident-logger";
 import { saveOccasionReminder } from "@/lib/reminders";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
-import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout } from "@/lib/mailing-destinations";
+import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout, isStagingInternationalPreview, isProductionInternationalEnabled } from "@/lib/mailing-destinations";
 import { calculateOrderQuote } from "@/lib/order-pricing";
 import { sanitizeOrderAttribution } from "@/lib/order-attribution";
 
@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: authorization.reason || "International destination is unavailable.", code: "DESTINATION_UNAVAILABLE" }, { status: 503 });
       }
     }
+    const isInternationalPreview = Boolean(supplierDestination && isStagingInternationalPreview() && !isProductionInternationalEnabled());
     if (normalizedCountry !== "US" && isAddressDeferred) {
       return NextResponse.json({ error: "International mailing requires a complete recipient address before checkout." }, { status: 400 });
     }
@@ -205,7 +206,11 @@ export async function POST(req: NextRequest) {
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
         finalAmountInCents: 0,
         quote: orderQuote,
-        ...(supplierDestination ? { supplierCountryId: supplierDestination.supplierCountryId, supplierCountryName: supplierDestination.supplierCountryName, isInternationalPreview: true } : {}),
+        ...(supplierDestination ? {
+          supplierCountryId: supplierDestination.supplierCountryId,
+          supplierCountryName: supplierDestination.supplierCountryName,
+          ...(isInternationalPreview ? { isInternationalPreview: true } : {}),
+        } : {}),
         ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
         ...(appliedCode ? { discountCode: appliedCode } : {}),
         discountAmountInCents,
@@ -289,7 +294,11 @@ export async function POST(req: NextRequest) {
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
       finalAmountInCents,
       quote: orderQuote,
-      ...(supplierDestination ? { supplierCountryId: supplierDestination.supplierCountryId, supplierCountryName: supplierDestination.supplierCountryName, isInternationalPreview: true } : {}),
+      ...(supplierDestination ? {
+        supplierCountryId: supplierDestination.supplierCountryId,
+        supplierCountryName: supplierDestination.supplierCountryName,
+        ...(isInternationalPreview ? { isInternationalPreview: true } : {}),
+      } : {}),
       ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
