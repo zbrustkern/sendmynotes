@@ -1,4 +1,6 @@
 import { normalizeCountryCode } from "@/lib/mailing-destinations";
+import { effectiveOrderEmail } from "@/lib/checkout-contact";
+import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/receipt-email-delivery";
 import { NextRequest, NextResponse } from "next/server";
 import { constructWebhookEvent } from "@/lib/stripe";
 import { processPaidOrder, verifyPaymentIntentForOrder } from "@/lib/order-processor";
@@ -245,7 +247,7 @@ export async function POST(req: NextRequest) {
       try {
         const refreshedOrder = await getOrderById(orderId);
         if (refreshedOrder && !refreshedOrder.isInternationalPreview && !(process.env.STAGING_REVIEW_ONLY === "true" && (normalizeCountryCode(refreshedOrder.quote?.countryCode || refreshedOrder.recipientAddress?.country) || (refreshedOrder.recipientAddress?.country ? null : "US")) !== "US")) {
-          const customerEmail = paymentIntent.receipt_email || refreshedOrder.customerEmail;
+          const customerEmail = effectiveOrderEmail(refreshedOrder, paymentIntent.receipt_email);
           const isAddressDeferred = Boolean(
             refreshedOrder.addressDeferred ||
               (refreshedOrder as any).address_deferred ||
@@ -255,34 +257,43 @@ export async function POST(req: NextRequest) {
           );
 
           if (customerEmail && !refreshedOrder.receiptEmailSentAt && !refreshedOrder.addressDeferredEmailSentAt) {
+            const claimedOrder = await claimReceiptEmailDelivery(orderId);
+            const committedEmail = claimedOrder ? effectiveOrderEmail(claimedOrder, paymentIntent.receipt_email) : "";
+            if (!claimedOrder || !committedEmail) {
+              // Another sender owns the delivery claim, or the explicit choice was
+              // omitted while this webhook was preparing its send.
+              await markWebhookInboxProcessed(event.id);
+              return NextResponse.json({ received: true, orderId, status: result.status });
+            }
+            const deliveryOrder = claimedOrder;
+            const deliveryIsDeferred = Boolean(deliveryOrder.addressDeferred || (deliveryOrder as any).address_deferred || deliveryOrder.status === "AWAITING_RECIPIENT_ADDRESS");
             let delivery: { success: boolean; error?: string };
-            if (isAddressDeferred) {
+            if (deliveryIsDeferred) {
               console.log(
-                `[Webhook] Dispatching Scenario A (deferred address) receipt email to ${customerEmail} for order ${orderId}...`
+                `[Webhook] Dispatching Scenario A (deferred address) receipt email to ${committedEmail} for order ${orderId}...`
               );
               delivery = await sendDeferredAddressReceiptEmail({
-                order: refreshedOrder,
-                customerEmail,
+                order: deliveryOrder,
+                customerEmail: committedEmail,
               });
             } else {
               console.log(
-                `[Webhook] Dispatching Scenario B (penning confirmation) receipt email to ${customerEmail} for order ${orderId}...`
+                `[Webhook] Dispatching Scenario B (penning confirmation) receipt email to ${committedEmail} for order ${orderId}...`
               );
               delivery = await sendOrderPenningReceiptEmail({
-                order: refreshedOrder,
-                customerEmail,
+                order: deliveryOrder,
+                customerEmail: committedEmail,
               });
             }
 
             if (!delivery.success) throw new Error(delivery.error || "Receipt provider did not acknowledge delivery request");
-            await updateOrderStatus(orderId, {
-              ...(isAddressDeferred ? { addressDeferredEmailSentAt: Date.now() } : { receiptEmailSentAt: Date.now() }),
-            } as any);
+            await finishReceiptEmailDelivery(orderId, deliveryIsDeferred);
           }
         }
       } catch (emailErr: unknown) {
         const emailMsg = emailErr instanceof Error ? emailErr.message : String(emailErr);
         console.error(`[Webhook] Error dispatching transactional email for order ${orderId}:`, emailMsg);
+        await finishReceiptEmailDelivery(orderId, false, emailMsg).catch(() => {});
         await logIncident({
           type: "WEBHOOK",
           severity: "warning",

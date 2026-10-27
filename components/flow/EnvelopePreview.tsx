@@ -93,8 +93,8 @@ export function EnvelopePreview({
           )}
         </div>
 
-        <section aria-label="Recipient address" className="col-span-2 col-start-1 row-start-2 ml-[20%] min-w-0 self-center px-1 py-2 sm:ml-[22%] sm:w-[72%] sm:px-0">
-          <div className={`${fontClass} min-w-0 text-[27px] leading-[1.12] text-blue-900 sm:text-[27px]`}>
+        <section aria-label="Recipient address" className="col-span-2 col-start-1 row-start-2 mx-auto flex w-full min-w-0 items-center justify-center px-1 py-2 sm:px-0">
+          <div className={`${fontClass} w-fit min-w-0 max-w-full text-left text-[27px] leading-[1.12] text-blue-900 sm:text-[27px]`}>
             <AddressLine>{recipient.fullName || "Recipient name"}</AddressLine>
             {isAddressDeferred ? (
               <AddressLine><span className="font-sans text-xs italic text-stone-600">Street address to be added later</span></AddressLine>

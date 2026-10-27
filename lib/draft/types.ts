@@ -73,6 +73,11 @@ export interface AttributionDraft {
   clickId?: string;
 }
 
+export interface CheckoutContactDraft {
+  email: string;
+  choice: "untouched" | "provided" | "omitted";
+}
+
 /**
  * Required content needed to complete an order.
  */
@@ -93,6 +98,7 @@ export interface DraftOptionalPreferences {
   attribution: AttributionDraft | null;
   customGeneration: CustomGenerationState;
   checkoutSnapshotId: string | null;
+  checkoutContact: CheckoutContactDraft;
   currentStep?: string;
   lastCustomArtwork?: SelectedDesign | null;
 }
@@ -120,6 +126,7 @@ export interface DraftState {
   attribution: AttributionDraft | null;
   customGeneration: CustomGenerationState;
   checkoutSnapshotId: string | null;
+  checkoutContact: CheckoutContactDraft;
   currentStep?: string;
   completed?: boolean;
   lastCustomArtwork?: SelectedDesign | null;
@@ -145,6 +152,7 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "attribution",
   "customGeneration",
   "checkoutSnapshotId",
+  "checkoutContact",
   "currentStep",
   "completed",
   "lastCustomArtwork",

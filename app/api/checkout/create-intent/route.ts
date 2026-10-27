@@ -7,7 +7,6 @@ import { validatePersonalSender } from "@/lib/order-processor";
 import { issueOfferPriceQuote, reserveOfferForCheckout } from "@/lib/offer-engine";
 import { Order, MailingAddress, RecipientOccasion } from "@/lib/types";
 import { logIncident } from "@/lib/incident-logger";
-import { saveOccasionReminder } from "@/lib/reminders";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
 import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout, isStagingInternationalPreview, isProductionInternationalEnabled } from "@/lib/mailing-destinations";
@@ -38,6 +37,7 @@ export async function POST(req: NextRequest) {
       occasion,
       sessionId,
       experienceVersion,
+      contactPolicyVersion: requestedContactPolicyVersion,
     } = body;
 
     const isAddressDeferred = Boolean(body.addressDeferred || body.address_deferred);
@@ -155,42 +155,13 @@ export async function POST(req: NextRequest) {
     // destination upgrade is added server-side and is never discounted.
     finalAmountInCents = orderQuote.totalCents;
 
-    const maybeSaveReminder = async () => {
-      if (
-        recipientOccasion &&
-        recipientOccasion.remindMe &&
-        customerEmail &&
-        recipientOccasion.month &&
-        recipientOccasion.day
-      ) {
-        const recName =
-          `${recipientAddress.firstName || ""} ${recipientAddress.lastName || ""}`.trim() ||
-          "Recipient";
-        await saveOccasionReminder({
-          recipientName: recName,
-          recipientAddress: canonicalRecipientAddress as MailingAddress,
-          userEmail: customerEmail,
-          ...(userId ? { userId } : {}),
-          occasionType: recipientOccasion.occasionType || "birthday",
-          occasionTitle:
-            recipientOccasion.occasionTitle ||
-            `${recipientOccasion.occasionType ? recipientOccasion.occasionType.charAt(0).toUpperCase() + recipientOccasion.occasionType.slice(1) : "Occasion"} Reminder`,
-          month: Number(recipientOccasion.month),
-          day: Number(recipientOccasion.day),
-          ...(recipientOccasion.year ? { year: Number(recipientOccasion.year) } : {}),
-          remindDaysBefore: recipientOccasion.remindDaysBefore || 14,
-          optIn: true,
-          orderId,
-        }).catch((err) => console.warn("[Checkout] Non-critical error saving reminder:", err));
-      }
-    };
-
     // Handle 100% Free Order (e.g. VIP/Launch Voucher)
     if (finalAmountInCents === 0) {
       const orderRecord: Order & Record<string, unknown> = {
       id: orderId,
       operationId,
-        customerEmail,
+        customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
+        ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
         ...(userId ? { userId } : {}),
         frontImageUrl,
         printedMessage: printedMessage || "",
@@ -229,7 +200,6 @@ export async function POST(req: NextRequest) {
       };
 
       await saveOrder(orderRecord);
-      await maybeSaveReminder();
 
       return withOperationId(NextResponse.json({
         orderId,
@@ -251,10 +221,24 @@ export async function POST(req: NextRequest) {
       }), operationId);
     }
 
-    // Create Stripe PaymentIntent for the discounted or standard amount
+    const resolvedMode = resolvePaymentMode();
+    const publishableKey =
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+      process.env["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] ||
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env["stripe-publishable-key"] ||
+      null;
+    if (resolvedMode !== "local_mock") {
+      const expectedPrefix = resolvedMode === "stripe_test" ? "pk_test_" : "pk_live_";
+      if (!publishableKey || !publishableKey.startsWith(expectedPrefix)) {
+        throw new PaymentModeConfigError(`A matching ${resolvedMode === "stripe_test" ? "test" : "live"} Stripe publishable key is not configured.`, 503, "STRIPE_PUBLISHABLE_KEY_MISMATCH");
+      }
+    }
+
+    // Create Stripe PaymentIntent for the discounted or standard amount. Receipt
+    // email is committed later, after the sender's explicit choice is saved.
     const paymentIntentResult = await createCardPaymentIntent({
       orderId,
-      customerEmail: customerEmail || undefined,
       amountInCents: finalAmountInCents,
       metadata: {
         operationId,
@@ -278,7 +262,8 @@ export async function POST(req: NextRequest) {
       id: orderId,
       operationId,
       stripePaymentId: paymentIntentResult.paymentIntentId,
-      customerEmail,
+      customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
+      ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
       ...(userId ? { userId } : {}),
       frontImageUrl,
       printedMessage: printedMessage || "",
@@ -317,17 +302,6 @@ export async function POST(req: NextRequest) {
     };
 
     await saveOrder(orderRecord);
-    await maybeSaveReminder();
-
-    const resolvedMode = resolvePaymentMode();
-    const publishableKey =
-      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-      process.env["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] ||
-      process.env.STRIPE_PUBLISHABLE_KEY ||
-      process.env["stripe-publishable-key"] ||
-      (resolvedMode === "stripe_test"
-        ? "pk_test_51UIUjfQRpUiJEWIAEBVsU9gEPGjYg84rOZRarlTUfW057pYo1YcbkHv00h288Bth0582JDovGyvz1ZfSPen6VSYP00u7h8Ve2Y"
-        : null);
 
     return withOperationId(NextResponse.json({
       orderId,

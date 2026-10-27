@@ -1,0 +1,12 @@
+{
+  "checkedAt": "2026-10-27T15:23:12.406Z",
+  "created": true,
+  "id": "pmd_1UVCDTQRpUiJEWIAICgDcYCX",
+  "domain": "sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "enabled": true,
+  "livemode": false,
+  "applePay": "active",
+  "googlePay": "active",
+  "link": "active",
+  "productionChanged": false
+}

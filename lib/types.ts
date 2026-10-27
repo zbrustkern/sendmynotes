@@ -22,6 +22,7 @@ export type OrderStatus =
   | "FAILED";
 
 export type OrderOrigin = "CUSTOMER_CHECKOUT" | "ADMIN_COMP";
+export type ContactEmailChoice = "provided" | "omitted";
 export type AdminCompLifecycle = "review_only_held" | "payment_pending" | "paid_ready" | "dispatching" | "supplier_accepted" | "failed";
 
 export type OccasionType = "birthday" | "anniversary" | "holiday" | "milestone" | "custom";
@@ -99,8 +100,17 @@ export interface Order {
   operationId?: string;
   receiptEmailSentAt?: number;
   addressDeferredEmailSentAt?: number;
+  receiptEmailDeliveryStatus?: "pending" | "sent" | "failed";
+  receiptEmailDeliveryStartedAt?: number;
+  receiptEmailDeliveryError?: string;
   stripePaymentId?: string;
   customerEmail: string;
+  /** Present only for orders created with the explicit checkout email policy; absent means legacy fallback rules apply. */
+  contactEmailChoice?: ContactEmailChoice;
+  contactPolicyVersion?: 1;
+  contactEmailSyncStatus?: "pending" | "synced";
+  contactEmailUpdateId?: string;
+  contactEmailUpdateStartedAt?: number;
   userId?: string;
   occasion?: string;
   frontImageUrl: string;

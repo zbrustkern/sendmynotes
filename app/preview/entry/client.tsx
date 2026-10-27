@@ -148,6 +148,7 @@ export function EntryPrototypeClient({
 
   const [step, setStep] = useState<FlowStep>(effectiveInitialStep);
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
+  const [paymentInFlight, setPaymentInFlight] = useState(false);
 
   // Address deferral bypass & mobile keyboard/validation states
   const [isAddressDeferred, setIsAddressDeferred] = useState(false);
@@ -203,6 +204,7 @@ export function EntryPrototypeClient({
 
   // Payment & checkout state
   const [customerEmail, setCustomerEmail] = useState("");
+  const customerEmailEdited = React.useRef(false);
   const [orderId, setOrderId] = useState("");
   const [viewToken, setViewToken] = useState<string | null>(null);
   const [fulfillmentStatus, setFulfillmentStatus] = useState<string | null>(null);
@@ -235,10 +237,16 @@ export function EntryPrototypeClient({
 
   // Pre-fill user email if authenticated
   useEffect(() => {
-    if (user?.email && !customerEmail) {
+    if (user?.email && !customerEmailEdited.current) {
       setCustomerEmail(user.email);
     }
-  }, [user, customerEmail]);
+  }, [user]);
+
+  useEffect(() => {
+    if (!isLoaded || draft.checkoutContact.choice === "untouched") return;
+    customerEmailEdited.current = true;
+    setCustomerEmail(draft.checkoutContact.email);
+  }, [isLoaded, draft.checkoutContact]);
 
   // Sync draft to local state once loaded and verify any completed order server-side
   useEffect(() => {
@@ -1353,6 +1361,7 @@ export function EntryPrototypeClient({
             country: "USA",
           },
           customerEmail,
+          contactPolicyVersion: 1,
           userId: user?.uid,
           discountCode: discountCodeToUse,
           attribution: getStoredAttribution() || undefined,
@@ -1636,6 +1645,9 @@ export function EntryPrototypeClient({
 
   // Reset entire flow handler for "Clear draft" and "Send another card"
   const resetEntireFlow = () => {
+    customerEmailEdited.current = false;
+    setCustomerEmail(user?.email || "");
+    setPaymentInFlight(false);
     clearDraft();
     setIsOrderConfirmed(false);
     setStep("card");
@@ -1748,7 +1760,7 @@ export function EntryPrototypeClient({
   if (isOrderConfirmed) {
     return (
       <div className={`min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col antialiased ${embedded ? "rounded-3xl border border-stone-200/90 shadow-xs overflow-hidden" : ""}`}>
-        {!embedded && <FlowHeader showClearDraft={false} onClearDraft={resetEntireFlow} orderTotalCents={isInternational ? currentDisplayTotalCents : undefined} />}
+        {!embedded && <FlowHeader showClearDraft={false} onClearDraft={resetEntireFlow} orderTotalCents={amountInCents} resetDisabled={isOrderConfirmed || paymentInFlight} />}
         <main className="flex-1 max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
           <Step5Confirmation
             orderId={orderId}
@@ -1784,7 +1796,7 @@ export function EntryPrototypeClient({
       )}
 
       {/* 1. COMPACT SENDMYNOTES FLOW HEADER (suppressed when embedded in an occasion/scenario landing page with its own navbar) */}
-      {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} orderTotalCents={isInternational ? currentDisplayTotalCents : undefined} />}
+      {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} orderTotalCents={step === "pay" ? amountInCents : undefined} resetDisabled={paymentInFlight || isOrderConfirmed} />}
 
       {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
       <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
@@ -1889,7 +1901,11 @@ export function EntryPrototypeClient({
               recipient={recipient}
               sender={sender}
               customerEmail={customerEmail}
-              onChangeCustomerEmail={setCustomerEmail}
+              onChangeCustomerEmail={(email) => {
+                customerEmailEdited.current = true;
+                setCustomerEmail(email);
+                dispatch({ type: "SET_CHECKOUT_CONTACT", payload: { email, choice: email.trim() ? "provided" : "omitted" } });
+              }}
               orderId={orderId}
               viewToken={viewToken}
               clientSecret={clientSecret}
@@ -1902,6 +1918,7 @@ export function EntryPrototypeClient({
               onRemoveDiscount={handleRemoveDiscount}
               appliedDiscount={appliedDiscount}
               onPaymentSuccess={handlePaymentSuccess}
+              onPaymentStateChange={setPaymentInFlight}
               onBack={handleProgressBack}
             />
           </div>

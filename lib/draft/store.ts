@@ -107,6 +107,12 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
     error: typeof customObj?.error === "string" ? customObj.error : undefined,
   };
 
+  const contactObj = record.checkoutContact as Record<string, unknown> | undefined;
+  sanitized.checkoutContact = {
+    email: typeof contactObj?.email === "string" && contactObj.email.length <= 254 ? contactObj.email : "",
+    choice: contactObj?.choice === "provided" || contactObj?.choice === "omitted" ? contactObj.choice : "untouched",
+  };
+
   // Ensure lastCustomArtwork is well-formed if present
   if (record.lastCustomArtwork && typeof record.lastCustomArtwork === "object") {
     const customArt = record.lastCustomArtwork as Record<string, unknown>;

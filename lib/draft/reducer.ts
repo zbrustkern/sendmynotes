@@ -33,6 +33,7 @@ export type DraftAction =
   | { type: "SET_ATTRIBUTION"; payload: AttributionDraft | null }
   | { type: "SET_CUSTOM_GENERATION"; payload: Partial<CustomGenerationState> }
   | { type: "SET_CHECKOUT_SNAPSHOT"; payload: string | null }
+  | { type: "SET_CHECKOUT_CONTACT"; payload: { email: string; choice: "untouched" | "provided" | "omitted" } }
   | { type: "SET_STEP"; payload: string }
   | { type: "MARK_COMPLETED" }
   | { type: "CLEAR_DRAFT"; payload?: { experienceVersion?: string } }
@@ -63,6 +64,7 @@ export function createInitialDraft(experienceVersion = "candidate_v1"): DraftSta
       status: "idle",
     },
     checkoutSnapshotId: null,
+    checkoutContact: { email: "", choice: "untouched" },
     currentStep: "card",
     completed: false,
     lastCustomArtwork: null,
@@ -217,6 +219,9 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         checkoutSnapshotId: action.payload,
       };
     }
+
+    case "SET_CHECKOUT_CONTACT":
+      return { ...state, updatedAt: now, draftRevision: state.draftRevision + 1, checkoutContact: action.payload };
 
     case "SET_STEP": {
       if (state.currentStep === action.payload) {

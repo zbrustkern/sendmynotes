@@ -374,7 +374,7 @@ export default function OrderStatusPage() {
   const trackingSteps = [
     {
       title: isPreviewHold ? `Test payment recorded ($${(orderTotalCents / 100).toFixed(2)})` : `Payment Confirmed ($${(orderTotalCents / 100).toFixed(2)} Paid)`,
-      description: isPreviewHold ? "No real charge occurred. Receipt email is suppressed in staging." : "Transaction complete. Receipt delivered to email.",
+      description: isPreviewHold ? "No real charge occurred. Receipt email is suppressed in staging." : order.contactEmailChoice === "omitted" ? "Transaction complete. No email updates were requested; return to this secure order page for status." : order.receiptEmailSentAt ? `Receipt email requested for ${order.customerEmail}.` : "Transaction complete. Order status is available on this secure page.",
       icon: CheckCircle2,
       status: "complete",
     },
@@ -494,12 +494,20 @@ export default function OrderStatusPage() {
             {isPreviewHold ? "International Staging Test · Held" : "Order Confirmed & Queued for Inking!"}
           </h1>
           <p className="text-stone-600 text-sm max-w-lg mx-auto">
-            {isPreviewHold ? "Test checkout recorded. No real charge, receipt email, card printing, fulfillment, or mailing occurred." : isInternational ? "Your card is queued for real ink writing and international mailing. Delivery timing varies by destination." : "Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient."}
+            {isPreviewHold ? "Test checkout recorded. No real charge, receipt email, card printing, fulfillment, or mailing occurred." : isInternational ? "Your card is queued for real ink writing and international mailing. Delivery timing varies by destination." : "Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient."}{!isPreviewHold && order.contactEmailChoice === "omitted" ? " No email receipt or mailing updates were requested. This secure page will show your order status." : ""}
           </p>
+
+          {order.fulfillmentStatus === "CONTACT_RECOVERY_REQUIRED" && order.viewToken && (
+            <div className="max-w-xl mx-auto rounded-xl border border-amber-300 bg-amber-50 p-4 text-left text-sm text-amber-950">
+              <strong>Payment received; recipient address still needed.</strong>
+              <p className="mt-1">No email address is available for a reminder. Use this secure link to add the recipient address and release the card to fulfillment.</p>
+              <a className="mt-3 inline-flex rounded-lg bg-stone-900 px-4 py-2 font-semibold text-white" href={`/orders/${order.id}/complete-address?token=${encodeURIComponent(order.viewToken)}`}>Add recipient address</a>
+            </div>
+          )}
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-2 text-xs">
             <span className="bg-amber-50 text-amber-800 font-semibold px-3 py-1 rounded-full border border-amber-200">
-              {isPreviewHold ? "Staging test · no receipt email sent" : `Receipt Sent: ${order.customerEmail || "Delivered"}`}
+              {isPreviewHold ? "Staging test · no receipt email sent" : order.contactEmailChoice === "omitted" ? "No email receipt requested" : order.receiptEmailSentAt ? `Receipt emailed to ${order.customerEmail}` : order.customerEmail ? `Email provided: ${order.customerEmail}` : "Email receipt unavailable"}
             </span>
             <span className="bg-indigo-50 text-indigo-800 font-semibold px-3 py-1 rounded-full border border-indigo-200">
               {isPreviewHold ? "Fulfillment: Held" : "Real Ink: Active"}
@@ -511,7 +519,7 @@ export default function OrderStatusPage() {
         </div>
 
         {/* MILESTONE REMINDER CONFIRMATION BANNER */}
-        {order.recipientOccasion?.remindMe && (
+        {order.customerEmail && order.recipientOccasion?.remindMe && (
           <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-500/10 border border-amber-300/80 rounded-3xl p-5 sm:p-6 shadow-xs flex items-start gap-4">
             <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm">
               <BellRing className="w-5 h-5" />
@@ -545,7 +553,7 @@ export default function OrderStatusPage() {
         )}
 
         {/* POST-ORDER OCCASION-TAILORED NUDGE (If not already set during checkout) */}
-        {!order.recipientOccasion?.remindMe && intentConfig && (
+        {order.contactEmailChoice !== "omitted" && !order.recipientOccasion?.remindMe && intentConfig && (
           <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-sm space-y-4">
             {postOrderReminderSet ? (
               <div className="flex items-center gap-3 text-emerald-800">

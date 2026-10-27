@@ -17,6 +17,7 @@ import { Order, DiscountCode } from "@/lib/types";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { normalizeCountryCode } from "@/lib/mailing-destinations";
 import { isFreeOrderEligible } from "@/lib/order-pricing";
+import { effectiveOrderEmail, savePaidOrderReminder } from "@/lib/checkout-contact";
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,6 +49,9 @@ export async function POST(req: NextRequest) {
         }
 
         const existingOrder = orderDoc.data() as Order;
+        if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {
+          throw new Error("CONTACT_COMMIT_PENDING");
+        }
 
         const country = normalizeCountryCode(existingOrder.recipientAddress?.country) || (existingOrder.recipientAddress?.country ? null : "US");
         if (!isFreeOrderEligible({
@@ -110,7 +114,10 @@ export async function POST(req: NextRequest) {
           throw new Error("This discount code has reached its maximum usage limit.");
         }
 
-        const finalEmail = customerEmail || existingOrder.customerEmail || "";
+        const finalEmail = effectiveOrderEmail(existingOrder, customerEmail);
+        if ((existingOrder.addressDeferred || existingOrder.address_deferred) && !finalEmail) {
+          throw new Error("DEFERRED_ADDRESS_EMAIL_REQUIRED");
+        }
 
         // Atomically claim DISPATCHING lock on order
         transaction.update(orderRef, {
@@ -153,6 +160,12 @@ export async function POST(req: NextRequest) {
           { status: 400 }
         );
       }
+      if (msg === "DEFERRED_ADDRESS_EMAIL_REQUIRED") {
+        return NextResponse.json({ error: "An email is required to add the recipient address later." }, { status: 400 });
+      }
+      if (msg === "CONTACT_COMMIT_PENDING") {
+        return NextResponse.json({ error: "Your email preference is still being saved. Please retry in a moment." }, { status: 409 });
+      }
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
@@ -171,6 +184,8 @@ export async function POST(req: NextRequest) {
     }
 
     const { order } = txResult;
+    try { await savePaidOrderReminder(order, effectiveOrderEmail(order, customerEmail)); }
+    catch (reminderErr) { console.warn("[Free Order] Notice saving opted-in occasion reminder:", reminderErr instanceof Error ? reminderErr.message : "unknown error"); }
 
     // 2.5. Deterministic offer redemption
     const redemptionResult = await redeemOfferForOrder({
@@ -227,7 +242,7 @@ export async function POST(req: NextRequest) {
         status: "AWAITING_RECIPIENT_ADDRESS",
       });
       try {
-        const finalTo = customerEmail || order.customerEmail;
+        const finalTo = effectiveOrderEmail(order, customerEmail);
         if (finalTo) {
           await sendAddressDeferredEmail({
             to: finalTo,

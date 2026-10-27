@@ -4,7 +4,10 @@ import path from "path";
 import { Order, ImageCachePoolItem, DiscountCode, SystemIncident } from "./types";
 import { optimizeCoverImage } from "./image-optimizer";
 
-const DATA_DIR = path.join(process.cwd(), ".data");
+// Isolate disk-backed mocks in test subprocesses; production ignores this override.
+const DATA_DIR = process.env.NODE_ENV === "test" && process.env.SMN_TEST_DATA_DIR
+  ? process.env.SMN_TEST_DATA_DIR
+  : path.join(process.cwd(), ".data");
 const DATA_FILE = path.join(DATA_DIR, "mock-firestore.json");
 
 // Mock Document and Query Snapshots

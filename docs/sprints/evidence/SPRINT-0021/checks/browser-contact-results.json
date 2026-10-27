@@ -1,0 +1,20 @@
+{
+  "actualParent": {
+    "lateAuthPrefill": true,
+    "explicitClearPersistsAcrossRemount": true,
+    "explicitClearPersistsAcrossRefreshAndLateAuth": true,
+    "typedReplacementPreservedAfterAuth": true,
+    "newDraftAccountPrefill": true
+  },
+  "actualStep4WithMockStripe": {
+    "blankFullAddressCardAllowed": true,
+    "blankFullAddressWalletAllowed": true,
+    "blankFullAddressFreeAllowed": true,
+    "blankDeferredCardRejected": true,
+    "blankDeferredFreeRejected": true,
+    "contactSaveFailureBlocksPayment": true,
+    "blankSurvivesDiscountAndRemount": true,
+    "capturedPaymentDisablesSubmit": true
+  },
+  "realPaymentAttempted": false
+}

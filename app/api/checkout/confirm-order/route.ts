@@ -7,6 +7,7 @@ import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { logIncident } from "@/lib/incident-logger";
 import { verifyCheckoutQuoteIntegrity, redeemOfferForOrder } from "@/lib/offer-engine";
 import { buildPurchaseMeasurement, persistPurchaseMeasurement, projectPurchaseMeasurementForOrder, validateVerifiedCapture } from "@/lib/purchase-measurement";
+import { effectiveOrderEmail } from "@/lib/checkout-contact";
 
 export async function POST(req: NextRequest) {
   try {
@@ -19,6 +20,9 @@ export async function POST(req: NextRequest) {
     const order = await getOrderById(orderId);
     if (!order) {
       return NextResponse.json({ error: `Order ${orderId} not found` }, { status: 404 });
+    }
+    if ((order.contactPolicyVersion === 1 || order.contactEmailChoice) && (!order.contactEmailChoice || order.contactEmailSyncStatus !== "synced")) {
+      return NextResponse.json({ success: false, status: "CONTACT_COMMIT_PENDING", error: "Your email preference is still being saved. Please retry before confirming payment." }, { status: 409 });
     }
     let purchaseMeasurement = order.purchaseMeasurement || null;
 
@@ -303,7 +307,7 @@ export async function POST(req: NextRequest) {
     const result = await processPaidOrder(
       orderId,
       verifiedPaymentIntentId,
-      customerEmail || customerEmailFromStripe || order.customerEmail,
+      effectiveOrderEmail(order, customerEmail || customerEmailFromStripe),
       { clientIp, userAgent, isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent }
     );
 

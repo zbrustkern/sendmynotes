@@ -1,0 +1,66 @@
+[
+  {
+    "check": "envelope-preview.test.tsx",
+    "exitCode": 0
+  },
+  {
+    "check": "sprint-0019-ux.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "international-addressing-ui.test.tsx",
+    "exitCode": 0
+  },
+  {
+    "check": "international-pricing.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "draft.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "scenario-draft-seeding.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "staging-polish.test.tsx",
+    "exitCode": 0
+  },
+  {
+    "check": "render-auto-select.test.tsx",
+    "exitCode": 0
+  },
+  {
+    "check": "staging-review-safety.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "sprint-0021-visual.test.tsx",
+    "exitCode": 0
+  },
+  {
+    "check": "checkout-contact-policy.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "checkout-contact-route.integration.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "payment-mode-safety.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "email-transactional.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "transaction-security.test.ts",
+    "exitCode": 0
+  },
+  {
+    "check": "international-checkout.integration.test.ts",
+    "exitCode": 0
+  }
+]

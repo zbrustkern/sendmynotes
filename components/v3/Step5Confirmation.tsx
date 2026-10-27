@@ -248,7 +248,7 @@ export function Step5Confirmation({
           <p className="text-xs sm:text-sm text-stone-600 max-w-md mx-auto leading-relaxed">
             {isPreviewHoldActive
               ? "No real charge or receipt email was sent. This staging preview is held; nothing will be printed, fulfilled, or mailed."
-              : <>Receipt dispatched to <strong className="text-stone-900">{customerEmail}</strong>.</>}
+              : customerEmail ? <>Your order is confirmed. Receipt emails and available mailing updates will go to <strong className="text-stone-900">{customerEmail}</strong>.</> : <>No email receipt requested. Use this secure order page to check your status; no email updates will be sent.</>}
             {orderId && (
               <span className="block text-[11px] font-mono text-stone-400 mt-1">
                 Order #{orderId}
@@ -439,7 +439,7 @@ export function Step5Confirmation({
       </div>
 
       {/* OCCASION-TAILORED RETENTION PROMPT (1-CLICK ANNUAL REMINDER) */}
-      {!isPreviewHoldActive && <div className="bg-amber-50/70 rounded-3xl p-6 sm:p-7 border border-amber-200/90 shadow-xs space-y-3">
+      {!isPreviewHoldActive && Boolean(customerEmail) && <div className="bg-amber-50/70 rounded-3xl p-6 sm:p-7 border border-amber-200/90 shadow-xs space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-xl">{intentConfig.badgeEmoji}</span>
           <span className="text-xs font-semibold uppercase tracking-wider text-amber-900">

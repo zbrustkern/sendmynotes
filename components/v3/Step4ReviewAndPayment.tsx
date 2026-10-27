@@ -30,6 +30,7 @@ import {
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { evaluatePaymentSubmission } from "@/lib/payment-mode";
+import { checkoutEmailRequired, normalizeCheckoutEmail } from "@/lib/checkout-contact-policy";
 import { trackEvent, trackEventV2 } from "@/lib/telemetry";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
@@ -73,6 +74,7 @@ interface Step4ReviewAndPaymentProps {
   onRemoveDiscount: () => void;
   appliedDiscount: AppliedDiscountInfo | null;
   onPaymentSuccess: (orderId: string, viewToken?: string | null, fulfillmentStatus?: string | null) => void;
+  onPaymentStateChange?: (busy: boolean) => void;
   onBack: () => void;
 }
 
@@ -99,6 +101,7 @@ interface InnerPaymentProps {
   onApplyDiscount: (code: string) => Promise<{ success: boolean; error?: string }>;
   onRemoveDiscount: () => void;
   onPaymentSuccess: (orderId: string, viewToken?: string | null, fulfillmentStatus?: string | null) => void;
+  onPaymentStateChange?: (busy: boolean) => void;
   onBack: () => void;
 }
 
@@ -125,6 +128,7 @@ function InnerPaymentForm({
   onApplyDiscount,
   onRemoveDiscount,
   onPaymentSuccess,
+  onPaymentStateChange,
   onBack,
 }: InnerPaymentProps) {
   const stripe = useStripe();
@@ -137,7 +141,31 @@ function InnerPaymentForm({
     setIsProcessingState(processing);
   };
   const [isPaymentCaptured, setIsPaymentCaptured] = useState(false);
+  const [committedEmail, setCommittedEmail] = useState(customerEmail);
+  const emailTouched = React.useRef(false);
+  useEffect(() => { if (!emailTouched.current) setCommittedEmail(customerEmail); }, [customerEmail]);
+  useEffect(() => { onPaymentStateChange?.(isProcessing || isPaymentCaptured); }, [isProcessing, isPaymentCaptured, onPaymentStateChange]);
   const [isPaymentElementReady, setIsPaymentElementReady] = useState(false);
+  const commitContactPreference = async (): Promise<string | null> => {
+    if (!orderId || !viewToken) return "Your checkout session is incomplete. Refresh the checkout and try again.";
+    const normalized = normalizeCheckoutEmail(customerEmail);
+    if (normalized === null) return "Enter a valid email address or leave the field blank.";
+    const email = normalized;
+    emailTouched.current = true;
+    setCommittedEmail(email);
+    if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return "Enter a valid email address or leave the field blank.";
+    if (checkoutEmailRequired(!recipient.street1?.trim(), email)) return "An email is required to add the recipient address later.";
+    try {
+      const response = await fetch("/api/checkout/contact", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, viewToken, customerEmail: email }),
+      });
+      const data = await response.json();
+      return response.ok ? null : (data.error || "We couldn't save your email preference. Please retry before paying.");
+    } catch {
+      return "We couldn't save your email preference. Check your connection and retry before paying.";
+    }
+  };
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -230,6 +258,8 @@ function InnerPaymentForm({
     });
 
     try {
+      const contactError = await commitContactPreference();
+      if (contactError) { setErrorMessage(contactError); setIsProcessing(false); return; }
       // Per Stripe Express Checkout documentation: elements.submit() validates element fields
       const { error: submitError } = await elements.submit();
       if (submitError) {
@@ -248,7 +278,6 @@ function InnerPaymentForm({
         elements,
         confirmParams: {
           return_url: `${window.location.origin}/order/${orderId}`,
-          receipt_email: customerEmail,
         },
         redirect: "if_required",
       });
@@ -335,13 +364,19 @@ function InnerPaymentForm({
     e.preventDefault();
     if (actionInFlight.current || isPaymentCaptured) return;
 
-    if (!customerEmail.trim() || !customerEmail.includes("@")) {
-      setErrorMessage("Please enter a valid email for your order receipt and any available mailing updates.");
+    if (normalizeCheckoutEmail(customerEmail) === null) {
+      setErrorMessage("Enter a valid email address or leave the field blank.");
+      return;
+    }
+    if (checkoutEmailRequired(!recipient.street1?.trim(), customerEmail.trim())) {
+      setErrorMessage("An email is required to add the recipient address later.");
       return;
     }
 
     setErrorMessage(null);
     setIsProcessing(true);
+    const contactError = await commitContactPreference();
+    if (contactError) { setErrorMessage(contactError); setIsProcessing(false); return; }
 
     // 1. FREE ORDER FLOW
     if (isZeroCost) {
@@ -461,7 +496,6 @@ function InnerPaymentForm({
         elements,
         confirmParams: {
           return_url: `${window.location.origin}/order/${orderId}`,
-          receipt_email: customerEmail,
         },
         redirect: "if_required",
       });
@@ -550,14 +584,6 @@ function InnerPaymentForm({
     }
   }, []);
 
-  const [committedEmail, setCommittedEmail] = useState(customerEmail);
-
-  useEffect(() => {
-    if (customerEmail && !committedEmail) {
-      setCommittedEmail(customerEmail);
-    }
-  }, [customerEmail, committedEmail]);
-
   const recipientDisplayName = recipient.fullName?.trim() || "Recipient";
   const recipientLocation = useMemo(() => {
     if (!recipient.street1?.trim()) {
@@ -575,7 +601,7 @@ function InnerPaymentForm({
       paymentMethodOrder: ["apple_pay", "google_pay", "card", "link"],
       defaultValues: {
         billingDetails: {
-          email: committedEmail || undefined,
+          email: committedEmail.trim() || undefined,
           name: recipient.fullName || sender.fullName || undefined,
         },
       },
@@ -798,23 +824,6 @@ function InnerPaymentForm({
               </div>
             </div>
 
-            {/* Security Badges on Left Desk */}
-            <div className="grid grid-cols-2 gap-2.5 text-xs text-stone-600 pt-1">
-              <div className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-stone-200/70">
-                <Lock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                <div>
-                  <span className="font-semibold text-stone-900 block text-[11px]">256-Bit SSL</span>
-                  <span className="text-[10px] text-stone-500">Stripe encrypted</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-stone-200/70">
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                <div>
-                  <span className="font-semibold text-stone-900 block text-[11px]">Guaranteed</span>
-                  <span className="text-[10px] text-stone-500">Real pen or free re-mail</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -828,7 +837,7 @@ function InnerPaymentForm({
             >
               <span className="flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-amber-800" />
-                <span>Receipt &amp; Mailing Updates Email</span>
+                <span>Email {recipient.street1?.trim() ? "(optional)" : "(required to add the address later)"}</span>
               </span>
               <span className="text-[10px] text-stone-400 font-normal lowercase">no password needed</span>
             </label>
@@ -841,22 +850,19 @@ function InnerPaymentForm({
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
-              required
+              disabled={isProcessing || isPaymentCaptured}
               value={customerEmail}
               onChange={(e) => {
+                emailTouched.current = true;
                 onChangeCustomerEmail(e.target.value);
                 if (errorMessage) setErrorMessage(null);
               }}
-              onBlur={() => {
-                if (customerEmail !== committedEmail) {
-                  setCommittedEmail(customerEmail);
-                }
-              }}
+              onBlur={() => setCommittedEmail(customerEmail)}
               placeholder="your.email@example.com"
               className="w-full px-3.5 py-2 text-base sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
             />
-            <p className="text-[11px] text-stone-400">
-              Zero accounts or passwords required. We send your receipt and any available mailing updates.
+            <p className="text-[11px] text-stone-500">
+              {recipient.street1?.trim() ? "For your receipt and available mailing updates. You can leave this blank." : "We’ll email a secure link so you can add the recipient address later."}
             </p>
           </div>
 
@@ -877,9 +883,8 @@ function InnerPaymentForm({
               <div className="flex items-center justify-between border-b border-stone-100 pb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-stone-900 flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Apple Pay, Google Pay &amp; Card</span>
+                  <span>Payment</span>
                 </span>
-                <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
               </div>
 
               {isMock ? (
@@ -1068,24 +1073,7 @@ function InnerPaymentForm({
             </div>
           )}
 
-          {/* MOBILE ONLY SECURITY BADGES */}
-          <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-stone-600">
-            <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-200/70">
-              <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
-              <div>
-                <span className="font-semibold text-stone-900 block">256-Bit SSL Encryption</span>
-                <span className="text-[11px] text-stone-500">Bank-grade security via Stripe</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-200/70">
-              <Feather className="w-4 h-4 text-amber-700 shrink-0" />
-              <div>
-                <span className="font-semibold text-stone-900 block">100% Satisfaction Guarantee</span>
-                <span className="text-[11px] text-stone-500">Real ballpoint inking or free re-mail</span>
-              </div>
-            </div>
-          </div>
+          <p className="text-center text-xs text-stone-500">Payments processed securely by Stripe</p>
 
           {/* DESKTOP ADVANCE BAR */}
           <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">

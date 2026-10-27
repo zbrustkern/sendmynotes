@@ -13,6 +13,7 @@ import { Order } from "./types";
 import { sendMetaCapiPurchaseEvent } from "./meta-conversions-api";
 import { recordServerTelemetry } from "./metrics-rollup";
 import { sendAddressDeferredEmail } from "./email-alerts";
+import { effectiveOrderEmail, savePaidOrderReminder } from "./checkout-contact";
 import { recordPaymentCaptureFact, deriveCommercialKind } from "./financial-ledger";
 import { enqueueOutboxEntry } from "./transactional-outbox";
 import { isOperationalControlPaused } from "./operational-controls";
@@ -254,6 +255,19 @@ export async function processPaidOrder(
     if (!alreadySubmitted) await updateOrderStatus(orderId, { status: "PAYMENT_VERIFICATION_FAILED", fulfillmentError: paymentCheck.reason } as any);
     return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: paymentCheck.reason || "Payment verification failed." };
   }
+  if ((authorityOrder.contactPolicyVersion === 1 || authorityOrder.contactEmailChoice) && (!authorityOrder.contactEmailChoice || authorityOrder.contactEmailSyncStatus !== "synced")) {
+    await updateOrderStatus(orderId, {
+      status: "PAYMENT_RECEIVED",
+      fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED",
+      fulfillmentError: "Payment was received while the contact preference update was pending. Reconcile contact state before fulfillment.",
+    } as any);
+    await logIncident({
+      type: "STRIPE", severity: "error", summary: `Paid order contact preference needs reconciliation (${orderId})`,
+      technicalDetails: "The PaymentIntent succeeded while its explicit contact-email preference was not synchronized. Fulfillment and application email dispatch were held.",
+      metadata: { orderId, paymentIntentId },
+    });
+    return { success: true, status: "PAYMENT_RECEIVED", error: "Payment received; contact preference reconciliation is required before fulfillment." };
+  }
   if (authorityOrder.origin === "ADMIN_COMP") {
     try { const { markAdminCompPaymentPaid } = await import("./admin-comp-service"); await markAdminCompPaymentPaid(orderId, paymentIntentId); }
     catch (error) {
@@ -316,6 +330,19 @@ export async function processPaidOrder(
 
       const existingOrder = snapshot.data() as Order;
 
+      // Recheck contact authorization inside the same transaction that takes the
+      // dispatch lock. A webhook may have read an older synced snapshot while a
+      // capability update was claiming its pending marker.
+      if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {
+        transaction.update(docRef, {
+          status: "PAYMENT_RECEIVED",
+          fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED",
+          fulfillmentError: "Contact preference synchronization is pending; dispatch is held.",
+          updatedAt: Date.now(),
+        });
+        return { ...existingOrder, status: "PAYMENT_RECEIVED", fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED" };
+      }
+
       // Check if already dispatched, processing, or actively being dispatched
       const isStaleLock =
         existingOrder.status === "DISPATCHING" &&
@@ -344,12 +371,12 @@ export async function processPaidOrder(
         );
       }
 
-      const finalEmail = customerEmail || existingOrder.customerEmail;
+      const finalEmail = effectiveOrderEmail(existingOrder, customerEmail);
 
       if (existingOrder.addressDeferred || (existingOrder as any).address_deferred) {
         transaction.update(docRef, {
           status: "AWAITING_RECIPIENT_ADDRESS",
-          fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS",
+          fulfillmentStatus: finalEmail ? "AWAITING_RECIPIENT_ADDRESS" : "CONTACT_RECOVERY_REQUIRED",
           stripePaymentId: paymentIntentId,
           customerEmail: finalEmail,
           updatedAt: Date.now(),
@@ -364,7 +391,7 @@ export async function processPaidOrder(
         return {
           ...existingOrder,
           status: "AWAITING_RECIPIENT_ADDRESS",
-          fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS",
+          fulfillmentStatus: finalEmail ? "AWAITING_RECIPIENT_ADDRESS" : "CONTACT_RECOVERY_REQUIRED",
           stripePaymentId: paymentIntentId,
           customerEmail: finalEmail,
         };
@@ -432,6 +459,15 @@ export async function processPaidOrder(
       status: "DISPATCH_UNCERTAIN",
       error: "Supplier submission outcome is uncertain; reconcile before retrying.",
     };
+  }
+  if (order.status === "PAYMENT_RECEIVED" && order.fulfillmentStatus === "CONTACT_RECOVERY_REQUIRED") {
+    return { success: true, status: "PAYMENT_RECEIVED", error: "Payment received; contact preference reconciliation is required before fulfillment." };
+  }
+
+  try {
+    await savePaidOrderReminder(order, effectiveOrderEmail(order, customerEmail));
+  } catch (reminderErr) {
+    console.warn("[OrderProcessor] Notice saving opted-in occasion reminder:", reminderErr instanceof Error ? reminderErr.message : "unknown error");
   }
 
   // Capture authority and analytics projection were persisted before lock acquisition above.
@@ -511,7 +547,7 @@ export async function processPaidOrder(
   // Address Deferral Bypass: halt automatic Handwrytten dispatch, order is awaiting recipient address from magic link
   if (order.status === "AWAITING_RECIPIENT_ADDRESS" || order.addressDeferred || (order as any).address_deferred) {
     try {
-      const finalTo = customerEmail || order.customerEmail;
+      const finalTo = effectiveOrderEmail(order, customerEmail);
       if (finalTo) {
         const addressEmail = await sendAddressDeferredEmail({
           to: finalTo,
@@ -702,7 +738,7 @@ export async function processPaidOrder(
       await sendMetaCapiPurchaseEvent({
         order: {
           ...order,
-          customerEmail: customerEmail || order.customerEmail,
+          customerEmail: effectiveOrderEmail(order, customerEmail),
         },
         clientIp: clientContext?.clientIp,
         userAgent: clientContext?.userAgent,

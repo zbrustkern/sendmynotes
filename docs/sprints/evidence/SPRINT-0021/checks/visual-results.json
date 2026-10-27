@@ -1,0 +1,28 @@
+{
+  "normalAddressWidths": [
+    320,
+    390,
+    768,
+    1280
+  ],
+  "maximumCenterOffsetCssPixels": 0.00390625,
+  "horizontalOverflow": false,
+  "keyboard": {
+    "initialFocus": "Keep editing",
+    "shiftTabWrap": "Discard & start new",
+    "escapeReturnsFocus": "Card options",
+    "cancelResetCount": 0
+  },
+  "largeText": {
+    "recipientPx": 54,
+    "senderPx": 40,
+    "longUnicodeContainedAt320": true
+  },
+  "deferredPreview": true,
+  "busyResetDisabled": true,
+  "finalResetChecks": {
+    "outsideClickClosesMenu": true,
+    "cancelResetCallbacks": 0,
+    "authoritativeTotalDisplayed": "$12.75"
+  }
+}

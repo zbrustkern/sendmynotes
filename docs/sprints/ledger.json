@@ -196,6 +196,20 @@
       "authorization": "Founder explicitly authorized Luna implementation and staging push on October 27, 2026.",
       "acceptance_status": "local_checks_passed_device_limits_documented",
       "evidence": "docs/sprints/evidence/SPRINT-0020/REPORT.md"
+    },
+    {
+      "id": "SPRINT-0021",
+      "title": "Finish the sending flow and align staging payments",
+      "path": "docs/sprints/SPRINT-0021.md",
+      "status": "active",
+      "updated_at": "2026-10-27T15:46:04.858162+00:00",
+      "implementation_status": "implemented_reviewed_pending_staging_rollout",
+      "planning_method": "founder_authorized_direct_single_author",
+      "evidence": "docs/sprints/evidence/SPRINT-0021/REPORT.md",
+      "mockup": "docs/sprints/assets/SPRINT-0021/checkout-polish.html",
+      "execution_model": "gpt-6-luna",
+      "release_environment": "staging_only",
+      "acceptance_status": "local_checks_passed_device_and_hosted_verification_pending"
     }
   ]
 }

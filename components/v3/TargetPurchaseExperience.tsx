@@ -131,6 +131,8 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
   // 5. Checkout & Payment State (Step 4 & 5)
   const [customerEmail, setCustomerEmail] = useState<string>("");
+  const customerEmailEdited = React.useRef(false);
+  const [paymentInFlight, setPaymentInFlight] = useState(false);
   const [orderId, setOrderId] = useState<string>("");
   const [viewToken, setViewToken] = useState<string | null>(null);
   const [clientSecret, setClientSecret] = useState<string | null>(null);
@@ -163,7 +165,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
   // Pre-fill user email and default return address if logged in
   useEffect(() => {
-    if (user?.email && !customerEmail) {
+    if (user?.email && !customerEmailEdited.current) {
       setCustomerEmail(user.email);
     }
     if (account?.defaultReturnAddress) {
@@ -448,6 +450,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
             country: "USA",
           },
           customerEmail,
+          contactPolicyVersion: 1,
           userId: user?.uid,
           discountCode: discountCodeToUse,
           attribution: getStoredAttribution() || undefined,
@@ -560,6 +563,9 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
   // Send another card: resets card/note but preserves sender address
   const handleSendAnotherCard = () => {
+    customerEmailEdited.current = false;
+    setCustomerEmail(user?.email || "");
+    setPaymentInFlight(false);
     setSelectedCardUrl(CARD_PRESETS[0].imageUrl);
     setSelectedCardTitle(CARD_PRESETS[0].title);
     setOccasion(CARD_PRESETS[0].occasion);
@@ -707,7 +713,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
             recipient={recipient}
             sender={sender}
             customerEmail={customerEmail}
-            onChangeCustomerEmail={setCustomerEmail}
+            onChangeCustomerEmail={(email) => { customerEmailEdited.current = true; setCustomerEmail(email); }}
             orderId={orderId}
             viewToken={viewToken}
             clientSecret={clientSecret}
@@ -719,7 +725,8 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
             onApplyDiscount={handleApplyDiscount}
             onRemoveDiscount={handleRemoveDiscount}
             appliedDiscount={appliedDiscount}
-            onPaymentSuccess={handlePaymentSuccess}
+              onPaymentSuccess={handlePaymentSuccess}
+              onPaymentStateChange={setPaymentInFlight}
             onBack={() => goToStep(3)}
           />
         )}
