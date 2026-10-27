@@ -1,0 +1,49 @@
+[
+  {
+    "case": "Paper texture fails",
+    "address": "Jordan Rivera18 Pine StreetUnit 07Madison, WI 53703",
+    "images": [
+      {
+        "naturalWidth": 300,
+        "src": "/images/envelope-preview/postage-domestic.webp"
+      }
+    ],
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "case": "Domestic postage fails",
+    "address": "Jordan Rivera18 Pine StreetUnit 07Madison, WI 53703",
+    "images": [
+      {
+        "naturalWidth": 1200,
+        "src": "/images/envelope-preview/envelope-paper.webp"
+      }
+    ],
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "case": "Handwriting fonts fail",
+    "address": "Jordan Rivera18 Pine StreetUnit 07Madison, WI 53703",
+    "images": [
+      {
+        "naturalWidth": 1200,
+        "src": "/images/envelope-preview/envelope-paper.webp"
+      },
+      {
+        "naturalWidth": 300,
+        "src": "/images/envelope-preview/postage-domestic.webp"
+      }
+    ],
+    "scrollWidth": 320,
+    "width": 320
+  },
+  {
+    "case": "All image and font assets fail",
+    "address": "Jordan Rivera18 Pine StreetUnit 07Madison, WI 53703",
+    "images": [],
+    "scrollWidth": 320,
+    "width": 320
+  }
+]

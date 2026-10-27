@@ -2,13 +2,8 @@
 
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Mail,
   ArrowRight,
-  ShieldCheck,
   Plus,
-  Eye,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import { EnvelopePreview } from "@/components/flow/EnvelopePreview";
 
@@ -152,19 +147,8 @@ function LiveEnvelopeCard({
   countryName,
 }: LiveEnvelopeCardProps) {
   return (
-    <div className="bg-[#FAF8F5] rounded-3xl p-4 sm:p-5 border border-stone-200/90 shadow-sm space-y-3">
-      <div className="flex items-center justify-between border-b border-stone-200/70 pb-2.5">
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-emerald-800" />
-          <h3 className="font-serif font-bold text-sm text-stone-900">
-            Live Envelope Preview
-          </h3>
-        </div>
-        <span className="text-[10px] font-semibold text-emerald-800 bg-white/80 border border-emerald-200 px-2 py-0.5 rounded-full">
-          {isInternational ? "Real Blue Ink • International destination" : "Real Blue Ink • USPS Forever Stamp"}
-        </span>
-      </div>
-
+    <div className="min-w-0 space-y-2">
+      <p className="text-xs font-semibold text-stone-700">Your envelope</p>
       <EnvelopePreview
         sender={sender}
         recipient={recipient}
@@ -199,7 +183,6 @@ export function Step3EnvelopeAddressing({
 }: Step3EnvelopeAddressingProps) {
   const [showRecipientApt, setShowRecipientApt] = useState(Boolean(recipient.street2));
   const [showSenderApt, setShowSenderApt] = useState(Boolean(sender.street2));
-  const [showEnvelopePreview, setShowEnvelopePreview] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
   const [isInternationalEditorOpen, setIsInternationalEditorOpen] = useState(false);
   const [internationalDraft, setInternationalDraft] = useState<AddressData>(recipient);
@@ -354,16 +337,10 @@ export function Step3EnvelopeAddressing({
             fontClass={fontClass}
             isAddressDeferred={isAddressDeferred}
             isInternational={isInternational}
+            countryName={countries.find((item) => item.countryCode === recipient.country)?.countryName}
           />
 
-          {/* EXPLANATORY CALLOUT */}
-          <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200/70 flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-800 shrink-0 mt-0.5" />
-            <p className="text-xs text-stone-700 leading-relaxed">
-              <strong className="font-semibold text-emerald-950">Return Address:</strong>{" "}
-              Your name and US return address appear on the envelope, and your recipient knows who it&apos;s from.
-            </p>
-          </div>
+          <p className="text-xs leading-relaxed text-stone-600">Your return address appears on the envelope.</p>
         </div>
 
         {/* RIGHT COLUMN: lg:col-span-7 — Sub-Grid (Send to & From you) */}

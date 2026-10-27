@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 
 export interface AddressDraftLike {
   fullName: string;
@@ -28,6 +28,17 @@ export function isNonUS(country?: string): boolean {
   return !["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"].includes(upper);
 }
 
+function AddressLine({ children }: { children: React.ReactNode }) {
+  return <p className="break-words [overflow-wrap:anywhere]">{children}</p>;
+}
+
+function localityLine(address: AddressDraftLike, useDomesticPlaceholders: boolean): string {
+  if (useDomesticPlaceholders && !address.city && !address.state && !address.zip) return "City, State ZIP";
+  const city = address.city || (useDomesticPlaceholders ? "City" : "");
+  const regionPostal = [address.state, address.zip].filter(Boolean).join(" ");
+  return [city, regionPostal].filter(Boolean).join(", ");
+}
+
 export function EnvelopePreview({
   sender,
   recipient,
@@ -37,106 +48,70 @@ export function EnvelopePreview({
   countryName,
   className = "",
 }: EnvelopePreviewProps) {
+  const [paperImageFailed, setPaperImageFailed] = useState(false);
+  const [stampImageFailed, setStampImageFailed] = useState(false);
   const isInternationalDest = isInternational || isNonUS(recipient.country);
-  const displayCountry =
-    countryName ||
-    (recipient.country && isNonUS(recipient.country) ? recipient.country : "");
+  const displayCountry = countryName || (recipient.country && isNonUS(recipient.country) ? recipient.country : "");
 
   return (
-    <div className={`w-full ${className}`}>
-      {/* Physical Envelope Surface (Optical ratio ~1.4:1 on desktop, min-h-[210px] on mobile) */}
-      <div className="relative w-full rounded-[4px] bg-[#FAF9F6] border border-stone-200/90 shadow-sm p-4 sm:p-5 flex flex-col justify-between min-h-[210px] sm:aspect-[1.4/1] text-stone-900 select-none overflow-hidden">
-        {/* Top Row: Sender Address (Top-Left) + Stamp Box (Top-Right) */}
-        <div className="flex items-start justify-between gap-3 mb-2">
-          {/* Top-Left: SENDER RETURN ADDRESS IN ROYAL BLUE PEN INK */}
-          <div
-            className={`max-w-[180px] sm:max-w-[210px] text-[#1E3A8A] text-xs sm:text-[13px] leading-tight select-none ${fontClass}`}
-          >
-            <p className="font-medium">{sender.fullName || "Your Name"}</p>
-            <p>{sender.street1 || "Street Address"}</p>
-            {sender.street2 && <p>{sender.street2}</p>}
-            <p>
-              {sender.city || "City"}, {sender.state || "ST"}{" "}
-              {sender.zip || "ZIP"}
-            </p>
+    <figure className={`w-full min-w-0 ${className}`}>
+      <div
+        className="relative isolate grid w-full grid-cols-[minmax(0,1fr)_3.5rem] grid-rows-[auto_1fr] gap-x-3 gap-y-5 overflow-visible rounded-[3px] border border-stone-200 bg-white px-4 py-4 shadow-[0_16px_28px_-18px_rgba(41,37,36,0.55)] sm:grid-cols-[minmax(0,1fr)_4rem] sm:px-6 sm:py-5"
+        style={{ aspectRatio: "5 / 3" }}
+        aria-label="Illustrative envelope preview"
+      >
+        {!paperImageFailed && (
+          <img
+            src="/images/envelope-preview/envelope-paper.webp"
+            alt=""
+            aria-hidden="true"
+            onError={() => setPaperImageFailed(true)}
+            className="pointer-events-none absolute inset-0 -z-10 h-full w-full rounded-[inherit] object-cover"
+          />
+        )}
+        <section aria-label="Sender address" className="relative min-w-0 self-start text-[20px] leading-[1.08] text-blue-900 sm:text-[20px]">
+          <div className={`${fontClass} break-words [overflow-wrap:anywhere]`}>
+            <AddressLine>{sender.fullName || "Your name"}</AddressLine>
+            <AddressLine>{sender.street1 || "Street address"}</AddressLine>
+            {sender.street2 ? <AddressLine>{sender.street2}</AddressLine> : null}
+            <AddressLine>{localityLine(sender, true)}</AddressLine>
           </div>
+        </section>
 
-          {/* Top-Right: RESERVED STAMP COLUMN */}
-          <div className="shrink-0 select-none pl-2">
-            <div className="relative w-12 h-14 bg-white rounded-[2px] border border-dashed border-stone-300 shadow-2xs p-1 flex flex-col justify-between overflow-hidden">
-              {isInternationalDest ? (
-                <div className="h-full w-full bg-stone-50 border border-stone-200 rounded-[2px] p-0.5 flex flex-col items-center justify-center text-center">
-                  <span className="text-[6px] font-bold text-stone-500 uppercase tracking-wider block">
-                    Postage
-                  </span>
-                  <span className="text-[7.5px] font-black text-emerald-900 leading-tight block">
-                    International
-                    <br />
-                    Postage
-                  </span>
-                  <span className="text-[5.5px] font-mono text-stone-400 mt-0.5 block">
-                    AIRMAIL
-                  </span>
-                </div>
-              ) : (
-                <div className="h-full w-full bg-gradient-to-b from-[#1e3a8a] via-[#f8fafc] to-[#991b1b] rounded-[2px] p-1 flex flex-col justify-between relative overflow-hidden">
-                  <div className="flex items-center justify-between text-white text-[7px] font-sans font-bold leading-none tracking-widest">
-                    <span>USA</span>
-                    <span className="text-[6px]">★</span>
-                  </div>
-                  <div className="text-center py-0.5">
-                    <span className="text-[8px] font-serif font-black tracking-wider text-white drop-shadow-xs">
-                      FOREVER
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-white/90 text-[6px] font-mono leading-none">
-                    <span>USPS</span>
-                    <span>2026</span>
-                  </div>
-                </div>
-              )}
+        <div className="relative flex min-h-[3.75rem] w-full items-start justify-end" aria-hidden="true">
+          {!isInternationalDest && !stampImageFailed ? (
+            <img
+              src="/images/envelope-preview/postage-domestic.webp"
+              alt=""
+              onError={() => setStampImageFailed(true)}
+              className="h-[3.75rem] w-12 object-contain sm:h-[4.5rem] sm:w-14"
+            />
+          ) : (
+            <div className="flex h-[3.75rem] w-12 items-center justify-center border border-stone-300 bg-white/80 text-center text-[9px] leading-tight text-stone-600 sm:h-[4.5rem] sm:w-14">
+              Postage
             </div>
-          </div>
+          )}
         </div>
 
-        {/* Center / Center-Right: RECIPIENT MAILING BLOCK */}
-        <div className="flex justify-end sm:justify-center sm:pl-16 px-2 py-3 select-none my-auto">
-          <div
-            className={`w-fit min-w-[180px] max-w-xs text-left space-y-0.5 text-base sm:text-[17px] text-[#1E3A8A] leading-snug ${fontClass}`}
-          >
-            <p className="font-semibold text-[17px] sm:text-lg text-[#1E3A8A]">
-              {recipient.fullName || "Recipient Name"}
-            </p>
+        <section aria-label="Recipient address" className="col-span-2 col-start-1 row-start-2 ml-[20%] min-w-0 self-center px-1 py-2 sm:ml-[22%] sm:w-[72%] sm:px-0">
+          <div className={`${fontClass} min-w-0 text-[27px] leading-[1.12] text-blue-900 sm:text-[27px]`}>
+            <AddressLine>{recipient.fullName || "Recipient name"}</AddressLine>
             {isAddressDeferred ? (
-              <p className="text-xs text-stone-500 italic mt-1 font-sans">
-                [ Street address to be added via link after checkout ]
-              </p>
+              <AddressLine><span className="font-sans text-xs italic text-stone-600">Street address to be added later</span></AddressLine>
             ) : (
               <>
-                <p>
-                  {recipient.street1 || "Street Address"}
-                  {recipient.street2 ? `, ${recipient.street2}` : ""}
-                </p>
-                <p>
-                  {recipient.city || "City"}
-                  {recipient.state ? `, ${recipient.state}` : !isInternationalDest ? ", State" : ""}{" "}
-                  {recipient.zip || (!isInternationalDest ? "ZIP" : "")}
-                </p>
-                {isInternationalDest && displayCountry && (
-                  <p className="font-bold uppercase tracking-wider text-xs sm:text-sm mt-0.5">
-                    {displayCountry.toUpperCase()}
-                  </p>
-                )}
+                <AddressLine>{recipient.street1 || "Street address"}</AddressLine>
+                {recipient.street2 ? <AddressLine>{recipient.street2}</AddressLine> : null}
+                <AddressLine>{localityLine(recipient, !isInternationalDest)}</AddressLine>
+                {isInternationalDest && displayCountry ? <AddressLine>{displayCountry}</AddressLine> : null}
               </>
             )}
           </div>
-        </div>
+        </section>
       </div>
-
-      {/* Caption below the envelope */}
-      <p className="text-[11px] text-stone-500 text-center mt-2.5">
+      <figcaption className="mt-2.5 text-center text-[11px] text-stone-500">
         Illustrative preview · Postage design may vary.
-      </p>
-    </div>
+      </figcaption>
+    </figure>
   );
 }

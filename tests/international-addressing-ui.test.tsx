@@ -32,13 +32,14 @@ assert(!disabled.includes("International? +$5"), "international entry stays hidd
 
 const preview = renderToStaticMarkup(<Step3EnvelopeAddressing {...common} recipient={{ fullName: "Taylor", street1: "1 Oak", city: "Austin", state: "TX", zip: "78701", country: "US" }} mailingOptions={previewOptions} />);
 assert(preview.includes("International? +$5"), "the server-controlled staging preview exposes the international editor entry");
-assert(preview.includes("USPS Forever Stamp"), "the ordinary US selection retains the domestic postage preview");
+assert(preview.includes("postage-domestic.webp"), "the ordinary US selection retains the illustrative domestic postage preview");
 
 const international = renderToStaticMarkup(<Step3EnvelopeAddressing {...common} recipient={{ fullName: "Taylor Doe", street1: "1 Queen St", city: "Toronto", state: "ON", zip: "M5V 2T6", country: "CA" }} mailingOptions={previewOptions} isInternational onUseUSAddress={() => {}} displayTotalCents={1400} />);
 assert(international.includes("Canada"), "the committed international recipient shows its country name");
+assert(international.includes("Postage"), "the international envelope uses a neutral postage treatment");
 assert(international.includes("$14.00"), "the international action price reflects the selected transaction total");
-assert(international.includes("International mailing destination preview"), "international envelope copy identifies its destination");
-assert(!international.includes("USPS Forever Stamp"), "international envelope preview does not depict a USPS stamp");
+assert(international.includes("Illustrative preview · Postage design may vary."), "international preview retains the illustrative postage caption");
+assert(!international.includes("postage-domestic.webp"), "international envelope preview does not depict domestic postage art");
 assert(!international.includes("USPS First-Class"), "international envelope copy avoids domestic delivery claims");
 assert(international.includes("Use a US address instead"), "the committed address can be switched back to the separate US draft");
 

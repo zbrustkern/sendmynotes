@@ -1,0 +1,562 @@
+[
+  {
+    "width": 320,
+    "scenario": "Normal domestic",
+    "pageWidth": 320,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 186,
+        "text": "Maya O’Neil42 Maple AvenueApt. 3BChicago, IL 60601",
+        "width": 186
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 203,
+        "text": "Jordan Rivera18 Pine StreetUnit 07Madison, WI 53703",
+        "width": 203
+      }
+    ],
+    "scrollWidth": 320
+  },
+  {
+    "width": 320,
+    "scenario": "Long names, Unicode, apartment lines",
+    "pageWidth": 320,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 186,
+        "text": "Renée Dvořák-Sato0042 Rue de l’Église, Bâtiment CAppartement 12, étage 4Montréal, Québec H2X 1Y4",
+        "width": 186
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 203,
+        "text": "Zoë 李 O’Connor-Sánchez123456789012345678901234567890123456789012345678901234567890Unit 07, étage 2 — arrièreSaint-Jean-sur-Richelieu, Auvergne-Rhône-Alpes 00007FR",
+        "width": 203
+      }
+    ],
+    "scrollWidth": 320
+  },
+  {
+    "width": 320,
+    "scenario": "Long unbroken text",
+    "pageWidth": 320,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 186,
+        "text": "Alexandertheexceptionallylongsendernamewithoutspaces999999999999999999999999999999999999999999999999999999999999Chicago, IL 60601",
+        "width": 186
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 203,
+        "text": "RecipientnamewithaverylongunbrokenstringApartmentbuildingaddresswithoutanyspaces012345678901234567890123456789SuiteeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeMadison, WI 53703",
+        "width": 203
+      }
+    ],
+    "scrollWidth": 320
+  },
+  {
+    "width": 320,
+    "scenario": "Empty fields",
+    "pageWidth": 320,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 186,
+        "text": "Your nameStreet addressCity, State ZIP",
+        "width": 186
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 203,
+        "text": "Recipient nameStreet addressCity, State ZIP",
+        "width": 203
+      }
+    ],
+    "scrollWidth": 320
+  },
+  {
+    "width": 320,
+    "scenario": "Partial recipient address",
+    "pageWidth": 320,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 186,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 186
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 203,
+        "text": "Jordan RiveraStreet addressCity, State ZIP",
+        "width": 203
+      }
+    ],
+    "scrollWidth": 320
+  },
+  {
+    "width": 320,
+    "scenario": "International (France)",
+    "pageWidth": 320,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 186,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 186
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 203,
+        "text": "Zoë 李12 Rue des FleursUnit 07, étage 2Lyon, Auvergne-Rhône-Alpes 69002France",
+        "width": 203
+      }
+    ],
+    "scrollWidth": 320
+  },
+  {
+    "width": 320,
+    "scenario": "Deferred recipient address",
+    "pageWidth": 320,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 186,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 186
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 203,
+        "text": "Jordan RiveraStreet address to be added later",
+        "width": 203
+      }
+    ],
+    "scrollWidth": 320
+  },
+  {
+    "width": 390,
+    "scenario": "Normal domestic",
+    "pageWidth": 390,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 256,
+        "text": "Maya O’Neil42 Maple AvenueApt. 3BChicago, IL 60601",
+        "width": 256
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 259,
+        "text": "Jordan Rivera18 Pine StreetUnit 07Madison, WI 53703",
+        "width": 259
+      }
+    ],
+    "scrollWidth": 390
+  },
+  {
+    "width": 390,
+    "scenario": "Long names, Unicode, apartment lines",
+    "pageWidth": 390,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 256,
+        "text": "Renée Dvořák-Sato0042 Rue de l’Église, Bâtiment CAppartement 12, étage 4Montréal, Québec H2X 1Y4",
+        "width": 256
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 259,
+        "text": "Zoë 李 O’Connor-Sánchez123456789012345678901234567890123456789012345678901234567890Unit 07, étage 2 — arrièreSaint-Jean-sur-Richelieu, Auvergne-Rhône-Alpes 00007FR",
+        "width": 259
+      }
+    ],
+    "scrollWidth": 390
+  },
+  {
+    "width": 390,
+    "scenario": "Long unbroken text",
+    "pageWidth": 390,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 256,
+        "text": "Alexandertheexceptionallylongsendernamewithoutspaces999999999999999999999999999999999999999999999999999999999999Chicago, IL 60601",
+        "width": 256
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 259,
+        "text": "RecipientnamewithaverylongunbrokenstringApartmentbuildingaddresswithoutanyspaces012345678901234567890123456789SuiteeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeMadison, WI 53703",
+        "width": 259
+      }
+    ],
+    "scrollWidth": 390
+  },
+  {
+    "width": 390,
+    "scenario": "Empty fields",
+    "pageWidth": 390,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 256,
+        "text": "Your nameStreet addressCity, State ZIP",
+        "width": 256
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 259,
+        "text": "Recipient nameStreet addressCity, State ZIP",
+        "width": 259
+      }
+    ],
+    "scrollWidth": 390
+  },
+  {
+    "width": 390,
+    "scenario": "Partial recipient address",
+    "pageWidth": 390,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 256,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 256
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 259,
+        "text": "Jordan RiveraStreet addressCity, State ZIP",
+        "width": 259
+      }
+    ],
+    "scrollWidth": 390
+  },
+  {
+    "width": 390,
+    "scenario": "International (France)",
+    "pageWidth": 390,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 256,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 256
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 259,
+        "text": "Zoë 李12 Rue des FleursUnit 07, étage 2Lyon, Auvergne-Rhône-Alpes 69002France",
+        "width": 259
+      }
+    ],
+    "scrollWidth": 390
+  },
+  {
+    "width": 390,
+    "scenario": "Deferred recipient address",
+    "pageWidth": 390,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 256,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 256
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 259,
+        "text": "Jordan RiveraStreet address to be added later",
+        "width": 259
+      }
+    ],
+    "scrollWidth": 390
+  },
+  {
+    "width": 768,
+    "scenario": "Normal domestic",
+    "pageWidth": 768,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 594,
+        "text": "Maya O’Neil42 Maple AvenueApt. 3BChicago, IL 60601",
+        "width": 594
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 482,
+        "text": "Jordan Rivera18 Pine StreetUnit 07Madison, WI 53703",
+        "width": 482
+      }
+    ],
+    "scrollWidth": 768
+  },
+  {
+    "width": 768,
+    "scenario": "Long names, Unicode, apartment lines",
+    "pageWidth": 768,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 594,
+        "text": "Renée Dvořák-Sato0042 Rue de l’Église, Bâtiment CAppartement 12, étage 4Montréal, Québec H2X 1Y4",
+        "width": 594
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 482,
+        "text": "Zoë 李 O’Connor-Sánchez123456789012345678901234567890123456789012345678901234567890Unit 07, étage 2 — arrièreSaint-Jean-sur-Richelieu, Auvergne-Rhône-Alpes 00007FR",
+        "width": 482
+      }
+    ],
+    "scrollWidth": 768
+  },
+  {
+    "width": 768,
+    "scenario": "Long unbroken text",
+    "pageWidth": 768,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 594,
+        "text": "Alexandertheexceptionallylongsendernamewithoutspaces999999999999999999999999999999999999999999999999999999999999Chicago, IL 60601",
+        "width": 594
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 482,
+        "text": "RecipientnamewithaverylongunbrokenstringApartmentbuildingaddresswithoutanyspaces012345678901234567890123456789SuiteeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeMadison, WI 53703",
+        "width": 482
+      }
+    ],
+    "scrollWidth": 768
+  },
+  {
+    "width": 768,
+    "scenario": "Empty fields",
+    "pageWidth": 768,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 594,
+        "text": "Your nameStreet addressCity, State ZIP",
+        "width": 594
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 482,
+        "text": "Recipient nameStreet addressCity, State ZIP",
+        "width": 482
+      }
+    ],
+    "scrollWidth": 768
+  },
+  {
+    "width": 768,
+    "scenario": "Partial recipient address",
+    "pageWidth": 768,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 594,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 594
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 482,
+        "text": "Jordan RiveraStreet addressCity, State ZIP",
+        "width": 482
+      }
+    ],
+    "scrollWidth": 768
+  },
+  {
+    "width": 768,
+    "scenario": "International (France)",
+    "pageWidth": 768,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 594,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 594
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 482,
+        "text": "Zoë 李12 Rue des FleursUnit 07, étage 2Lyon, Auvergne-Rhône-Alpes 69002France",
+        "width": 482
+      }
+    ],
+    "scrollWidth": 768
+  },
+  {
+    "width": 768,
+    "scenario": "Deferred recipient address",
+    "pageWidth": 768,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 594,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 594
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 482,
+        "text": "Jordan RiveraStreet address to be added later",
+        "width": 482
+      }
+    ],
+    "scrollWidth": 768
+  },
+  {
+    "width": 1280,
+    "scenario": "Normal domestic",
+    "pageWidth": 1280,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 333,
+        "text": "Maya O’Neil42 Maple AvenueApt. 3BChicago, IL 60601",
+        "width": 333
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 294,
+        "text": "Jordan Rivera18 Pine StreetUnit 07Madison, WI 53703",
+        "width": 294
+      }
+    ],
+    "scrollWidth": 1280
+  },
+  {
+    "width": 1280,
+    "scenario": "Long names, Unicode, apartment lines",
+    "pageWidth": 1280,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 333,
+        "text": "Renée Dvořák-Sato0042 Rue de l’Église, Bâtiment CAppartement 12, étage 4Montréal, Québec H2X 1Y4",
+        "width": 333
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 294,
+        "text": "Zoë 李 O’Connor-Sánchez123456789012345678901234567890123456789012345678901234567890Unit 07, étage 2 — arrièreSaint-Jean-sur-Richelieu, Auvergne-Rhône-Alpes 00007FR",
+        "width": 294
+      }
+    ],
+    "scrollWidth": 1280
+  },
+  {
+    "width": 1280,
+    "scenario": "Long unbroken text",
+    "pageWidth": 1280,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 333,
+        "text": "Alexandertheexceptionallylongsendernamewithoutspaces999999999999999999999999999999999999999999999999999999999999Chicago, IL 60601",
+        "width": 333
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 294,
+        "text": "RecipientnamewithaverylongunbrokenstringApartmentbuildingaddresswithoutanyspaces012345678901234567890123456789SuiteeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeMadison, WI 53703",
+        "width": 294
+      }
+    ],
+    "scrollWidth": 1280
+  },
+  {
+    "width": 1280,
+    "scenario": "Empty fields",
+    "pageWidth": 1280,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 333,
+        "text": "Your nameStreet addressCity, State ZIP",
+        "width": 333
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 294,
+        "text": "Recipient nameStreet addressCity, State ZIP",
+        "width": 294
+      }
+    ],
+    "scrollWidth": 1280
+  },
+  {
+    "width": 1280,
+    "scenario": "Partial recipient address",
+    "pageWidth": 1280,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 333,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 333
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 294,
+        "text": "Jordan RiveraStreet addressCity, State ZIP",
+        "width": 294
+      }
+    ],
+    "scrollWidth": 1280
+  },
+  {
+    "width": 1280,
+    "scenario": "International (France)",
+    "pageWidth": 1280,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 333,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 333
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 294,
+        "text": "Zoë 李12 Rue des FleursUnit 07, étage 2Lyon, Auvergne-Rhône-Alpes 69002France",
+        "width": 294
+      }
+    ],
+    "scrollWidth": 1280
+  },
+  {
+    "width": 1280,
+    "scenario": "Deferred recipient address",
+    "pageWidth": 1280,
+    "regions": [
+      {
+        "label": "Sender address",
+        "scrollWidth": 333,
+        "text": "Maya O’Neil42 Maple AvenueChicago, IL 60601",
+        "width": 333
+      },
+      {
+        "label": "Recipient address",
+        "scrollWidth": 294,
+        "text": "Jordan RiveraStreet address to be added later",
+        "width": 294
+      }
+    ],
+    "scrollWidth": 1280
+  }
+]

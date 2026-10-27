@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@font-face { font-family: HandwryttenAdam; src: url('/fonts/hwAdam.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: HandwryttenChase; src: url('/fonts/hwChase.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: HandwryttenDavid; src: url('/fonts/hwDavid.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: HandwryttenKate; src: url('/fonts/hwKate.ttf') format('truetype'); font-display: swap; }
+@font-face { font-family: HandwryttenWill; src: url('/fonts/hwWill.ttf') format('truetype'); font-display: swap; }
+
+.font-hwAdam { font-family: HandwryttenAdam, cursive; }
+.font-hwChase { font-family: HandwryttenChase, cursive; }
+.font-hwDavid { font-family: HandwryttenDavid, cursive; }
+.font-hwKate { font-family: HandwryttenKate, cursive; }
+.font-hwWill { font-family: HandwryttenWill, monospace; }
+
+[data-preview-scale="200"] [aria-label="Sender address"] { font-size: 40px !important; }
+[data-preview-scale="200"] [aria-label="Recipient address"] > div { font-size: 54px !important; }
+
+body { margin: 0; background: #f8f7f4; color: #292524; font-family: system-ui, sans-serif; }
+input, textarea, select, button { font: inherit; }

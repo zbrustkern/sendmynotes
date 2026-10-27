@@ -243,8 +243,8 @@ verify(
   "EnvelopePreview renders NO fake barcodes"
 );
 verify(
-  htmlDomesticEnvelope.includes("FOREVER") && htmlDomesticEnvelope.includes("USPS"),
-  "Domestic envelope renders USPS Forever stamp box"
+  htmlDomesticEnvelope.includes("postage-domestic.webp"),
+  "Domestic envelope renders the illustrative postage asset"
 );
 
 // International Recipient
@@ -268,12 +268,12 @@ const htmlIntlEnvelope = renderToStaticMarkup(
 );
 
 verify(
-  htmlIntlEnvelope.includes("FRANCE"),
-  "International envelope displays country name in UPPERCASE as bottom line of recipient block"
+  htmlIntlEnvelope.includes("France"),
+  "International envelope displays the supplied country name"
 );
 verify(
-  htmlIntlEnvelope.includes("International") && htmlIntlEnvelope.includes("Postage"),
-  "International envelope displays 'International Postage' in stamp box"
+  htmlIntlEnvelope.includes("Postage") && !htmlIntlEnvelope.includes("AIRMAIL"),
+  "International envelope uses neutral postage treatment without an unsupported service claim"
 );
 verify(
   !htmlIntlEnvelope.includes("<rect"),

@@ -1,0 +1,22 @@
+{
+  "regions": [
+    {
+      "fontSize": "40px",
+      "height": 561,
+      "label": "Sender address",
+      "scrollWidth": 186,
+      "text": "Renée Dvořák-Sato0042 Rue de l’Église, Bâtiment CAppartement 12, étage 4Montréal, Québec H2X 1Y4",
+      "width": 186
+    },
+    {
+      "fontSize": "54px",
+      "height": 1770,
+      "label": "Recipient address",
+      "scrollWidth": 203,
+      "text": "Zoë 李 O’Connor-Sánchez123456789012345678901234567890123456789012345678901234567890Unit 07, étage 2 — arrièreSaint-Jean-sur-Richelieu, Auvergne-Rhône-Alpes 00007FR",
+      "width": 203
+    }
+  ],
+  "scrollWidth": 320,
+  "width": 320
+}
