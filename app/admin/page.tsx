@@ -80,6 +80,7 @@ import {
 } from "@/lib/admin-scope";
 import { ExecutiveShell } from "@/components/admin/ExecutiveShell";
 import { ExecutiveOverview } from "@/components/admin/ExecutiveOverview";
+import { AdminWaterfallConsole } from "@/components/admin/AdminWaterfallConsole";
 
 export default function AdminDashboardPage() {
   const router = useRouter();
@@ -1025,6 +1026,9 @@ export default function AdminDashboardPage() {
         {/* ===================== WORKSPACE: OVERVIEW ===================== */}
         {globalScope.workspace === "overview" && (
           <div className="space-y-6">
+            <AdminWaterfallConsole onScopeChange={(wScope) => {
+              // Synchronize waterfall window / channel with global scope if desired
+            }} />
             <Link href="/admin/measurement" className="block rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm font-semibold text-amber-950 underline">Open the focused measurement report preview — scoped payment evidence and observed campaign activity</Link>
           <ExecutiveOverview
             report={report}
