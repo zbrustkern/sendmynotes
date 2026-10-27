@@ -68,7 +68,7 @@ export function ProofInspectorModal({ orderId, onClose }: ProofInspectorModalPro
                 </button>
               </div>
               <p className="text-xs text-stone-500">
-                1:1 simulation of the plotted cardstock, handwriting coordinates, and postage details.
+                Approximate visual preview of message and cover art (not exact physical plotter or envelope parity).
               </p>
             </div>
           </div>

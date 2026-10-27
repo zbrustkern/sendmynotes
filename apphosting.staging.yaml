@@ -1,0 +1,35 @@
+# Selected only by the sendmynotes-staging backend environment name.
+# Staging is an admin review environment; live payments, mail and physical orders are blocked.
+env:
+  # Explicit public test key; pairs with staging stripe-secret-key version 1.
+  - variable: STRIPE_PUBLISHABLE_KEY
+    value: pk_test_51UIUjfQRpUiJEWIAEBVsU9gEPGjYg84rOZRarlTUfW057pYo1YcbkHv00h288Bth0582JDovGyvz1ZfSPen6VSYP00u7h8Ve2Y
+    availability: [RUNTIME]
+  - variable: INTERNATIONAL_MAILING_PREVIEW
+    value: "true"
+    availability: [RUNTIME]
+  - variable: NEXT_PUBLIC_STAGING_REVIEW_ONLY
+    value: "true"
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_APP_URL
+    value: https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app
+    availability: [BUILD, RUNTIME]
+  - variable: FIREBASE_PROJECT_ID
+    value: sendmynotes-staging
+    availability: [BUILD, RUNTIME]
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: sendmynotes-staging
+    availability: [BUILD, RUNTIME]
+  - variable: STAGING_REVIEW_ONLY
+    value: "true"
+    availability: [RUNTIME]
+  - variable: ADMIN_SESSION_SIGNING_KEY
+    secret: admin-session-signing-key
+    availability: [RUNTIME]
+  - variable: HANDWRYTTEN_TEST_MODE
+    value: "true"
+    availability: [RUNTIME]
+
+# Advertising is suppressed by NEXT_PUBLIC_STAGING_REVIEW_ONLY in the root layout
+# and STAGING_REVIEW_ONLY in the server conversions client. Keep inherited secret
+# references intact; use explicit review flags rather than empty env values.

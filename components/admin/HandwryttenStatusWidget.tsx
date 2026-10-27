@@ -57,7 +57,7 @@ export function HandwryttenStatusWidget() {
                   : "bg-emerald-50 text-emerald-800 border-emerald-300"
               }`}
             >
-              {data.isTestMode ? "Test Mode (Zero Cost)" : "Live Production Inking"}
+              {!data.connected ? "Connection unverified" : data.isTestMode ? "Test configuration" : "Profile reached · fulfillment unverified"}
             </span>
             {data.backplateImageId && (
               <span className="text-[10px] font-mono text-stone-500 bg-stone-100 px-2 py-0.5 rounded border border-stone-200 flex items-center gap-1">
@@ -69,20 +69,20 @@ export function HandwryttenStatusWidget() {
           <p className="text-[11px] text-stone-500 mt-0.5">
             {data.isTestMode
               ? "Orders generate digital proofs without deducting credits or plotting physical envelopes."
-              : "Orders are written with real pens on cardstock and dispatched via USPS."}
+              : "Orders are written by automated equipment holding real pens on cardstock (exact stock weight unconfirmed for API dimension 4) and mailed via First-Class USPS from Phoenix, AZ."}
           </p>
         </div>
       </div>
 
       <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto pt-2.5 sm:pt-0 border-t sm:border-t-0 border-stone-100">
-        {data.credits !== null ? (
+        {typeof data.credits === "number" ? (
           <div className="text-left sm:text-right">
             <div className="flex items-center gap-1.5 sm:justify-end">
               <span className="text-xs font-semibold text-stone-500">Credits:</span>
               <span className="font-serif font-bold text-stone-900 text-sm">
                 ${data.credits.toFixed(2)}
               </span>
-              {data.cardsRemaining !== null && (
+              {typeof data.cardsRemaining === "number" && (
                 <span className="text-[11px] text-stone-400">
                   (~{data.cardsRemaining} cards)
                 </span>

@@ -12,6 +12,7 @@ export const META_GRAPH_API_VERSION = "v19.0";
  * Retrieves the Conversions API System User access token from environment or secrets.
  */
 export function getMetaAccessToken(): string | undefined {
+  if (process.env.STAGING_REVIEW_ONLY === "true") return undefined;
   return (
     process.env.META_CONVERSIONS_API_ACCESS_TOKEN ||
     process.env["meta-conversions-api-access-token"] ||
@@ -317,6 +318,9 @@ export async function sendMetaCapiPurchaseEvent(params: {
   testEventCode?: string;
 }): Promise<MetaCapiResult> {
   const { order, clientIp, userAgent, testEventCode } = params;
+  if (order.origin === "ADMIN_COMP" || order.isComp || order.paymentMethod === "STUDIO_COMP") {
+    return { success: false, skipped: true, error: "Non-customer admin/complimentary order excluded from purchase measurement." };
+  }
 
   const valueInDollars =
     typeof order.amountInCents === "number" && order.amountInCents >= 0

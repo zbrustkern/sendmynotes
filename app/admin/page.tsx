@@ -4,67 +4,35 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
-  DollarSign,
-  Coins,
-  TrendingUp,
   Package,
-  Clock,
-  CheckCircle2,
-  AlertTriangle,
-  ArrowLeft,
-  RefreshCw,
-  Search,
-  Filter,
-  Users,
-  ShieldCheck,
-  ShieldAlert,
-  Lock,
-  PenTool,
-  Send,
-  Eye,
-  Mail,
-  ChevronDown,
-  ChevronUp,
+  TrendingUp,
   Tag,
-  Percent,
-  Copy,
-  Trash2,
-  Check,
-  Share2,
-  Gift,
   Plus,
-  ToggleLeft,
-  ToggleRight,
-  ExternalLink,
-  Sparkles,
-  Globe,
-  Compass,
-  BookOpen,
-  Layers,
-  CreditCard,
+  Search,
+  RefreshCw,
+  Gift,
+  Eye,
   MapPin,
-  Calculator,
-  Target,
-  PieChart,
-  Receipt,
-  Info,
-  Sliders,
-  Menu,
-  X,
-  ChevronRight,
+  CreditCard,
+  Lock,
   Loader2,
+  CheckCircle2,
+  Share2,
+  Check,
+  Trash2,
+  Compass,
+  Info,
+  DollarSign,
+  PenTool,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType, ScenarioPerformanceMetric } from "@/lib/types";
+import { AdminMetrics, Order, DiscountCode, DiscountType } from "@/lib/types";
 import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWidget";
+import { AdminMeasurementPanel } from "@/components/admin/AdminMeasurementPanel";
 import { ProofInspectorModal } from "@/components/admin/ProofInspectorModal";
 import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
 import { StudioCompModal } from "@/components/admin/StudioCompModal";
-import { AdminMeasurementPanel } from "@/components/admin/AdminMeasurementPanel";
-import { VisitorTelemetryDashboard } from "@/components/admin/VisitorTelemetryDashboard";
-import { AdminFeatureFlagsTab } from "@/components/admin/AdminFeatureFlagsTab";
 import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
-import { getClientId, getSessionId } from "@/lib/telemetry";
 
 export default function AdminDashboardPage() {
   const { user, signInWithGoogle, signOut: authSignOut } = useAuth();
@@ -72,62 +40,27 @@ export default function AdminDashboardPage() {
   const [adminUserEmail, setAdminUserEmail] = useState<string | null>(null);
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [accessKey, setAccessKey] = useState("");
   const [authError, setAuthError] = useState("");
-  const [authLoading, setAuthLoading] = useState(false);
-  const [isLockedOut, setIsLockedOut] = useState(false);
-  const [lockoutRemainingSeconds, setLockoutRemainingSeconds] = useState(0);
-  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
 
-  // Tab Navigation State
-  const [activeTab, setActiveTab] = useState<"orders" | "margins" | "discounts" | "scenarios" | "incidents" | "flags">("orders");
+  // Navigation tab state: clean, 3 focused views
+  const [activeTab, setActiveTab] = useState<"orders" | "measurement" | "discounts">("orders");
 
-  // Margins, Ad Spend & Campaign Attribution State
-  const [adSpendInput, setAdSpendInput] = useState<string>("0.00");
-  const [adSpendSynced, setAdSpendSynced] = useState<boolean>(false);
-  const [savingAdSpend, setSavingAdSpend] = useState<boolean>(false);
-  const [adSpendSuccess, setAdSpendSuccess] = useState<string>("");
-  const [copiedTrackingTemplate, setCopiedTrackingTemplate] = useState<boolean>(false);
-  const [campaignSearchQuery, setCampaignSearchQuery] = useState<string>("");
-
+  // Orders State
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [loading, setLoading] = useState(false);
-  const [filterDateRange, setFilterDateRange] = useState<string>("oct13");
-  const [excludeFounder, setExcludeFounder] = useState<boolean>(true);
-  const [filterChannel, setFilterChannel] = useState<string>("all");
-  const [customFrom, setCustomFrom] = useState<string>("");
-  const [customTo, setCustomTo] = useState<string>("");
-  const [isMarkingFounder, setIsMarkingFounder] = useState<boolean>(false);
-  const [founderMarkedSuccess, setFounderMarkedSuccess] = useState<boolean>(false);
-  const [isUnflaggingFounder, setIsUnflaggingFounder] = useState<boolean>(false);
-  const [unflagFounderSuccess, setUnflagFounderSuccess] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingStripeId, setSyncingStripeId] = useState<string | null>(null);
   const [expandedJourneyOrderId, setExpandedJourneyOrderId] = useState<string | null>(null);
-  const [measurementOrderId, setMeasurementOrderId] = useState<string | null>(null);
 
-  // Studio & Operator Modals State
+  // Modals
   const [selectedProofOrderId, setSelectedProofOrderId] = useState<string | null>(null);
   const [addressRetryOrder, setAddressRetryOrder] = useState<Order | null>(null);
-  const [addressRetryIncidentId, setAddressRetryIncidentId] = useState<string | null>(null);
   const [showCompModal, setShowCompModal] = useState(false);
-  const [testingAlertEmail, setTestingAlertEmail] = useState(false);
 
-  // Incidents & Alerts State
-  const [incidents, setIncidents] = useState<SystemIncident[]>([]);
-  const [alertEmail, setAlertEmail] = useState("");
-  const [newAlertEmail, setNewAlertEmail] = useState("");
-  const [loadingIncidents, setLoadingIncidents] = useState(false);
-  const [savingEmail, setSavingEmail] = useState(false);
-  const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [alertFormOpen, setAlertFormOpen] = useState(false);
-  const [incidentFilter, setIncidentFilter] = useState<"UNRESOLVED" | "RESOLVED" | "ALL">("UNRESOLVED");
-
-  // Discount Codes State
+  // Discounts State
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
   const [discountStats, setDiscountStats] = useState<{
     totalCodes: number;
@@ -150,18 +83,15 @@ export default function AdminDashboardPage() {
   const [discountFormError, setDiscountFormError] = useState("");
   const [discountFormSuccess, setDiscountFormSuccess] = useState("");
 
-  // SEO & Scenario Performance Engine State
-  const [scenarioMetrics, setScenarioMetrics] = useState<ScenarioPerformanceMetric[]>([]);
-  const [scenarioSummary, setScenarioSummary] = useState<{
-    totalViews: number;
-    totalOrders: number;
-    overallConversionRate: number;
-    topScenario: string;
-    activeScenariosCount: number;
-  } | null>(null);
-  const [loadingScenarios, setLoadingScenarios] = useState(false);
-  const [scenarioSearchQuery, setScenarioSearchQuery] = useState("");
-  const [copiedScenarioUrl, setCopiedScenarioUrl] = useState<string | null>(null);
+  const handleTabChange = (tab: "orders" | "measurement" | "discounts") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.searchParams.set("tab", tab);
+      url.searchParams.delete("workspace");
+      window.history.replaceState({}, "", url.toString());
+    }
+  };
 
   const handleGoogleAdminLogin = async () => {
     setGoogleAuthLoading(true);
@@ -187,14 +117,9 @@ export default function AdminDashboardPage() {
         setAuthError(data.error || "Access denied. Your account is not authorized for administrator access.");
       } else {
         setIsAuthenticated(true);
-        setIsLockedOut(false);
-        setLockoutRemainingSeconds(0);
-        setRemainingAttempts(null);
         setAdminUserEmail(data.email || currentUser.email || null);
         fetchMetrics();
-        fetchIncidents();
         fetchDiscounts();
-        fetchScenarios();
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error authenticating with Google.";
@@ -204,69 +129,22 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const verifyAccess = async (keyToTest: string) => {
-    setAuthLoading(true);
-    setAuthError("");
-    try {
-      const res = await fetch("/api/admin/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ passphrase: keyToTest }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        if (res.status === 429 || data.locked) {
-          setIsLockedOut(true);
-          setLockoutRemainingSeconds(data.retryAfterSeconds || 900);
-          setRemainingAttempts(0);
-          setAuthError(data.error || "Too many failed attempts. Admin access is locked for 15 minutes.");
-        } else {
-          if (typeof data.remainingAttempts === "number") {
-            setRemainingAttempts(data.remainingAttempts);
-          }
-          setAuthError(data.error || "Invalid admin passphrase. Please try again.");
-        }
-      } else {
-        setIsAuthenticated(true);
-        setIsLockedOut(false);
-        setLockoutRemainingSeconds(0);
-        setRemainingAttempts(null);
-        fetchMetrics();
-        fetchIncidents();
-        fetchDiscounts();
-        fetchScenarios();
-      }
-    } catch {
-      setAuthError("Network error. Please try again.");
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
     try {
       await fetch("/api/admin/auth", { method: "DELETE" });
+      await authSignOut();
     } finally {
       setIsAuthenticated(false);
       setMetrics(null);
     }
   };
 
-  const fetchMetrics = async (
-    range = filterDateRange,
-    exFounder = excludeFounder,
-    chan = filterChannel,
-    cFrom = customFrom,
-    cTo = customTo
-  ) => {
+  const fetchMetrics = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set("dateRange", range);
-      params.set("excludeFounder", exFounder ? "true" : "false");
-      params.set("channel", chan);
-      if (cFrom) params.set("from", String(new Date(cFrom).getTime()));
-      if (cTo) params.set("to", String(new Date(cTo).getTime()));
+      params.set("dateRange", "oct13");
+      params.set("excludeFounder", "true");
 
       const res = await fetch(`/api/admin/metrics?${params.toString()}`);
       if (res.status === 401) {
@@ -276,10 +154,6 @@ export default function AdminDashboardPage() {
       if (!res.ok) throw new Error("Failed to load metrics");
       const data: AdminMetrics = await res.json();
       setMetrics(data);
-      if (!adSpendSynced && data.adSpendCents !== undefined) {
-        setAdSpendInput(((data.adSpendCents || 0) / 100).toFixed(2));
-        setAdSpendSynced(true);
-      }
     } catch (err) {
       console.error("Error loading admin metrics:", err);
     } finally {
@@ -287,115 +161,23 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const handleDateRangeChange = (range: string) => {
-    setFilterDateRange(range);
-    fetchMetrics(range, excludeFounder, filterChannel, customFrom, customTo);
-  };
-
-  const handleExcludeFounderChange = (exclude: boolean) => {
-    setExcludeFounder(exclude);
-    fetchMetrics(filterDateRange, exclude, filterChannel, customFrom, customTo);
-  };
-
-  const handleChannelChange = (chan: string) => {
-    setFilterChannel(chan);
-    fetchMetrics(filterDateRange, excludeFounder, chan, customFrom, customTo);
-  };
-
-  const handleCustomDateChange = (from: string, to: string) => {
-    setCustomFrom(from);
-    setCustomTo(to);
-    if (from && to) {
-      fetchMetrics(filterDateRange, excludeFounder, filterChannel, from, to);
-    }
-  };
-
-  const handleMarkFounderDevice = async () => {
-    setIsMarkingFounder(true);
+  const fetchDiscounts = async () => {
+    setLoadingDiscounts(true);
     try {
-      let storedSessionId = "";
-      try {
-        const rawDraft = localStorage.getItem("smn_active_draft_v2");
-        if (rawDraft) {
-          const parsed = JSON.parse(rawDraft);
-          storedSessionId = parsed.sessionId || "";
-        }
-      } catch {}
-
-      const clientId = getClientId();
-      const currentSessionId = getSessionId() || storedSessionId;
-
-      const res = await fetch("/api/admin/mark-founder-device", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientId, sessionId: currentSessionId }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        localStorage.setItem("smn_founder_device", "1");
-        document.cookie = "smn_founder_device=1; path=/; max-age=63072000; SameSite=Lax";
-        setFounderMarkedSuccess(true);
-        setTimeout(() => setFounderMarkedSuccess(false), 5000);
-        await fetchMetrics();
-      } else {
-        alert(data.error || "Failed to mark browser as founder device.");
+      const res = await fetch("/api/admin/discounts");
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
       }
-    } catch {
-      alert("Error marking browser as founder device.");
-    } finally {
-      setIsMarkingFounder(false);
-    }
-  };
-
-  const handleUnflagFounderSessions = async () => {
-    if (!confirm("This will scan the database and un-flag any mobile or paid ad sessions that were mistakenly classified as founder sessions due to proxy IP matching. Real founder 3440x1440 desktop tests will remain flagged. Proceed?")) {
-      return;
-    }
-    setIsUnflaggingFounder(true);
-    setUnflagFounderSuccess(null);
-    try {
-      const res = await fetch("/api/admin/unflag-founder-sessions", {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setUnflagFounderSuccess(`Restored ${data.unflaggedSessionsCount ?? 0} sessions`);
-        alert(data.message || "Founder flags cleaned up successfully.");
-        await fetchMetrics();
-        setTimeout(() => setUnflagFounderSuccess(null), 6000);
-      } else {
-        alert(data.error || "Failed to un-flag founder sessions.");
+      if (res.ok) {
+        const data = await res.json();
+        setDiscountCodes(data.codes || []);
+        setDiscountStats(data.stats || null);
       }
-    } catch {
-      alert("Error calling unflag founder sessions endpoint.");
+    } catch (err) {
+      console.error("Error fetching discounts:", err);
     } finally {
-      setIsUnflaggingFounder(false);
-    }
-  };
-
-  const handleSaveAdSpend = async () => {
-    setSavingAdSpend(true);
-    setAdSpendSuccess("");
-    try {
-      const val = parseFloat(adSpendInput) || 0;
-      const amountCents = Math.round(val * 100);
-      const res = await fetch("/api/admin/ad-spend", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ adSpendCents: amountCents }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setAdSpendSuccess("Ad spend updated & saved to cloud.");
-        fetchMetrics();
-        setTimeout(() => setAdSpendSuccess(""), 4000);
-      } else {
-        alert(data.error || "Failed to save ad spend.");
-      }
-    } catch (e) {
-      alert("Error saving ad spend.");
-    } finally {
-      setSavingAdSpend(false);
+      setLoadingDiscounts(false);
     }
   };
 
@@ -436,14 +218,13 @@ export default function AdminDashboardPage() {
       } else {
         alert(
           `Handwrytten status updated: ${data.handwryttenStatus || data.status}${
-            data.mailedDate ? ` (Mailed: ${data.mailedDate})` : ""
+            data.handwryttenTrackingNumber ? ` (Tracking: ${data.handwryttenTrackingNumber})` : ""
           }`
         );
       }
       await fetchMetrics();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Network error";
-      alert(`Error syncing status from Handwrytten: ${msg}`);
+    } catch {
+      alert("Error syncing Handwrytten status.");
     } finally {
       setSyncingId(null);
     }
@@ -459,126 +240,15 @@ export default function AdminDashboardPage() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        alert(data.message || data.error || "Could not verify Stripe payment for this order.");
+        alert(`Stripe sync: ${data.error || "Payment not verified or not yet completed."}`);
       } else {
-        alert(data.message || "Stripe payment verified and robotic dispatch started!");
+        alert(`Payment verified! Order status updated: ${data.status}`);
         await fetchMetrics();
       }
     } catch {
-      alert("Network error verifying Stripe payment.");
+      alert("Error verifying payment with Stripe.");
     } finally {
       setSyncingStripeId(null);
-    }
-  };
-
-  const fetchIncidents = async () => {
-    setLoadingIncidents(true);
-    try {
-      const res = await fetch("/api/admin/incidents");
-      if (res.ok) {
-        const data = await res.json();
-        setIncidents(data.incidents || []);
-        setAlertEmail(data.alertEmail || "");
-        setNewAlertEmail(data.alertEmail || "");
-      }
-    } catch (err) {
-      console.error("Error fetching incidents:", err);
-    } finally {
-      setLoadingIncidents(false);
-    }
-  };
-
-  const handleSaveAlertEmail = async () => {
-    setSavingEmail(true);
-    try {
-      const res = await fetch("/api/admin/incidents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "save_alert_email", email: newAlertEmail }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        setAlertEmail(data.alertEmail);
-        alert(data.message || "Alert email updated successfully");
-      } else {
-        alert(data.error || "Failed to save alert email");
-      }
-    } catch {
-      alert("Network error saving alert email");
-    } finally {
-      setSavingEmail(false);
-    }
-  };
-
-  const handleTestAlertEmail = async () => {
-    const targetEmail = newAlertEmail.trim() || alertEmail.trim();
-    if (!targetEmail) {
-      alert("Please enter an alert email address first.");
-      return;
-    }
-    setTestingAlertEmail(true);
-    try {
-      const res = await fetch("/api/admin/incidents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test_alert_email", email: targetEmail }),
-      });
-      const data = await res.json();
-      if (res.ok && data.success) {
-        alert(data.message || `Test alert successfully dispatched to ${targetEmail}! Check your inbox.`);
-      } else {
-        alert(data.error || "Failed to dispatch test alert");
-      }
-    } catch {
-      alert("Network error dispatching test alert.");
-    } finally {
-      setTestingAlertEmail(false);
-    }
-  };
-
-  const handleResolveIncident = async (incidentId: string) => {
-    try {
-      const res = await fetch("/api/admin/incidents", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "resolve_incident", incidentId }),
-      });
-      if (res.ok) {
-        setIncidents((prev) =>
-          prev.map((inc) =>
-            inc.id === incidentId
-              ? {
-                  ...inc,
-                  resolved: true,
-                  resolvedAt: Date.now(),
-                  resolutionNote: "Marked resolved by operator",
-                }
-              : inc
-          )
-        );
-      }
-    } catch (err) {
-      console.error("Error resolving incident:", err);
-    }
-  };
-
-  const fetchDiscounts = async () => {
-    setLoadingDiscounts(true);
-    try {
-      const res = await fetch("/api/admin/discounts");
-      if (res.status === 401) {
-        setIsAuthenticated(false);
-        return;
-      }
-      if (res.ok) {
-        const data = await res.json();
-        setDiscountCodes(data.codes || []);
-        setDiscountStats(data.stats || null);
-      }
-    } catch (err) {
-      console.error("Error fetching discounts:", err);
-    } finally {
-      setLoadingDiscounts(false);
     }
   };
 
@@ -695,36 +365,6 @@ export default function AdminDashboardPage() {
     }, 2500);
   };
 
-  const fetchScenarios = async () => {
-    setLoadingScenarios(true);
-    try {
-      const res = await fetch("/api/admin/scenarios");
-      if (res.status === 401) {
-        setIsAuthenticated(false);
-        return;
-      }
-      if (res.ok) {
-        const data = await res.json();
-        setScenarioMetrics(data.metrics || []);
-        setScenarioSummary(data.summary || null);
-      }
-    } catch (err) {
-      console.error("Error fetching scenario analytics:", err);
-    } finally {
-      setLoadingScenarios(false);
-    }
-  };
-
-  const handleCopyScenarioLink = (path: string) => {
-    if (typeof window === "undefined") return;
-    const url = `${window.location.origin}${path}`;
-    navigator.clipboard.writeText(url);
-    setCopiedScenarioUrl(path);
-    setTimeout(() => {
-      setCopiedScenarioUrl((curr) => (curr === path ? null : curr));
-    }, 2500);
-  };
-
   const applyPreset = (preset: "VIP" | "DOLLAR2" | "PERCENT20") => {
     setDiscountFormError("");
     setDiscountFormSuccess("");
@@ -747,22 +387,6 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    if (!isLockedOut || lockoutRemainingSeconds <= 0) return;
-    const interval = setInterval(() => {
-      setLockoutRemainingSeconds((prev) => {
-        if (prev <= 1) {
-          setIsLockedOut(false);
-          setAuthError("");
-          setRemainingAttempts(5);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isLockedOut, lockoutRemainingSeconds]);
-
-  useEffect(() => {
     const checkAuth = async () => {
       try {
         const res = await fetch("/api/admin/auth");
@@ -773,24 +397,7 @@ export default function AdminDashboardPage() {
             setAdminUserEmail(data.email);
           }
           fetchMetrics();
-          fetchIncidents();
           fetchDiscounts();
-          fetchScenarios();
-          if (typeof window !== "undefined") {
-            const urlTab = new URLSearchParams(window.location.search).get("tab");
-            if (urlTab === "flags" || urlTab === "incidents" || urlTab === "margins" || urlTab === "discounts" || urlTab === "scenarios" || urlTab === "orders") {
-              setActiveTab(urlTab as any);
-            }
-          }
-        } else {
-          if (data.locked) {
-            setIsLockedOut(true);
-            setLockoutRemainingSeconds(data.retryAfterSeconds || 900);
-            setRemainingAttempts(0);
-            setAuthError("Admin portal is temporarily locked due to repeated failed attempts.");
-          } else if (typeof data.remainingAttempts === "number" && data.remainingAttempts < 5) {
-            setRemainingAttempts(data.remainingAttempts);
-          }
         }
       } catch (err) {
         console.error("Admin auth check failed:", err);
@@ -799,40 +406,46 @@ export default function AdminDashboardPage() {
     checkAuth();
   }, []);
 
-  if (!isAuthenticated) {
-    const minutes = Math.floor(lockoutRemainingSeconds / 60);
-    const seconds = lockoutRemainingSeconds % 60;
-    const formattedTimer = `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab") || params.get("workspace");
+      if (tabParam === "measurement") {
+        setActiveTab("measurement");
+      } else if (tabParam === "discounts" || tabParam === "promotions") {
+        setActiveTab("discounts");
+      } else if (tabParam === "orders") {
+        setActiveTab("orders");
+      }
+      const orderIdParam = params.get("orderId");
+      if (orderIdParam) {
+        setSearchQuery(orderIdParam);
+        setExpandedJourneyOrderId(orderIdParam);
+      }
+    }
+  }, []);
 
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#FAF8F5] flex flex-col items-center justify-center p-4">
         <div className="max-w-md w-full bg-white rounded-3xl p-8 border border-stone-200 shadow-xl space-y-6">
           <div className="text-center space-y-2">
-            <div
-              className={`w-12 h-12 mx-auto rounded-2xl flex items-center justify-center shadow-md transition-colors ${
-                isLockedOut ? "bg-rose-900 text-white" : "bg-stone-900 text-white"
-              }`}
-            >
-              {isLockedOut ? (
-                <ShieldAlert className="w-6 h-6 text-rose-400 animate-pulse" />
-              ) : (
-                <Lock className="w-6 h-6 text-amber-400" />
-              )}
+            <div className="w-12 h-12 mx-auto rounded-2xl flex items-center justify-center shadow-md bg-stone-900 text-white">
+              <Lock className="w-6 h-6 text-amber-400" />
             </div>
             <h1 className="text-2xl font-serif font-bold text-stone-900">
-              sendmynotes Admin Portal
+              SendMyNotes Admin Portal
             </h1>
             <p className="text-xs text-stone-500">
-              Sign in with your authorized Google administrator account or enter an admin passphrase.
+              Sign in with your authorized Google account to view orders, verified measurement, and promotions.
             </p>
           </div>
 
-          {/* 1. Account-Bound Authentication (Recommended) */}
           <div className="space-y-3">
             <button
               type="button"
               onClick={handleGoogleAdminLogin}
-              disabled={googleAuthLoading || authLoading}
+              disabled={googleAuthLoading}
               className="w-full flex items-center justify-center gap-3 py-3 px-4 bg-stone-900 hover:bg-black text-white rounded-xl font-medium text-sm transition shadow-md disabled:opacity-50 cursor-pointer"
             >
               {googleAuthLoading ? (
@@ -858,9 +471,7 @@ export default function AdminDashboardPage() {
                 </svg>
               )}
               <span>
-                {user?.email
-                  ? `Continue as ${user.email}`
-                  : "Sign in with Google"}
+                {user?.email ? `Continue as ${user.email}` : "Sign in with Google"}
               </span>
             </button>
 
@@ -878,90 +489,10 @@ export default function AdminDashboardPage() {
             )}
           </div>
 
-          <div className="relative flex py-1 items-center">
-            <div className="flex-grow border-t border-stone-200"></div>
-            <span className="flex-shrink mx-3 text-[11px] font-medium text-stone-400 uppercase tracking-wider">
-              or use passphrase
-            </span>
-            <div className="flex-grow border-t border-stone-200"></div>
-          </div>
-
-          {isLockedOut ? (
-            <div className="p-5 bg-rose-50 border border-rose-200 rounded-2xl text-center space-y-3">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-rose-100 text-rose-800 text-xs font-semibold rounded-full border border-rose-200">
-                <ShieldAlert className="w-3.5 h-3.5" />
-                <span>Brute-Force Lockout Active</span>
-              </div>
-              <p className="text-xs text-rose-700 leading-relaxed font-sans">
-                Too many incorrect passphrase attempts. Access for this IP address is temporarily suspended.
-              </p>
-              <div className="py-2">
-                <div className="text-3xl font-mono font-bold text-rose-900 tracking-wider">
-                  {formattedTimer}
-                </div>
-                <div className="text-[10px] uppercase font-semibold text-rose-500 tracking-wider mt-0.5">
-                  Remaining Cooldown
-                </div>
-              </div>
-              <p className="text-[11px] text-stone-500">
-                The portal will automatically unlock once the cooldown timer expires. (Google sign-in remains active).
-              </p>
-            </div>
-          ) : (
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                if (accessKey.trim()) verifyAccess(accessKey);
-              }}
-              className="space-y-4"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600">
-                    Passphrase
-                  </label>
-                  {remainingAttempts !== null && remainingAttempts < 5 && (
-                    <span className="text-[11px] font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
-                      {remainingAttempts} attempt{remainingAttempts === 1 ? "" : "s"} left
-                    </span>
-                  )}
-                </div>
-                <input
-                  type="password"
-                  value={accessKey}
-                  onChange={(e) => {
-                    setAccessKey(e.target.value);
-                    if (authError) setAuthError("");
-                  }}
-                  disabled={authLoading}
-                  placeholder="Enter admin passphrase"
-                  autoComplete="current-password"
-                  className="w-full px-3.5 py-2.5 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                />
-              </div>
-
-              {authError && (
-                <p className="text-xs text-rose-600 font-medium flex items-center gap-1.5 bg-rose-50 border border-rose-200 p-2.5 rounded-xl">
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                  <span>{authError}</span>
-                </p>
-              )}
-
-              <button
-                type="submit"
-                disabled={authLoading || !accessKey.trim()}
-                className="w-full py-2.5 bg-stone-800 hover:bg-stone-900 disabled:bg-stone-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
-              >
-                {authLoading ? (
-                  <>
-                    <RefreshCw className="w-4 h-4 animate-spin text-stone-300" />
-                    <span>Verifying...</span>
-                  </>
-                ) : (
-                  <span>Unlock with Passphrase</span>
-                )}
-              </button>
-            </form>
+          {authError && (
+            <p role="alert" className="text-sm text-rose-700 bg-rose-50 border border-rose-200 p-3 rounded-xl">
+              {authError}
+            </p>
           )}
 
           <div className="text-center pt-2">
@@ -976,9 +507,9 @@ export default function AdminDashboardPage() {
 
   const filteredOrders = (metrics?.recentOrders || []).filter((order) => {
     const matchesSearch =
-      order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      order.customerEmail.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      `${order.recipientAddress.firstName} ${order.recipientAddress.lastName}`
+      String(order.id || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      String(order.customerEmail || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+      `${order.recipientAddress?.firstName || ""} ${order.recipientAddress?.lastName || ""}`
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
 
@@ -991,466 +522,222 @@ export default function AdminDashboardPage() {
     const q = discountSearchQuery.toLowerCase();
     return (
       c.code.toLowerCase().includes(q) ||
-      (c.description && c.description.toLowerCase().includes(q))
+      Boolean(c.description && c.description.toLowerCase().includes(q))
     );
   });
 
-  const filteredScenarioMetrics = (scenarioMetrics || []).filter((m) => {
-    if (!scenarioSearchQuery) return true;
-    const q = scenarioSearchQuery.toLowerCase();
-    return (
-      m.title.toLowerCase().includes(q) ||
-      m.slug.toLowerCase().includes(q) ||
-      m.category.toLowerCase().includes(q)
-    );
-  });
-
-  const unresolvedIncidents = (incidents || []).filter((i) => !i.resolved);
-  const resolvedIncidents = (incidents || []).filter((i) => i.resolved);
-  const hasActiveAlerts = unresolvedIncidents.length > 0;
-
-  const filteredIncidents = (incidents || []).filter((incident) => {
-    if (incidentFilter === "UNRESOLVED") return !incident.resolved;
-    if (incidentFilter === "RESOLVED") return incident.resolved;
-    return true; // "ALL"
-  });
+  const revenueDollars = ((metrics?.totalRevenueCents || 0) / 100).toFixed(2);
+  const conversionRate =
+    metrics && metrics.funnel.totalSessions > 0
+      ? ((metrics.funnel.paid / metrics.funnel.totalSessions) * 100).toFixed(1)
+      : "0.0";
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden bg-[#FAF8F5] pb-24 md:pb-20 text-stone-900">
-      {/* ADMIN HEADER */}
-      <header className="border-b border-stone-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 md:py-4">
-          {/* MOBILE HEADER BAR (Phone Screens) */}
-          <div className="flex md:hidden items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-stone-900 text-white flex items-center justify-center shrink-0">
-                <ShieldCheck className="w-4 h-4 text-amber-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <span className="font-serif font-bold text-sm text-stone-900 leading-tight">
-                    Admin Console
-                  </span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                </div>
-                <span className="text-[10px] text-stone-400 font-medium block leading-none">
-                  Live Operations
+    <div className="min-h-screen bg-[#FAF8F5] text-stone-900 pb-16">
+      {/* TOP HEADER */}
+      <header className="border-b border-stone-200/90 bg-white sticky top-0 z-30 shadow-2xs">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-stone-900 flex items-center justify-center text-amber-400 font-bold font-serif shadow-xs">
+              S
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-serif text-base font-bold text-stone-900">SendMyNotes</h1>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
+                  Admin Portal
                 </span>
               </div>
-            </div>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setShowCompModal(true)}
-                className="text-xs font-bold text-stone-950 bg-amber-500 hover:bg-amber-600 active:scale-95 px-2.5 py-1.5 rounded-lg flex items-center gap-1 shadow-2xs transition cursor-pointer"
-                title="Dispatch Complimentary Card"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Comp</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  fetchMetrics();
-                  fetchIncidents();
-                  fetchDiscounts();
-                  fetchScenarios();
-                }}
-                disabled={loading || loadingIncidents || loadingDiscounts || loadingScenarios}
-                className="p-2 text-stone-600 hover:bg-stone-100 active:scale-90 rounded-lg transition cursor-pointer"
-                title="Refresh Data & Incidents"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${
-                    loading || loadingIncidents || loadingDiscounts || loadingScenarios ? "animate-spin" : ""
-                  }`}
-                />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMobileMenuOpen(true)}
-                className="p-2 text-stone-700 hover:bg-stone-100 active:scale-90 rounded-lg transition cursor-pointer"
-                aria-label="Open operator menu"
-              >
-                <Menu className="w-5 h-5" />
-              </button>
+              <p className="text-[11px] text-stone-500 hidden sm:block">
+                Operations, verified measurement, and promotions
+              </p>
             </div>
           </div>
 
-          {/* DESKTOP HEADER BAR (Tablet & Desktop) */}
-          <div className="hidden md:flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-stone-900 text-white flex items-center justify-center">
-                <ShieldCheck className="w-5 h-5 text-amber-400" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-serif text-lg font-bold text-stone-900">
-                    sendmynotes Admin
-                  </span>
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300/60">
-                    Live Operations
-                  </span>
-                </div>
-                <p className="text-xs text-stone-400">
-                  Customer telemetry, revenue analytics, and robotic fulfillment monitoring.
-                </p>
-              </div>
-            </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={() => setShowCompModal(true)}
+              className="py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+            >
+              <Gift className="w-3.5 h-3.5" />
+              <span>Send Studio Comp</span>
+            </button>
 
-            <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                fetchMetrics();
+                fetchDiscounts();
+              }}
+              disabled={loading}
+              title="Refresh data"
+              className="p-2 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-xl border border-stone-200 transition cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+            </button>
+
+            {adminUserEmail && (
+              <span className="text-xs text-stone-500 hidden md:inline truncate max-w-[180px]">
+                {adminUserEmail}
+              </span>
+            )}
+
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="py-1.5 px-3 text-xs font-medium text-stone-600 hover:text-rose-700 hover:bg-rose-50 border border-stone-200 rounded-xl transition cursor-pointer"
+            >
+              Sign Out
+            </button>
+
+            <Link
+              href="/"
+              className="text-xs font-medium text-stone-500 hover:text-stone-800 transition hidden lg:inline"
+            >
+              &larr; Storefront
+            </Link>
+          </div>
+        </div>
+
+        {/* 3 FOCUSED TABS NAVIGATION */}
+        <div className="border-t border-stone-100 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <nav className="flex items-center gap-2 sm:gap-8 overflow-x-auto py-2 sm:py-0" aria-label="Admin Tabs">
               <button
                 type="button"
-                onClick={() => setShowCompModal(true)}
-                className="text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3.5 py-2 rounded-xl transition inline-flex items-center gap-1.5 shadow-xs cursor-pointer"
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Dispatch Comp Card</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  fetchMetrics();
-                  fetchIncidents();
-                  fetchDiscounts();
-                  fetchScenarios();
-                }}
-                disabled={loading || loadingIncidents || loadingDiscounts || loadingScenarios}
-                className="p-2 bg-stone-100 hover:bg-stone-200 text-stone-700 rounded-xl transition cursor-pointer"
-                title="Refresh Data & Incidents"
-              >
-                <RefreshCw
-                  className={`w-4 h-4 ${
-                    loading || loadingIncidents || loadingDiscounts || loadingScenarios ? "animate-spin" : ""
-                  }`}
-                />
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveTab("flags")}
-                className={`text-xs font-semibold flex items-center gap-1.5 px-3.5 py-2 rounded-xl transition cursor-pointer ${
-                  activeTab === "flags"
-                    ? "bg-amber-600 text-white shadow-xs"
-                    : "text-amber-900 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-200/80"
+                onClick={() => handleTabChange("orders")}
+                className={`py-2 sm:py-3.5 px-3 rounded-xl sm:rounded-none sm:border-b-2 text-xs sm:text-sm font-medium inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                  activeTab === "orders"
+                    ? "bg-stone-900 text-white sm:bg-transparent sm:border-stone-900 sm:text-stone-900 font-semibold"
+                    : "text-stone-600 hover:text-stone-900 hover:bg-stone-50 sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300"
                 }`}
-                title="Feature Flags & V3 Rollout Controls"
               >
-                <Sliders className="w-3.5 h-3.5" />
-                <span>Feature Flags</span>
+                <Package className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Orders &amp; Fulfillment</span>
+                {metrics?.totalOrders !== undefined && (
+                  <span
+                    className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
+                      activeTab === "orders"
+                        ? "bg-stone-800 text-stone-200 sm:bg-stone-100 sm:text-stone-700"
+                        : "bg-stone-100 text-stone-600"
+                    }`}
+                  >
+                    {metrics.totalOrders}
+                  </span>
+                )}
               </button>
-              <Link
-                href="/"
-                className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1.5 bg-stone-100 px-3.5 py-2 rounded-xl transition"
-              >
-                <ArrowLeft className="w-3.5 h-3.5" />
-                <span>Storefront</span>
-              </Link>
+
               <button
                 type="button"
-                onClick={handleLogout}
-                className="text-xs font-semibold text-rose-700 hover:text-rose-900 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl border border-rose-200 transition cursor-pointer"
+                onClick={() => handleTabChange("measurement")}
+                className={`py-2 sm:py-3.5 px-3 rounded-xl sm:rounded-none sm:border-b-2 text-xs sm:text-sm font-medium inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                  activeTab === "measurement"
+                    ? "bg-stone-900 text-white sm:bg-transparent sm:border-stone-900 sm:text-stone-900 font-semibold"
+                    : "text-stone-600 hover:text-stone-900 hover:bg-stone-50 sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300"
+                }`}
               >
-                Log Out
+                <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Measurement</span>
               </button>
-            </div>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange("discounts")}
+                className={`py-2 sm:py-3.5 px-3 rounded-xl sm:rounded-none sm:border-b-2 text-xs sm:text-sm font-medium inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                  activeTab === "discounts"
+                    ? "bg-stone-900 text-white sm:bg-transparent sm:border-stone-900 sm:text-stone-900 font-semibold"
+                    : "text-stone-600 hover:text-stone-900 hover:bg-stone-50 sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300"
+                }`}
+              >
+                <Tag className="w-4 h-4 text-indigo-600 shrink-0" />
+                <span>Discounts</span>
+                {discountStats?.activeCodes !== undefined && discountStats.activeCodes > 0 && (
+                  <span
+                    className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
+                      activeTab === "discounts"
+                        ? "bg-stone-800 text-stone-200 sm:bg-stone-100 sm:text-stone-700"
+                        : "bg-stone-100 text-stone-600"
+                    }`}
+                  >
+                    {discountStats.activeCodes}
+                  </span>
+                )}
+              </button>
+            </nav>
           </div>
         </div>
       </header>
 
-      {/* MOBILE SLIDE-OVER DRAWER */}
-      {mobileMenuOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div
-            className="fixed inset-0 bg-stone-900/60 backdrop-blur-xs transition-opacity"
-            onClick={() => setMobileMenuOpen(false)}
-          />
-          <div className="relative w-4/5 max-w-xs bg-white h-full shadow-2xl p-5 flex flex-col justify-between z-10">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-stone-200">
-                <div className="flex items-center gap-2">
-                  <div className="w-7 h-7 rounded-lg bg-stone-900 text-amber-400 font-bold text-xs flex items-center justify-center">
-                    SMN
-                  </div>
-                  <div>
-                    <span className="font-serif font-bold text-sm text-stone-900 block leading-tight">
-                      Operator Tools
-                    </span>
-                    <span className="text-[10px] text-stone-400">sendmynotes Admin</span>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMobileMenuOpen(false)}
-                  className="p-1 rounded-lg text-stone-400 hover:text-stone-700 cursor-pointer"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setShowCompModal(true);
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-amber-50 text-xs font-semibold text-amber-900 bg-amber-50/60 border border-amber-200 transition text-left cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-600" />
-                    Dispatch Comp Card
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-amber-500" />
-                </button>
-
-                <Link
-                  href="/"
-                  className="flex items-center justify-between p-2.5 rounded-xl hover:bg-stone-50 text-xs font-semibold text-stone-700 transition"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  <span className="flex items-center gap-2">
-                    <ArrowLeft className="w-4 h-4 text-stone-400" />
-                    Return to Storefront
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-stone-400" />
-                </Link>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setActiveTab("flags");
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-between p-2.5 rounded-xl hover:bg-stone-50 text-xs font-semibold text-stone-700 transition text-left cursor-pointer"
-                >
-                  <span className="flex items-center gap-2">
-                    <Sliders className="w-4 h-4 text-amber-600" />
-                    Feature Flags &amp; V3 Rollout
-                  </span>
-                  <ChevronRight className="w-4 h-4 text-stone-400" />
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-stone-200">
-              <button
-                type="button"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  handleLogout();
-                }}
-                className="w-full py-2.5 text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 rounded-xl transition text-center cursor-pointer"
-              >
-                Log Out of Admin
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ADMIN TABS NAVIGATION */}
-      <div className="border-b border-stone-200/80 bg-white shadow-2xs">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <nav className="flex items-center gap-1.5 sm:gap-8 overflow-x-auto py-2.5 sm:py-0 no-scrollbar scroll-smooth" aria-label="Admin Tabs">
-            <button
-              type="button"
-              onClick={() => setActiveTab("orders")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "orders"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-stone-900 sm:text-stone-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-            >
-              <Target className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 shrink-0" />
-              <span>Command Center</span>
-              {metrics?.totalOrders !== undefined && (
-                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                  activeTab === "orders"
-                    ? "bg-stone-800 text-stone-200 sm:bg-stone-100 sm:text-stone-600"
-                    : "bg-stone-100 text-stone-600 sm:bg-stone-100"
-                }`}>
-                  {metrics.totalOrders}
-                </span>
-              )}
-            </button>
-
-            {/* 2. SYSTEM HEALTH & INCIDENTS (Positioned second; font & icon reflect live health) */}
-            <button
-              type="button"
-              onClick={() => setActiveTab("incidents")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                hasActiveAlerts
-                  ? activeTab === "incidents"
-                    ? "bg-rose-600 text-white shadow-xs ring-1 ring-rose-600 sm:bg-rose-50/30 sm:border-rose-600 sm:text-rose-700 sm:shadow-none sm:ring-0 font-bold"
-                    : "bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-rose-600 font-semibold"
-                  : activeTab === "incidents"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-emerald-50/30 sm:border-emerald-600 sm:text-emerald-800 sm:shadow-none sm:ring-0 font-bold"
-                  : "bg-white text-emerald-800 hover:text-emerald-900 hover:bg-stone-50 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-emerald-700 font-medium sm:shadow-none"
-              }`}
-            >
-              {/* Alert icon ONLY shows up when there are active/unresolved alerts */}
-              {hasActiveAlerts ? (
-                <AlertTriangle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white sm:text-rose-600 animate-pulse shrink-0" />
-              ) : (
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-              )}
-              <span>System Health</span>
-              {hasActiveAlerts ? (
-                <span className="ml-1 py-0.5 px-1.5 rounded-full text-[10px] bg-rose-100 text-rose-800 font-bold border border-rose-200">
-                  {unresolvedIncidents.length}
-                </span>
-              ) : (
-                <span className="ml-1 py-0.5 px-1.5 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-medium">
-                  Healthy
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("margins")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "margins"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-emerald-600 sm:text-emerald-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-            >
-              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600 shrink-0" />
-              <span>Unit Economics</span>
-
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("discounts")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "discounts"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-amber-600 sm:text-amber-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-            >
-              <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 shrink-0" />
-              <span>Discounts</span>
-              {discountStats?.activeCodes !== undefined && discountStats.activeCodes > 0 && (
-                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                  activeTab === "discounts"
-                    ? "bg-stone-800 text-amber-300 sm:bg-amber-100 sm:text-amber-800"
-                    : "bg-stone-100 text-stone-600 sm:bg-amber-100 sm:text-amber-800"
-                }`}>
-                  {discountStats.activeCodes}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("scenarios")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "scenarios"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-indigo-600 sm:text-indigo-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-            >
-              <Globe className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-500 shrink-0" />
-              <span>SEO</span>
-              {scenarioSummary?.activeScenariosCount !== undefined && (
-                <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                  activeTab === "scenarios"
-                    ? "bg-stone-800 text-indigo-300 sm:bg-indigo-100 sm:text-indigo-800"
-                    : "bg-stone-100 text-stone-600 sm:bg-indigo-100 sm:text-indigo-800"
-                }`}>
-                  {scenarioSummary.activeScenariosCount}
-                </span>
-              )}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActiveTab("flags")}
-              className={`shrink-0 py-2 sm:py-3.5 px-3.5 sm:px-3 rounded-full sm:rounded-none sm:border-b-2 font-medium text-xs sm:text-sm inline-flex items-center gap-1.5 sm:gap-2 cursor-pointer transition whitespace-nowrap ${
-                activeTab === "flags"
-                  ? "bg-stone-900 text-white shadow-xs ring-1 ring-stone-900 sm:bg-transparent sm:border-amber-600 sm:text-amber-900 sm:shadow-none sm:ring-0 font-semibold"
-                  : "bg-white text-stone-600 hover:text-stone-900 hover:bg-stone-100 border border-stone-200/90 shadow-2xs sm:bg-transparent sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300 sm:shadow-none"
-              }`}
-              title="Configure SendMyNotes Rework V3 Feature Flags"
-            >
-              <Sliders className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600 shrink-0" />
-              <span>Flags</span>
-              <span className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                activeTab === "flags"
-                  ? "bg-stone-800 text-amber-300 sm:bg-amber-100 sm:text-amber-800"
-                  : "bg-amber-100 text-amber-800"
-              }`}>
-                V3
-              </span>
-            </button>
-          </nav>
-        </div>
-      </div>
-
-      <main className="max-w-7xl w-full mx-auto px-3 sm:px-6 lg:px-8 pt-3 sm:pt-8 space-y-4 sm:space-y-8 min-w-0">
-        {/* LIVE HANDWRYTTEN STATUS & BALANCE WIDGET */}
-        <HandwryttenStatusWidget />
-        {/* ===================== TAB: ORDERS & OPERATIONS ===================== */}
+      {/* MAIN BODY */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        {/* ===================== TAB 1: ORDERS & FULFILLMENT ===================== */}
         {activeTab === "orders" && (
-          <div className="space-y-5 sm:space-y-8">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm leading-relaxed text-amber-950">
-              <strong>Founder review — October 26, 2026:</strong> One external $9 sale was confirmed in the reviewed history; the other paid orders were founder tests. The report below uses payment evidence and reporting reconciliation, and counts later verified customer orders normally.
+          <div className="space-y-6">
+            {/* Handwrytten Status Widget */}
+            <HandwryttenStatusWidget />
+
+            {/* CANONICAL BASELINE DISCLOSURE BANNER */}
+            <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-900 text-xs">
+              <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+              <div className="space-y-0.5">
+                <p className="font-semibold text-amber-950">
+                  Canonical Baseline Notice (Oct 11, 2026)
+                </p>
+                <p className="text-amber-800 leading-relaxed">
+                  Canonical baseline (Oct 11, 2026): 0 independent customer conversions (1 founder test). Any un-reconciled historical paid record requires verification against Stripe and founder test records before counting as independent customer demand.
+                </p>
+              </div>
             </div>
-            <AdminMeasurementPanel onInspectOrder={setMeasurementOrderId} />
-            {measurementOrderId && (
-              <section className="rounded-2xl border border-stone-200 bg-white p-4" aria-label="Selected order diagnostics">
-                <div className="mb-3 flex items-center justify-between gap-3">
-                  <h2 className="text-sm font-bold">Order attribution diagnostics</h2>
-                  <button type="button" onClick={() => setMeasurementOrderId(null)} className="min-h-10 px-3 text-sm underline">Close diagnostics</button>
+
+            {/* KPI METRIC CARDS */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+                  <span>Gross Revenue</span>
+                  <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
                 </div>
-                {(() => {
-                  const order = metrics?.recentOrders.find((item) => item.id === measurementOrderId);
-                  return order ? <OrderJourneyDrawer order={order} onInspectProof={setSelectedProofOrderId} onRetryAddress={setAddressRetryOrder} /> : (
-                    <p className="text-sm text-stone-600">This order is outside the currently loaded operational list. Its payment evidence is in the measurement report above. Select All Time and include founder/test records in the operational controls below to load its browser delivery diagnostics.</p>
-                  );
-                })()}
-              </section>
-            )}
-            <div className="grid grid-cols-2 gap-3" aria-label="Operational counts from the legacy order list">
-              <div className="rounded-2xl border border-stone-200 bg-white p-4">
-                <p className="text-xs font-semibold text-stone-500">Inking queue · operational</p>
-                <p className="mt-1 text-2xl font-bold">{metrics?.ordersByStatus.processing ?? "Unavailable"}</p>
-                <p className="text-xs text-stone-500">Fulfillment status, not a payment count</p>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">${revenueDollars}</p>
+                <p className="text-[10px] sm:text-[11px] text-stone-400">$9.00 flat per card</p>
               </div>
-              <div className="rounded-2xl border border-stone-200 bg-white p-4">
-                <p className="text-xs font-semibold text-stone-500">Order records · operational</p>
-                <p className="mt-1 text-2xl font-bold">{metrics?.totalOrders ?? "Unavailable"}</p>
-                <p className="text-xs text-stone-500">Legacy list scope includes drafts and testing</p>
+
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+                  <span>Inking Queue</span>
+                  <PenTool className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-indigo-600" />
+                </div>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-indigo-900">
+                  {metrics?.ordersByStatus.processing || 0}
+                </p>
+                <p className="text-[10px] sm:text-[11px] text-indigo-600 font-medium">Dispatched to HW</p>
+              </div>
+
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+                  <span>Total Orders</span>
+                  <Package className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-600" />
+                </div>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">
+                  {metrics?.totalOrders || 0}
+                </p>
+                <p className="text-[10px] sm:text-[11px] text-stone-400">
+                  {metrics?.ordersByStatus.pending || 0} pending drafts
+                </p>
+              </div>
+
+              <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-stone-500 text-[10px] sm:text-xs font-semibold uppercase tracking-wider">
+                  <span>Conversion</span>
+                  <TrendingUp className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-600" />
+                </div>
+                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">{conversionRate}%</p>
+                <p className="text-[10px] sm:text-[11px] text-stone-400">
+                  {metrics?.funnel.paid || 0} paid / {metrics?.funnel.totalSessions || 0} visits
+                </p>
               </div>
             </div>
 
-            {/* ENRICHED VISITOR TELEMETRY & DROP-OFF WATERFALL */}
-            <VisitorTelemetryDashboard
-              metrics={metrics}
-              filterDateRange={filterDateRange}
-              onDateRangeChange={handleDateRangeChange}
-              excludeFounder={excludeFounder}
-              onExcludeFounderChange={handleExcludeFounderChange}
-              filterChannel={filterChannel}
-              onChannelChange={handleChannelChange}
-              customFrom={customFrom}
-              customTo={customTo}
-              onCustomDateChange={handleCustomDateChange}
-              onRefresh={() => fetchMetrics()}
-              isMarkingFounder={isMarkingFounder}
-              onMarkFounderDevice={handleMarkFounderDevice}
-              founderMarkedSuccess={founderMarkedSuccess}
-              onUnflagFounderSessions={handleUnflagFounderSessions}
-              isUnflaggingFounder={isUnflaggingFounder}
-              unflagFounderSuccess={unflagFounderSuccess}
-            />
-
-
-            {/* RECENT ORDERS TABLE & MOBILE CARDS */}
+            {/* RECENT ORDERS TABLE & CONTROLS */}
             <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-stone-100">
                 <div>
@@ -1481,7 +768,7 @@ export default function AdminDashboardPage() {
                     className="px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none"
                   >
                     <option value="ALL">All Statuses</option>
-                    <option value="PROCESSING_HANDWRYTTEN">Processing / Inked</option>
+                    <option value="PROCESSING_HANDWRYTTEN">Submitted to Supplier</option>
                     <option value="PENDING_PAYMENT">Pending Draft</option>
                     <option value="FAILED">Failed</option>
                   </select>
@@ -1494,7 +781,7 @@ export default function AdminDashboardPage() {
                 </div>
               ) : (
                 <>
-                  {/* MOBILE ORDER CARDS (Phone Screens) */}
+                  {/* MOBILE ORDER CARDS */}
                   <div className="md:hidden space-y-3 w-full min-w-0">
                     {filteredOrders.map((order) => {
                       const isMailed = order.status === "MAILED";
@@ -1502,16 +789,16 @@ export default function AdminDashboardPage() {
                       const isPending = order.status === "PENDING_PAYMENT";
                       const isQueued = order.status === "QUEUED_FOR_FULFILLMENT";
                       const isFailed = order.status === "FAILED" || order.status === "PAYMENT_VERIFICATION_FAILED";
-                      const isComp = order.paymentMethod === "STUDIO_COMP";
+                      const isComp = order.paymentMethod === "STUDIO_COMP" || order.isComp;
                       const canRetry = !isProcessing && !isPending && !isMailed;
 
-                      let statusLabel = order.status.replace(/_/g, " ");
+                      let statusLabel = String(order.status || "UNKNOWN").replace(/_/g, " ");
                       let statusStyle = "bg-stone-100 text-stone-700 border-stone-200";
                       if (isMailed) {
                         statusLabel = "Mailed";
                         statusStyle = "bg-purple-50 text-purple-700 border-purple-200";
                       } else if (isProcessing) {
-                        statusLabel = "Inking (Robot)";
+                        statusLabel = "Submitted to Supplier";
                         statusStyle = "bg-emerald-50 text-emerald-800 border-emerald-200";
                       } else if (isPending) {
                         statusLabel = "Pending";
@@ -1537,7 +824,6 @@ export default function AdminDashboardPage() {
                           key={order.id}
                           className="bg-white rounded-2xl p-3.5 border border-stone-200 shadow-2xs space-y-3 w-full min-w-0 overflow-hidden"
                         >
-                          {/* Top Header: Order ID & Status Badge */}
                           <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-100 min-w-0">
                             <Link
                               href={`/order/${order.id}`}
@@ -1556,7 +842,6 @@ export default function AdminDashboardPage() {
                             </span>
                           </div>
 
-                          {/* Middle Body: Thumbnail, Recipient & Price */}
                           <div className="flex items-start gap-3 min-w-0">
                             <div className="relative w-12 h-16 rounded-xl overflow-hidden border border-stone-200 shadow-2xs bg-stone-100 shrink-0">
                               <Image
@@ -1573,10 +858,10 @@ export default function AdminDashboardPage() {
                               <div className="flex items-start justify-between gap-2 min-w-0">
                                 <div className="min-w-0">
                                   <p className="text-xs font-bold text-stone-900 truncate">
-                                    {order.recipientAddress.firstName} {order.recipientAddress.lastName}
+                                    {order.recipientAddress?.firstName} {order.recipientAddress?.lastName}
                                   </p>
                                   <p className="text-[11px] text-stone-500 truncate">
-                                    {order.recipientAddress.city}, {order.recipientAddress.state} {order.recipientAddress.zip}
+                                    {order.recipientAddress?.city}, {order.recipientAddress?.state} {order.recipientAddress?.zip}
                                   </p>
                                 </div>
                                 <div className="text-right shrink-0">
@@ -1609,7 +894,6 @@ export default function AdminDashboardPage() {
                             </div>
                           </div>
 
-                          {/* Customer Email & Attribution */}
                           <div className="text-[11px] text-stone-500 pt-2 border-t border-stone-100 flex items-center justify-between min-w-0 gap-2">
                             <span className="text-stone-400 text-[10px] uppercase font-semibold tracking-wider shrink-0">Buyer</span>
                             <span className="truncate max-w-[220px] font-medium text-stone-700">
@@ -1626,7 +910,6 @@ export default function AdminDashboardPage() {
                             </div>
                           )}
 
-                          {/* 360 Customer Journey Toggle */}
                           <button
                             type="button"
                             onClick={() =>
@@ -1648,7 +931,6 @@ export default function AdminDashboardPage() {
                             </span>
                           </button>
 
-                          {/* Expanded 360 Journey Drawer */}
                           {expandedJourneyOrderId === order.id && (
                             <div className="pt-2">
                               <OrderJourneyDrawer
@@ -1659,7 +941,6 @@ export default function AdminDashboardPage() {
                             </div>
                           )}
 
-                          {/* Mobile Action Buttons */}
                           <div className="grid grid-cols-2 gap-2 pt-1">
                             <button
                               type="button"
@@ -1714,362 +995,306 @@ export default function AdminDashboardPage() {
                   {/* DESKTOP ORDERS TABLE */}
                   <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left text-xs text-stone-600">
-                    <thead className="bg-stone-50 text-stone-400 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
-                      <tr>
-                        <th className="py-3 px-4">Card Art</th>
-                        <th className="py-3 px-4">Order ID & Date</th>
-                        <th className="py-3 px-4">Attribution / Ad</th>
-                        <th className="py-3 px-4">Recipient</th>
-                        <th className="py-3 px-4">Customer Email</th>
-                        <th className="py-3 px-4">Status & Robot ID</th>
-                        <th className="py-3 px-4 text-right">Amount</th>
-                        <th className="py-3 px-4 text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-100">
-                      {filteredOrders.map((order) => {
-                        const isMailed = order.status === "MAILED";
-                        const isProcessing =
-                          order.status === "PROCESSING_HANDWRYTTEN";
-                        const isPending = order.status === "PENDING_PAYMENT";
-                        const canRetry = !isProcessing && !isPending && !isMailed;
+                      <thead className="bg-stone-50 text-stone-400 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
+                        <tr>
+                          <th className="py-3 px-4">Card Art</th>
+                          <th className="py-3 px-4">Order ID &amp; Date</th>
+                          <th className="py-3 px-4">Attribution / Ad</th>
+                          <th className="py-3 px-4">Recipient</th>
+                          <th className="py-3 px-4">Customer Email</th>
+                          <th className="py-3 px-4">Status &amp; Robot ID</th>
+                          <th className="py-3 px-4 text-right">Amount</th>
+                          <th className="py-3 px-4 text-center">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-stone-100">
+                        {filteredOrders.map((order) => {
+                          const isMailed = order.status === "MAILED";
+                          const isProcessing = order.status === "PROCESSING_HANDWRYTTEN";
+                          const isPending = order.status === "PENDING_PAYMENT";
+                          const canRetry = !isProcessing && !isPending && !isMailed;
 
-                        return (
-                          <React.Fragment key={order.id}>
-                            <tr className="hover:bg-stone-50/50 transition">
-                              <td className="py-3 px-4">
-                                <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-stone-100 flex-shrink-0">
-                                  <Image
-                                    src={order.frontImageUrl}
-                                    alt="Cover"
-                                    fill
-                                    sizes="40px"
-                                    unoptimized
-                                    className="object-cover"
-                                  />
-                                </div>
-                              </td>
-                              <td className="py-3 px-4">
-                                <Link
-                                  href={`/order/${order.id}`}
-                                  className="font-mono font-medium text-stone-900 hover:text-amber-600 hover:underline block"
-                                >
-                                  {order.id}
-                                </Link>
-                                <span className="text-[10px] text-stone-400">
-                                  {new Date(order.createdAt).toLocaleDateString()} at{" "}
-                                  {new Date(order.createdAt).toLocaleTimeString([], {
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                  })}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4">
-                                {order.attribution ? (
-                                  <div className="space-y-0.5 max-w-[140px]">
-                                    <div className="flex items-center gap-1">
-                                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200 truncate">
-                                        {order.attribution.utmCampaign || order.attribution.utmSource || "Direct"}
-                                      </span>
-                                    </div>
-                                    {order.attribution.gclid && (
-                                      <span
-                                        className="inline-block text-[9px] font-mono text-stone-500 bg-stone-100 px-1 py-0.5 rounded truncate max-w-[130px]"
-                                        title={order.attribution.gclid}
-                                      >
-                                        GCLID: {order.attribution.gclid.slice(0, 8)}...
-                                      </span>
-                                    )}
-                                    {order.attribution.googleClientId && (
-                                      <span
-                                        className="block text-[9px] font-mono text-stone-400 truncate"
-                                        title={order.attribution.googleClientId}
-                                      >
-                                        GA4: {order.attribution.googleClientId.split(".").slice(-2).join(".")}
-                                      </span>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <span className="text-stone-300 text-[11px] font-mono">Organic/Direct</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4">
-                                <p className="font-semibold text-stone-800">
-                                  {order.recipientAddress.firstName} {order.recipientAddress.lastName}
-                                </p>
-                                <p className="text-[11px] text-stone-400 truncate max-w-[180px]">
-                                  {order.recipientAddress.city}, {order.recipientAddress.state}{" "}
-                                  {order.recipientAddress.zip}
-                                </p>
-                              </td>
-                              <td className="py-3 px-4 truncate max-w-[160px]">
-                                {order.customerEmail || "Guest (in checkout)"}
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="space-y-1">
-                                  <span
-                                    className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                      isMailed
-                                        ? "bg-purple-100 text-purple-800 border border-purple-200"
-                                        : isProcessing
-                                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
-                                        : isPending
-                                        ? "bg-stone-100 text-stone-600 border border-stone-200"
-                                        : "bg-amber-100 text-amber-800 border border-amber-200"
-                                    }`}
-                                  >
-                                    {order.status === "QUEUED_FOR_FULFILLMENT"
-                                      ? "QUEUED"
-                                      : order.status}
-                                  </span>
-                                  {order.handwryttenOrderId && (
-                                    <p className="font-mono text-[9px] text-indigo-700">
-                                      HW: {order.handwryttenOrderId}
-                                    </p>
-                                  )}
-                                  {order.handwryttenStatus && (
-                                    <p className="text-[10px] font-medium text-stone-600">
-                                      HW: <span className="capitalize font-semibold text-stone-900">{order.handwryttenStatus}</span>
-                                    </p>
-                                  )}
-                                  {order.handwryttenMailedDate && (
-                                    <p className="text-[9px] text-purple-700 font-medium">
-                                      Mailed: {order.handwryttenMailedDate}
-                                    </p>
-                                  )}
-                                  {order.handwryttenTrackingNumber && (
-                                    <p className="text-[9px] text-stone-500 font-mono">
-                                      Trk: {order.handwryttenTrackingNumber}
-                                    </p>
-                                  )}
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-right">
-                                <span className="font-serif font-bold text-stone-900 text-sm">
-                                  ${((order.amountInCents || 900) / 100).toFixed(2)}
-                                </span>
-                                {order.discountCode && (
-                                  <div className="mt-1 flex items-center justify-end gap-1">
-                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                                      <Tag className="w-2.5 h-2.5" />
-                                      {order.discountCode}
-                                    </span>
-                                    {order.paymentMethod === "PROMO_CODE" && (
-                                      <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
-                                        VIP Free
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                <div className="flex flex-col items-center gap-1.5">
-                                  <div className="flex items-center gap-1">
-                                    <button
-                                      type="button"
-                                      onClick={() => setSelectedProofOrderId(order.id)}
-                                      className="px-2 py-0.5 text-[10px] font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded border border-stone-200 transition inline-flex items-center gap-1 cursor-pointer"
-                                      title="Inspect 1:1 card proof and live handwriting"
-                                    >
-                                      <Eye className="w-3 h-3 text-stone-500" />
-                                      <span>Proof</span>
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={() =>
-                                        setExpandedJourneyOrderId(
-                                          expandedJourneyOrderId === order.id ? null : order.id
-                                        )
-                                      }
-                                      className={`px-2 py-0.5 text-[10px] font-semibold rounded border transition inline-flex items-center gap-1 cursor-pointer ${
-                                        expandedJourneyOrderId === order.id
-                                          ? "bg-amber-900 text-amber-100 border-amber-950 shadow-inner"
-                                          : "bg-amber-50 text-amber-900 hover:bg-amber-100 border-amber-200"
-                                      }`}
-                                      title="Toggle 360 Customer Journey Drawer"
-                                    >
-                                      <Compass className="w-3 h-3 text-amber-600" />
-                                      <span>{expandedJourneyOrderId === order.id ? "Hide" : "360°"}</span>
-                                    </button>
-                                  </div>
-                                  {canRetry && (
-                                    <div className="flex items-center gap-1">
-                                      <button
-                                        onClick={() => handleRetryFulfillment(order.id)}
-                                        disabled={retryingId === order.id}
-                                        className="px-2 py-0.5 text-[10px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded border border-amber-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
-                                      >
-                                        <RefreshCw
-                                          className={`w-2.5 h-2.5 ${
-                                            retryingId === order.id ? "animate-spin" : ""
-                                          }`}
-                                        />
-                                        {retryingId === order.id ? "Inking..." : "Retry"}
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={() => setAddressRetryOrder(order)}
-                                        className="px-2 py-0.5 text-[10px] font-medium text-stone-700 bg-white hover:bg-stone-100 rounded border border-stone-300 transition inline-flex items-center gap-1 cursor-pointer"
-                                        title="Edit recipient address before retry"
-                                      >
-                                        <MapPin className="w-2.5 h-2.5 text-stone-500" />
-                                        <span>Edit</span>
-                                      </button>
-                                    </div>
-                                  )}
-                                  {order.handwryttenOrderId && (
-                                    <button
-                                      onClick={() => handleSyncHandwrytten(order.id)}
-                                      disabled={syncingId === order.id}
-                                      title="Check latest order and postal status directly from Handwrytten API"
-                                      className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
-                                    >
-                                      <RefreshCw
-                                        className={`w-2.5 h-2.5 ${
-                                          syncingId === order.id ? "animate-spin" : ""
-                                        }`}
-                                      />
-                                      {syncingId === order.id ? "Checking..." : "Sync HW"}
-                                    </button>
-                                  )}
-                                  {isMailed && (
-                                    <span className="text-[11px] text-purple-700 font-medium inline-flex items-center gap-1">
-                                      <CheckCircle2 className="w-3 h-3" /> Mailed
-                                    </span>
-                                  )}
-                                  {isProcessing && !isMailed && (
-                                    <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
-                                      <CheckCircle2 className="w-3 h-3" /> Dispatched
-                                    </span>
-                                  )}
-                                  {isPending && (
-                                    <button
-                                      onClick={() => handleSyncStripe(order.id)}
-                                      disabled={syncingStripeId === order.id}
-                                      title="Check if customer completed payment on Stripe and initiate fulfillment"
-                                      className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
-                                    >
-                                      <CreditCard className={`w-3 h-3 ${syncingStripeId === order.id ? "animate-spin" : ""}`} />
-                                      {syncingStripeId === order.id ? "Verifying..." : "Verify Stripe"}
-                                    </button>
-                                  )}
-                                  {!isPending && !canRetry && !order.handwryttenOrderId && (
-                                    <span className="text-stone-300">—</span>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                            {expandedJourneyOrderId === order.id && (
-                              <tr key={`${order.id}-journey`} className="bg-stone-50/80">
-                                <td colSpan={8} className="p-0 border-b border-stone-200">
-                                  <div className="p-4 sm:p-6 bg-stone-50/60 border-t border-b border-stone-200/80">
-                                    <OrderJourneyDrawer
-                                      order={order}
-                                      onInspectProof={(id) => setSelectedProofOrderId(id)}
-                                      onRetryAddress={(ord) => setAddressRetryOrder(ord)}
+                          return (
+                            <React.Fragment key={order.id}>
+                              <tr className="hover:bg-stone-50/50 transition">
+                                <td className="py-3 px-4">
+                                  <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-stone-100 flex-shrink-0">
+                                    <Image
+                                      src={order.frontImageUrl}
+                                      alt="Cover"
+                                      fill
+                                      sizes="40px"
+                                      unoptimized
+                                      className="object-cover"
                                     />
                                   </div>
                                 </td>
+                                <td className="py-3 px-4">
+                                  <Link
+                                    href={`/order/${order.id}`}
+                                    className="font-mono font-medium text-stone-900 hover:text-amber-600 hover:underline block"
+                                  >
+                                    {order.id}
+                                  </Link>
+                                  <span className="text-[10px] text-stone-400">
+                                    {new Date(order.createdAt).toLocaleDateString()} at{" "}
+                                    {new Date(order.createdAt).toLocaleTimeString([], {
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  {order.attribution ? (
+                                    <div className="space-y-0.5 max-w-[140px]">
+                                      <div className="flex items-center gap-1">
+                                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-900 border border-amber-200 truncate">
+                                          {order.attribution.utmCampaign || order.attribution.utmSource || "Direct"}
+                                        </span>
+                                      </div>
+                                      {order.attribution.gclid && (
+                                        <span
+                                          className="inline-block text-[9px] font-mono text-stone-500 bg-stone-100 px-1 py-0.5 rounded truncate max-w-[130px]"
+                                          title={order.attribution.gclid}
+                                        >
+                                          GCLID: {order.attribution.gclid.slice(0, 8)}...
+                                        </span>
+                                      )}
+                                      {order.attribution.googleClientId && (
+                                        <span
+                                          className="block text-[9px] font-mono text-stone-400 truncate"
+                                          title={order.attribution.googleClientId}
+                                        >
+                                          GA4: {order.attribution.googleClientId.split(".").slice(-2).join(".")}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-stone-300 text-[11px] font-mono">Organic/Direct</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <p className="font-semibold text-stone-800">
+                                    {order.recipientAddress?.firstName} {order.recipientAddress?.lastName}
+                                  </p>
+                                  <p className="text-[11px] text-stone-400 truncate max-w-[180px]">
+                                    {order.recipientAddress?.city}, {order.recipientAddress?.state}{" "}
+                                    {order.recipientAddress?.zip}
+                                  </p>
+                                </td>
+                                <td className="py-3 px-4 truncate max-w-[160px]">
+                                  {order.customerEmail || "Guest (in checkout)"}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="space-y-1">
+                                    <span
+                                      className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                        isMailed
+                                          ? "bg-purple-100 text-purple-800 border border-purple-200"
+                                          : isProcessing
+                                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                                          : isPending
+                                          ? "bg-stone-100 text-stone-600 border border-stone-200"
+                                          : "bg-amber-100 text-amber-800 border border-amber-200"
+                                      }`}
+                                    >
+                                      {order.status === "QUEUED_FOR_FULFILLMENT"
+                                        ? "QUEUED"
+                                        : order.status === "PROCESSING_HANDWRYTTEN"
+                                        ? "SUBMITTED TO SUPPLIER"
+                                        : order.status}
+                                    </span>
+                                    {order.handwryttenOrderId && (
+                                      <p className="font-mono text-[9px] text-indigo-700">
+                                        HW: {order.handwryttenOrderId}
+                                      </p>
+                                    )}
+                                    {order.handwryttenStatus && (
+                                      <p className="text-[10px] font-medium text-stone-600">
+                                        HW: <span className="capitalize font-semibold text-stone-900">{order.handwryttenStatus}</span>
+                                      </p>
+                                    )}
+                                    {order.handwryttenMailedDate && (
+                                      <p className="text-[9px] text-purple-700 font-medium">
+                                        Mailed: {order.handwryttenMailedDate}
+                                      </p>
+                                    )}
+                                    {order.handwryttenTrackingNumber && (
+                                      <p className="text-[9px] text-stone-500 font-mono">
+                                        Trk: {order.handwryttenTrackingNumber}
+                                      </p>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4 text-right">
+                                  <span className="font-serif font-bold text-stone-900 text-sm">
+                                    ${((order.amountInCents || 900) / 100).toFixed(2)}
+                                  </span>
+                                  {order.discountCode && (
+                                    <div className="mt-1 flex items-center justify-end gap-1">
+                                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                        <Tag className="w-2.5 h-2.5" />
+                                        {order.discountCode}
+                                      </span>
+                                      {order.paymentMethod === "PROMO_CODE" && (
+                                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200">
+                                          VIP Free
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <div className="flex flex-col items-center gap-1.5">
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => setSelectedProofOrderId(order.id)}
+                                        className="px-2 py-0.5 text-[10px] font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded border border-stone-200 transition inline-flex items-center gap-1 cursor-pointer"
+                                        title="Inspect 1:1 card proof and live handwriting"
+                                      >
+                                        <Eye className="w-3 h-3 text-stone-500" />
+                                        <span>Proof</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() =>
+                                          setExpandedJourneyOrderId(
+                                            expandedJourneyOrderId === order.id ? null : order.id
+                                          )
+                                        }
+                                        className={`px-2 py-0.5 text-[10px] font-semibold rounded border transition inline-flex items-center gap-1 cursor-pointer ${
+                                          expandedJourneyOrderId === order.id
+                                            ? "bg-amber-900 text-amber-100 border-amber-950"
+                                            : "bg-amber-50 text-amber-900 border-amber-200 hover:bg-amber-100"
+                                        }`}
+                                      >
+                                        <Compass className="w-3 h-3 text-amber-600" />
+                                        <span>Journey</span>
+                                      </button>
+                                    </div>
+
+                                    {canRetry && (
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          onClick={() => handleRetryFulfillment(order.id)}
+                                          disabled={retryingId === order.id}
+                                          title="Resend print order directly to Handwrytten API"
+                                          className="px-2 py-0.5 text-[10px] font-medium text-amber-900 bg-amber-50 hover:bg-amber-100 rounded border border-amber-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                        >
+                                          <RefreshCw
+                                            className={`w-2.5 h-2.5 ${
+                                              retryingId === order.id ? "animate-spin" : ""
+                                            }`}
+                                          />
+                                          {retryingId === order.id ? "Inking..." : "Retry"}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => setAddressRetryOrder(order)}
+                                          className="px-2 py-0.5 text-[10px] font-medium text-stone-700 bg-white hover:bg-stone-100 rounded border border-stone-300 transition inline-flex items-center gap-1 cursor-pointer"
+                                          title="Edit recipient address before retry"
+                                        >
+                                          <MapPin className="w-2.5 h-2.5 text-stone-500" />
+                                          <span>Edit</span>
+                                        </button>
+                                      </div>
+                                    )}
+
+                                    {order.handwryttenOrderId && (
+                                      <button
+                                        onClick={() => handleSyncHandwrytten(order.id)}
+                                        disabled={syncingId === order.id}
+                                        title="Check latest order and postal status directly from Handwrytten API"
+                                        className="px-2 py-0.5 text-[10px] font-medium text-indigo-800 bg-indigo-50 hover:bg-indigo-100 rounded border border-indigo-200 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                      >
+                                        <RefreshCw
+                                          className={`w-2.5 h-2.5 ${
+                                            syncingId === order.id ? "animate-spin" : ""
+                                          }`}
+                                        />
+                                        {syncingId === order.id ? "Checking..." : "Sync HW"}
+                                      </button>
+                                    )}
+
+                                    {isMailed && (
+                                      <span className="text-[11px] text-purple-700 font-medium inline-flex items-center gap-1">
+                                        <CheckCircle2 className="w-3 h-3" /> Mailed
+                                      </span>
+                                    )}
+                                    {isProcessing && !isMailed && (
+                                      <span className="text-[11px] text-emerald-700 font-medium inline-flex items-center gap-1">
+                                        <CheckCircle2 className="w-3 h-3" /> Dispatched
+                                      </span>
+                                    )}
+                                    {isPending && (
+                                      <button
+                                        onClick={() => handleSyncStripe(order.id)}
+                                        disabled={syncingStripeId === order.id}
+                                        title="Check if customer completed payment on Stripe and initiate fulfillment"
+                                        className="px-2 py-1 text-[11px] font-semibold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 rounded-lg border border-emerald-300 transition inline-flex items-center gap-1 shadow-xs disabled:opacity-50 cursor-pointer"
+                                      >
+                                        <CreditCard className={`w-3 h-3 ${syncingStripeId === order.id ? "animate-spin" : ""}`} />
+                                        {syncingStripeId === order.id ? "Verifying..." : "Verify Stripe"}
+                                      </button>
+                                    )}
+                                    {!isPending && !canRetry && !order.handwryttenOrderId && (
+                                      <span className="text-stone-300">—</span>
+                                    )}
+                                  </div>
+                                </td>
                               </tr>
-                            )}
-                          </React.Fragment>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </>
-            )}
+                              {expandedJourneyOrderId === order.id && (
+                                <tr key={`${order.id}-journey`} className="bg-stone-50/80">
+                                  <td colSpan={8} className="p-0 border-b border-stone-200">
+                                    <div className="p-4 sm:p-6 bg-stone-50/60 border-t border-b border-stone-200/80">
+                                      <OrderJourneyDrawer
+                                        order={order}
+                                        onInspectProof={(id) => setSelectedProofOrderId(id)}
+                                        onRetryAddress={(ord) => setAddressRetryOrder(ord)}
+                                      />
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
 
-        {/* ===================== TAB: UNIT ECONOMICS & MARGINS ===================== */}
-        {activeTab === "margins" && (
-          <div className="space-y-8">
-            <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-5 sm:p-8">
-              <h2 className="text-lg font-bold">Costs and acquisition economics</h2>
-              <p className="text-sm text-stone-700">Supplier costs, processing fees, reconciled ad spend, CAC and net contribution are unavailable here. Captured customer revenue is gross; it does not establish profit or a break-even acquisition cost.</p>
-              <p className="text-sm text-stone-600">The former $4.88 cost, $3.56 contribution and 39.6% margin were assumptions. They are not measured results for these orders.</p>
-              <div className="space-y-2 border-t border-stone-100 pt-4">
-                <label htmlFor="manual-ad-spend" className="block text-sm font-medium">Manual ad spend note (USD)</label>
-                <p className="text-xs text-stone-500">Retained for your notes. This amount has no reconciled campaign or date scope and is not used to calculate performance.</p>
-                <div className="flex flex-wrap gap-3">
-                  <input id="manual-ad-spend" type="number" min="0" step="0.01" value={adSpendInput} onChange={(event) => setAdSpendInput(event.target.value)} className="min-h-11 w-full rounded-xl border border-stone-300 px-3 sm:w-48" />
-                  <button type="button" onClick={handleSaveAdSpend} disabled={savingAdSpend} className="min-h-11 rounded-xl bg-stone-900 px-4 text-sm font-medium text-white disabled:opacity-50">{savingAdSpend ? "Saving…" : "Save ad spend note"}</button>
-                </div>
-                {adSpendSuccess && <p role="status" className="text-sm text-stone-700">{adSpendSuccess}</p>}
-              </div>
-              <button type="button" onClick={() => setActiveTab("orders")} className="min-h-10 text-sm font-semibold underline">View verified customer measurement in Command Center</button>
-            </section>
-
-            {/* GOOGLE ADS TRACKING TEMPLATE & SETUP ASSISTANT */}
-            <div className="bg-stone-900 text-white rounded-3xl p-6 sm:p-8 border border-stone-800 space-y-6">
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] uppercase font-bold tracking-wider px-2.5 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                    Google Ads Setup Assistant
-                  </span>
-                </div>
-                <h3 className="font-serif text-xl font-bold text-white flex items-center gap-2">
-                  Auto-Tagging &amp; UTM Tracking Template
-                </h3>
-                <p className="text-xs text-stone-300">
-                  This template can record campaign parameters when they reach the site. Recorded parameters do not confirm an accepted Google Ads conversion.
+        {/* ===================== TAB 2: MEASUREMENT ===================== */}
+        {activeTab === "measurement" && (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-stone-200">
+              <div>
+                <h2 className="text-lg font-serif font-bold text-stone-900">
+                  Conversion &amp; Verified Payment Evidence
+                </h2>
+                <p className="text-xs text-stone-500">
+                  Scope-governed reconciliation of verified customer payments, Stripe balances, and marketing attribution.
                 </p>
               </div>
-
-              {/* Template Code Box */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-stone-400">
-                  <span className="font-semibold text-stone-300">Google Ads Tracking Template URL:</span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const template = "{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={creative}&utm_term={keyword}";
-                      navigator.clipboard.writeText(template);
-                      setCopiedTrackingTemplate(true);
-                      setTimeout(() => setCopiedTrackingTemplate(false), 2500);
-                    }}
-                    className="text-xs font-semibold text-stone-900 bg-amber-400 hover:bg-amber-300 px-3 py-1.5 rounded-lg transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
-                  >
-                    {copiedTrackingTemplate ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedTrackingTemplate ? "Copied!" : "Copy Tracking Template"}</span>
-                  </button>
-                </div>
-                <div className="p-3.5 bg-black/60 rounded-xl border border-stone-700 font-mono text-xs text-amber-300 break-all select-all">
-                  {"{lpurl}?utm_source=google&utm_medium=cpc&utm_campaign={campaignid}&utm_content={creative}&utm_term={keyword}"}
-                </div>
-              </div>
-
-              {/* Step by step guide */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 text-xs border-t border-stone-800">
-                <div className="space-y-1 text-stone-300">
-                  <span className="text-amber-400 font-bold">Step 1: In Google Ads</span>
-                  <p className="text-stone-400 text-[11px] leading-relaxed">
-                    Navigate to <em>Campaign Settings → Campaign URL Options</em> (or Account Settings).
-                  </p>
-                </div>
-                <div className="space-y-1 text-stone-300">
-                  <span className="text-amber-400 font-bold">Step 2: Paste Template</span>
-                  <p className="text-stone-400 text-[11px] leading-relaxed">
-                    Paste the template above into the <strong>Tracking template</strong> input box.
-                  </p>
-                </div>
-                <div className="space-y-1 text-stone-300">
-                  <span className="text-amber-400 font-bold">Step 3: Enable Auto-Tagging</span>
-                  <p className="text-stone-400 text-[11px] leading-relaxed">
-                    Ensure Google Ads <strong>Auto-tagging (GCLID)</strong> is turned ON for high-fidelity conversion tracking.
-                  </p>
-                </div>
-              </div>
             </div>
+            <AdminMeasurementPanel
+              onInspectOrder={(orderId) => {
+                setActiveTab("orders");
+                setSearchQuery(orderId);
+                setExpandedJourneyOrderId(orderId);
+              }}
+            />
           </div>
         )}
 
-        {/* ===================== TAB: DISCOUNT CODES ===================== */}
+        {/* ===================== TAB 3: DISCOUNTS ===================== */}
         {activeTab === "discounts" && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* KPI METRIC CARDS FOR DISCOUNTS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
@@ -2192,7 +1417,6 @@ export default function AdminDashboardPage() {
 
               <form onSubmit={handleCreateDiscount} className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Code */}
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
                       Discount Code *
@@ -2207,7 +1431,6 @@ export default function AdminDashboardPage() {
                     />
                   </div>
 
-                  {/* Type */}
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
                       Discount Type
@@ -2222,7 +1445,6 @@ export default function AdminDashboardPage() {
                     </select>
                   </div>
 
-                  {/* Value */}
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
                       {newType === "PERCENTAGE" ? "Percentage Value (1-100)" : "Dollar Value ($ USD)"} *
@@ -2252,7 +1474,6 @@ export default function AdminDashboardPage() {
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {/* Max Uses */}
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
                       Max Uses Limit (Optional)
@@ -2267,7 +1488,6 @@ export default function AdminDashboardPage() {
                     />
                   </div>
 
-                  {/* Expiration Date */}
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
                       Expiration Date (Optional)
@@ -2280,7 +1500,6 @@ export default function AdminDashboardPage() {
                     />
                   </div>
 
-                  {/* Description / Campaign */}
                   <div>
                     <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
                       Campaign Note (Internal)
@@ -2526,515 +1745,7 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         )}
-
-        {/* ===================== TAB: SEO & SCENARIOS ===================== */}
-        {activeTab === "scenarios" && (
-          <div className="space-y-8">
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-              <strong>Landing-page diagnostics:</strong> These legacy view counters are not unique visitors or verified customer conversions. Use the Command Center payment report for customer sales. Conversion rates and automated performance recommendations are unavailable until their cohorts are validated.
-            </div>
-            {/* SCENARIOS PERFORMANCE TABLE */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-5">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
-                <div>
-                  <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-stone-600" />
-                    Programmatic Landing Pages Telemetry
-                  </h2>
-                  <p className="text-xs text-stone-500">
-                    Inspect recorded page-view activity and open or copy existing landing-page links.
-                  </p>
-                </div>
-
-                <div className="relative w-full sm:w-64">
-                  <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
-                  <input
-                    type="text"
-                    value={scenarioSearchQuery}
-                    onChange={(e) => setScenarioSearchQuery(e.target.value)}
-                    placeholder="Search scenario or query..."
-                    className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
-                  />
-                </div>
-              </div>
-
-              {filteredScenarioMetrics.length === 0 ? (
-                <div className="text-center py-12 text-stone-400 text-xs">
-                  <Globe className="w-8 h-8 text-stone-300 mx-auto mb-2" />
-                  <p className="font-semibold text-stone-700">No scenarios found</p>
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs text-stone-600">
-                    <thead className="bg-stone-50 text-stone-400 uppercase tracking-wider text-[10px] font-semibold border-b border-stone-200">
-                      <tr>
-                        <th className="py-3 px-4">Scenario &amp; Query</th>
-                        <th className="py-3 px-4">Category</th>
-                        <th className="py-3 px-4 text-center">Recorded views</th>
-                        <th className="py-3 px-4 text-center">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-stone-100">
-                      {filteredScenarioMetrics.map((item) => {
-                        return (
-                          <tr key={item.slug} className="hover:bg-stone-50/50 transition">
-                            <td className="py-3.5 px-4">
-                              <p className="font-semibold text-stone-900 text-sm">
-                                {item.title}
-                              </p>
-                              <span className="font-mono text-[10px] text-stone-400 block mt-0.5">
-                                {item.path}
-                              </span>
-                            </td>
-
-                            <td className="py-3.5 px-4">
-                              <span className="capitalize px-2 py-0.5 rounded-full text-[10px] font-semibold bg-stone-100 text-stone-700 border border-stone-200">
-                                {item.category}
-                              </span>
-                            </td>
-
-                            <td className="py-3.5 px-4 text-center font-bold text-stone-900">
-                              {item.views}
-                            </td>
-
-                            <td className="py-3.5 px-4 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <Link
-                                  href={item.path}
-                                  target="_blank"
-                                  title="Open live landing page in new tab"
-                                  className="p-1 text-stone-500 hover:text-stone-900 rounded-lg hover:bg-stone-100 transition"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </Link>
-
-                                <button
-                                  type="button"
-                                  onClick={() => handleCopyScenarioLink(item.path)}
-                                  title="Copy URL"
-                                  className={`px-2 py-0.5 text-[10px] font-medium rounded-lg border transition cursor-pointer ${
-                                    copiedScenarioUrl === item.path
-                                      ? "bg-emerald-50 text-emerald-700 border-emerald-300"
-                                      : "bg-stone-50 text-stone-600 hover:bg-stone-100 border-stone-200"
-                                  }`}
-                                >
-                                  {copiedScenarioUrl === item.path ? "Copied!" : "Copy"}
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ===================== TAB: SYSTEM HEALTH & INCIDENTS ===================== */}
-        {activeTab === "incidents" && (
-          <div className="space-y-8">
-            {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}
-            <div className="bg-white rounded-3xl p-4 sm:p-8 border border-stone-200 shadow-sm space-y-4 sm:space-y-6">
-              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-stone-100">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h2
-                      className={`text-base font-bold flex items-center gap-2 ${
-                        hasActiveAlerts ? "text-rose-700" : "text-emerald-800"
-                      }`}
-                    >
-                      {hasActiveAlerts && (
-                        <AlertTriangle className="w-5 h-5 text-rose-600 animate-pulse shrink-0" />
-                      )}
-                      System Health &amp; Incident Feed
-                    </h2>
-                    {hasActiveAlerts ? (
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-300">
-                        {unresolvedIncidents.length} Active Alert{unresolvedIncidents.length > 1 ? "s" : ""}
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
-                        All Systems Operational
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Real-time incident log for Stripe checkout, AI image generation, and Handwrytten robot fulfillment.
-                  </p>
-                </div>
-
-                {/* CONTROLS: FILTER & ALERT SUBSCRIPTIONS */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
-                  {/* MOBILE 3-WAY SEGMENTED FILTER */}
-                  <div className="grid grid-cols-3 gap-1 p-1 bg-stone-100 rounded-xl w-full sm:hidden">
-                    <button
-                      type="button"
-                      onClick={() => setIncidentFilter("UNRESOLVED")}
-                      className={`py-2 text-[11px] font-bold rounded-lg transition text-center ${
-                        incidentFilter === "UNRESOLVED"
-                          ? "bg-white shadow-2xs text-stone-900"
-                          : "text-stone-500 hover:text-stone-900"
-                      }`}
-                    >
-                      Unresolved ({unresolvedIncidents.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIncidentFilter("RESOLVED")}
-                      className={`py-2 text-[11px] font-bold rounded-lg transition text-center ${
-                        incidentFilter === "RESOLVED"
-                          ? "bg-white shadow-2xs text-stone-900"
-                          : "text-stone-500 hover:text-stone-900"
-                      }`}
-                    >
-                      Resolved ({resolvedIncidents.length})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setIncidentFilter("ALL")}
-                      className={`py-2 text-[11px] font-bold rounded-lg transition text-center ${
-                        incidentFilter === "ALL"
-                          ? "bg-white shadow-2xs text-stone-900"
-                          : "text-stone-500 hover:text-stone-900"
-                      }`}
-                    >
-                      All ({incidents.length})
-                    </button>
-                  </div>
-
-                  {/* DESKTOP STATUS FILTER DROPDOWN */}
-                  <div className="hidden sm:flex items-center gap-1.5 bg-stone-50 border border-stone-300 rounded-lg px-2 py-1 shadow-xs">
-                    <Filter className="w-3.5 h-3.5 text-stone-400 shrink-0" />
-                    <select
-                      value={incidentFilter}
-                      onChange={(e) =>
-                        setIncidentFilter(e.target.value as "UNRESOLVED" | "RESOLVED" | "ALL")
-                      }
-                      className="text-xs font-semibold bg-transparent text-stone-700 focus:outline-none cursor-pointer pr-1"
-                      aria-label="Filter incidents"
-                    >
-                      <option value="UNRESOLVED">
-                        Unresolved Alerts ({unresolvedIncidents.length})
-                      </option>
-                      <option value="RESOLVED">
-                        Resolved History ({resolvedIncidents.length})
-                      </option>
-                      <option value="ALL">
-                        All Incidents ({incidents.length})
-                      </option>
-                    </select>
-                  </div>
-
-                  {/* MOBILE COLLAPSIBLE ALERT FORM TOGGLE */}
-                  <div className="w-full sm:w-auto">
-                    <button
-                      type="button"
-                      onClick={() => setAlertFormOpen(!alertFormOpen)}
-                      className="sm:hidden w-full flex items-center justify-between py-2 px-3 text-xs font-semibold text-stone-700 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer"
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <Mail className="w-3.5 h-3.5 text-stone-500" />
-                        <span>Email &amp; Diagnostic Alerts</span>
-                      </span>
-                      <ChevronDown
-                        className={`w-4 h-4 text-stone-400 transition-transform ${
-                          alertFormOpen ? "rotate-180" : ""
-                        }`}
-                      />
-                    </button>
-
-                    {/* EMAIL INPUT & ACTIONS */}
-                    <div
-                      className={`${
-                        alertFormOpen ? "block" : "hidden"
-                      } sm:flex flex-wrap items-center gap-2 mt-2 sm:mt-0 w-full sm:w-auto`}
-                    >
-                      <div className="relative flex-1 w-full sm:w-60">
-                        <Mail className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
-                        <input
-                          type="email"
-                          value={newAlertEmail}
-                          onChange={(e) => setNewAlertEmail(e.target.value)}
-                          placeholder="Alert email (e.g. zeke@...)"
-                          className="w-full pl-8 pr-3 py-2 sm:py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-xl sm:rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
-                        />
-                      </div>
-                      <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 mt-2 sm:mt-0 w-full sm:w-auto">
-                        <button
-                          type="button"
-                          onClick={handleSaveAlertEmail}
-                          disabled={savingEmail}
-                          className="px-3 py-2 sm:py-1.5 text-xs font-semibold rounded-xl sm:rounded-lg bg-stone-900 hover:bg-black text-white transition disabled:opacity-50 shrink-0 cursor-pointer text-center"
-                        >
-                          {savingEmail ? "Saving..." : alertEmail ? "Update Email" : "Subscribe"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleTestAlertEmail}
-                          disabled={testingAlertEmail}
-                          className="px-2.5 py-2 sm:py-1.5 text-xs font-medium rounded-xl sm:rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 transition disabled:opacity-50 shrink-0 cursor-pointer inline-flex items-center justify-center gap-1 text-center"
-                          title="Send a sample diagnostic alert email to verify notifications work"
-                        >
-                          <Send className="w-3 h-3" />
-                          <span>{testingAlertEmail ? "Testing..." : "Test Alert"}</span>
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* INCIDENTS LIST */}
-              {filteredIncidents.length === 0 ? (
-                incidentFilter === "UNRESOLVED" ? (
-                  <div className="text-center py-10 px-4 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-2">
-                    <ShieldCheck className="w-10 h-10 text-emerald-600 mx-auto" />
-                    <p className="font-bold text-sm text-emerald-900">All Systems Healthy &amp; Operational</p>
-                    <p className="text-xs text-emerald-700 max-w-md mx-auto">
-                      No active or unresolved alerts. Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
-                    </p>
-                    {resolvedIncidents.length > 0 && (
-                      <div className="pt-2">
-                        <button
-                          type="button"
-                          onClick={() => setIncidentFilter("RESOLVED")}
-                          className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
-                        >
-                          View {resolvedIncidents.length} resolved incident{resolvedIncidents.length > 1 ? "s" : ""} in archive &rarr;
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ) : incidentFilter === "RESOLVED" ? (
-                  <div className="text-center py-10 px-4 rounded-2xl bg-stone-50 border border-stone-200 text-stone-500 text-xs space-y-1">
-                    <CheckCircle2 className="w-8 h-8 text-stone-400 mx-auto mb-1 opacity-70" />
-                    <p className="font-semibold text-stone-700">No Resolved Incidents</p>
-                    <p className="text-[11px] text-stone-400">There are no resolved incidents in the archive.</p>
-                  </div>
-                ) : (
-                  <div className="text-center py-10 px-4 rounded-2xl bg-stone-50 border border-stone-200 text-stone-500 text-xs space-y-1">
-                    <ShieldCheck className="w-8 h-8 text-emerald-500 mx-auto mb-1 opacity-80" />
-                    <p className="font-semibold text-stone-700">No Incidents Recorded</p>
-                    <p className="text-[11px] text-stone-400">
-                      Third-party API calls (Stripe, Imagen, Handwrytten) are executing smoothly without errors.
-                    </p>
-                  </div>
-                )
-              ) : (
-                <div className="space-y-3">
-                  {filteredIncidents.map((incident) => {
-                    const isExpanded = expandedIncidentId === incident.id;
-                    const typeColor =
-                      incident.type === "STRIPE"
-                        ? "bg-purple-100 text-purple-800 border-purple-200"
-                        : incident.type === "IMAGE_GEN"
-                        ? "bg-amber-100 text-amber-800 border-amber-200"
-                        : incident.type === "HANDWRYTTEN"
-                        ? "bg-indigo-100 text-indigo-800 border-indigo-200"
-                        : "bg-stone-100 text-stone-800 border-stone-200";
-
-                    return (
-                      <div
-                        key={incident.id}
-                        className={`p-4 rounded-2xl border transition-all ${
-                          incident.resolved
-                            ? "bg-stone-50/70 border-stone-200 opacity-70"
-                            : incident.severity === "error"
-                            ? "bg-rose-50/40 border-rose-200"
-                            : "bg-amber-50/40 border-amber-200"
-                        }`}
-                      >
-                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${typeColor}`}>
-                              {incident.type}
-                            </span>
-                            {incident.category === "STUDIO_BILLING" && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300">
-                                Studio Wholesale Billing
-                              </span>
-                            )}
-                            {incident.category === "OPERATOR_ACTION" && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
-                                Operator Action Required
-                              </span>
-                            )}
-                            {incident.category === "CUSTOMER_RECOVERED" && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-300">
-                                Customer Recovered
-                              </span>
-                            )}
-                            {incident.category === "TRANSIENT" && (
-                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-300">
-                                Transient API
-                              </span>
-                            )}
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
-                                incident.severity === "error"
-                                  ? "bg-rose-100 text-rose-800 border-rose-300"
-                                  : "bg-amber-100 text-amber-800 border-amber-300"
-                              }`}
-                            >
-                              {incident.severity}
-                            </span>
-                            <span className="text-[11px] text-stone-400">
-                              {new Date(incident.createdAt).toLocaleDateString()} at{" "}
-                              {new Date(incident.createdAt).toLocaleTimeString([], {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                            </span>
-                            {incident.resolved && (
-                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                                Resolved
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            {incident.technicalDetails && (
-                              <button
-                                type="button"
-                                onClick={() => setExpandedIncidentId(isExpanded ? null : incident.id)}
-                                className="text-[11px] font-medium text-stone-600 hover:text-stone-900 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 transition cursor-pointer"
-                              >
-                                <span>{isExpanded ? "Hide Details" : "Inspect"}</span>
-                                {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                              </button>
-                            )}
-                            {Boolean(incident.metadata?.orderId) && !incident.resolved && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const orderId = String(incident.metadata?.orderId);
-                                  const found = metrics?.recentOrders.find((o) => o.id === orderId);
-                                  if (found) {
-                                    setAddressRetryOrder(found);
-                                    setAddressRetryIncidentId(incident.id);
-                                  } else {
-                                    fetch(`/api/admin/order-proof?orderId=${encodeURIComponent(orderId)}`)
-                                      .then((r) => r.json())
-                                      .then((d) => {
-                                        if (d.order) {
-                                          setAddressRetryOrder(d.order);
-                                          setAddressRetryIncidentId(incident.id);
-                                        }
-                                      });
-                                  }
-                                }}
-                                className="text-[11px] font-medium text-amber-900 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
-                              >
-                                <MapPin className="w-3 h-3 text-amber-600" />
-                                <span>Fix Address</span>
-                              </button>
-                            )}
-                            {!incident.resolved && (
-                              <button
-                                type="button"
-                                onClick={() => handleResolveIncident(incident.id)}
-                                className="text-[11px] font-medium text-emerald-700 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition cursor-pointer"
-                              >
-                                Mark Resolved
-                              </button>
-                            )}
-                          </div>
-                        </div>
-
-                        <p className="font-semibold text-xs text-stone-800 mt-2">{incident.summary}</p>
-
-                        {incident.resolutionNote && (
-                          <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-emerald-800 bg-emerald-50/80 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                            <span>{incident.resolutionNote}</span>
-                          </div>
-                        )}
-
-                        {isExpanded && incident.technicalDetails && (
-                          <div className="mt-3 p-3 bg-stone-900 text-stone-100 rounded-xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-64 shadow-inner">
-                            {incident.technicalDetails}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* ===================== TAB: FEATURE FLAGS & V3 ROLLOUT ===================== */}
-        {activeTab === "flags" && (
-          <AdminFeatureFlagsTab />
-        )}
       </main>
-
-      {/* MOBILE PERSISTENT BOTTOM NAVIGATION (Thumb zone) */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-stone-200 py-1.5 px-3 z-40 flex items-center justify-around shadow-lg">
-        <button
-          type="button"
-          onClick={() => setActiveTab("orders")}
-          className={`flex flex-col items-center py-1 transition cursor-pointer ${
-            activeTab === "orders" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
-          }`}
-        >
-          <Package className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Orders</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("incidents")}
-          className={`flex flex-col items-center py-1 transition cursor-pointer ${
-            activeTab === "incidents" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
-          }`}
-        >
-          <div className="relative">
-            <ShieldCheck className="w-5 h-5" />
-            <span
-              className={`w-2 h-2 rounded-full absolute -top-0.5 -right-0.5 ring-2 ring-white ${
-                hasActiveAlerts ? "bg-rose-500 animate-pulse" : "bg-emerald-500"
-              }`}
-            />
-          </div>
-          <span className="text-[10px] mt-0.5">Health</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("margins")}
-          className={`flex flex-col items-center py-1 transition cursor-pointer ${
-            activeTab === "margins" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
-          }`}
-        >
-          <DollarSign className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Margins</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("discounts")}
-          className={`flex flex-col items-center py-1 transition cursor-pointer ${
-            activeTab === "discounts" ? "text-stone-900 font-bold" : "text-stone-400 hover:text-stone-700 font-medium"
-          }`}
-        >
-          <Tag className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Promos</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setMobileMenuOpen(true)}
-          className="flex flex-col items-center py-1 text-stone-400 hover:text-stone-700 font-medium transition cursor-pointer"
-        >
-          <Menu className="w-5 h-5" />
-          <span className="text-[10px] mt-0.5">Menu</span>
-        </button>
-      </nav>
 
       {/* ===================== STUDIO & OPERATOR MODALS ===================== */}
       {selectedProofOrderId && (
@@ -3047,24 +1758,15 @@ export default function AdminDashboardPage() {
       {addressRetryOrder && (
         <AddressRetryModal
           order={addressRetryOrder}
-          incidentId={addressRetryIncidentId}
-          onClose={() => {
-            setAddressRetryOrder(null);
-            setAddressRetryIncidentId(null);
-          }}
-          onSuccess={() => {
-            fetchMetrics();
-            fetchIncidents();
-          }}
+          onClose={() => setAddressRetryOrder(null)}
+          onSuccess={() => fetchMetrics()}
         />
       )}
 
       {showCompModal && (
         <StudioCompModal
           onClose={() => setShowCompModal(false)}
-          onSuccess={() => {
-            fetchMetrics();
-          }}
+          onSuccess={() => fetchMetrics()}
         />
       )}
     </div>
