@@ -4,9 +4,13 @@ import { verifyAdminAuth } from "@/lib/admin-auth";
 import { saveOrder, updateOrderStatus } from "@/lib/firebase-admin";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { Order, MailingAddress } from "@/lib/types";
+import { normalizeCountryCode } from "@/lib/mailing-destinations";
 
 export async function POST(req: NextRequest) {
   try {
+    if (process.env.STAGING_REVIEW_ONLY === "true") {
+      return NextResponse.json({ error: "Supplier fulfillment is disabled during staging review.", code: "STAGING_REVIEW_ONLY" }, { status: 423 });
+    }
     if (!verifyAdminAuth(req)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -33,6 +37,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Complete return address is required" }, { status: 400 });
     }
 
+    const countryValue = recipientAddress.country;
+    const country = countryValue === undefined ? "US" : normalizeCountryCode(countryValue);
+    if (!country) return NextResponse.json({ error: "Recipient country is invalid." }, { status: 400 });
+    const canonicalRecipientAddress: MailingAddress = { ...recipientAddress, country };
+
     const orderId = `order_comp_${crypto.randomBytes(12).toString("hex")}`;
     const viewToken = `tok_${crypto.randomBytes(12).toString("hex")}`;
 
@@ -43,7 +52,7 @@ export async function POST(req: NextRequest) {
       printedMessage: printedMessage || "",
       handwrittenNote: handwrittenNote || "",
       fontStyleId,
-      recipientAddress: recipientAddress as MailingAddress,
+      recipientAddress: canonicalRecipientAddress,
       returnAddress: returnAddress as MailingAddress,
       ...(scheduledSendDate ? { scheduledSendDate } : {}),
       status: "PAYMENT_RECEIVED",
@@ -64,7 +73,7 @@ export async function POST(req: NextRequest) {
       printedGreeting: printedMessage || "",
       handwrittenMessage: handwrittenNote || "",
       fontId: fontStyleId,
-      recipient: recipientAddress,
+      recipient: canonicalRecipientAddress,
       returnAddress,
       scheduledSendDate,
     });

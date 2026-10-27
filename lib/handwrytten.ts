@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import { HandwryttenOrderParams, HandwryttenOrderResult } from "./types";
 import { getSystemConfig, setSystemConfig } from "./firebase-admin";
+import { getSupplierCountry } from "./mailing-destinations";
 
 const FONT_MAP: Record<string, string> = {
   "1": "Casual David",
@@ -19,6 +20,52 @@ const FONT_MAP: Record<string, string> = {
   "font-calligraphy": "Charming Chase",
   "font-classic": "Executive Adam",
 };
+
+
+export function buildSingleStepOrderPayload(
+  params: HandwryttenOrderParams,
+  customCardId: string | number,
+  isTestMode: boolean
+): Record<string, unknown> {
+  const recipientCountry = getSupplierCountry(params.recipient.country || "US");
+  const senderCountry = getSupplierCountry(params.returnAddress.country || "US");
+  if (!recipientCountry || recipientCountry.suspended || !senderCountry || senderCountry.countryCode !== "US") {
+    throw new Error("Unsupported recipient or sender country for supplier order.");
+  }
+  const senderFirstName = (params.returnAddress.firstName || "").trim();
+  const senderLastName = (params.returnAddress.lastName || "").trim();
+  if (!senderFirstName) throw new Error("Personal sender name is required for supplier order.");
+  const fullMessage = params.printedGreeting?.trim()
+    ? `${params.printedGreeting.trim()}\n\n${params.handwrittenMessage.trim()}`
+    : params.handwrittenMessage.trim();
+  return {
+    card_id: customCardId,
+    font_label: FONT_MAP[params.fontId || "1"] || "Executive Adam",
+    message: fullMessage,
+    ...(isTestMode ? { test_mode: 1 } : {}),
+    ...(params.scheduledSendDate ? { date_send: params.scheduledSendDate } : {}),
+    recipient_first_name: (params.recipient.firstName || "Friend").trim(),
+    recipient_last_name: (params.recipient.lastName || "").trim(),
+    recipient_address1: params.recipient.street1.trim(),
+    recipient_address2: (params.recipient.street2 || "").trim(),
+    recipient_city: params.recipient.city.trim(),
+    recipient_state: recipientCountry.countryCode === "US" || recipientCountry.countryCode === "CA"
+      ? (params.recipient.state || "").trim().toUpperCase()
+      : (params.recipient.state || "").trim(),
+    recipient_zip: params.recipient.zip.trim(),
+    recipient_country_id: recipientCountry.supplierCountryId,
+    recipient_country: recipientCountry.supplierCountryName,
+    sender_first_name: senderFirstName,
+    sender_last_name: senderLastName,
+    sender_address1: params.returnAddress.street1.trim(),
+    sender_address2: (params.returnAddress.street2 || "").trim(),
+    sender_city: params.returnAddress.city.trim(),
+    sender_state: params.returnAddress.state.trim().toUpperCase(),
+    sender_zip: params.returnAddress.zip.trim(),
+    sender_country_id: 1,
+    sender_country: "United States",
+  };
+}
 
 /**
  * Ensures the Aster & Blanche Press backplate image is uploaded to Handwrytten.
@@ -156,6 +203,7 @@ export function validateCoverImagePathOrUrl(imageUrl: string): void {
 export async function fulfillHandwryttenOrder(
   params: HandwryttenOrderParams
 ): Promise<HandwryttenOrderResult> {
+  if (process.env.STAGING_REVIEW_ONLY === "true") return { success: false, error: "Physical fulfillment is disabled in staging review." };
   // Validate image safety (containment & SSRF) immediately
   validateCoverImagePathOrUrl(params.imageUrl);
 
@@ -349,18 +397,13 @@ export async function fulfillHandwryttenOrder(
       ? `${params.printedGreeting.trim()}\n\n${params.handwrittenMessage.trim()}`
       : params.handwrittenMessage.trim();
 
-    const senderFirstName = (params.returnAddress.firstName || "").trim();
-    const senderLastName = (params.returnAddress.lastName || "").trim();
-
-    if (!senderFirstName) {
-      console.error("[Handwrytten] Order dispatch halted: personal sender name is required.");
-      return {
-        success: false,
-        error: "Personal sender name is required for fulfillment dispatch; cannot dispatch without personal sender.",
-      };
-    }
-
     const isTestMode = process.env.HANDWRYTTEN_TEST_MODE === "true";
+    let orderPayload: Record<string, unknown>;
+    try {
+      orderPayload = buildSingleStepOrderPayload(params, customCardId, isTestMode);
+    } catch (error) {
+      return { success: false, error: error instanceof Error ? error.message : "Unsupported supplier destination." };
+    }
 
     const orderRes = await fetch("https://api.handwrytten.com/v2/orders/singleStepOrder", {
       method: "POST",
@@ -369,27 +412,7 @@ export async function fulfillHandwryttenOrder(
         "Content-Type": "application/json",
         Accept: "application/json",
       },
-      body: JSON.stringify({
-        card_id: customCardId,
-        font_label: fontLabel,
-        message: fullMessage,
-        ...(isTestMode ? { test_mode: 1 } : {}),
-        ...(params.scheduledSendDate ? { date_send: params.scheduledSendDate } : {}),
-        recipient_first_name: (params.recipient.firstName || "Friend").trim(),
-        recipient_last_name: (params.recipient.lastName || "").trim(),
-        recipient_address1: params.recipient.street1.trim(),
-        recipient_address2: (params.recipient.street2 || "").trim(),
-        recipient_city: params.recipient.city.trim(),
-        recipient_state: params.recipient.state.trim().toUpperCase(),
-        recipient_zip: params.recipient.zip.trim(),
-        sender_first_name: senderFirstName,
-        sender_last_name: senderLastName,
-        sender_address1: params.returnAddress.street1.trim(),
-        sender_address2: (params.returnAddress.street2 || "").trim(),
-        sender_city: params.returnAddress.city.trim(),
-        sender_state: params.returnAddress.state.trim().toUpperCase(),
-        sender_zip: params.returnAddress.zip.trim(),
-      }),
+      body: JSON.stringify(orderPayload),
     });
 
     const orderData = await orderRes.json();
@@ -484,4 +507,3 @@ export async function fetchHandwryttenOrderStatus(
     return { success: false, error: msg };
   }
 }
-

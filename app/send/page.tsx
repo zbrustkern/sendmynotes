@@ -56,12 +56,18 @@ interface PageProps {
 
 export default async function SendCatalogPage({ searchParams }: PageProps) {
   const resolvedParams = searchParams ? await searchParams : {};
-  const autoParam = resolvedParams["auto_select"];
-  const utmSource = typeof resolvedParams["utm_source"] === "string" ? resolvedParams["utm_source"].toLowerCase() : undefined;
+  const rawAuto = resolvedParams["auto_select"];
+  const autoParam = Array.isArray(rawAuto) ? rawAuto[0] : rawAuto;
+  const rawUtm = resolvedParams["utm_source"];
+  const utmSource =
+    typeof rawUtm === "string"
+      ? rawUtm.trim().toLowerCase()
+      : Array.isArray(rawUtm) && typeof rawUtm[0] === "string"
+      ? rawUtm[0].trim().toLowerCase()
+      : undefined;
   const isAuto = autoParam === "1" || utmSource === "google" || utmSource === "meta";
 
   if (isAuto) {
-    const isV3 = await isReworkV3Enabled({ searchParams: resolvedParams });
     return (
       <Suspense
         fallback={
@@ -76,13 +82,9 @@ export default async function SendCatalogPage({ searchParams }: PageProps) {
         }
       >
         <ExperienceRouter
-          initialIsV3={isV3}
-          initialOccasion="Thinking of You"
-          initialCoverUrl="/presets/thinking-of-you-quiet-cup.jpg"
-          initialHandwrittenNote="Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!"
-          scenarioTitle="A Quiet Cup"
-          initialStep="note"
+          initialIsV3={true}
           embedded={false}
+          initialStep="card"
         />
       </Suspense>
     );

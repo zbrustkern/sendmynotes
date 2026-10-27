@@ -15,7 +15,7 @@ async function runTests() {
   console.log("\n--- 1. Testing Resend API Key Retrieval & In-Memory Caching ---");
   const key1 = await getResendApiKey();
   console.log("Key retrieval result:", key1 ? `${key1.slice(0, 5)}...` : "(none)");
-  
+
   // Call a second time - should hit the cache immediately
   const key2 = await getResendApiKey();
   assert.strictEqual(key1, key2, "Second retrieval must return identical cached key");
@@ -65,9 +65,10 @@ async function runTests() {
 
   // Test 3: Scenario A Email Generation
   console.log("\n--- 3. Testing Scenario A (address_deferred === true) Email ---");
+  const testEmail = "delivered@resend.dev";
   const resScenarioA = await sendDeferredAddressReceiptEmail({
     order: mockDeferredOrder,
-    customerEmail: "sender@example.com",
+    customerEmail: testEmail,
   });
 
   assert.strictEqual(resScenarioA.success, true, "Scenario A email dispatch must succeed");
@@ -93,7 +94,7 @@ async function runTests() {
 
   const resScenarioB = await sendOrderPenningReceiptEmail({
     order: mockCompletedOrder,
-    customerEmail: "sender@example.com",
+    customerEmail: testEmail,
   });
 
   assert.strictEqual(resScenarioB.success, true, "Scenario B email dispatch must succeed");
@@ -113,13 +114,14 @@ async function runTests() {
   const { saveOrder, getOrderById } = await import("@/lib/firebase-admin");
   const { NextRequest } = await import("next/server");
 
-  (process.env as Record<string, string | undefined>).NODE_ENV = "test";
+  Object.assign(process.env, { NODE_ENV: "test" });
   process.env.TEST_BYPASS_WEBHOOK_SIGNATURE = "true";
 
   // 6A. Deferred address order in webhook
   const webhookOrderA: Order = {
     ...mockDeferredOrder,
     id: `order_webhook_a_${Date.now()}`,
+    stripePaymentId: `pi_webhook_a_${Date.now()}`,
     status: "PENDING_PAYMENT",
     addressDeferred: true,
     address_deferred: true,
@@ -130,12 +132,17 @@ async function runTests() {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
+      id: `evt_webhook_a_${Date.now()}`,
       type: "payment_intent.succeeded",
       livemode: false,
       data: {
         object: {
-          id: `pi_webhook_a_${Date.now()}`,
+          id: webhookOrderA.stripePaymentId!,
           amount: 900,
+          amount_received: 900,
+          currency: "usd",
+          status: "succeeded",
+          livemode: false,
           receipt_email: "customer_a@example.com",
           metadata: {
             orderId: webhookOrderA.id,
@@ -154,13 +161,14 @@ async function runTests() {
   const updatedOrderA = await getOrderById(webhookOrderA.id);
   assert(updatedOrderA !== null, "Order A must exist in database");
   assert.strictEqual(updatedOrderA?.status, "AWAITING_RECIPIENT_ADDRESS", "Order A status must be AWAITING_RECIPIENT_ADDRESS");
-  assert((updatedOrderA as any)?.receiptEmailSentAt !== undefined, "Order A must record receiptEmailSentAt");
+  assert((updatedOrderA as any)?.addressDeferredEmailSentAt !== undefined, "Order A must record addressDeferredEmailSentAt");
   console.log("✅ PASS: Webhook correctly dispatched Scenario A receipt and recorded timestamp");
 
   // 6B. Completed address order in webhook
   const webhookOrderB: Order = {
     ...mockCompletedOrder,
     id: `order_webhook_b_${Date.now()}`,
+    stripePaymentId: `pi_webhook_b_${Date.now()}`,
     status: "PENDING_PAYMENT",
     addressDeferred: false,
     address_deferred: false,
@@ -171,12 +179,17 @@ async function runTests() {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
+      id: `evt_webhook_b_${Date.now()}`,
       type: "payment_intent.succeeded",
       livemode: false,
       data: {
         object: {
-          id: `pi_webhook_b_${Date.now()}`,
+          id: webhookOrderB.stripePaymentId!,
           amount: 900,
+          amount_received: 900,
+          currency: "usd",
+          status: "succeeded",
+          livemode: false,
           receipt_email: "customer_b@example.com",
           metadata: {
             orderId: webhookOrderB.id,

@@ -84,3 +84,9 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  - variable: ENABLE_INTERNATIONAL_MAILING
+    value: "true"
+    availability:
+      - BUILD
+      - RUNTIME

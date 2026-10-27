@@ -1,3 +1,4 @@
+import { generateAdminSessionToken } from "../lib/admin-auth";
 import { NextRequest } from "next/server";
 import {
   getFeatureFlags,
@@ -273,12 +274,12 @@ async function runFeatureFlagsTests() {
 
     // 6B. Authorized GET
     const authGetReq = new NextRequest("http://localhost:3000/api/admin/feature-flags", {
-      headers: { "x-admin-key": "sendmynotes2026" },
+      headers: { cookie: `smn_admin_session=${generateAdminSessionToken("zbrustkern@gmail.com")}` },
     });
     const authGetRes = await adminGet(authGetReq);
     assert(
       authGetRes.status === 200,
-      `Admin GET with valid x-admin-key returns 200`
+      `Admin GET with valid account-bound session returns 200`
     );
     const authGetData = await authGetRes.json();
     assert(
@@ -301,7 +302,7 @@ async function runFeatureFlagsTests() {
     const invalidPostReq = new NextRequest("http://localhost:3000/api/admin/feature-flags", {
       method: "POST",
       headers: {
-        "x-admin-key": "sendmynotes2026",
+        cookie: `smn_admin_session=${generateAdminSessionToken("zbrustkern@gmail.com")}`,
         "content-type": "application/json",
       },
       body: JSON.stringify({ flagKey: "", enabled: "yes" }),
@@ -316,7 +317,7 @@ async function runFeatureFlagsTests() {
     const validPostReq = new NextRequest("http://localhost:3000/api/admin/feature-flags", {
       method: "POST",
       headers: {
-        "x-admin-key": "sendmynotes2026",
+        cookie: `smn_admin_session=${generateAdminSessionToken("zbrustkern@gmail.com")}`,
         "content-type": "application/json",
       },
       body: JSON.stringify({ flagKey: "reworkV3Experience", enabled: false }),

@@ -3,8 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { AttributionTracker } from "@/components/AttributionTracker";
 import { fontHwAdam, fontHwCharity, fontHwChase, fontHwDavid, fontHwKate, fontHwWill } from "@/lib/fonts";
-import { GOOGLE_TAG_ID, GOOGLE_ADS_ID, GA4_MEASUREMENT_ID } from "@/lib/google-ads";
-import { META_PIXEL_ID } from "@/lib/meta-ads";
+import { MarketingScripts } from "@/components/MarketingScripts";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://sendmynotes.com"),
@@ -131,49 +130,7 @@ export default function RootLayout({
             }),
           }}
         />
-        {/* Google tag (gtag.js) for Google Tag, Google Ads & GA4 */}
-        <script
-          async
-          src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG_ID || GOOGLE_ADS_ID}`}
-        />
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.dataLayer = window.dataLayer || [];
-              function gtag(){dataLayer.push(arguments);}
-              gtag('js', new Date());
-              ${GOOGLE_TAG_ID ? `gtag('config', '${GOOGLE_TAG_ID}');` : ""}
-              gtag('config', '${GOOGLE_ADS_ID}');
-              ${GA4_MEASUREMENT_ID ? `gtag('config', '${GA4_MEASUREMENT_ID}', { send_page_view: true });` : ""}
-            `,
-          }}
-        />
-        {/* Meta Pixel Code */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              !function(f,b,e,v,n,t,s)
-              {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-              n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-              if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-              n.queue=[];t=b.createElement(e);t.async=!0;
-              t.src=v;s=b.getElementsByTagName(e)[0];
-              s.parentNode.insertBefore(t,s)}(window, document,'script',
-              'https://connect.facebook.net/en_US/fbevents.js');
-              fbq('init', '${META_PIXEL_ID}');
-              fbq('track', 'PageView');
-            `,
-          }}
-        />
-        <noscript>
-          <img
-            height="1"
-            width="1"
-            style={{ display: "none" }}
-            src={`https://www.facebook.com/tr?id=${META_PIXEL_ID}&ev=PageView&noscript=1`}
-            alt=""
-          />
-        </noscript>
+        <MarketingScripts />
         <meta
           name="facebook-domain-verification"
           content={process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION || "7j8rbkz9ktc5jzapl53uueqvute5et"}

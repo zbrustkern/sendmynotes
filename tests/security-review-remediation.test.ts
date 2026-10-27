@@ -79,8 +79,8 @@ async function runSecurityRemediationTests() {
     headers: { "x-admin-key": "super_secure_test_key_xyz" },
   });
   assert(
-    verifyAdminAuth(authReq) === true,
-    "Valid admin key succeeds with constant-time comparison"
+    verifyAdminAuth(authReq) === false,
+    "Shared admin keys are rejected even when configured"
   );
 
   // Expired token test: manually craft 9-hour-old token
@@ -99,7 +99,7 @@ async function runSecurityRemediationTests() {
   );
 
   // Fresh valid token
-  const freshToken = generateAdminSessionToken();
+  const freshToken = generateAdminSessionToken("zbrustkern@gmail.com");
   assert(
     isValidAdminSessionToken(freshToken) === true,
     "Freshly generated session token is valid"
@@ -122,6 +122,8 @@ async function runSecurityRemediationTests() {
     isAuthorizedAdminEmail("attacker@evil.com") === false,
     "Unauthorized email attacker@evil.com is rejected"
   );
+
+  Object.assign(process.env, { NODE_ENV: "test" });
 
   // Account-bound Firebase ID token login via POST /api/admin/auth
   const zekeAuthReq = new NextRequest("http://localhost:3000/api/admin/auth", {
@@ -269,7 +271,7 @@ async function runSecurityRemediationTests() {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-admin-key": "super_secure_test_key_xyz",
+      cookie: `smn_admin_session=${generateAdminSessionToken("zbrustkern@gmail.com")}`,
     },
     body: JSON.stringify({}),
   });

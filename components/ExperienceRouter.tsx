@@ -43,15 +43,16 @@ export function ExperienceRouter({
     return initialIsV3;
   }, [searchParams, initialIsV3]);
 
-  const isAutoSelect = useMemo(() => {
-    if (!searchParams) return false;
-    const utm = searchParams.get("utm_source")?.toLowerCase();
-    const auto = searchParams.get("auto_select");
-    return auto === "1" || utm === "google" || utm === "meta";
-  }, [searchParams]);
+  // Specific context (e.g. from occasion or scenario route) determines initial step.
+  // Neither attribution parameters nor generic auto_select=1 select a card or force note editor.
+  const hasSpecificContext = Boolean(
+    scenarioSlug ||
+    initialHandwrittenNote ||
+    (initialOccasion && initialCoverUrl)
+  );
 
-  const effectiveEmbedded = isAutoSelect ? false : embedded;
-  const effectiveInitialStep = isAutoSelect ? "note" : initialStep;
+  const effectiveInitialStep = initialStep || (hasSpecificContext ? "note" : "card");
+  const effectiveEmbedded = Boolean(embedded);
 
   if (isV3) {
     return (
@@ -77,6 +78,7 @@ export function ExperienceRouter({
       initialHandwrittenNote={initialHandwrittenNote}
       initialFontStyleId={initialFontStyleId}
       scenarioSlug={scenarioSlug}
+      initialStep={effectiveInitialStep === "note" ? 2 : 1}
     />
   );
 }

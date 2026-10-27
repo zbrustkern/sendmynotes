@@ -7,6 +7,8 @@ import {
   sendDeferredAddressReceiptEmail,
   sendOrderPenningReceiptEmail,
 } from "@/lib/email/transactional";
+import { effectiveOrderEmail } from "@/lib/checkout-contact";
+import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/receipt-email-delivery";
 import Stripe from "stripe";
 import { buildPurchaseMeasurement, persistPurchaseMeasurement, validateVerifiedCapture } from "@/lib/purchase-measurement";
 
@@ -109,10 +111,12 @@ export async function POST(req: NextRequest) {
         `[Webhook] Payment confirmed for Order ${orderId} (mode: ${paymentMode}, livemode: ${!isTestPayment}). Processing order...`
       );
 
+      const customerEmail = effectiveOrderEmail(order, paymentIntent.receipt_email);
+
       const result = await processPaidOrder(
         orderId,
         paymentIntent.id,
-        paymentIntent.receipt_email || undefined,
+        customerEmail || undefined,
         {
           isTest: isTestPayment,
           paymentMode,
@@ -129,39 +133,41 @@ export async function POST(req: NextRequest) {
 
       // Automated Transactional Email Dispatch (Resend + Google Secret Manager)
       try {
-        const latestOrder = await getOrderById(orderId);
-        if (latestOrder) {
-          const customerEmail = paymentIntent.receipt_email || latestOrder.customerEmail;
-          const isAddressDeferred = Boolean(
-            latestOrder.addressDeferred ||
-            (latestOrder as any).address_deferred ||
-            latestOrder.status === "AWAITING_RECIPIENT_ADDRESS" ||
-            paymentIntent.metadata?.address_deferred === "true" ||
-            paymentIntent.metadata?.addressDeferred === "true"
-          );
+        if (customerEmail) {
+          const claim = await claimReceiptEmailDelivery(orderId);
+          if (claim) {
+            const isAddressDeferred = Boolean(
+              claim.addressDeferred ||
+              (claim as any).address_deferred ||
+              claim.status === "AWAITING_RECIPIENT_ADDRESS" ||
+              paymentIntent.metadata?.address_deferred === "true" ||
+              paymentIntent.metadata?.addressDeferred === "true"
+            );
 
-          if (customerEmail && !(latestOrder as any).receiptEmailSentAt) {
-            if (isAddressDeferred) {
-              console.log(
-                `[Webhook] Dispatching Scenario A (deferred address) receipt email to ${customerEmail} for order ${orderId}...`
-              );
-              await sendDeferredAddressReceiptEmail({
-                order: latestOrder,
-                customerEmail,
-              });
-            } else {
-              console.log(
-                `[Webhook] Dispatching Scenario B (penning confirmation) receipt email to ${customerEmail} for order ${orderId}...`
-              );
-              await sendOrderPenningReceiptEmail({
-                order: latestOrder,
-                customerEmail,
-              });
+            try {
+              if (isAddressDeferred) {
+                console.log(
+                  `[Webhook] Dispatching Scenario A (deferred address) receipt email to ${customerEmail} for order ${orderId}...`
+                );
+                await sendDeferredAddressReceiptEmail({
+                  order: claim,
+                  customerEmail,
+                });
+              } else {
+                console.log(
+                  `[Webhook] Dispatching Scenario B (penning confirmation) receipt email to ${customerEmail} for order ${orderId}...`
+                );
+                await sendOrderPenningReceiptEmail({
+                  order: claim,
+                  customerEmail,
+                });
+              }
+              await finishReceiptEmailDelivery(orderId, isAddressDeferred);
+            } catch (sendErr: unknown) {
+              const sendMsg = sendErr instanceof Error ? sendErr.message : String(sendErr);
+              await finishReceiptEmailDelivery(orderId, isAddressDeferred, sendMsg);
+              throw sendErr;
             }
-
-            await updateOrderStatus(orderId, {
-              receiptEmailSentAt: Date.now(),
-            } as any);
           }
         }
       } catch (emailErr: unknown) {

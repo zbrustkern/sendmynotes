@@ -14,11 +14,15 @@ export type OrderStatus =
   | "PAYMENT_RECEIVED"
   | "AWAITING_RECIPIENT_ADDRESS"
   | "DISPATCHING"
+  | "DISPATCH_UNCERTAIN"
   | "PROCESSING_HANDWRYTTEN"
   | "QUEUED_FOR_FULFILLMENT"
   | "MAILED"
   | "PAYMENT_VERIFICATION_FAILED"
   | "FAILED";
+
+export type OrderOrigin = "CUSTOMER_CHECKOUT" | "ADMIN_COMP";
+export type ContactEmailChoice = "provided" | "omitted";
 
 export type OccasionType = "birthday" | "anniversary" | "holiday" | "milestone" | "custom";
 
@@ -92,8 +96,20 @@ export interface OrderAttribution {
 
 export interface Order {
   id: string;
+  operationId?: string;
+  receiptEmailSentAt?: number;
+  addressDeferredEmailSentAt?: number;
+  receiptEmailDeliveryStatus?: "pending" | "sent" | "failed";
+  receiptEmailDeliveryStartedAt?: number;
+  receiptEmailDeliveryError?: string;
   stripePaymentId?: string;
   customerEmail: string;
+  /** Present only for orders created with the explicit checkout email policy; absent means legacy fallback rules apply. */
+  contactEmailChoice?: ContactEmailChoice;
+  contactPolicyVersion?: 1;
+  contactEmailSyncStatus?: "pending" | "synced";
+  contactEmailUpdateId?: string;
+  contactEmailUpdateStartedAt?: number;
   userId?: string;
   occasion?: string;
   frontImageUrl: string;
@@ -119,6 +135,13 @@ export interface Order {
   originalAmountInCents?: number;
   discountCode?: string;
   discountAmountInCents?: number;
+  /** Legacy offer-engine quote reference retained for redemption/audit flows. */
+  quoteId?: string;
+  /** Immutable server-authored destination and price snapshot. */
+  quote?: { version: string; countryCode: string; basePriceCents: number; discountCents: number; internationalSurchargeCents: number; totalCents: number; currency: "USD" };
+  supplierCountryId?: number;
+  supplierCountryName?: string;
+  isInternationalPreview?: boolean;
   paymentMethod?: "STRIPE" | "PROMO_CODE" | "STUDIO_COMP";
   attribution?: OrderAttribution;
   metaCapiTrackedAt?: number; // Timestamp when Meta Conversions API purchase was dispatched
@@ -133,6 +156,7 @@ export interface Order {
   purchaseMeasurement?: PurchaseMeasurementSnapshot;
   experienceVersion?: string;
   sessionId?: string;
+  origin?: OrderOrigin;
   createdAt: number;
   updatedAt: number;
 }
@@ -286,6 +310,7 @@ export type TelemetryEventName =
   | "note_completed"
   | "payment_viewed"
   | "wallet_availability_observed"
+  | "payment_confirmation_observed"
   | "payment_canceled"
   | "reminder_opt_in"
   | "conversion_queue_observed"

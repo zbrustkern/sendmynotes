@@ -37,14 +37,6 @@ export function getAdminSecret(): string | null {
   if (process.env.NODE_ENV !== "production") {
     return "sendmynotes2026";
   }
-  // If explicitly in staging environment, provide default staging passphrase
-  if (
-    process.env.FIREBASE_PROJECT_ID === "sendmynotes-staging" ||
-    process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID === "sendmynotes-staging" ||
-    (typeof process.env.K_SERVICE === "string" && process.env.K_SERVICE.includes("staging"))
-  ) {
-    return "smn_staging_admin_2026";
-  }
   console.error("[AdminAuth] ERROR: ADMIN_SECRET_KEY is not configured in production environment.");
   return null;
 }
@@ -53,21 +45,24 @@ export function getAdminSecret(): string | null {
  * Secret key used to sign and verify HMAC session cookies.
  */
 export function getAdminSessionSigningKey(): string {
+  const independentKey = process.env.ADMIN_SESSION_SIGNING_KEY?.trim();
+  if (independentKey) return independentKey;
   const secret = getAdminSecret();
   if (secret) return secret;
-  return process.env.ADMIN_SESSION_SIGNING_KEY || "smn_internal_admin_session_key_2026";
+  if (process.env.NODE_ENV !== "production") return "smn_internal_admin_session_key_2026";
+  throw new Error("Admin session signing key is not configured in production.");
 }
 
 /**
  * Creates a signed session token derived from the signing key and current timestamp.
  */
-export function generateAdminSessionToken(adminEmail?: string): string {
+export function generateAdminSessionToken(adminEmail: string): string {
   const signingKey = getAdminSessionSigningKey();
   const timestamp = Date.now();
   const userTag = adminEmail
     ? `_${Buffer.from(adminEmail.toLowerCase().trim()).toString("hex")}`
     : "";
-  const payload = `smn_admin_${timestamp}${userTag}`;
+  const payload = `smn_admin_google_${timestamp}${userTag}`;
   const signature = crypto
     .createHmac("sha256", signingKey)
     .update(payload)
@@ -82,7 +77,12 @@ export function generateAdminSessionToken(adminEmail?: string): string {
  */
 export function isValidAdminSessionToken(token: string): boolean {
   if (!token || typeof token !== "string" || !token.includes(".")) return false;
-  const signingKey = getAdminSessionSigningKey();
+  let signingKey: string;
+  try {
+    signingKey = getAdminSessionSigningKey();
+  } catch {
+    return false;
+  }
 
   const lastDot = token.lastIndexOf(".");
   if (lastDot === -1) return false;
@@ -91,7 +91,7 @@ export function isValidAdminSessionToken(token: string): boolean {
   if (!payload || !signature) return false;
 
   // Enforce payload format and timestamp expiration (allowing optional user tag)
-  const match = payload.match(/^smn_admin_(\d+)(?:_.*)?$/);
+  const match = payload.match(/^smn_admin_google_(\d+)_[0-9a-fA-F]+$/);
   if (!match) return false;
 
   const timestamp = parseInt(match[1], 10);
@@ -125,7 +125,7 @@ export function getAdminSessionEmail(token: string): string | null {
   if (!isValidAdminSessionToken(token)) return null;
   const lastDot = token.lastIndexOf(".");
   const payload = token.substring(0, lastDot);
-  const match = payload.match(/^smn_admin_\d+_(.+)$/);
+  const match = payload.match(/^smn_admin_google_\d+_(.+)$/);
   if (!match) return null;
   const rawTag = match[1];
   if (/^[0-9a-fA-F]+$/.test(rawTag)) {
@@ -143,42 +143,18 @@ export function getAdminSessionEmail(token: string): string | null {
 }
 
 /**
- * Validates incoming admin request from cookie or x-admin-key header.
+ * Validates an account-bound, authorized admin session. Shared keys and anonymous legacy sessions are rejected.
  */
 export function verifyAdminAuth(req: NextRequest): boolean {
-  // 1. Direct header check with timing-safe comparison (service / API access)
-  const secret = getAdminSecret();
-  const headerKey = req.headers.get("x-admin-key");
-  if (headerKey && typeof headerKey === "string" && secret) {
-    const headBuf = Buffer.from(headerKey);
-    const secBuf = Buffer.from(secret);
-    if (headBuf.length === secBuf.length && crypto.timingSafeEqual(headBuf, secBuf)) {
-      return true;
-    }
-  }
-
-  // 2. Cookie session check (HMAC-verified admin session)
-  const sessionCookie = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
-  if (sessionCookie && isValidAdminSessionToken(sessionCookie)) {
-    return true;
-  }
-
-  return false;
+  const token = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
+  if (!token) return false;
+  const email = getAdminSessionEmail(token);
+  return isAuthorizedAdminEmail(email);
 }
 
-export function verifyAdminPassphrase(passphrase: string): boolean {
-  if (!passphrase || typeof passphrase !== "string") return false;
-  const secret = getAdminSecret();
-  if (!secret) return false;
-
-  const passBuf = Buffer.from(passphrase);
-  const secretBuf = Buffer.from(secret);
-
-  if (passBuf.length !== secretBuf.length) {
-    // Perform dummy comparison against self to equalize timing
-    crypto.timingSafeEqual(passBuf, passBuf);
-    return false;
-  }
-
-  return crypto.timingSafeEqual(passBuf, secretBuf);
+/** Resolve audit identity from verified credentials, never from request body labels. */
+export function getAuthenticatedAdminActor(req: NextRequest): string | null {
+  if (!verifyAdminAuth(req)) return null;
+  const token = req.cookies.get(ADMIN_COOKIE_NAME)?.value;
+  return token ? getAdminSessionEmail(token) : null;
 }

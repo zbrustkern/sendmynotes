@@ -95,6 +95,7 @@ export const resend: Resend = new Proxy({} as Resend, {
     if (prop === "emails") {
       return {
         send: async (payload: any) => {
+          if (process.env.STAGING_REVIEW_ONLY === "true") return { data: null, error: { name: "staging_review_only", message: "Email delivery is disabled in staging review." } };
           const client = await getResendClient();
           if (!client) {
             console.warn(

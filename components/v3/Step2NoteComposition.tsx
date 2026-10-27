@@ -9,7 +9,6 @@ import {
   AlertCircle,
   Eye,
   Undo2,
-  Layers,
   PenTool,
 } from "lucide-react";
 import { OCCASION_MESSAGE_BANK, MessageInspiration, CARD_PRESETS, CardPreset } from "@/lib/card-presets";
@@ -247,9 +246,6 @@ export function Step2NoteComposition({
   scenarioSlug,
   onSelectCover,
 }: Step2NoteCompositionProps) {
-  // Quick cover switcher sheet state (for "See All 12")
-  const [isCoverSheetOpen, setIsCoverSheetOpen] = useState(false);
-
   // Card preview sheet state for full inspection modal
   const [isPreviewCardOpen, setIsPreviewCardOpen] = useState(false);
 
@@ -334,15 +330,6 @@ export function Step2NoteComposition({
     markNoteAsEditedAndFireStep3(text.length, false, "inspiration");
   };
 
-  // Available covers for quick switcher (all 12 presets)
-  const availableCovers = useMemo(() => {
-    const occasionLower = (occasion || "").toLowerCase();
-    const matched = CARD_PRESETS.filter((p) => p.occasion.toLowerCase() === occasionLower);
-    const others = CARD_PRESETS.filter((p) => p.occasion.toLowerCase() !== occasionLower);
-    const combined = [...matched, ...others];
-    return combined.slice(0, Math.max(12, combined.length));
-  }, [occasion]);
-
   // Starter prompts bank for occasion / scenario
   const starterPrompts = useMemo(() => {
     return getStarterPrompts(occasion, scenarioSlug);
@@ -398,34 +385,6 @@ export function Step2NoteComposition({
     }
   };
 
-  // 1-Tap Occasion Switcher handler
-  const handleOccasionSwitch = (item: (typeof STUDIO_OCCASION_PILLS)[number]) => {
-    const targetPreset = CARD_PRESETS.find((p) => p.id === item.presetId) || CARD_PRESETS[0];
-    if (onSelectCover) {
-      onSelectCover(targetPreset);
-    }
-    if (onChangeOccasion) {
-      onChangeOccasion(item.occasion, targetPreset);
-    }
-    // Switch starter notes to the new occasion's top template
-    const newPrompts = getStarterPrompts(item.occasion, item.label === "Pet Loss" ? "loss-of-beloved-pet" : undefined);
-    if (newPrompts.length > 0) {
-      applyInspirationText(newPrompts[0].template);
-    }
-    if (!salutation || salutation.toLowerCase().includes("friend") || salutation.toLowerCase().includes("dear")) {
-      onChangeSalutation("Dear Friend,");
-    }
-    if (!signOff || signOff.toLowerCase().includes("warmly")) {
-      onChangeSignOff("Warmly,");
-    }
-    setBracketWarning(null);
-    trackEvent("cover_preset_selected", 2, {
-      occasion: item.occasion,
-      presetId: targetPreset.id,
-      title: targetPreset.title,
-    });
-  };
-
   // Hard safety guard validation before advancing to Address step
   const handleProceedToAddress = () => {
     const combined = `${salutation} ${bodyNote} ${signOff}`;
@@ -443,17 +402,6 @@ export function Step2NoteComposition({
     onContinue();
   };
 
-  // Detect which occasion pill is currently active
-  const activeOccasionKey = useMemo(() => {
-    if (scenarioSlug?.includes("pet")) return "pet loss";
-    const occ = (occasion || "").toLowerCase();
-    if (occ.includes("pet")) return "pet loss";
-    if (occ.includes("sympathy") || occ.includes("support") || occ.includes("condolence")) return "sympathy";
-    if (occ.includes("thank")) return "thank you";
-    if (occ.includes("birthday") || occ.includes("bday")) return "birthday";
-    return "thinking of you";
-  }, [occasion, scenarioSlug]);
-
   return (
     <div className="w-full space-y-4">
       {/* 1. MOBILE-ONLY TOP CARD BAR (< lg) WITH HIGH-AFFORDANCE PREVIEW BUTTON */}
@@ -465,7 +413,7 @@ export function Step2NoteComposition({
           title="Tap to preview full card and live ink"
         >
           <img
-            src={cardUrl || availableCovers[0]?.imageUrl}
+            src={cardUrl || CARD_PRESETS[0].imageUrl}
             alt={cardTitle || "Front Cover Artwork"}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
           />
@@ -474,12 +422,12 @@ export function Step2NoteComposition({
           </div>
         </div>
 
-        {/* Center: Title + Explicit High-Affordance [ 📖 Preview Open Card ] Button */}
+        {/* Center: Title + Explicit High-Affordance [ 📖 Preview card ] Button */}
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 shrink-0" />
             <span className="text-xs font-bold text-stone-900 truncate">
-              {cardTitle || "Featured Design"}
+              {cardTitle || "Your custom cover"}
             </span>
           </div>
           <button
@@ -487,20 +435,9 @@ export function Step2NoteComposition({
             onClick={() => setIsPreviewCardOpen(true)}
             className="w-full px-2.5 py-1.5 bg-amber-100/90 hover:bg-amber-200/90 active:bg-amber-300/90 border border-amber-300 rounded-xl text-xs font-bold text-amber-950 shadow-2xs flex items-center justify-center gap-1.5 transition cursor-pointer"
           >
-            <span>📖 Preview Open Card</span>
+            <span>📖 Preview card</span>
           </button>
         </div>
-
-        {/* Right: All Covers Button */}
-        <button
-          type="button"
-          onClick={() => setIsCoverSheetOpen(true)}
-          className="px-2 py-2 bg-white hover:bg-stone-50 active:bg-stone-100 border border-stone-300 rounded-xl text-xs font-semibold text-stone-800 shadow-2xs flex flex-col items-center justify-center gap-0.5 shrink-0 cursor-pointer min-w-[64px]"
-        >
-          <Layers className="w-3.5 h-3.5 text-amber-700" />
-          <span className="text-[11px] leading-tight">All Covers</span>
-          <span className="text-[9px] text-stone-500 font-normal">({availableCovers.length})</span>
-        </button>
       </div>
 
       {/* 2. MAIN TWO-COLUMN SPLIT-SCREEN WORKBENCH (lg:grid-cols-12) */}
@@ -530,7 +467,7 @@ export function Step2NoteComposition({
                 title="Click to view full card spread"
               >
                 <img
-                  src={cardUrl || availableCovers[0]?.imageUrl}
+                  src={cardUrl || CARD_PRESETS[0].imageUrl}
                   alt={cardTitle || "Front Cover Artwork"}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                 />
@@ -545,29 +482,20 @@ export function Step2NoteComposition({
                   Front Artwork
                 </span>
                 <span className="text-xs font-bold text-stone-900 truncate block">
-                  {cardTitle || "Featured Design"}
+                  {cardTitle || "Your custom cover"}
                 </span>
               </div>
 
-              {/* Right: [ All Covers ] & [ Full Card Spread ] Action Buttons */}
+              {/* Right: [ Preview card ] Action Button */}
               <div className="flex items-center gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setIsCoverSheetOpen(true)}
-                  className="px-2.5 py-1.5 bg-white hover:bg-stone-50 active:bg-stone-100 border border-stone-200 rounded-xl text-xs font-semibold text-stone-700 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                  title="Browse all cover designs"
-                >
-                  <Layers className="w-3.5 h-3.5 text-stone-600" />
-                  <span>All Covers</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => setIsPreviewCardOpen(true)}
                   className="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 active:bg-amber-200 border border-amber-200/90 rounded-xl text-xs font-semibold text-amber-950 shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                  title="Preview full card spread"
+                  title="Preview card"
                 >
                   <Eye className="w-3.5 h-3.5 text-amber-700" />
-                  <span>Full Card Spread</span>
+                  <span>Preview card</span>
                 </button>
               </div>
             </div>
@@ -623,90 +551,13 @@ export function Step2NoteComposition({
                 })}
               </div>
             </div>
-
-            {/* ONE Visual Cover Thumbnail Strip with "See All 12" */}
-            <div className="space-y-1.5 pt-1 border-t border-stone-200/70">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-semibold text-stone-800">Card Front Design:</span>
-                <span className="text-[11px] text-stone-600 truncate max-w-[200px]">{cardTitle}</span>
-              </div>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-thin">
-                {availableCovers.slice(0, 6).map((preset) => {
-                  const isSelected = cardUrl === preset.imageUrl || cardTitle === preset.title;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => onSelectCover?.(preset)}
-                      className={`group relative shrink-0 w-14 sm:w-16 aspect-[17/22] rounded-xl overflow-hidden border transition cursor-pointer text-left ${
-                        isSelected
-                          ? "border-emerald-600 ring-2 ring-emerald-600/50 shadow-sm"
-                          : "border-stone-200 hover:border-amber-400 opacity-80 hover:opacity-100 bg-stone-100"
-                      }`}
-                      title={preset.title}
-                    >
-                      <img
-                        src={preset.imageUrl}
-                        alt={preset.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-                      />
-                      {isSelected && (
-                        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shadow-xs">
-                          <Check className="w-2.5 h-2.5 stroke-[3]" />
-                        </div>
-                      )}
-                      <span className="absolute bottom-0 left-0 right-0 bg-stone-900/85 backdrop-blur-xs text-white text-[8px] font-medium px-0.5 py-0.5 truncate text-center block">
-                        {preset.title}
-                      </span>
-                    </button>
-                  );
-                })}
-                <button
-                  type="button"
-                  onClick={() => setIsCoverSheetOpen(true)}
-                  className="shrink-0 w-14 sm:w-16 aspect-[17/22] rounded-xl border-2 border-dashed border-stone-300 hover:border-emerald-600 bg-white hover:bg-stone-50 flex flex-col items-center justify-center p-1 text-center cursor-pointer transition text-stone-600 hover:text-emerald-800"
-                >
-                  <span className="text-[11px] font-bold leading-tight">See All</span>
-                  <span className="text-[10px] text-stone-500 font-semibold">{availableCovers.length} &rarr;</span>
-                </button>
-              </div>
-            </div>
           </div>
         </div>
 
         {/* RIGHT COLUMN (lg:col-span-6 — The Guided Note & Action Column) */}
         <div className="lg:col-span-6 space-y-4">
           <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-sm space-y-4">
-            {/* 1. 1-TAP OCCASION SWITCHER PILLS AT VERY TOP */}
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold uppercase tracking-wider text-stone-500 text-[10px]">
-                  Select Occasion
-                </span>
-                <span className="text-[11px] text-stone-400">1-Tap Card &amp; Message Switch</span>
-              </div>
-              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                {STUDIO_OCCASION_PILLS.map((item) => {
-                  const isActive = activeOccasionKey === item.label.toLowerCase();
-                  return (
-                    <button
-                      key={item.label}
-                      type="button"
-                      onClick={() => handleOccasionSwitch(item)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition cursor-pointer shrink-0 ${
-                        isActive
-                          ? "bg-stone-900 text-white shadow-xs"
-                          : "bg-stone-100 text-stone-700 hover:bg-stone-200 border border-stone-200/70"
-                      }`}
-                    >
-                      {item.label}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 2. GREETING INPUT */}
+            {/* 1. GREETING INPUT */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1">
                 Greeting (optional)
@@ -970,59 +821,7 @@ export function Step2NoteComposition({
         </div>
       )}
 
-      {/* 4. FULL "SEE ALL 12" COVER DESIGNS SHEET */}
-      <Sheet
-        isOpen={isCoverSheetOpen}
-        onClose={() => setIsCoverSheetOpen(false)}
-        title="Select Card Front Design"
-        description={`Choose from all ${availableCovers.length} original greeting cards. Your written note is completely preserved.`}
-      >
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 py-2 max-h-[70vh] overflow-y-auto">
-          {availableCovers.map((preset) => {
-            const isSelected = cardUrl === preset.imageUrl || cardTitle === preset.title;
-            return (
-              <button
-                key={preset.id}
-                type="button"
-                onClick={() => {
-                  if (onSelectCover) {
-                    onSelectCover(preset);
-                  }
-                  setIsCoverSheetOpen(false);
-                }}
-                className={`group rounded-xl border text-left overflow-hidden transition cursor-pointer flex flex-col ${
-                  isSelected
-                    ? "border-emerald-600 ring-2 ring-emerald-600/30 bg-emerald-50/40"
-                    : "border-stone-200 hover:border-amber-400 bg-white hover:shadow-xs"
-                }`}
-              >
-                <div className="relative aspect-[17/22] w-full bg-stone-100 overflow-hidden">
-                  <img
-                    src={preset.imageUrl}
-                    alt={preset.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  />
-                  {isSelected && (
-                    <div className="absolute top-2 right-2 w-5 h-5 rounded-full bg-emerald-700 text-white flex items-center justify-center text-xs shadow-xs">
-                      <Check className="w-3 h-3 stroke-[3]" />
-                    </div>
-                  )}
-                </div>
-                <div className="p-2.5 space-y-0.5">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-amber-800 block truncate">
-                    {preset.occasion}
-                  </span>
-                  <span className="text-xs font-semibold text-stone-900 block truncate">
-                    {preset.title}
-                  </span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </Sheet>
-
-      {/* 5. FULL ENLARGED CARD INSPECTION SHEET: FRONT COVER ALONGSIDE LIVE HANDWRITTEN NOTE */}
+      {/* FULL ENLARGED CARD INSPECTION SHEET: FRONT COVER ALONGSIDE LIVE HANDWRITTEN NOTE */}
       <Sheet
         isOpen={isPreviewCardOpen}
         onClose={() => setIsPreviewCardOpen(false)}
@@ -1039,7 +838,7 @@ export function Step2NoteComposition({
               </span>
               <div className="relative w-full max-w-[280px] aspect-[17/22] rounded-2xl overflow-hidden shadow-md border-2 border-stone-200 bg-stone-100">
                 <img
-                  src={cardUrl || availableCovers[0]?.imageUrl}
+                  src={cardUrl || CARD_PRESETS[0].imageUrl}
                   alt={cardTitle || "Front Cover Artwork"}
                   className="w-full h-full object-cover"
                 />

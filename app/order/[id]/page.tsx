@@ -32,6 +32,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 import { Order, OccasionType } from "@/lib/types";
+import { isCustomerPurchaseOrder } from "@/lib/customer-purchase-classification";
 import { formatOccasionDate, getOccasionTypeDisplay, MONTH_SHORT_NAMES, MONTH_NAMES } from "@/lib/reminder-utils";
 import { detectCardIntent } from "@/lib/card-intent";
 import { useAuth } from "@/context/AuthContext";
@@ -186,7 +187,7 @@ export default function OrderStatusPage() {
         }
         const data = await res.json();
         if (!isMounted) return;
-        if (data.order?.purchaseMeasurement && hasGoogleAdsCheckoutProof(orderId)) {
+        if (isCustomerPurchaseOrder(data.order) && data.order?.purchaseMeasurement && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD" && hasGoogleAdsCheckoutProof(orderId)) {
           trackGoogleAdsPurchase({
             orderId,
             measurement: data.order.purchaseMeasurement,
@@ -212,7 +213,7 @@ export default function OrderStatusPage() {
                   data.order.status = confirmData.status;
                   data.order.handwryttenOrderId = confirmData.handwryttenOrderId;
                   data.order.purchaseMeasurement = confirmData.purchaseMeasurement;
-                  if (confirmData.purchaseMeasurement && hasGoogleAdsCheckoutProof(orderId)) {
+                  if (isCustomerPurchaseOrder(data.order) && confirmData.purchaseMeasurement && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD" && hasGoogleAdsCheckoutProof(orderId)) {
                     trackGoogleAdsPurchase({
                       orderId,
                       measurement: confirmData.purchaseMeasurement,
@@ -231,20 +232,20 @@ export default function OrderStatusPage() {
           setOrder(data.order);
           setLoading(false);
 
-          if (data.order && data.order.status !== "PENDING_PAYMENT") {
+          if (isCustomerPurchaseOrder(data.order) && data.order.status !== "PENDING_PAYMENT" && !data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD") {
             try {
-              trackMetaPurchase({
-                orderId: data.order.id,
-                value: data.order.amountInCents ? data.order.amountInCents / 100 : 9.0,
-                customerEmail: data.order.customerEmail,
-                customerName: data.order.returnAddress?.firstName
-                  ? `${data.order.returnAddress.firstName} ${data.order.returnAddress.lastName || ""}`.trim()
-                  : undefined,
-                recipientCity: data.order.recipientAddress?.city,
-                recipientState: data.order.recipientAddress?.state,
-                recipientZip: data.order.recipientAddress?.zip,
-                itemName: data.order.occasion ? `${data.order.occasion} Card` : undefined,
-              });
+            trackMetaPurchase({
+              orderId: data.order.id,
+              value: data.order.amountInCents ? data.order.amountInCents / 100 : 9.0,
+              customerEmail: data.order.customerEmail,
+              customerName: data.order.returnAddress?.firstName
+                ? `${data.order.returnAddress.firstName} ${data.order.returnAddress.lastName || ""}`.trim()
+                : undefined,
+              recipientCity: data.order.recipientAddress?.city,
+              recipientState: data.order.recipientAddress?.state,
+              recipientZip: data.order.recipientAddress?.zip,
+              itemName: data.order.occasion ? `${data.order.occasion} Card` : undefined,
+            });
             } catch { /* independent destination must not break order status */ }
           }
         }
@@ -332,18 +333,25 @@ export default function OrderStatusPage() {
     );
   }
 
+  const orderTotalCents = order.quote?.totalCents ?? order.finalAmountInCents ?? order.amountInCents ?? 900;
+  const isInternational = Boolean((order.quote?.countryCode || order.recipientAddress.country) && !["US", "USA", "United States"].includes(order.quote?.countryCode || order.recipientAddress.country || ""));
+  const isPreviewHold = isInternational && Boolean(order.isInternationalPreview || order.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD");
+  const isMailed = !isPreviewHold && order.status === "MAILED";
+  const isInking = !isPreviewHold && order.status === "PROCESSING_HANDWRYTTEN";
+  const isQueuedOrPaid = order.status === "PAYMENT_RECEIVED" || order.status === "QUEUED_FOR_FULFILLMENT" || order.status === "FAILED" || isInking || isMailed;
+
   const getStatusDisplay = (status: string) => {
     switch (status) {
       case "PROCESSING_HANDWRYTTEN":
         return {
-          label: "Inking in Progress",
-          className: "text-emerald-700 bg-emerald-50 border-emerald-200",
+          label: isPreviewHold ? "Held for staging review" : "Inking in Progress",
+          className: isPreviewHold ? "text-amber-700 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200",
         };
       case "COMPLETED":
       case "MAILED":
         return {
-          label: "Mailed via USPS",
-          className: "text-emerald-700 bg-emerald-50 border-emerald-200",
+          label: isPreviewHold ? "Held for staging review" : isInternational ? "Mailed internationally" : "Mailed via USPS",
+          className: isPreviewHold ? "text-amber-700 bg-amber-50 border-amber-200" : "text-emerald-700 bg-emerald-50 border-emerald-200",
         };
       case "PENDING_PAYMENT":
         return {
@@ -355,42 +363,34 @@ export default function OrderStatusPage() {
       case "FAILED":
       default:
         return {
-          label: "Queued for Inking",
+          label: isPreviewHold ? "Held for staging review" : "Queued for Inking",
           className: "text-amber-700 bg-amber-50 border-amber-200",
         };
     }
   };
 
   const statusDisplay = getStatusDisplay(order.status);
-  const isMailed = order.status === "MAILED";
-  const isInking = order.status === "PROCESSING_HANDWRYTTEN";
-  const isQueuedOrPaid =
-    order.status === "PAYMENT_RECEIVED" ||
-    order.status === "QUEUED_FOR_FULFILLMENT" ||
-    order.status === "FAILED" ||
-    isInking ||
-    isMailed;
 
   const trackingSteps = [
     {
-      title: "Payment Confirmed ($9.00 Paid)",
-      description: "Transaction complete. Receipt delivered to email.",
+      title: isPreviewHold ? `Test payment recorded ($${(orderTotalCents / 100).toFixed(2)})` : `Payment Confirmed ($${(orderTotalCents / 100).toFixed(2)} Paid)`,
+      description: isPreviewHold ? "No real charge occurred. Receipt email is suppressed in staging." : order.contactEmailChoice === "omitted" ? "Transaction complete. No email updates were requested; return to this secure order page for status." : order.receiptEmailSentAt ? `Receipt email requested for ${order.customerEmail}.` : "Transaction complete. Order status is available on this secure page.",
       icon: CheckCircle2,
       status: "complete",
     },
     {
-      title: "Artwork Printed on Quality Cardstock",
-      description: "Folded card printed with rich front cover artwork.",
+      title: isPreviewHold ? "Held for staging review" : "Artwork Printed on Quality Cardstock",
+      description: isPreviewHold ? "No card was printed, inked, or sent to fulfillment." : "Folded card printed with rich front cover artwork.",
       icon: Sparkles,
-      status: "complete",
+      status: isPreviewHold ? "current" : "complete",
     },
     {
-      title: order.scheduledSendDate
+      title: isPreviewHold ? "No handwriting started" : order.scheduledSendDate
         ? `Scheduled Handwriting (${order.scheduledSendDate})`
         : isMailed
         ? "Real Ink Handwriting Complete"
         : "Real Ink Handwriting In Progress",
-      description: order.scheduledSendDate
+      description: isPreviewHold ? "This test order remains held in staging; no physical production occurred." : order.scheduledSendDate
         ? `Order confirmed. Queued to be penned with real ink and mailed for ${order.scheduledSendDate}.`
         : isMailed
         ? `Penned with real blue ballpoint ink. (Handwrytten Order ID: ${order.handwryttenOrderId || "confirmed"})`
@@ -400,25 +400,25 @@ export default function OrderStatusPage() {
           }`
         : "Order confirmed. Queued for real ink handwriting in our studio.",
       icon: order.scheduledSendDate ? Calendar : PenTool,
-      status: isMailed ? "complete" : isQueuedOrPaid ? "current" : "upcoming",
+      status: isPreviewHold ? "current" : isMailed ? "complete" : isQueuedOrPaid ? "current" : "upcoming",
     },
     {
-      title: "Enveloped & Stamped",
-      description: `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} with USPS First Class postage.`,
+      title: isPreviewHold ? "Mailing not started" : "Enveloped & Stamped",
+      description: isPreviewHold ? "No postage or shipment was created for this staging test." : isInternational ? `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} in ${order.quote?.countryCode || order.recipientAddress.country}. Delivery timing varies by destination.` : `Addressed to ${order.recipientAddress.firstName} ${order.recipientAddress.lastName} with USPS First Class postage.`,
       icon: Mail,
       status: isMailed ? "complete" : "upcoming",
     },
     {
-      title: "Mailed via USPS First Class",
-      description: isMailed
+      title: isPreviewHold ? "Delivery not scheduled" : isInternational ? "Mailed internationally" : "Mailed via USPS First Class",
+      description: isPreviewHold ? "This preview order will not be mailed; no delivery estimate applies." : isMailed
         ? `Dispatched into USPS postal stream${
             order.handwryttenMailedDate ? ` on ${order.handwryttenMailedDate}` : ""
           }.${
             order.handwryttenTrackingNumber
               ? ` Tracking: ${order.handwryttenTrackingNumber}`
-              : " Domestic transit typically takes 2–7 business days; delivery timing is estimated."
+              : isInternational ? " Delivery timing varies by destination." : " Domestic transit typically takes 2–7 business days; delivery timing is estimated."
           }`
-        : "Domestic transit typically takes 2–7 business days; delivery timing is estimated, not guaranteed.",
+        : isInternational ? "Delivery timing varies by destination; no delivery date is guaranteed." : "Domestic transit typically takes 2–7 business days; delivery timing is estimated, not guaranteed.",
       icon: Truck,
       status: isMailed ? "complete" : "upcoming",
     },
@@ -491,27 +491,35 @@ export default function OrderStatusPage() {
             <CheckCircle2 className="w-8 h-8 stroke-[2.5]" />
           </div>
           <h1 className="text-2xl sm:text-3xl font-serif font-bold text-stone-900">
-            Order Confirmed & Queued for Inking!
+            {isPreviewHold ? "International Staging Test · Held" : "Order Confirmed & Queued for Inking!"}
           </h1>
           <p className="text-stone-600 text-sm max-w-lg mx-auto">
-            Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient.
+            {isPreviewHold ? "Test checkout recorded. No real charge, receipt email, card printing, fulfillment, or mailing occurred." : isInternational ? "Your card is queued for real ink writing and international mailing. Delivery timing varies by destination." : "Your card is queued for real ink writing. We will pen it with real ink, stamp it, and mail it directly to your recipient."}{!isPreviewHold && order.contactEmailChoice === "omitted" ? " No email receipt or mailing updates were requested. This secure page will show your order status." : ""}
           </p>
+
+          {order.fulfillmentStatus === "CONTACT_RECOVERY_REQUIRED" && order.viewToken && (
+            <div className="max-w-xl mx-auto rounded-xl border border-amber-300 bg-amber-50 p-4 text-left text-sm text-amber-950">
+              <strong>Payment received; recipient address still needed.</strong>
+              <p className="mt-1">No email address is available for a reminder. Use this secure link to add the recipient address and release the card to fulfillment.</p>
+              <a className="mt-3 inline-flex rounded-lg bg-stone-900 px-4 py-2 font-semibold text-white" href={`/orders/${order.id}/complete-address?token=${encodeURIComponent(order.viewToken)}`}>Add recipient address</a>
+            </div>
+          )}
 
           <div className="pt-2 flex flex-wrap items-center justify-center gap-2 text-xs">
             <span className="bg-amber-50 text-amber-800 font-semibold px-3 py-1 rounded-full border border-amber-200">
-              Receipt Sent: {order.customerEmail || "Delivered"}
+              {isPreviewHold ? "Staging test · no receipt email sent" : order.contactEmailChoice === "omitted" ? "No email receipt requested" : order.receiptEmailSentAt ? `Receipt emailed to ${order.customerEmail}` : order.customerEmail ? `Email provided: ${order.customerEmail}` : "Email receipt unavailable"}
             </span>
             <span className="bg-indigo-50 text-indigo-800 font-semibold px-3 py-1 rounded-full border border-indigo-200">
-              Real Ink: Active
+              {isPreviewHold ? "Fulfillment: Held" : "Real Ink: Active"}
             </span>
             <span className="bg-emerald-50 text-emerald-800 font-semibold px-3 py-1 rounded-full border border-emerald-200">
-              USPS Postage: Included
+              {isPreviewHold ? "Mailing: Not started" : isInternational ? "International Mailing: Included" : "USPS Postage: Included"}
             </span>
           </div>
         </div>
 
         {/* MILESTONE REMINDER CONFIRMATION BANNER */}
-        {order.recipientOccasion?.remindMe && (
+        {order.customerEmail && order.recipientOccasion?.remindMe && (
           <div className="bg-gradient-to-r from-amber-500/10 via-amber-50 to-orange-500/10 border border-amber-300/80 rounded-3xl p-5 sm:p-6 shadow-xs flex items-start gap-4">
             <div className="w-10 h-10 rounded-2xl bg-amber-600 text-white flex items-center justify-center shrink-0 shadow-sm">
               <BellRing className="w-5 h-5" />
@@ -545,7 +553,7 @@ export default function OrderStatusPage() {
         )}
 
         {/* POST-ORDER OCCASION-TAILORED NUDGE (If not already set during checkout) */}
-        {!order.recipientOccasion?.remindMe && intentConfig && (
+        {order.contactEmailChoice !== "omitted" && !order.recipientOccasion?.remindMe && intentConfig && (
           <div className="bg-white rounded-3xl p-5 sm:p-6 border border-stone-200/90 shadow-sm space-y-4">
             {postOrderReminderSet ? (
               <div className="flex items-center gap-3 text-emerald-800">
@@ -749,7 +757,7 @@ export default function OrderStatusPage() {
           <div className="flex items-center justify-between pb-4 border-b border-stone-100">
             <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
               <PenTool className="w-4 h-4 text-indigo-600" />
-              Real Ink Fulfillment Tracker
+              {isPreviewHold ? "International Preview Status" : "Real Ink Fulfillment Tracker"}
             </h2>
             <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${statusDisplay.className}`}>
               {statusDisplay.label}
@@ -898,9 +906,9 @@ export default function OrderStatusPage() {
                 <p>{order.recipientAddress.street1}</p>
                 {order.recipientAddress.street2 && <p>{order.recipientAddress.street2}</p>}
                 <p>
-                  {order.recipientAddress.city}, {order.recipientAddress.state} {order.recipientAddress.zip}
+                  {[order.recipientAddress.city, order.recipientAddress.state, order.recipientAddress.zip].filter(Boolean).join(" ")}
                 </p>
-                <p className="text-stone-400 text-[11px] pt-1">United States of America</p>
+                <p className="text-stone-400 text-[11px] pt-1">{isInternational ? order.quote?.countryCode || order.recipientAddress.country : "United States of America"}</p>
               </div>
             </div>
 
@@ -922,7 +930,7 @@ export default function OrderStatusPage() {
 
             <div className="p-3.5 bg-amber-50/60 rounded-xl border border-amber-200/60 text-xs flex items-center justify-between text-amber-900">
               <span>Amount Paid</span>
-              <span className="font-serif font-bold text-base">$9.00 Flat Rate</span>
+              <span className="font-serif font-bold text-base">${(orderTotalCents / 100).toFixed(2)} Total</span>
             </div>
           </div>
         </div>

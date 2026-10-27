@@ -59,8 +59,8 @@ verify(
 );
 
 verify(
-  htmlDavid.includes("📖 Preview Open Card"),
-  "Mobile card bar button reads '📖 Preview Open Card'"
+  htmlDavid.includes("Preview card"),
+  "Mobile card bar button reads 'Preview card'"
 );
 
 verify(
@@ -140,9 +140,8 @@ verify(
 
 verify(
   htmlDavid.includes("Front Artwork") &&
-  htmlDavid.includes("All Covers") &&
-  htmlDavid.includes("Full Card Spread"),
-  "Docked card-header bar contains Front Artwork, All Covers, and Full Card Spread"
+  htmlDavid.includes("Preview card"),
+  "Docked card-header bar contains Front Artwork and Preview card"
 );
 
 verify(

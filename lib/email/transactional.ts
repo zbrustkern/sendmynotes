@@ -45,6 +45,19 @@ function formatAddressText(address?: Partial<MailingAddress> | null): string {
   return [name, street, cityStateZip, country].filter(Boolean).join("\n");
 }
 
+function orderMailingDetails(order: Order) {
+  const isInternational = Boolean(order.quote?.countryCode && order.quote.countryCode !== "US");
+  const amountCents = order.quote?.totalCents ?? order.finalAmountInCents ?? order.amountInCents ?? 900;
+  return {
+    isInternational,
+    formattedAmount: `$${(amountCents / 100).toFixed(2)}`,
+    postageDescription: isInternational ? "international mailing" : "USPS First-Class postage",
+    deliveryText: isInternational
+      ? "Delivery timing varies by destination. Preparation and transit are separate."
+      : "Typically 1–2 business days to prepare and 2–7 business days to deliver via USPS First-Class (postmarked from Phoenix, AZ).",
+  };
+}
+
 export interface SendDeferredAddressReceiptParams {
   order: Order;
   customerEmail: string;
@@ -52,7 +65,7 @@ export interface SendDeferredAddressReceiptParams {
 
 /**
  * Scenario A: Automated receipt sent when a user locks in their card without an address (`address_deferred === true`).
- * Confirms $9.00 payment, displays the personal note text, and provides a direct magic link to complete the recipient address.
+ * Confirms payment, displays the personal note text, and provides a direct magic link to complete the recipient address.
  */
 export async function sendDeferredAddressReceiptEmail({
   order,
@@ -74,7 +87,8 @@ export async function sendDeferredAddressReceiptEmail({
     "your recipient";
 
   const noteText = order.handwrittenNote || order.printedMessage || "";
-  const formattedAmount = "$9.00";
+  const mailingDetails = orderMailingDetails(order);
+  const formattedAmount = mailingDetails.formattedAmount;
 
   const subject = `Your card for ${recipientName} is reserved — add their mailing address whenever you're ready`;
 
@@ -82,7 +96,7 @@ export async function sendDeferredAddressReceiptEmail({
 SendMyNotes Studio — Order Confirmation & Receipt
 =================================================
 Receipt #${shortOrderId}
-Total Paid: ${formattedAmount} (All-in, including real pen inking & USPS First-Class postage)
+Total Paid: ${formattedAmount} (All-in, including real pen inking & ${mailingDetails.postageDescription})
 
 Hello,
 
@@ -97,7 +111,7 @@ NEXT STEP — ADD MAILING ADDRESS:
 Whenever you have ${recipientName}'s mailing address handy, click the secure link below to enter it:
 ${completeAddressUrl}
 
-As soon as you add the address, our robotic pens will ink your words in real ballpoint pen and mail your card via USPS First-Class Mail.
+As soon as you add the address, our robotic pens will ink your words in real ballpoint pen and mail your card${mailingDetails.isInternational ? " internationally" : " via USPS First-Class Mail"}.
 
 Order ID: ${orderId}
 
@@ -151,7 +165,7 @@ https://sendmynotes.com
         <span>${formattedAmount}</span>
       </div>
       <div class="receipt-row">
-        <span>USPS First-Class Postage & Delivery</span>
+        <span>${mailingDetails.isInternational ? "International Mailing" : "USPS First-Class Postage & Delivery"}</span>
         <span style="color: #059669; font-weight: 600;">Included</span>
       </div>
       <div class="receipt-total">
@@ -236,11 +250,12 @@ export async function sendOrderPenningReceiptEmail({
     "your recipient";
 
   const noteText = order.handwrittenNote || order.printedMessage || "";
-  const formattedAmount = "$9.00";
+  const mailingDetails = orderMailingDetails(order);
+  const formattedAmount = mailingDetails.formattedAmount;
 
   // Delivery timing calculation via canonical specifications
   const deliveryEstimate = calculateDeliveryEstimate(order.scheduledSendDate);
-  const estimatedArrivalText = `${deliveryEstimate.formattedRange} (Estimated)`;
+  const estimatedArrivalText = mailingDetails.isInternational ? "Varies by destination" : `${deliveryEstimate.formattedRange} (Estimated)`;
 
   const subject = `We're penning your card to ${recipientName}! (Receipt #${shortOrderId})`;
 
@@ -248,7 +263,7 @@ export async function sendOrderPenningReceiptEmail({
 SendMyNotes Studio — Order Confirmation & Receipt
 =================================================
 Receipt #${shortOrderId}
-Total Paid: ${formattedAmount} (All-in, including real ballpoint inking & USPS First-Class postage)
+Total Paid: ${formattedAmount} (All-in, including real ballpoint inking & ${mailingDetails.postageDescription})
 
 Hello,
 
@@ -257,8 +272,8 @@ Our robotic equipment is queuing your personal words to be written in real ballp
 
 ESTIMATED DELIVERY TIMING:
 -------------------------------------------------
-USPS First-Class Arrival: ${estimatedArrivalText}
-Timing: Typically 1–2 business days to prepare and 2–7 business days to deliver via USPS First-Class (postmarked from Phoenix, AZ).
+${mailingDetails.isInternational ? "Estimated Delivery" : "USPS First-Class Arrival"}: ${estimatedArrivalText}
+Timing: ${mailingDetails.deliveryText}
 
 MAILING TO:
 -------------------------------------------------
@@ -321,7 +336,7 @@ https://sendmynotes.com
         <span>${formattedAmount}</span>
       </div>
       <div class="receipt-row">
-        <span>USPS First-Class Postage & Delivery</span>
+        <span>${mailingDetails.isInternational ? "International Mailing" : "USPS First-Class Postage & Delivery"}</span>
         <span style="color: #059669; font-weight: 600;">Included</span>
       </div>
       <div class="receipt-total">
@@ -330,10 +345,10 @@ https://sendmynotes.com
       </div>
     </div>
 
-    <!-- Estimated USPS Arrival -->
+    <!-- Estimated delivery -->
     <div class="delivery-box">
-      <div class="delivery-range">📮 Estimated USPS First-Class Arrival: ${escapeHtml(estimatedArrivalText)}</div>
-      <div>Typically 1–2 business days to prepare and 2–7 business days to deliver via USPS First-Class Mail (postmarked from Phoenix, AZ).</div>
+      <div class="delivery-range">📮 ${mailingDetails.isInternational ? "Estimated Delivery" : "Estimated USPS First-Class Arrival"}: ${escapeHtml(estimatedArrivalText)}</div>
+      <div>${escapeHtml(mailingDetails.deliveryText)}</div>
     </div>
 
     <!-- Recipient Address -->

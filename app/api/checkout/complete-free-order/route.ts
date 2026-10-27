@@ -13,6 +13,9 @@ import { logIncident } from "@/lib/incident-logger";
 import { validatePersonalSender } from "@/lib/order-processor";
 import { sendAddressDeferredEmail } from "@/lib/email-alerts";
 import { Order, DiscountCode } from "@/lib/types";
+import { normalizeCountryCode } from "@/lib/mailing-destinations";
+import { isFreeOrderEligible } from "@/lib/order-pricing";
+import { effectiveOrderEmail, savePaidOrderReminder } from "@/lib/checkout-contact";
 
 export async function POST(req: NextRequest) {
   try {
@@ -41,6 +44,22 @@ export async function POST(req: NextRequest) {
         }
 
         const existingOrder = orderDoc.data() as Order;
+
+        if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {
+          throw new Error("CONTACT_COMMIT_PENDING");
+        }
+
+        const country = normalizeCountryCode(existingOrder.recipientAddress?.country) || (existingOrder.recipientAddress?.country ? null : "US");
+        if (!isFreeOrderEligible({
+          countryCode: country,
+          amountInCents: existingOrder.amountInCents,
+          finalAmountInCents: existingOrder.finalAmountInCents,
+          quoteCountryCode: existingOrder.quote?.countryCode,
+          quoteTotalCents: existingOrder.quote?.totalCents,
+        })) {
+          if (country !== "US") throw new Error("INTERNATIONAL_REQUIRES_PAYMENT");
+          throw new Error("REQUIRES_PAYMENT");
+        }
 
         if (existingOrder.amountInCents > 0) {
           throw new Error("REQUIRES_PAYMENT");
@@ -100,7 +119,10 @@ export async function POST(req: NextRequest) {
           updatedAt: Date.now(),
         });
 
-        const finalEmail = customerEmail || existingOrder.customerEmail || "";
+        const finalEmail = effectiveOrderEmail(existingOrder, customerEmail);
+        if ((existingOrder.addressDeferred || existingOrder.address_deferred) && !finalEmail) {
+          throw new Error("DEFERRED_ADDRESS_EMAIL_REQUIRED");
+        }
 
         // Atomically claim DISPATCHING lock on order
         transaction.update(orderRef, {
@@ -128,6 +150,9 @@ export async function POST(req: NextRequest) {
       if (msg === "ORDER_NOT_FOUND") {
         return NextResponse.json({ error: "Order not found" }, { status: 404 });
       }
+      if (msg === "INTERNATIONAL_REQUIRES_PAYMENT") {
+        return NextResponse.json({ error: "International checkout requires a paid order; free completion cannot bypass its mailing surcharge." }, { status: 400 });
+      }
       if (msg === "REQUIRES_PAYMENT") {
         return NextResponse.json(
           { error: "This order requires payment and cannot be completed as free." },
@@ -136,33 +161,41 @@ export async function POST(req: NextRequest) {
       }
       if (msg === "NO_DISCOUNT_CODE" || msg === "INVALID_DISCOUNT_CODE") {
         return NextResponse.json(
-          { error: "A valid discount code is required for free checkout." },
+          { error: "A valid 100% discount code is required." },
           { status: 400 }
         );
+      }
+      if (msg === "DEFERRED_ADDRESS_EMAIL_REQUIRED") {
+        return NextResponse.json({ error: "An email is required to add the recipient address later." }, { status: 400 });
+      }
+      if (msg === "CONTACT_COMMIT_PENDING") {
+        return NextResponse.json({ error: "Your email preference is still being saved. Please retry in a moment." }, { status: 409 });
       }
       return NextResponse.json({ error: msg }, { status: 400 });
     }
 
-    // 2. Handle deduplicated replay
     if (txResult.alreadyProcessed) {
-      console.log(
-        `[Free Order] Idempotency lock active: Order ${orderId} is currently '${txResult.status}'. Dropping duplicate dispatch.`
-      );
       return NextResponse.json({
         success: true,
         orderId,
+        alreadyProcessed: true,
         status: txResult.status,
         handwryttenOrderId: txResult.handwryttenOrderId,
-        alreadyProcessed: true,
       });
     }
 
     const { order } = txResult;
+    try {
+      await savePaidOrderReminder(order, effectiveOrderEmail(order, customerEmail));
+    } catch (reminderErr) {
+      console.warn("[Free Order] Notice saving reminder:", reminderErr);
+    }
 
-    // 3. Sender validation
+    // 2. Sender validation
     const senderValidation = validatePersonalSender(order.returnAddress);
     if (!senderValidation.valid) {
-      const errorMsg = senderValidation.error || "Missing or invalid personal sender return address.";
+      const errorMsg =
+        senderValidation.error || "Missing or invalid personal sender return address.";
       console.error(`[Free Order] ${errorMsg} for ${orderId}. Halting fulfillment.`);
       await updateOrderStatus(orderId, {
         status: "QUEUED_FOR_FULFILLMENT",
@@ -192,7 +225,7 @@ export async function POST(req: NextRequest) {
         status: "AWAITING_RECIPIENT_ADDRESS",
       });
       try {
-        const finalTo = customerEmail || order.customerEmail;
+        const finalTo = effectiveOrderEmail(order, customerEmail);
         if (finalTo) {
           await sendAddressDeferredEmail({
             to: finalTo,
@@ -213,7 +246,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 4. Dispatch to Handwrytten robotic pen fulfillment with deterministic orderId
+    // 3. Dispatch to Handwrytten robotic pen fulfillment with deterministic orderId
     console.log(
       `[Free Order] Dispatching Order ${orderId} (Promo: ${order.discountCode}) to Handwrytten...`
     );
@@ -262,13 +295,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 5. Update order status to PROCESSING_HANDWRYTTEN
+    // 4. Update order status to PROCESSING_HANDWRYTTEN
     await updateOrderStatus(orderId, {
       status: "PROCESSING_HANDWRYTTEN",
       handwryttenOrderId: fulfillment.order_id,
     });
 
-    // 6. Mark image as CLAIMED in cache pool if matched
+    // 5. Mark image as CLAIMED in cache pool if matched
     try {
       const cacheSnapshot = await getImageCachePoolCollection()
         .where("imageUrl", "==", order.frontImageUrl)

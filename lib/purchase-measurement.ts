@@ -13,7 +13,13 @@ export function validateVerifiedCapture(order: Order, capture: VerifiedCapture):
   if (!order.stripePaymentId || capture.paymentIntentId !== order.stripePaymentId) return "PaymentIntent does not match this order.";
   if (capture.currency.toLowerCase() !== "usd") return "Payment currency is not USD.";
   if (!Number.isInteger(capture.amountReceived) || capture.amountReceived <= 0) return "Payment has no positive captured amount.";
-  if (!Number.isInteger(order.amountInCents) || order.amountInCents <= 0 || capture.amount !== order.amountInCents || capture.amountReceived !== order.amountInCents) return "Captured amount does not match the order total.";
+  const payableAmountInCents =
+    order.quote && Number.isInteger(order.quote.totalCents)
+      ? order.quote.totalCents
+      : typeof order.finalAmountInCents === "number" && order.finalAmountInCents >= 0
+      ? order.finalAmountInCents
+      : order.amountInCents;
+  if (!Number.isInteger(payableAmountInCents) || payableAmountInCents <= 0 || capture.amount !== payableAmountInCents || capture.amountReceived !== payableAmountInCents) return "Captured amount does not match the order total.";
   return null;
 }
 
@@ -24,19 +30,25 @@ export function buildPurchaseMeasurement(
   now = Date.now()
 ): PurchaseMeasurementSnapshot {
   const fullyRefunded = (order as Order & { fullyRefunded?: boolean }).fullyRefunded === true;
+  const payableAmountInCents =
+    order.quote && Number.isInteger(order.quote.totalCents)
+      ? order.quote.totalCents
+      : typeof order.finalAmountInCents === "number" && order.finalAmountInCents >= 0
+      ? order.finalAmountInCents
+      : order.amountInCents;
   let reason: PurchaseMeasurementSnapshot["reason"] = "eligible";
   if (capture.paymentIntentId !== order.stripePaymentId) reason = "binding_mismatch";
   else if (capture.currency.toLowerCase() !== "usd") reason = "currency_mismatch";
   else if (!Number.isInteger(capture.amountReceived) || capture.amountReceived <= 0) reason = "invalid_capture";
-  else if (capture.amountReceived !== order.amountInCents) reason = "amount_mismatch";
+  else if (capture.amountReceived !== payableAmountInCents || capture.amount !== payableAmountInCents) reason = "amount_mismatch";
   else if (!capture.livemode || order.isTest || order.paymentMode === "stripe_test" || order.paymentMode === "local_mock") reason = "test_payment";
-  else if (order.isComp || order.isFounderTest || order.paymentMethod !== "STRIPE") reason = "non_customer";
+  else if (order.origin === "ADMIN_COMP" || order.isComp || order.isFounderTest || order.paymentMethod !== "STRIPE" || order.isInternationalPreview || order.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") reason = "non_customer";
   else if (fullyRefunded) reason = "known_refund";
 
   return {
     version: 1,
     transactionId: order.id,
-    amountInCents: capture.amountReceived,
+    amountInCents: Number.isInteger(capture.amountReceived) ? capture.amountReceived : 0,
     currency: "USD",
     verifiedAt: now,
     eligible: reason === "eligible",
@@ -59,4 +71,16 @@ export async function persistPurchaseMeasurement(
     transaction.update(ref, { purchaseMeasurement: candidate, updatedAt: Date.now() });
     return candidate;
   });
+}
+
+/** Apply linked refund facts only to a returned view; the verified capture stays immutable. */
+export async function projectPurchaseMeasurementForOrder(
+  _order: Order,
+  measurement: PurchaseMeasurementSnapshot | null | undefined
+): Promise<PurchaseMeasurementSnapshot | null> {
+  if (!measurement) return null;
+  if (measurement.refundStatus === "fully_refunded") {
+    return { ...measurement, eligible: false, reason: "known_refund", refundStatus: "fully_refunded" };
+  }
+  return measurement;
 }

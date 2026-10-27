@@ -9,7 +9,13 @@ import { CardFrontPreview } from "@/components/CardFrontPreview";
 interface CustomAiCommissionDrawerProps {
   isOpen: boolean;
   onClose: () => void;
-  onSelectCover: (art: { imageUrl: string; prompt: string; occasion: string }) => void;
+  onSelectCover: (art: {
+    imageUrl: string;
+    prompt: string;
+    occasion: string;
+    source?: "preset" | "custom";
+    presetId?: string;
+  }) => void;
   currentOccasion: string;
 }
 
@@ -183,7 +189,10 @@ export function CustomAiCommissionDrawer({
 
   const handleSelect = () => {
     if (!generatedArt) return;
-    onSelectCover(generatedArt);
+    onSelectCover({
+      ...generatedArt,
+      source: "custom",
+    });
     onClose();
   };
 
@@ -193,6 +202,8 @@ export function CustomAiCommissionDrawer({
       imageUrl: presetAlternative.imageUrl,
       prompt: presetAlternative.title,
       occasion: presetAlternative.occasion,
+      source: "preset",
+      presetId: presetAlternative.id,
     });
     onClose();
   };

@@ -1,16 +1,11 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-  Mail,
   ArrowRight,
-  ArrowLeft,
-  ShieldCheck,
   Plus,
-  Eye,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
+import { EnvelopePreview } from "@/components/flow/EnvelopePreview";
 
 export const US_STATES = [
   { code: "AL", name: "Alabama" },
@@ -73,6 +68,38 @@ export interface AddressData {
   city: string;
   state: string;
   zip: string;
+  country?: string;
+}
+
+export interface MailingOption {
+  countryCode: string;
+  countryName: string;
+  postalCodeRequired: boolean;
+  regionRequired: boolean;
+  available: boolean;
+  regions?: Array<{ code: string; name: string }>;
+}
+
+export function isValidInternationalRegion(
+  countryRule: MailingOption | undefined,
+  stateValue: string
+): boolean {
+  const trimmed = stateValue.trim();
+  if (!countryRule?.regions || countryRule.regions.length === 0) {
+    return !countryRule?.regionRequired || Boolean(trimmed);
+  }
+  if (!countryRule.regionRequired && !trimmed) {
+    return true;
+  }
+  const upper = trimmed.toUpperCase();
+  return countryRule.regions.some(
+    (r) => r.code.toUpperCase() === upper || r.name.toUpperCase() === upper
+  );
+}
+
+export function isInternationalCountry(country?: string): boolean {
+  if (!country?.trim()) return false;
+  return !["US", "USA", "UNITED STATES", "UNITED STATES OF AMERICA"].includes(country.trim().toUpperCase());
 }
 
 interface Step3EnvelopeAddressingProps {
@@ -87,6 +114,13 @@ interface Step3EnvelopeAddressingProps {
   isAddressDeferred?: boolean;
   onChangeAddressDeferred?: (deferred: boolean) => void;
   onValidationError?: (error: string) => void;
+  mailingOptions?: { destinations: MailingOption[]; enabled: boolean; previewAvailable?: boolean } | null;
+  isBusy?: boolean;
+  isInternational?: boolean;
+  onSaveInternational?: (address: AddressData) => void;
+  savedInternationalRecipient?: AddressData | null;
+  onUseUSAddress?: () => void;
+  displayTotalCents?: number;
 }
 
 interface LiveEnvelopeCardProps {
@@ -94,6 +128,32 @@ interface LiveEnvelopeCardProps {
   recipient: AddressData;
   fontClass: string;
   isAddressDeferred?: boolean;
+  isInternational?: boolean;
+  countryName?: string;
+}
+
+class OptionalInternationalEditorBoundary extends React.Component<{
+  onClose: () => void;
+  children: React.ReactNode;
+}, { hasError: boolean }> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div className="fixed inset-0 z-[80] bg-black/50 flex items-end sm:items-center justify-center p-4" role="alert">
+        <section className="w-full sm:max-w-md rounded-2xl bg-white p-5 shadow-xl space-y-3">
+          <h2 className="font-serif text-lg font-bold text-stone-900">International address editor unavailable</h2>
+          <p className="text-sm text-stone-600">Your saved recipient address is unchanged. Close this editor and retry, or continue with a US address.</p>
+          <button type="button" onClick={this.props.onClose} className="rounded-xl bg-emerald-800 px-4 py-2 text-sm font-semibold text-white">Close editor</button>
+        </section>
+      </div>
+    );
+  }
 }
 
 function LiveEnvelopeCard({
@@ -101,208 +161,20 @@ function LiveEnvelopeCard({
   recipient,
   fontClass,
   isAddressDeferred,
+  isInternational = false,
+  countryName,
 }: LiveEnvelopeCardProps) {
   return (
-    <div className="bg-[#FAF8F5] rounded-3xl p-4 sm:p-5 border border-stone-200/90 shadow-sm space-y-3">
-      <div className="flex items-center justify-between border-b border-stone-200/70 pb-2.5">
-        <div className="flex items-center gap-2">
-          <Mail className="w-4 h-4 text-emerald-800" />
-          <h3 className="font-serif font-bold text-sm text-stone-900">
-            Live Envelope Preview
-          </h3>
-        </div>
-        <span className="text-[10px] font-semibold text-emerald-800 bg-white/80 border border-emerald-200 px-2 py-0.5 rounded-full">
-          Real Blue Ink &bull; USPS Forever Stamp
-        </span>
-      </div>
-
-      {/* PHYSICAL ENVELOPE (A2 FORMAT: 4.375" x 5.75", ratio ~1.31) */}
-      <div className="relative w-full rounded-2xl bg-[#FCFAF7] border border-[#E6DFD5] p-4 sm:p-5 shadow-md overflow-hidden text-stone-900 select-none">
-        {/* TOP ROW: HANDWRITTEN RETURN ADDRESS + POSTMARK & FOREVER STAMP */}
-        <div className="flex items-start justify-between gap-2 mb-5">
-          {/* Top-Left: SENDER RETURN ADDRESS IN REAL BLUE PEN INK */}
-          <div
-            className={`max-w-[170px] text-[#1e3a8a] text-xs leading-tight select-none ${fontClass}`}
-          >
-            <p className="font-medium">{sender.fullName || "Your Name"}</p>
-            <p>{sender.street1 || "Street Address"}</p>
-            {sender.street2 && <p>{sender.street2}</p>}
-            <p>
-              {sender.city || "City"}, {sender.state || "ST"}{" "}
-              {sender.zip || "ZIP"}
-            </p>
-          </div>
-
-          {/* Top-Right: REALISTIC POSTMARK & USPS FOREVER STAMP */}
-          <div className="flex items-start shrink-0 select-none">
-            {/* Cancellation postmark (Phoenix, AZ hub per supplier specs) */}
-            <div className="hidden sm:flex flex-col items-end justify-center mr-1 mt-1 text-stone-600/70 text-[9px] font-mono leading-none tracking-tight text-right">
-              <span>PHOENIX AZ 852</span>
-              <span className="text-[8px] text-stone-500/80 my-0.5">
-                FIRST-CLASS
-              </span>
-              {/* Wavy cancellation ink lines */}
-              <svg
-                viewBox="0 0 48 16"
-                className="w-10 h-3 text-stone-600/60 stroke-current fill-none"
-              >
-                <path
-                  d="M0,4 Q6,0 12,4 T24,4 T36,4 T48,4"
-                  strokeWidth="1.2"
-                />
-                <path
-                  d="M0,8 Q6,4 12,8 T24,8 T36,8 T48,8"
-                  strokeWidth="1.2"
-                />
-                <path
-                  d="M0,12 Q6,8 12,12 T24,12 T36,12 T48,12"
-                  strokeWidth="1.2"
-                />
-              </svg>
-            </div>
-
-            {/* USPS FOREVER STAMP (AUTHENTIC PERFORATED POSTAGE STAMP) */}
-            <div className="relative w-12 h-16 sm:w-14 sm:h-18 bg-white rounded-xs border border-stone-300 shadow-xs p-1 flex flex-col justify-between overflow-hidden">
-              {/* Perforated scalloped stamp edges */}
-              <div className="absolute inset-0 border border-dashed border-stone-400/40 pointer-events-none" />
-
-              {/* Stamp artwork: Flag / USA Forever */}
-              <div className="h-full w-full bg-gradient-to-b from-[#1e3a8a] via-[#f8fafc] to-[#991b1b] rounded-[2px] p-1 flex flex-col justify-between relative overflow-hidden">
-                {/* Flag stars header */}
-                <div className="flex items-center justify-between text-white text-[7px] font-sans font-bold leading-none tracking-widest">
-                  <span>USA</span>
-                  <span className="text-[6px] font-serif">★</span>
-                </div>
-                {/* Center emblem */}
-                <div className="text-center py-0.5">
-                  <span className="text-[9px] sm:text-[10px] font-serif font-black tracking-wider text-white drop-shadow-xs">
-                    FOREVER
-                  </span>
-                </div>
-                {/* Bottom value */}
-                <div className="flex items-center justify-between text-white/90 text-[6px] font-mono leading-none">
-                  <span>USPS</span>
-                  <span>2026</span>
-                </div>
-                {/* Cancellation wavy line crossing stamp */}
-                <svg
-                  viewBox="0 0 60 40"
-                  className="absolute inset-0 w-full h-full text-stone-800/40 stroke-current fill-none pointer-events-none"
-                >
-                  <path
-                    d="M-10,10 Q10,5 30,12 T70,10"
-                    strokeWidth="1.5"
-                  />
-                  <path
-                    d="M-10,22 Q10,17 30,24 T70,22"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* CENTER: MAILING RECIPIENT IN AUTHENTIC BLUE PEN INK */}
-        <div className="flex justify-center px-2 py-2 sm:py-3 select-none">
-          <div
-            className={`w-fit min-w-[180px] max-w-xs text-left space-y-0.5 text-base sm:text-lg text-[#1e3a8a] leading-snug ${fontClass}`}
-          >
-            <p className="font-semibold text-lg sm:text-xl text-[#1e3a8a]">
-              {recipient.fullName || "Recipient Name"}
-            </p>
-            {isAddressDeferred ? (
-              <p className="text-xs text-stone-500 italic mt-1 font-sans">
-                [ Street address to be added via link after checkout ]
-              </p>
-            ) : (
-              <>
-                <p>
-                  {recipient.street1 || "Street Address"}
-                  {recipient.street2 ? `, ${recipient.street2}` : ""}
-                </p>
-                <p>
-                  {recipient.city || "City"},{" "}
-                  {recipient.state || "State"} {recipient.zip || "ZIP"}
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* BOTTOM: AUTHENTIC USPS INTELLIGENT MAIL BARCODE */}
-        <div className="mt-4 pt-2 flex flex-col items-center justify-center select-none">
-          <svg
-            viewBox="0 0 240 14"
-            className="w-44 sm:w-56 h-3 text-stone-800/70 fill-current opacity-80"
-          >
-            <rect x="0" y="2" width="2" height="10" />
-            <rect x="4" y="2" width="2" height="6" />
-            <rect x="8" y="2" width="2" height="10" />
-            <rect x="12" y="5" width="2" height="7" />
-            <rect x="16" y="2" width="2" height="10" />
-            <rect x="20" y="2" width="2" height="10" />
-            <rect x="24" y="5" width="2" height="4" />
-            <rect x="28" y="2" width="2" height="10" />
-            <rect x="32" y="2" width="2" height="7" />
-            <rect x="36" y="5" width="2" height="7" />
-            <rect x="40" y="2" width="2" height="10" />
-            <rect x="44" y="5" width="2" height="4" />
-            <rect x="48" y="2" width="2" height="10" />
-            <rect x="52" y="2" width="2" height="7" />
-            <rect x="56" y="2" width="2" height="10" />
-            <rect x="60" y="5" width="2" height="7" />
-            <rect x="64" y="2" width="2" height="10" />
-            <rect x="68" y="2" width="2" height="10" />
-            <rect x="72" y="5" width="2" height="4" />
-            <rect x="76" y="2" width="2" height="7" />
-            <rect x="80" y="2" width="2" height="10" />
-            <rect x="84" y="5" width="2" height="7" />
-            <rect x="88" y="2" width="2" height="10" />
-            <rect x="92" y="2" width="2" height="10" />
-            <rect x="96" y="5" width="2" height="4" />
-            <rect x="100" y="2" width="2" height="10" />
-            <rect x="104" y="2" width="2" height="7" />
-            <rect x="108" y="5" width="2" height="7" />
-            <rect x="112" y="2" width="2" height="10" />
-            <rect x="116" y="5" width="2" height="4" />
-            <rect x="120" y="2" width="2" height="10" />
-            <rect x="124" y="2" width="2" height="7" />
-            <rect x="128" y="2" width="2" height="10" />
-            <rect x="132" y="5" width="2" height="7" />
-            <rect x="136" y="2" width="2" height="10" />
-            <rect x="140" y="2" width="2" height="10" />
-            <rect x="144" y="5" width="2" height="4" />
-            <rect x="148" y="2" width="2" height="7" />
-            <rect x="152" y="2" width="2" height="10" />
-            <rect x="156" y="5" width="2" height="7" />
-            <rect x="160" y="2" width="2" height="10" />
-            <rect x="164" y="2" width="2" height="10" />
-            <rect x="168" y="5" width="2" height="4" />
-            <rect x="172" y="2" width="2" height="10" />
-            <rect x="176" y="2" width="2" height="7" />
-            <rect x="180" y="5" width="2" height="7" />
-            <rect x="184" y="2" width="2" height="10" />
-            <rect x="188" y="5" width="2" height="4" />
-            <rect x="192" y="2" width="2" height="10" />
-            <rect x="196" y="2" width="2" height="7" />
-            <rect x="200" y="2" width="2" height="10" />
-            <rect x="204" y="5" width="2" height="7" />
-            <rect x="208" y="2" width="2" height="10" />
-            <rect x="212" y="2" width="2" height="10" />
-            <rect x="216" y="5" width="2" height="4" />
-            <rect x="220" y="2" width="2" height="7" />
-            <rect x="224" y="2" width="2" height="10" />
-            <rect x="228" y="5" width="2" height="7" />
-            <rect x="232" y="2" width="2" height="10" />
-            <rect x="236" y="2" width="2" height="10" />
-          </svg>
-        </div>
-      </div>
-
-      <p className="text-[11px] text-stone-500 text-center">
-        Mailed in an envelope directly to your recipient via USPS First-Class.
-      </p>
+    <div className="min-w-0 space-y-2">
+      <p className="text-xs font-semibold text-stone-700">Your envelope</p>
+      <EnvelopePreview
+        sender={sender}
+        recipient={recipient}
+        fontClass={fontClass}
+        isAddressDeferred={isAddressDeferred}
+        isInternational={isInternational}
+        countryName={countryName}
+      />
     </div>
   );
 }
@@ -319,11 +191,93 @@ export function Step3EnvelopeAddressing({
   isAddressDeferred = false,
   onChangeAddressDeferred,
   onValidationError,
+  mailingOptions,
+  isBusy = false,
+  isInternational = false,
+  onSaveInternational,
+  savedInternationalRecipient,
+  onUseUSAddress,
+  displayTotalCents = 900,
 }: Step3EnvelopeAddressingProps) {
   const [showRecipientApt, setShowRecipientApt] = useState(Boolean(recipient.street2));
   const [showSenderApt, setShowSenderApt] = useState(Boolean(sender.street2));
-  const [showEnvelopePreview, setShowEnvelopePreview] = useState(true);
   const [formError, setFormError] = useState<string | null>(null);
+  const [isInternationalEditorOpen, setIsInternationalEditorOpen] = useState(false);
+  const [internationalDraft, setInternationalDraft] = useState<AddressData>(recipient);
+  const internationalTriggerRef = useRef<HTMLButtonElement>(null);
+  const internationalDialogRef = useRef<HTMLElement>(null);
+  const canPreviewInternational = Boolean(mailingOptions?.enabled || mailingOptions?.previewAvailable);
+  const countries = (mailingOptions?.destinations || [])
+    .filter((item) => item.available || mailingOptions?.previewAvailable)
+    .sort((a, b) => a.countryName.localeCompare(b.countryName));
+  const internationalTotalCents = isInternational ? displayTotalCents : displayTotalCents + 500;
+  const internationalTotalLabel = `$${(internationalTotalCents / 100).toFixed(2)}`;
+
+  useEffect(() => {
+    if (!isInternationalEditorOpen) return;
+    const dialog = internationalDialogRef.current;
+    const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ) || []);
+    focusable()[0]?.focus();
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsInternationalEditorOpen(false);
+      if (event.key === "Tab") {
+        const items = focusable();
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      window.removeEventListener("keydown", closeOnEscape);
+      internationalTriggerRef.current?.focus();
+    };
+  }, [isInternationalEditorOpen]);
+
+  const openInternationalEditor = () => {
+    if (isInternationalCountry(recipient.country)) {
+      setInternationalDraft(recipient);
+    } else if (savedInternationalRecipient) {
+      setInternationalDraft(savedInternationalRecipient);
+    } else {
+      setInternationalDraft({
+        fullName: recipient.fullName,
+        street1: "",
+        street2: "",
+        city: "",
+        state: "",
+        zip: "",
+        country: "",
+      });
+    }
+    setIsInternationalEditorOpen(true);
+  };
+  const saveInternationalAddress = () => {
+    if (isBusy) return;
+    if (!internationalDraft.country) return;
+    const selected = countries.find((item) => item.countryCode === internationalDraft.country);
+    if (!selected) return;
+    if (
+      !internationalDraft.fullName.trim() ||
+      !internationalDraft.street1.trim() ||
+      !internationalDraft.city.trim() ||
+      !isValidInternationalRegion(selected, internationalDraft.state || "") ||
+      Boolean(selected.postalCodeRequired && !internationalDraft.zip.trim())
+    ) {
+      return;
+    }
+    onSaveInternational?.(internationalDraft);
+    setIsInternationalEditorOpen(false);
+  };
 
   // Validation before proceeding
   const handleProceed = () => {
@@ -340,11 +294,27 @@ export function Step3EnvelopeAddressing({
         onValidationError?.(err);
         return;
       }
-      if (!recipient.city.trim() || !recipient.state.trim() || !recipient.zip.trim()) {
-        const err = "Please complete the recipient's City, State, and ZIP code.";
-        setFormError(err);
-        onValidationError?.(err);
-        return;
+      const countryRule = countries.find((item) => item.countryCode === recipient.country);
+      if (isInternational) {
+        if (!recipient.city.trim() || (countryRule?.postalCodeRequired && !recipient.zip.trim())) {
+          const err = "Please complete the recipient's City, State, and ZIP code.";
+          setFormError(err);
+          onValidationError?.(err);
+          return;
+        }
+        if (!isValidInternationalRegion(countryRule, recipient.state || "")) {
+          const err = "Select a valid region for this destination.";
+          setFormError(err);
+          onValidationError?.(err);
+          return;
+        }
+      } else {
+        if (!recipient.city.trim() || !recipient.state.trim() || !recipient.zip.trim()) {
+          const err = "Please complete the recipient's City, State, and ZIP code.";
+          setFormError(err);
+          onValidationError?.(err);
+          return;
+        }
       }
     }
     if (!sender.fullName.trim()) {
@@ -378,18 +348,9 @@ export function Step3EnvelopeAddressing({
             </h1>
           </div>
           <p className="text-xs text-stone-600">
-            Mailed directly to your recipient via USPS First-Class Mail.
+            {isInternational ? "Your selected destination is shown below. Delivery timing varies by destination." : "Mailed directly to your recipient via USPS First-Class Mail."}
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={onBack}
-          className="self-start sm:self-auto px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Edit note</span>
-        </button>
       </div>
 
       {/* TWO-COLUMN SPLIT-SCREEN WORKBENCH (lg:grid-cols-12) */}
@@ -397,7 +358,7 @@ export function Step3EnvelopeAddressing({
         {/* LEFT COLUMN: lg:col-span-5 lg:sticky lg:top-6 — Live Envelope & Deferral */}
         <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-6">
           {/* 1. TOP UNMISTAKABLE ADDRESS DEFERRAL CARD */}
-          <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
+          {!isInternational && <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
             <div className="flex items-start gap-3">
               <input
                 id="defer-address-toggle"
@@ -420,7 +381,7 @@ export function Step3EnvelopeAddressing({
                 <span>✨ Address deferred! You only need to provide recipient &amp; sender names to proceed. Postal dispatch is held until you submit the recipient address via magic link.</span>
               </div>
             )}
-          </div>
+          </div>}
 
           {/* 2. STICKY LIVE ENVELOPE PREVIEW */}
           <LiveEnvelopeCard
@@ -428,16 +389,11 @@ export function Step3EnvelopeAddressing({
             recipient={recipient}
             fontClass={fontClass}
             isAddressDeferred={isAddressDeferred}
+            isInternational={isInternational}
+            countryName={countries.find((item) => item.countryCode === recipient.country)?.countryName}
           />
 
-          {/* EXPLANATORY CALLOUT */}
-          <div className="p-3.5 bg-emerald-50/70 rounded-2xl border border-emerald-200/70 flex items-start gap-2.5">
-            <ShieldCheck className="w-4 h-4 text-emerald-800 shrink-0 mt-0.5" />
-            <p className="text-xs text-stone-700 leading-relaxed">
-              <strong className="font-semibold text-emerald-950">Return Address:</strong>{" "}
-              Your name and return address appear on the envelope so USPS can deliver it, and your recipient knows who it&apos;s from.
-            </p>
-          </div>
+          <p className="text-xs leading-relaxed text-stone-600">Your return address appears on the envelope.</p>
         </div>
 
         {/* RIGHT COLUMN: lg:col-span-7 — Sub-Grid (Send to & From you) */}
@@ -450,7 +406,31 @@ export function Step3EnvelopeAddressing({
             <h2 className="text-sm font-bold text-stone-900">
               Send to
             </h2>
+            {canPreviewInternational && !isInternational && (
+              <button ref={internationalTriggerRef} type="button" disabled={isBusy} onClick={openInternationalEditor} className="text-xs font-semibold text-emerald-800 underline underline-offset-2 disabled:opacity-50">
+                International? +$5
+              </button>
+            )}
           </div>
+
+          {isInternational ? (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-stone-900">{recipient.fullName}</p>
+                  <p className="text-sm text-stone-700">{recipient.street1}{recipient.street2 ? `, ${recipient.street2}` : ""}</p>
+                  <p className="text-sm text-stone-700">{[recipient.city, recipient.state, recipient.zip].filter(Boolean).join(", ")}</p>
+                  <p className="text-sm font-medium text-stone-800">{countries.find((item) => item.countryCode === recipient.country)?.countryName || recipient.country}</p>
+                  {mailingOptions?.previewAvailable && !mailingOptions.enabled && (
+                    <p className="mt-2 text-xs text-amber-800">Preview only. International checkout is not enabled.</p>
+                  )}
+                </div>
+                <button ref={internationalTriggerRef} type="button" disabled={isBusy} onClick={openInternationalEditor} className="text-xs font-semibold text-emerald-800 underline underline-offset-2 disabled:opacity-50">Edit</button>
+              </div>
+              <button type="button" disabled={isBusy} onClick={onUseUSAddress} className="text-xs font-semibold text-stone-700 underline underline-offset-2 disabled:opacity-50">Use a US address instead</button>
+            </div>
+          ) : (
+          <>
 
           {/* Recipient Full Name */}
           <div>
@@ -596,6 +576,8 @@ export function Step3EnvelopeAddressing({
               <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
               <span>Street address will be entered via your magic link (displayed on confirmation &amp; emailed) before postal dispatch.</span>
             </div>
+          )}
+          </>
           )}
         </div>
 
@@ -745,6 +727,90 @@ export function Step3EnvelopeAddressing({
         </div>
       </div>
 
+      {isInternationalEditorOpen && canPreviewInternational && (
+        <OptionalInternationalEditorBoundary onClose={() => setIsInternationalEditorOpen(false)}>
+        <div className="fixed inset-0 z-[70] bg-black/50 flex items-end sm:items-center justify-center p-0 sm:p-4" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setIsInternationalEditorOpen(false); }}>
+          <section ref={internationalDialogRef} role="dialog" aria-modal="true" aria-labelledby="international-address-title" className="w-full sm:max-w-xl max-h-[92dvh] overflow-y-auto rounded-t-2xl sm:rounded-2xl bg-white p-5 sm:p-6 shadow-xl space-y-4">
+            <div>
+              <h2 id="international-address-title" className="font-serif text-xl font-bold text-stone-900">Send internationally</h2>
+              <p className="mt-1 text-sm text-stone-600">{internationalTotalLabel} total, including international mailing. Your US return address stays on the envelope.</p>
+              {mailingOptions?.previewAvailable && !mailingOptions.enabled && (
+                <p className="mt-2 text-xs text-amber-800">Staging preview only. You can save this address to review the flow; checkout remains unavailable.</p>
+              )}
+            </div>
+            <label className="block text-xs font-semibold text-stone-700">Country or region
+              <select autoFocus disabled={isBusy} value={internationalDraft.country || ""} onChange={(event) => setInternationalDraft({ ...internationalDraft, country: event.target.value, state: "", zip: "" })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base">
+                <option value="">Choose a country</option>
+                {countries.map((country) => <option key={country.countryCode} value={country.countryCode}>{country.countryName}{!country.available ? " — preview" : ""}</option>)}
+              </select>
+            </label>
+            {internationalDraft.country && (() => {
+              const selectedCountry = countries.find((item) => item.countryCode === internationalDraft.country);
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block text-xs font-semibold text-stone-700">Recipient name *
+                    <input disabled={isBusy} value={internationalDraft.fullName || ""} required onChange={(event) => setInternationalDraft({ ...internationalDraft, fullName: event.target.value })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base" autoComplete="shipping name" />
+                  </label>
+                  <label className="block text-xs font-semibold text-stone-700 sm:col-span-2">Street address *
+                    <input disabled={isBusy} value={internationalDraft.street1 || ""} required onChange={(event) => setInternationalDraft({ ...internationalDraft, street1: event.target.value })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base" />
+                  </label>
+                  <label className="block text-xs font-semibold text-stone-700 sm:col-span-2">Address line 2
+                    <input disabled={isBusy} value={internationalDraft.street2 || ""} onChange={(event) => setInternationalDraft({ ...internationalDraft, street2: event.target.value })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base" />
+                  </label>
+                  <label className="block text-xs font-semibold text-stone-700">City or locality *
+                    <input disabled={isBusy} value={internationalDraft.city || ""} required onChange={(event) => setInternationalDraft({ ...internationalDraft, city: event.target.value })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base" />
+                  </label>
+                  {selectedCountry?.regions && selectedCountry.regions.length > 0 ? (
+                    <label className="block text-xs font-semibold text-stone-700">
+                      {internationalDraft.country === "CA" ? "Province or territory" : "State, province or region"}{selectedCountry.regionRequired ? " *" : ""}
+                      <select disabled={isBusy} value={internationalDraft.state || ""} required={selectedCountry.regionRequired} onChange={(event) => setInternationalDraft({ ...internationalDraft, state: event.target.value })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base">
+                        <option value="">{internationalDraft.country === "CA" ? "Select province or territory" : "Select region"}</option>
+                        {selectedCountry.regions.map((r) => <option key={r.code} value={r.code}>{r.code} - {r.name}</option>)}
+                      </select>
+                    </label>
+                  ) : (
+                    <label className="block text-xs font-semibold text-stone-700">
+                      State, province or region{selectedCountry?.regionRequired ? " *" : ""}
+                      <input disabled={isBusy} value={internationalDraft.state || ""} required={Boolean(selectedCountry?.regionRequired)} onChange={(event) => setInternationalDraft({ ...internationalDraft, state: event.target.value })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base" />
+                    </label>
+                  )}
+                  <label className="block text-xs font-semibold text-stone-700">
+                    Postal code{selectedCountry?.postalCodeRequired ? " *" : ""}
+                    <input disabled={isBusy} value={internationalDraft.zip || ""} required={Boolean(selectedCountry?.postalCodeRequired)} onChange={(event) => setInternationalDraft({ ...internationalDraft, zip: event.target.value })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base" />
+                  </label>
+                </div>
+              );
+            })()}
+            <div className="flex justify-end gap-2 pt-2">
+              <button type="button" disabled={isBusy} onClick={() => setIsInternationalEditorOpen(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-stone-700 border border-stone-300 disabled:opacity-50">Cancel</button>
+              <button
+                type="button"
+                onClick={saveInternationalAddress}
+                disabled={
+                  isBusy ||
+                  !internationalDraft.country ||
+                  !internationalDraft.fullName.trim() ||
+                  !internationalDraft.street1.trim() ||
+                  !internationalDraft.city.trim() ||
+                  !isValidInternationalRegion(
+                    countries.find((item) => item.countryCode === internationalDraft.country),
+                    internationalDraft.state || ""
+                  ) ||
+                  Boolean(
+                    countries.find((item) => item.countryCode === internationalDraft.country)?.postalCodeRequired &&
+                    !internationalDraft.zip.trim()
+                  )
+                }
+                className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-emerald-800 disabled:opacity-40"
+              >
+                Save address · {internationalTotalLabel} total
+              </button>
+            </div>
+          </section>
+        </div>
+        </OptionalInternationalEditorBoundary>
+      )}
+
           {formError && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 font-medium animate-in fade-in">
               {formError}
@@ -752,22 +818,13 @@ export function Step3EnvelopeAddressing({
           )}
 
           {/* DESKTOP ADVANCE BAR */}
-          <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-semibold flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>← Back to note</span>
-            </button>
-
+          <div className="hidden md:flex items-center justify-end p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
             <button
               type="button"
               onClick={handleProceed}
               className="px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-sm transition shadow-sm flex items-center gap-2 cursor-pointer"
             >
-              <span>Review &amp; pay ($9.00) →</span>
+              <span>Review &amp; pay (${(displayTotalCents / 100).toFixed(2)}) →</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -776,22 +833,13 @@ export function Step3EnvelopeAddressing({
 
       {/* MOBILE STICKY BOTTOM ACTION BAR */}
       {!hideFixedActionBar && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/90 p-3 shadow-lg flex items-center justify-between gap-3 safe-area-inset-bottom">
-          <button
-            type="button"
-            onClick={onBack}
-            className="px-3 py-2 text-stone-600 hover:text-stone-900 text-xs font-semibold flex items-center gap-1"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Note</span>
-          </button>
-
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/90 p-3 shadow-lg safe-area-inset-bottom">
           <button
             type="button"
             onClick={handleProceed}
-            className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+            className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <span>Review &amp; pay ($9.00) →</span>
+            <span>Review &amp; pay (${(displayTotalCents / 100).toFixed(2)}) →</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>

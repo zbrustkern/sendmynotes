@@ -5,7 +5,6 @@ import { processPaidOrder } from "../lib/order-processor";
 import {
   saveOrder,
   getOrderById,
-  updateOrderStatus,
   getOrdersCollection,
   firestoreDb,
 } from "../lib/firebase-admin";
@@ -157,12 +156,9 @@ async function runSecurityTests() {
 
   const orderAfterMissingPi = await getOrderById(testOrderId);
   assert(
-    orderAfterMissingPi?.status === "PAYMENT_VERIFICATION_FAILED",
-    `Order status marked PAYMENT_VERIFICATION_FAILED on missing payment ID (Status: ${orderAfterMissingPi?.status})`
+    orderAfterMissingPi?.status === "PENDING_PAYMENT" && !orderAfterMissingPi?.fulfillmentError,
+    `Missing untrusted payment ID is rejected without mutating the pending order (Status: ${orderAfterMissingPi?.status})`
   );
-
-  // Reset order status for next invariant test
-  await updateOrderStatus(testOrderId, { status: "PENDING_PAYMENT" });
 
   // ---------------------------------------------------------------------------
   // VULNERABILITY 3 TESTS: Concurrency & Double-Dispatch Race Condition
@@ -170,6 +166,7 @@ async function runSecurityTests() {
   console.log("\n--- 3. Testing Vulnerability 3: Fulfillment Concurrency (Atomic Locking) ---");
 
   const raceOrderId = `order_race_${Date.now()}`;
+  const racePaymentIntentId = `pi_concurrent_test_${raceOrderId}`;
   const raceOrder: Order = {
     ...baseOrder,
     id: raceOrderId,
@@ -181,8 +178,8 @@ async function runSecurityTests() {
   // Simulate 10 simultaneous concurrent fulfillment calls (e.g. rapid user clicks + webhooks)
   console.log("Simulating 10 concurrent processPaidOrder requests fired in the exact same millisecond...");
 
-  const concurrentCalls = Array.from({ length: 10 }, (_, i) =>
-    processPaidOrder(raceOrderId, `pi_concurrent_test_${i}`, "racer@example.com")
+  const concurrentCalls = Array.from({ length: 10 }, () =>
+    processPaidOrder(raceOrderId, racePaymentIntentId, "racer@example.com", { paymentMode: "local_mock" })
   );
 
   const results = await Promise.all(concurrentCalls);
@@ -219,7 +216,7 @@ async function runSecurityTests() {
   );
 
   // 3B. Subsequent replay after fulfillment returns alreadyProcessed: true
-  const replayResult = await processPaidOrder(raceOrderId, "pi_replay_attempt");
+  const replayResult = await processPaidOrder(raceOrderId, racePaymentIntentId, undefined, { paymentMode: "local_mock" });
   assert(
     replayResult.success === true && replayResult.alreadyProcessed === true,
     `Replay of already completed order returns alreadyProcessed: true without new dispatch`

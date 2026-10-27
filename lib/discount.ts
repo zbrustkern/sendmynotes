@@ -96,3 +96,9 @@ export function validateDiscount(
     finalAmountInCents,
   };
 }
+
+/**
+ * Extracts normalized offer/promo code from URLSearchParams or query objects.
+ * Supports ?discount=, ?code=, and ?promo= aliases per SPRINT-0005-T01.
+ */
+export { extractOfferCodeFromUrlParams, extractOfferCodeFromUrlParams as extractOfferCodeFromSearchParams } from "./offer-url";

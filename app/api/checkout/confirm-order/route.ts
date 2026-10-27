@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStripeClient } from "@/lib/stripe";
+import { getStripeClient, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { resolvePaymentMode, PaymentMode } from "@/lib/payment-mode";
-import { processPaidOrder } from "@/lib/order-processor";
+import { processPaidOrder, verifyPaymentIntentForOrder } from "@/lib/order-processor";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { logIncident } from "@/lib/incident-logger";
-import { buildPurchaseMeasurement, persistPurchaseMeasurement, validateVerifiedCapture } from "@/lib/purchase-measurement";
+import { buildPurchaseMeasurement, persistPurchaseMeasurement, projectPurchaseMeasurementForOrder, validateVerifiedCapture } from "@/lib/purchase-measurement";
+import { effectiveOrderEmail } from "@/lib/checkout-contact";
 
 export async function POST(req: NextRequest) {
   try {
@@ -17,6 +18,9 @@ export async function POST(req: NextRequest) {
     const order = await getOrderById(orderId);
     if (!order) {
       return NextResponse.json({ error: `Order ${orderId} not found` }, { status: 404 });
+    }
+    if ((order.contactPolicyVersion === 1 || order.contactEmailChoice) && (!order.contactEmailChoice || order.contactEmailSyncStatus !== "synced")) {
+      return NextResponse.json({ success: false, status: "CONTACT_COMMIT_PENDING", error: "Your email preference is still being saved. Please retry before confirming payment." }, { status: 409 });
     }
     let purchaseMeasurement = order.purchaseMeasurement || null;
 
@@ -93,6 +97,25 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      const paymentCheck = verifyPaymentIntentForOrder({ paymentIntent: pi, orderId, order });
+      if (!paymentCheck.valid) {
+        await updateOrderStatus(orderId, {
+          status: "PAYMENT_VERIFICATION_FAILED",
+          fulfillmentError: paymentCheck.reason,
+        });
+        await logIncident({
+          type: "STRIPE",
+          severity: "error",
+          summary: `Captured payment requires reconciliation for order ${orderId}`,
+          technicalDetails: paymentCheck.reason || "Payment verification failed.",
+          metadata: { orderId, paymentIntentId: pi.id },
+        });
+        return NextResponse.json(
+          { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: paymentCheck.reason || "Captured payment could not be matched to this order." },
+          { status: 409 }
+        );
+      }
+
       // Assert status === 'succeeded'
       if (pi.status !== "succeeded") {
         await updateOrderStatus(orderId, {
@@ -121,34 +144,6 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Assert amount matches expected order total
-      const expectedAmountCents = order.amountInCents;
-
-      if (pi.amount !== expectedAmountCents) {
-        const errorMsg = `Payment amount mismatch: expected ${expectedAmountCents}¢ ($${(
-          expectedAmountCents / 100
-        ).toFixed(2)}), got ${pi.amount}¢ ($${(pi.amount / 100).toFixed(2)})`;
-        console.error(`[Confirm Order Alert] ${errorMsg} for order ${orderId}`);
-
-        await updateOrderStatus(orderId, {
-          status: "PAYMENT_VERIFICATION_FAILED",
-          fulfillmentError: errorMsg,
-        });
-
-        await logIncident({
-          type: "STRIPE",
-          severity: "error",
-          summary: `Payment Amount Mismatch for Order ${orderId}`,
-          technicalDetails: errorMsg,
-          metadata: { orderId, expected: expectedAmountCents, received: pi.amount },
-        });
-
-        return NextResponse.json(
-          { success: false, error: "Payment amount does not match expected order total." },
-          { status: 400 }
-        );
-      }
-
       const captureError = validateVerifiedCapture(order, {
         paymentIntentId: pi.id,
         amount: pi.amount,
@@ -157,19 +152,6 @@ export async function POST(req: NextRequest) {
       });
       if (captureError) {
         return NextResponse.json({ success: false, status: "PAYMENT_VERIFICATION_FAILED", error: captureError }, { status: 400 });
-      }
-
-      // PaymentIntent must be explicitly bound to this order.
-      if (pi.metadata?.orderId !== orderId) {
-        const mismatchError = `PaymentIntent orderId mismatch: intent metadata has '${pi.metadata.orderId}', expected '${orderId}'`;
-        await updateOrderStatus(orderId, {
-          status: "PAYMENT_VERIFICATION_FAILED",
-          fulfillmentError: mismatchError,
-        });
-        return NextResponse.json(
-          { success: false, error: "PaymentIntent metadata orderId mismatch." },
-          { status: 400 }
-        );
       }
 
       // In production environment without test mode allowed, assert livemode === true
@@ -205,6 +187,8 @@ export async function POST(req: NextRequest) {
       console.log(`[Confirm Order] Mock mode verification active for order ${orderId}`);
     }
 
+    purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
+
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
@@ -215,7 +199,7 @@ export async function POST(req: NextRequest) {
     const result = await processPaidOrder(
       orderId,
       verifiedPaymentIntentId,
-      customerEmail || customerEmailFromStripe || order.customerEmail,
+      effectiveOrderEmail(order, customerEmail || customerEmailFromStripe),
       { clientIp, userAgent, isTest, paymentMode }
     );
 

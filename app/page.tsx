@@ -1,6 +1,8 @@
-import { Suspense } from "react";
+import React, { Suspense } from "react";
+import { redirect } from "next/navigation";
 import { isReworkV3Enabled } from "@/lib/feature-flags";
 import { ExperienceRouter } from "@/components/ExperienceRouter";
+import { RootAutoSelectRedirect } from "@/components/RootAutoSelectRedirect";
 
 interface PageProps {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
@@ -8,10 +10,33 @@ interface PageProps {
 
 export default async function Home({ searchParams }: PageProps) {
   const resolvedParams = searchParams ? await searchParams : {};
-  const isV3 = await isReworkV3Enabled({ searchParams: resolvedParams });
-  const autoParam = resolvedParams["auto_select"];
-  const utmSource = typeof resolvedParams["utm_source"] === "string" ? resolvedParams["utm_source"].toLowerCase() : undefined;
+  const rawAuto = resolvedParams["auto_select"];
+  const autoParam = Array.isArray(rawAuto) ? rawAuto[0] : rawAuto;
+  const rawUtm = resolvedParams["utm_source"];
+  const utmSource =
+    typeof rawUtm === "string"
+      ? rawUtm.trim().toLowerCase()
+      : Array.isArray(rawUtm) && typeof rawUtm[0] === "string"
+      ? rawUtm[0].trim().toLowerCase()
+      : undefined;
+
   const isAuto = autoParam === "1" || utmSource === "google" || utmSource === "meta";
+
+  // Server-side redirect: if legacy auto_select=1 or paid campaign UTM source is present on root,
+  // redirect to /send with all attribution parameters preserved without forcing auto_select=1.
+  if (isAuto) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(resolvedParams)) {
+      if (typeof value === "string") {
+        params.set(key, value);
+      } else if (Array.isArray(value)) {
+        value.forEach((v) => params.append(key, v));
+      }
+    }
+    redirect(`/send?${params.toString()}`);
+  }
+
+  const isV3 = await isReworkV3Enabled({ searchParams: resolvedParams });
 
   return (
     <Suspense
@@ -26,18 +51,11 @@ export default async function Home({ searchParams }: PageProps) {
         </div>
       }
     >
+      <RootAutoSelectRedirect />
       <ExperienceRouter
         initialIsV3={isV3}
-        initialOccasion={isAuto ? "Thinking of You" : undefined}
-        initialCoverUrl={isAuto ? "/presets/thinking-of-you-quiet-cup.jpg" : undefined}
-        initialHandwrittenNote={
-          isAuto
-            ? "Just wanted to send a little piece of sunshine your way. Hope today treats you kindly. Thinking of you and can't wait to catch up soon!"
-            : undefined
-        }
-        scenarioTitle={isAuto ? "A Quiet Cup" : undefined}
         embedded={false}
-        initialStep={isAuto ? "note" : undefined}
+        initialStep="card"
       />
     </Suspense>
   );

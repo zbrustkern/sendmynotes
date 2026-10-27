@@ -89,8 +89,9 @@ state = draftReducer(state, {
     name: "Alex Taylor",
     addressLine1: "123 Main St",
     city: "Austin",
-    state: "TX",
-    zip: "78701",
+    state: "",
+    zip: "100-0001",
+    country: "JP",
   },
 });
 assert(state.draftRevision === 4, "draftRevision increments to 4 on UPDATE_RECIPIENT");
@@ -123,6 +124,8 @@ assert(reloaded?.selectedDesign?.title === "Celebration Garland", "Loaded draft 
 assert(reloaded?.selectedDesign?.accepted === true, "Loaded draft preserved accepted state");
 assert(reloaded?.note.text === "Happy 30th Birthday Alex! Wishing you joy.", "Loaded draft preserved note text");
 assert(reloaded?.recipient?.name === "Alex Taylor", "Loaded draft preserved recipient");
+assert(reloaded?.recipient?.country === "JP", "Loaded draft preserved the international destination country");
+assert(reloaded?.recipient?.zip === "100-0001", "Loaded draft preserved an alphanumeric international postal code");
 assert(reloaded?.sender?.name === "Jordan Lee", "Loaded draft preserved sender");
 
 // 4. Expiry handling (24h expiry)

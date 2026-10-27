@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { CARD_PRESETS, OCCASIONS, CardPreset, matchOccasionToPreset, getTopPresetForOccasion, canonicalOccasion } from "@/lib/card-presets";
 import { useDraft, AddressDraft } from "@/lib/draft";
@@ -12,13 +12,13 @@ import {
   FlowStep,
 } from "@/components/flow";
 import { Step2NoteComposition, HANDWRITING_STYLES } from "@/components/v3/Step2NoteComposition";
-import { Step3EnvelopeAddressing, AddressData } from "@/components/v3/Step3EnvelopeAddressing";
+import { Step3EnvelopeAddressing, AddressData, MailingOption, isInternationalCountry } from "@/components/v3/Step3EnvelopeAddressing";
 import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step4ReviewAndPayment";
 import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
 import { evaluateCheckoutInitTransition } from "@/lib/payment-mode";
-import { extractRecipientName, extractSenderName } from "@/components/v3/TargetPurchaseExperience";
-import { trackEvent, getSessionId } from "@/lib/telemetry";
+import { trackEvent, trackEventV2, getSessionId } from "@/lib/telemetry";
+import { bindJourneyToDraft } from "@/lib/journey-identity";
 import {
   trackGA4ViewItem,
   trackGA4BeginCheckout,
@@ -36,6 +36,8 @@ import { getStoredAttribution } from "@/components/AttributionTracker";
 import { useAuth } from "@/context/AuthContext";
 import { AlertCircle } from "lucide-react";
 import { parseScenarioNote, mapScenarioFontId } from "@/lib/seo-scenarios";
+import { extractRecipientName, extractSenderName } from "@/components/v3/TargetPurchaseExperience";
+import { extractOfferCodeFromUrlParams } from "@/lib/discount";
 
 export interface EntryPrototypeClientProps {
   initialOccasion?: string;
@@ -48,6 +50,13 @@ export interface EntryPrototypeClientProps {
   scenarioTitle?: string;
   embedded?: boolean;
   initialStep?: FlowStep;
+}
+
+export function getStepUrl(targetStep: FlowStep): string {
+  if (typeof window === "undefined") return "";
+  const url = new URL(window.location.href);
+  url.searchParams.set("step", targetStep);
+  return url.pathname + url.search;
 }
 
 export function EntryPrototypeClient({
@@ -81,20 +90,15 @@ export function EntryPrototypeClient({
     return mapScenarioFontId(initialFontStyleId);
   }, [initialFontStyleId]);
 
-  // Deep link auto-selection detection: occasion routes, scenario slug, auto_select=1, or paid traffic UTMs
-  const autoParam = searchParams?.get("auto_select");
-  const utmSource = searchParams?.get("utm_source")?.toLowerCase();
-
+  // Contextual deep link auto-selection detection: only for specific scenario routes or curated occasion/card deep links.
+  // Generic ad traffic, sitelinks, and generic auto_select=1 do NOT auto-select a card or skip to note.
   const isAutoSelectMode = useMemo(() => {
     return Boolean(
       scenarioSlug ||
       initialHandwrittenNote ||
-      autoParam === "1" ||
-      utmSource === "google" ||
-      utmSource === "meta" ||
-      (occasionParam && !presetParam)
+      (occasionParam && initialCoverUrl)
     );
-  }, [scenarioSlug, initialHandwrittenNote, autoParam, utmSource, occasionParam, presetParam]);
+  }, [scenarioSlug, initialHandwrittenNote, occasionParam, initialCoverUrl]);
 
   // Resolve contextual preselection if specified
   const initialPreset = useMemo(() => {
@@ -106,7 +110,7 @@ export function EntryPrototypeClient({
       const found = matchOccasionToPreset(occasionParam);
       if (found) return found;
     }
-    return CARD_PRESETS[0];
+    return undefined;
   }, [presetParam, occasionParam]);
 
   const targetOccasionSlug = useMemo(() => {
@@ -117,30 +121,34 @@ export function EntryPrototypeClient({
     return "general";
   }, [occasionParam, initialOccasion, scenarioSlug, isAutoSelectMode, initialPreset?.occasion]);
 
-  const resolvedInitialPresetId = scenarioSlug || initialPreset?.id || CARD_PRESETS[0].id;
-  const resolvedInitialPresetTitle =
-    scenarioTitle || initialPreset?.title || (occasionParam ? `${occasionParam} Card` : CARD_PRESETS[0].title);
-  const resolvedInitialPresetUrl = initialCoverUrl || initialPreset?.imageUrl || CARD_PRESETS[0].imageUrl;
+  const resolvedInitialPresetId = isAutoSelectMode
+    ? (scenarioSlug || initialPreset?.id || CARD_PRESETS[0].id)
+    : undefined;
+  const resolvedInitialPresetTitle = isAutoSelectMode
+    ? (scenarioTitle || initialPreset?.title || (occasionParam ? `${occasionParam} Card` : CARD_PRESETS[0].title))
+    : undefined;
+  const resolvedInitialPresetUrl = isAutoSelectMode
+    ? (initialCoverUrl || initialPreset?.imageUrl || CARD_PRESETS[0].imageUrl)
+    : undefined;
 
   const { draft, dispatch, clearDraft, isLoaded } = useDraft({
     experienceVersion: "candidate_v1",
     initialPresetId: resolvedInitialPresetId,
     initialPresetTitle: resolvedInitialPresetTitle,
     initialPresetUrl: resolvedInitialPresetUrl,
-    initialOccasion: occasionParam || initialPreset?.occasion,
+    initialOccasion: isAutoSelectMode ? (occasionParam || initialPreset?.occasion) : undefined,
     initialHandwrittenNote: parsedScenario?.bodyNote,
     initialSalutation: parsedScenario?.salutation,
     initialSignOff: parsedScenario?.signOff,
     initialFontStyleId: mappedInitialFont,
   });
 
-  // Current active step (curated deep links & paid ads default directly to 'note' studio)
-  const effectiveInitialStep: FlowStep = isAutoSelectMode
-    ? "note"
-    : (initialStep || "card");
+  // Current active step (curated deep links default directly to 'note' studio; generic entries start on 'card' selector)
+  const effectiveInitialStep: FlowStep = initialStep || (isAutoSelectMode ? "note" : "card");
 
   const [step, setStep] = useState<FlowStep>(effectiveInitialStep);
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
+  const [paymentInFlight, setPaymentInFlight] = useState(false);
 
   // Address deferral bypass & mobile keyboard/validation states
   const [isAddressDeferred, setIsAddressDeferred] = useState(false);
@@ -177,6 +185,10 @@ export function EntryPrototypeClient({
     state: "",
     zip: "",
   });
+  const [domesticRecipient, setDomesticRecipient] = useState<AddressData>({ fullName: "", street1: "", street2: "", city: "", state: "", zip: "" });
+  const [internationalRecipient, setInternationalRecipient] = useState<AddressData | null>(null);
+  const [mailingOptions, setMailingOptions] = useState<{ destinations: MailingOption[]; enabled: boolean; previewAvailable?: boolean } | null>(null);
+  const isInternational = isInternationalCountry(recipient.country);
 
   const [sender, setSender] = useState<AddressData>({
     fullName: "",
@@ -188,9 +200,11 @@ export function EntryPrototypeClient({
 
   const [userCustomizedRecipientName, setUserCustomizedRecipientName] = useState(false);
   const [userCustomizedSenderName, setUserCustomizedSenderName] = useState(false);
+  const [userCustomizedNote, setUserCustomizedNote] = useState(false);
 
   // Payment & checkout state
   const [customerEmail, setCustomerEmail] = useState("");
+  const customerEmailEdited = React.useRef(false);
   const [orderId, setOrderId] = useState("");
   const [viewToken, setViewToken] = useState<string | null>(null);
   const [fulfillmentStatus, setFulfillmentStatus] = useState<string | null>(null);
@@ -204,13 +218,35 @@ export function EntryPrototypeClient({
   const [isInitializingCheckout, setIsInitializingCheckout] = useState(false);
   const checkoutRequestInFlight = React.useRef(false);
   const discountRequestInFlight = React.useRef(false);
+  const addressRevision = React.useRef(0);
+  const currentDisplayTotalCents = isInternational
+    ? (appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900) + 500
+    : amountInCents;
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/mailing-options", { cache: "no-store" })
+      .then((response) => response.ok ? response.json() : null)
+      .then((options) => {
+        if (!alive || !options || !Array.isArray(options.destinations)) return;
+        setMailingOptions({ destinations: options.destinations, enabled: options.enabled === true, previewAvailable: options.previewAvailable === true });
+      })
+      .catch(() => { if (alive) setMailingOptions(null); });
+    return () => { alive = false; };
+  }, []);
 
   // Pre-fill user email if authenticated
   useEffect(() => {
-    if (user?.email && !customerEmail) {
+    if (user?.email && !customerEmailEdited.current) {
       setCustomerEmail(user.email);
     }
-  }, [user, customerEmail]);
+  }, [user]);
+
+  useEffect(() => {
+    if (!isLoaded || draft.checkoutContact.choice === "untouched") return;
+    customerEmailEdited.current = true;
+    setCustomerEmail(draft.checkoutContact.email);
+  }, [isLoaded, draft.checkoutContact]);
 
   // Sync draft to local state once loaded and verify any completed order server-side
   useEffect(() => {
@@ -297,14 +333,18 @@ export function EntryPrototypeClient({
     }
 
     if (draft.recipient) {
-      setRecipient({
+      const restoredRecipient = {
         fullName: draft.recipient.name || "",
         street1: draft.recipient.addressLine1 || "",
         street2: draft.recipient.addressLine2 || "",
         city: draft.recipient.city || "",
         state: draft.recipient.state || "",
         zip: draft.recipient.zip || "",
-      });
+        country: draft.recipient.country || "US",
+      };
+      setRecipient(restoredRecipient);
+      if (!isInternationalCountry(restoredRecipient.country)) setDomesticRecipient(restoredRecipient);
+      else setInternationalRecipient(restoredRecipient);
       if (draft.recipient.name) {
         setUserCustomizedRecipientName(true);
       }
@@ -322,6 +362,19 @@ export function EntryPrototypeClient({
         setUserCustomizedSenderName(true);
       }
     }
+
+    if (draft.appliedOffer) {
+      setAppliedDiscount({
+        code: draft.appliedOffer.code,
+        type: draft.appliedOffer.discountType,
+        value: draft.appliedOffer.discountValue,
+        discountAmountInCents: draft.appliedOffer.discountAmountInCents,
+        finalAmountInCents: draft.appliedOffer.finalAmountInCents,
+        isFree: Boolean(draft.appliedOffer.isFree),
+      });
+      setIsFreeOrder(Boolean(draft.appliedOffer.isFree));
+      setAmountInCents(draft.appliedOffer.finalAmountInCents);
+    }
   }, [
     isLoaded,
     draft.completed,
@@ -331,6 +384,7 @@ export function EntryPrototypeClient({
     draft.note.signOff,
     draft.recipient,
     draft.sender,
+    draft.appliedOffer,
     initialPreset,
     resolvedInitialPresetUrl,
     targetOccasionSlug,
@@ -388,6 +442,8 @@ export function EntryPrototypeClient({
 
         if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
           setRecipient(parsed.recipientAddress);
+          if (parsed.domesticRecipientAddress) setDomesticRecipient(parsed.domesticRecipientAddress);
+          else if (isInternationalCountry(parsed.recipientAddress.country)) setInternationalRecipient(parsed.recipientAddress);
         }
         if (parsed.senderAddress && !sender.fullName && !sender.street1) {
           setSender(parsed.senderAddress);
@@ -419,18 +475,22 @@ export function EntryPrototypeClient({
           dispatch({ type: "UPDATE_NOTE", payload: { text: parsed.insideNoteText } });
         }
         if (parsed.addressDeferred !== undefined) {
-          setIsAddressDeferred(Boolean(parsed.addressDeferred));
+          const savedCountry = parsed.recipientAddress?.country;
+          const savedInternational = isInternationalCountry(savedCountry);
+          setIsAddressDeferred(savedInternational ? false : Boolean(parsed.addressDeferred));
         }
         if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
           setRecipient(parsed.recipientAddress);
+          if (parsed.domesticRecipientAddress) setDomesticRecipient(parsed.domesticRecipientAddress);
+          if (parsed.internationalRecipientAddress) setInternationalRecipient(parsed.internationalRecipientAddress);
+          else if (isInternationalCountry(parsed.recipientAddress.country)) setInternationalRecipient(parsed.recipientAddress);
         }
         if (parsed.senderAddress && !sender.fullName && !sender.street1) {
           setSender(parsed.senderAddress);
         }
         if (parsed.currentStep && parsed.currentStep !== "confirmation") {
           if (isAutoSelectMode) {
-            // Requirement 2: If fresh visitor arrives with ?auto_select=1 and has no existing insideNoteText in localStorage,
-            // auto_select=1 must take precedence and set active step to Inside Note Editor immediately.
+            // Contextual deep links: open note editor unless user had already navigated deeper
             if (!parsed.insideNoteText?.trim()) {
               setStep("note");
             } else if (parsed.currentStep !== "card") {
@@ -438,9 +498,22 @@ export function EntryPrototypeClient({
             } else {
               setStep("note");
             }
+          } else if (hasRealUserEdits && parsed.currentStep !== "card") {
+            // Returning visitor with genuine edits: preserve saved work
+            setStep(parsed.currentStep as FlowStep);
           } else if (!initialStep) {
             setStep(parsed.currentStep as FlowStep);
           }
+        }
+
+        if (!isAlreadyHydrated) {
+          const draftId = parsed.draftId || `draft_${targetOccasionSlug}`;
+          bindJourneyToDraft(draftId);
+          trackEventV2("draft_resumed", {
+            draftId,
+            restoredStep: parsed.currentStep || "note",
+            hasEdits: hasRealUserEdits,
+          });
         }
 
         // Only display "Welcome back" toast if draft has real user edits AND tab was not already hydrated
@@ -466,6 +539,54 @@ export function EntryPrototypeClient({
     sender.street1,
     dispatch,
   ]);
+
+  // Browser History and ?step= synchronization (Single Navigation Home)
+  const initialHistoryReplacedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isLoaded || initialHistoryReplacedRef.current) return;
+    initialHistoryReplacedRef.current = true;
+
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const stepInUrl = params.get("step") as FlowStep | null;
+    const validSteps: FlowStep[] = ["card", "note", "address", "pay"];
+
+    const activeInitialStep = stepInUrl && validSteps.includes(stepInUrl) ? stepInUrl : step;
+    if (stepInUrl && validSteps.includes(stepInUrl) && stepInUrl !== step) {
+      setStep(stepInUrl);
+      dispatch({ type: "SET_STEP", payload: stepInUrl });
+    }
+
+    const currentDepth =
+      typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
+    const url = getStepUrl(activeInitialStep);
+    window.history.replaceState(
+      { ...(window.history.state || {}), smnStep: activeInitialStep, smnDepth: currentDepth },
+      "",
+      url
+    );
+  }, [isLoaded, step, dispatch]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const stepParam = params.get("step") as FlowStep | null;
+      const validSteps: FlowStep[] = ["card", "note", "address", "pay"];
+
+      if (stepParam && validSteps.includes(stepParam)) {
+        setStep(stepParam);
+        dispatch({ type: "SET_STEP", payload: stepParam });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [dispatch]);
 
   // Current selected card details
   const currentCard = useMemo(() => {
@@ -504,6 +625,37 @@ export function EntryPrototypeClient({
       auto_selected: isAutoSelectMode,
       autoSelected: isAutoSelectMode,
     });
+    trackEventV2("entry_viewed", {
+      entryRoute: typeof window !== "undefined" ? window.location.pathname : "/",
+      occasion: occasionParam || currentCard.occasion,
+      scenarioSlug,
+    });
+    trackEventV2("cover_loaded", {
+      presetId: resolvedInitialPresetId || currentCard.presetId,
+      occasion: occasionParam || currentCard.occasion,
+      autoSelected: isAutoSelectMode,
+      auto_selected: isAutoSelectMode,
+      source: isAutoSelectMode ? "scenario_seeded" : "preset_default",
+    });
+
+    if (initialHandwrittenNote) {
+      trackEventV2("note_template_loaded", {
+        charCount: initialHandwrittenNote.length,
+        occasion: occasionParam,
+        scenarioSlug,
+        noteEdited: false,
+        wasEdited: false,
+      });
+    }
+
+    const promo = extractOfferCodeFromUrlParams(searchParams);
+    if (promo) {
+      trackEventV2("offer_viewed", {
+        promoCode: promo,
+        source: "url_param",
+      });
+    }
+
     if (isAutoSelectMode) {
       trackEvent("step_2_cover_ready", 1, {
         presetId: resolvedInitialPresetId || currentCard.presetId,
@@ -545,7 +697,10 @@ export function EntryPrototypeClient({
   useEffect(() => {
     if (typeof window === "undefined" || !isLoaded || isOrderConfirmed) return;
     try {
+      const draftId = `draft_${targetOccasionSlug}`;
+      bindJourneyToDraft(draftId);
       const draftData = {
+        draftId,
         coverId: currentCard.presetId,
         occasionSlug: currentCard.occasion,
         canonicalOccasion: targetOccasionSlug,
@@ -557,6 +712,8 @@ export function EntryPrototypeClient({
         senderName: sender.fullName,
         recipientName: recipient.fullName,
         recipientAddress: recipient,
+        domesticRecipientAddress: domesticRecipient,
+        internationalRecipientAddress: internationalRecipient,
         senderAddress: sender,
         currentStep: step,
         addressDeferred: isAddressDeferred,
@@ -584,6 +741,8 @@ export function EntryPrototypeClient({
     signOff,
     sender,
     recipient,
+    domesticRecipient,
+    internationalRecipient,
     step,
     isAddressDeferred,
     hasCustomUserEdits,
@@ -608,49 +767,124 @@ export function EntryPrototypeClient({
       title: preset.title,
       occasion: preset.occasion,
     });
+    trackEventV2("cover_selected", {
+      presetId: preset.id,
+      occasion: preset.occasion,
+      source: "preset_picker",
+      autoSelected: false,
+      auto_selected: false,
+    });
   };
 
   // Handle Custom AI generation selection (Finding 8: never transmit customer prompt to Meta)
-  const handleSelectCustomCover = (art: { imageUrl: string; prompt: string; occasion: string }) => {
+  const handleSelectCustomCover = (art: {
+    imageUrl: string;
+    prompt: string;
+    occasion: string;
+    source?: "preset" | "custom";
+    presetId?: string;
+  }) => {
+    const isPreset = art.source === "preset";
     dispatch({
       type: "SELECT_DESIGN",
       payload: {
+        presetId: isPreset ? art.presetId : undefined,
         imageUrl: art.imageUrl,
-        title: "Custom Artwork Card",
+        title: isPreset ? art.prompt : "Custom Artwork Card",
         occasion: art.occasion,
-        source: "custom",
+        source: isPreset ? "preset" : "custom",
         accepted: true,
       },
     });
 
-    trackEvent("custom_generation_completed", 1, {
-      occasion: art.occasion,
-    });
-    trackEvent("card_completed", 1, {
-      cardType: "custom",
-    });
+    if (isPreset) {
+      trackEvent("cover_preset_selected", 1, {
+        presetId: art.presetId,
+        title: art.prompt,
+        occasion: art.occasion,
+      });
+      trackEventV2("cover_selected", {
+        presetId: art.presetId,
+        occasion: art.occasion,
+        source: "drawer_preset_fallback",
+        autoSelected: false,
+        auto_selected: false,
+      });
+    } else {
+      trackEvent("custom_generation_completed", 1, {
+        occasion: art.occasion,
+      });
+      trackEvent("card_completed", 1, {
+        cardType: "custom",
+      });
+      trackEventV2("cover_selected", {
+        occasion: art.occasion,
+        source: "custom_ai",
+        autoSelected: false,
+        auto_selected: false,
+      });
 
-    trackMetaCustomizeProduct({
-      customizationType: "AI Art Generated",
-      occasion: art.occasion,
-      contentName: "Custom Artwork Card",
-    });
-    trackMetaAddToCart({
-      contentId: "custom_ai",
-      contentName: "Custom Artwork Card",
-      value: 9.0,
-    });
+      trackMetaCustomizeProduct({
+        customizationType: "AI Art Generated",
+        occasion: art.occasion,
+        contentName: "Custom Artwork Card",
+      });
+      trackMetaAddToCart({
+        contentId: "custom_ai",
+        contentName: "Custom Artwork Card",
+        value: 9.0,
+      });
+    }
 
     setStep("note");
     dispatch({ type: "SET_STEP", payload: "note" });
     if (typeof window !== "undefined") {
+      const currentDepth = typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
+      const nextDepth = currentDepth + 1;
+      const nextUrl = getStepUrl("note");
+      window.history.pushState(
+        { ...(window.history.state || {}), smnStep: "note", smnDepth: nextDepth },
+        "",
+        nextUrl
+      );
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  // Restore saved custom cover from draft without regenerating
+  const handleRestoreCustomArt = () => {
+    if (draft.lastCustomArtwork) {
+      dispatch({
+        type: "SELECT_DESIGN",
+        payload: {
+          presetId: draft.lastCustomArtwork.presetId,
+          customId: draft.lastCustomArtwork.customId,
+          imageUrl: draft.lastCustomArtwork.imageUrl,
+          title: draft.lastCustomArtwork.title,
+          source: "custom",
+          occasion: draft.lastCustomArtwork.occasion,
+          accepted: true,
+        },
+      });
+      trackEventV2("cover_selected", {
+        occasion: draft.lastCustomArtwork.occasion,
+        source: "custom_ai_restored",
+        autoSelected: false,
+        auto_selected: false,
+      });
     }
   };
 
   // Auto-sync Salutation -> Recipient Full Name and persist to draft
   const handleSalutationChange = (newSalutation: string) => {
     markUserCustomEdit();
+    if (!userCustomizedNote) {
+      setUserCustomizedNote(true);
+      trackEventV2("note_edit_started", {
+        inputField: "salutation",
+        charCount: newSalutation.length,
+      });
+    }
     setSalutation(newSalutation);
     dispatch({ type: "UPDATE_NOTE", payload: { salutation: newSalutation } });
     if (!userCustomizedRecipientName) {
@@ -673,6 +907,13 @@ export function EntryPrototypeClient({
   // Auto-sync Sign-Off -> Sender Full Name and persist to draft
   const handleSignOffChange = (newSignOff: string) => {
     markUserCustomEdit();
+    if (!userCustomizedNote) {
+      setUserCustomizedNote(true);
+      trackEventV2("note_edit_started", {
+        inputField: "signOff",
+        charCount: newSignOff.length,
+      });
+    }
     setSignOff(newSignOff);
     dispatch({ type: "UPDATE_NOTE", payload: { signOff: newSignOff } });
     if (!userCustomizedSenderName) {
@@ -694,6 +935,13 @@ export function EntryPrototypeClient({
   // Handle note body change
   const handleBodyNoteChange = (newText: string) => {
     markUserCustomEdit();
+    if (!userCustomizedNote) {
+      setUserCustomizedNote(true);
+      trackEventV2("note_edit_started", {
+        inputField: "note",
+        charCount: newText.length,
+      });
+    }
     dispatch({
       type: "UPDATE_NOTE",
       payload: { text: newText },
@@ -717,6 +965,8 @@ export function EntryPrototypeClient({
 
   // Handle recipient address updates
   const handleUpdateRecipient = (field: keyof AddressData, value: string) => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
     markUserCustomEdit();
     if (field === "fullName") {
       setUserCustomizedRecipientName(true);
@@ -731,9 +981,44 @@ export function EntryPrototypeClient({
       city: updated.city,
       state: updated.state,
       zip: updated.zip,
-      country: "USA",
+      country: updated.country || "USA",
     };
     dispatch({ type: "UPDATE_RECIPIENT", payload: mapped });
+  };
+
+  const handleSaveInternationalRecipient = (address: AddressData) => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
+    if (!isInternational) setDomesticRecipient(recipient);
+    setInternationalRecipient(address);
+    setRecipient(address);
+    setIsAddressDeferred(false);
+    // Immediately unbind any previously initialized domestic payment form. A fresh
+    // server response is required before payment can be shown for this destination.
+    setClientSecret(null);
+    setOrderId("");
+    setViewToken(null);
+    setCheckoutInitError(null);
+    dispatch({ type: "SET_CHECKOUT_SNAPSHOT", payload: null });
+    const mapped: AddressDraft = { name: address.fullName, addressLine1: address.street1, addressLine2: address.street2, city: address.city, state: address.state, zip: address.zip, country: address.country };
+    dispatch({ type: "UPDATE_RECIPIENT", payload: mapped });
+    markUserCustomEdit();
+  };
+
+  const handleUseUSRecipient = () => {
+    if (checkoutRequestInFlight.current) return;
+    addressRevision.current += 1;
+    if (isInternational) setInternationalRecipient(recipient);
+    const restored = { ...domesticRecipient, country: "US" };
+    setRecipient(restored);
+    setAmountInCents(appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900);
+    setIsAddressDeferred(false);
+    setClientSecret(null);
+    setOrderId("");
+    setViewToken(null);
+    setCheckoutInitError(null);
+    dispatch({ type: "SET_CHECKOUT_SNAPSHOT", payload: null });
+    dispatch({ type: "UPDATE_RECIPIENT", payload: { name: restored.fullName, addressLine1: restored.street1, addressLine2: restored.street2, city: restored.city, state: restored.state, zip: restored.zip, country: "US" } });
   };
 
   // Handle sender address updates
@@ -760,21 +1045,9 @@ export function EntryPrototypeClient({
   const handleStepTransition = (nextStep: FlowStep) => {
     if (nextStep === "note") {
       if (!draft.selectedDesign) {
-        const fallback = initialPreset || CARD_PRESETS[0];
-        dispatch({
-          type: "SELECT_DESIGN",
-          payload: {
-            presetId: fallback.id,
-            imageUrl: fallback.imageUrl,
-            title: fallback.title,
-            occasion: fallback.occasion,
-            source: "preset",
-            accepted: true,
-          },
-        });
-      } else {
-        dispatch({ type: "ACCEPT_DESIGN" });
+        return;
       }
+      dispatch({ type: "ACCEPT_DESIGN" });
 
       trackEvent("card_completed", 1, {
         presetId: draft.selectedDesign?.presetId,
@@ -824,6 +1097,24 @@ export function EntryPrototypeClient({
         });
       }
 
+      const noteWasEdited = Boolean(
+        userCustomizedNote ||
+        hasCustomUserEdits ||
+        (initialHandwrittenNote && draft.note.text !== initialHandwrittenNote) ||
+        (!initialHandwrittenNote && draft.note.text.trim().length > 0)
+      );
+
+      trackEventV2("note_confirmed", {
+        charCount: draft.note.text.length,
+        fontId: draft.note.style || "hwDavid",
+        wasEdited: noteWasEdited,
+        noteEdited: noteWasEdited,
+        hasPrintedGreeting: Boolean(salutation || signOff),
+      });
+      trackEventV2("address_viewed", {
+        deferred: isAddressDeferred,
+      });
+
       trackEvent("note_completed", 2, {
         charCount: draft.note.text.length,
         fontId: draft.note.style || "hwDavid",
@@ -843,9 +1134,50 @@ export function EntryPrototypeClient({
     setStep(nextStep);
     dispatch({ type: "SET_STEP", payload: nextStep });
     if (typeof window !== "undefined") {
+      const currentDepth = typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
+      const nextDepth = currentDepth + 1;
+      const nextUrl = getStepUrl(nextStep);
+      window.history.pushState(
+        { ...(window.history.state || {}), smnStep: nextStep, smnDepth: nextDepth },
+        "",
+        nextUrl
+      );
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
+
+  // Determine target previous step and handle back navigation
+  const handleProgressBack = useCallback(() => {
+    const stepOrder: Record<FlowStep, FlowStep | null> = {
+      card: null,
+      note: "card",
+      address: "note",
+      pay: "address",
+    };
+    const targetStep = stepOrder[step];
+    if (!targetStep) return;
+
+    const depth =
+      typeof window !== "undefined" && typeof window.history.state?.smnDepth === "number"
+        ? window.history.state.smnDepth
+        : 0;
+
+    if (depth > 0) {
+      window.history.back();
+    } else {
+      setStep(targetStep);
+      dispatch({ type: "SET_STEP", payload: targetStep });
+      if (typeof window !== "undefined") {
+        const nextUrl = getStepUrl(targetStep);
+        window.history.replaceState(
+          { ...(window.history.state || {}), smnStep: targetStep, smnDepth: 0 },
+          "",
+          nextUrl
+        );
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [step, dispatch]);
 
   // Validate address and transition to checkout (never disable button silently without explanation)
   const handleAddressSubmit = () => {
@@ -854,6 +1186,10 @@ export function EntryPrototypeClient({
       const err = "Please provide the recipient's full name.";
       setAddressValidationError(err);
       trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      trackEventV2("address_validation_failed", {
+        errorCategory: "missing_recipient_name",
+        fieldName: "recipient.fullName",
+      });
       return;
     }
     if (!isAddressDeferred) {
@@ -861,12 +1197,22 @@ export function EntryPrototypeClient({
         const err = "Please provide the recipient's street address.";
         setAddressValidationError(err);
         trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+        trackEventV2("address_validation_failed", {
+          errorCategory: "missing_recipient_street",
+          fieldName: "recipient.street1",
+        });
         return;
       }
-      if (!recipient.city.trim() || !recipient.state.trim() || !recipient.zip.trim()) {
-        const err = "Please complete the recipient's City, State, and ZIP code.";
+      const mailingRule = mailingOptions?.destinations.find((destination) => destination.countryCode === recipient.country);
+      const needsRegion = isInternational ? Boolean(mailingRule?.regionRequired) : true;
+      const needsPostal = isInternational ? Boolean(mailingRule?.postalCodeRequired) : true;
+      if (!recipient.city.trim() || (needsRegion && !recipient.state.trim()) || (needsPostal && !recipient.zip.trim())) {
+        const err = isInternational ? "Please complete the required locality, region, and postal details for this destination." : "Please complete the recipient's City, State, and ZIP code.";
         setAddressValidationError(err);
         trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+        trackEventV2("address_validation_failed", {
+          errorCategory: "missing_recipient_city_state_zip",
+        });
         return;
       }
     }
@@ -874,12 +1220,19 @@ export function EntryPrototypeClient({
       const err = "Please provide your name for your return address.";
       setAddressValidationError(err);
       trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      trackEventV2("address_validation_failed", {
+        errorCategory: "missing_sender_name",
+        fieldName: "sender.fullName",
+      });
       return;
     }
     if (!isAddressDeferred && (!sender.city.trim() || !sender.state.trim())) {
       const err = "Please provide your city and state for your return address.";
       setAddressValidationError(err);
       trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
+      trackEventV2("address_validation_failed", {
+        errorCategory: "missing_sender_city_state",
+      });
       return;
     }
 
@@ -887,6 +1240,16 @@ export function EntryPrototypeClient({
     trackEvent("step_4b_address_completed", 4, {
       used_address_deferral: isAddressDeferred,
     });
+    if (isAddressDeferred) {
+      trackEventV2("address_deferred", {
+        reason: "sender_will_provide_later",
+      });
+    } else {
+      trackEventV2("address_confirmed", {
+        hasReturnAddress: Boolean(sender.street1 && sender.city),
+        hasRecipientStreet2: Boolean(recipient.street2),
+      });
+    }
     initializeCheckout();
   };
 
@@ -898,34 +1261,32 @@ export function EntryPrototypeClient({
   ) => {
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
     checkoutRequestInFlight.current = true;
+    const requestedAddressRevision = addressRevision.current;
     setCheckoutInitError(null);
     setIsInitializingCheckout(true);
+    // Invalidate the previous provider/order binding while the server recalculates
+    // the current destination and offer. The prior offer remains visible until the
+    // matching replacement response succeeds, but its payment form cannot submit.
+    setClientSecret(null);
+    setOrderId("");
+    setViewToken(null);
+    setIsFreeOrder(false);
+    dispatch({ type: "SET_CHECKOUT_SNAPSHOT", payload: null });
 
     try {
-      const fullHandwrittenMessage = [salutation, draft.note.text, signOff]
-        .filter(Boolean)
-        .join("\n\n");
-
-      const recParts = recipient.fullName.trim().split(/\s+/);
-      const recipientFirstName = recParts[0] || "Friend";
-      const recipientLastName = recParts.slice(1).join(" ") || "";
-
-      const senderParts = sender.fullName.trim().split(/\s+/);
-      const senderFirstName = senderParts[0] || "Friend";
-      const senderLastName = senderParts.slice(1).join(" ") || "";
-
       const discountCodeToUse =
         overrideDiscountCode !== undefined
           ? overrideDiscountCode
-          : appliedDiscount?.code || draft.discountCode || undefined;
+          : appliedDiscount?.code || draft.appliedOffer?.code || draft.discountCode || undefined;
 
-      // A resumed draft stores only the code, not its price terms. Revalidate it
-      // before creating an intent so the displayed terms match the server total.
       let discountToApply =
         discountCodeToUse && appliedDiscount?.code === discountCodeToUse
           ? appliedDiscount
           : null;
-      if (discountCodeToUse && !discountToApply) {
+      const shouldRevalidateDiscount = Boolean(
+        discountCodeToUse && draft.appliedOffer?.code === discountCodeToUse
+      );
+      if (discountCodeToUse && (!discountToApply || shouldRevalidateDiscount)) {
         const validationResponse = await fetch("/api/discount/validate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -942,6 +1303,7 @@ export function EntryPrototypeClient({
           (validationResponse.ok && validation.valid === false);
         if (definitiveInvalidCode) {
           dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
+          dispatch({ type: "SET_APPLIED_OFFER", payload: null });
           throw new Error(validation.error || "Your saved discount code is no longer valid. Retry checkout to continue at the regular price.");
         }
         if (!validationResponse.ok || validation.valid !== true) {
@@ -949,6 +1311,24 @@ export function EntryPrototypeClient({
         }
         discountToApply = validation;
       }
+
+      trackEventV2("checkout_requested", {
+        amountInCents: currentDisplayTotalCents,
+        hasDiscount: Boolean(discountCodeToUse),
+        isAddressDeferred,
+      });
+
+      const fullHandwrittenMessage = [salutation, draft.note.text, signOff]
+        .filter(Boolean)
+        .join("\n\n");
+
+      const recParts = recipient.fullName.trim().split(/\s+/);
+      const recipientFirstName = recParts[0] || "Friend";
+      const recipientLastName = recParts.slice(1).join(" ") || "";
+
+      const senderParts = sender.fullName.trim().split(/\s+/);
+      const senderFirstName = senderParts[0] || "Friend";
+      const senderLastName = senderParts.slice(1).join(" ") || "";
 
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
@@ -969,7 +1349,7 @@ export function EntryPrototypeClient({
             city: recipient.city,
             state: recipient.state,
             zip: recipient.zip,
-            country: "USA",
+            country: recipient.country || "US",
           },
           returnAddress: {
             firstName: senderFirstName,
@@ -981,6 +1361,7 @@ export function EntryPrototypeClient({
             country: "USA",
           },
           customerEmail,
+          contactPolicyVersion: 1,
           userId: user?.uid,
           discountCode: discountCodeToUse,
           attribution: getStoredAttribution() || undefined,
@@ -993,14 +1374,19 @@ export function EntryPrototypeClient({
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize payment gateway.");
       }
+      if (requestedAddressRevision !== addressRevision.current) {
+        throw new Error("The recipient address changed while checkout was updating. Please review it and try again.");
+      }
 
       const decision = evaluateCheckoutInitTransition(true);
       if (!decision.canAdvance) {
         throw new Error(decision.errorMessage || "Unable to proceed to payment.");
       }
 
-      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? discountToApply?.finalAmountInCents : 900);
-      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
+      const expectedPrice = expectedAmountInCents !== undefined
+        ? expectedAmountInCents + (isInternational ? 500 : 0)
+        : discountCodeToUse ? (discountToApply?.finalAmountInCents ?? 900) + (isInternational ? 500 : 0) : 900 + (isInternational ? 500 : 0);
+      const serverPrice = data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents;
       if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
         throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
       }
@@ -1026,9 +1412,34 @@ export function EntryPrototypeClient({
       }
       setIsMockCheckout(Boolean(data.isMock));
       setIsFreeOrder(Boolean(data.isFree));
-      setAmountInCents(data.finalAmountInCents ?? data.amountInCents ?? 900);
+      setAmountInCents(data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900);
       setAppliedDiscount(discountToApply);
+      if (discountToApply) {
+        dispatch({
+          type: "SET_APPLIED_OFFER",
+          payload: {
+            code: discountToApply.code,
+            quoteId: (discountToApply as any).quoteId,
+            offerId: (discountToApply as any).offerId,
+            offerVersion: (discountToApply as any).offerVersion,
+            discountType: discountToApply.type,
+            discountValue: discountToApply.value,
+            discountAmountInCents: discountToApply.discountAmountInCents,
+            finalAmountInCents: discountToApply.finalAmountInCents,
+            isFree: Boolean(discountToApply.isFree),
+            quoteExpiresAt: (discountToApply as any).quoteExpiresAt,
+            appliedAt: Date.now(),
+          },
+        });
+      }
       setCheckoutInitError(null);
+
+      trackEventV2("checkout_created", {
+        orderId: data.orderId,
+        isMock: Boolean(data.isMock),
+        isFree: Boolean(data.isFree),
+        amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
+      });
 
       trackEvent("address_completed", 3, {
         hasReturnAddress: Boolean(sender.street1 && sender.city),
@@ -1037,18 +1448,26 @@ export function EntryPrototypeClient({
       trackEvent("step_5_checkout_initiated", 5, {
         isMock: Boolean(data.isMock),
         isFree: Boolean(data.isFree),
-        amountInCents: data.finalAmountInCents ?? data.amountInCents ?? 900,
+        amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
       });
       trackGA4AddShippingInfo({
         itemId: currentCard.presetId || "card",
         itemName: currentCard.title,
-        price: 9.0,
-        shippingTier: "USPS First Class",
+        price: (data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900) / 100,
+        shippingTier: isInternational ? "International mailing" : "USPS First Class",
       });
 
       setStep("pay");
       dispatch({ type: "SET_STEP", payload: "pay" });
       if (typeof window !== "undefined") {
+        const currentDepth = typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
+        const nextDepth = currentDepth + 1;
+        const nextUrl = getStepUrl("pay");
+        window.history.pushState(
+          { ...(window.history.state || {}), smnStep: "pay", smnDepth: nextDepth },
+          "",
+          nextUrl
+        );
         window.scrollTo({ top: 0, behavior: "instant" });
       }
       return true;
@@ -1071,6 +1490,9 @@ export function EntryPrototypeClient({
   const handleApplyDiscount = async (code: string) => {
     if (discountRequestInFlight.current || checkoutRequestInFlight.current) return { success: false, error: "Checkout is updating. Please try again." };
     discountRequestInFlight.current = true;
+    trackEventV2("discount_apply_requested", {
+      promoCode: code.trim(),
+    });
     try {
       const res = await fetch("/api/discount/validate", {
         method: "POST",
@@ -1079,21 +1501,61 @@ export function EntryPrototypeClient({
       });
       const data = await res.json();
       if (!res.ok || !data.valid) {
+        trackEventV2("discount_rejected", {
+          promoCode: code.trim(),
+          rejectionReason: data.error || "invalid_code",
+        });
         return { success: false, error: data.error || "Invalid promo code." };
       }
 
-      if (step === "pay") {
-        const updated = await initializeCheckout(data.code, data.finalAmountInCents, true);
-        if (!updated) return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
+      const previousOrderId = orderId;
+      if (step === "pay" && !await initializeCheckout(data.code, data.finalAmountInCents, true)) {
+        return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
       }
-
+      if (step === "pay" && previousOrderId) {
+        await fetch("/api/discount/validate", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: previousOrderId }),
+        }).catch(() => {});
+      }
       setAppliedDiscount(data);
-      setIsFreeOrder(Boolean(data.isFree));
-      setAmountInCents(data.finalAmountInCents ?? 900);
+      // On the payment step initializeCheckout has already atomically created a
+      // new server-priced intent. Keep its authoritative international total
+      // and free-order status (a base-only 100% offer still owes the surcharge).
+      if (step !== "pay") {
+        setIsFreeOrder(Boolean(data.isFree));
+        setAmountInCents(data.finalAmountInCents ?? 900);
+      }
       dispatch({ type: "SET_DISCOUNT_CODE", payload: data.code });
-
+      trackEventV2("discount_applied", {
+        promoCode: data.code,
+        discountType: data.discountType || (data.isFree ? "free_order" : "percent_or_fixed"),
+        amountSavedInCents: 900 - (data.finalAmountInCents ?? 900),
+        finalAmountInCents: data.finalAmountInCents ?? 900,
+      });
+      dispatch({
+        type: "SET_APPLIED_OFFER",
+        payload: {
+          code: data.code,
+          quoteId: data.quoteId,
+          offerId: data.offerId,
+          offerVersion: data.offerVersion,
+          discountType: data.type || "PERCENTAGE",
+          discountValue: data.value || 0,
+          discountAmountInCents: data.discountAmountInCents || 0,
+          finalAmountInCents: data.finalAmountInCents ?? 900,
+          isFree: Boolean(data.isFree),
+          quoteExpiresAt: data.quoteExpiresAt,
+          appliedAt: Date.now(),
+        },
+      });
       return { success: true };
     } catch {
+      trackEventV2("discount_rejected", {
+        promoCode: code.trim(),
+        rejectionReason: "network_error",
+      });
       return { success: false, error: "Unable to apply promo code." };
     } finally {
       discountRequestInFlight.current = false;
@@ -1103,16 +1565,41 @@ export function EntryPrototypeClient({
   const handleRemoveDiscount = async () => {
     if (discountRequestInFlight.current || checkoutRequestInFlight.current) return;
     discountRequestInFlight.current = true;
+    const previousOrderId = orderId;
     try {
       if (step === "pay" && !await initializeCheckout("", 900, true)) return;
+      if (step === "pay" && previousOrderId) {
+        await fetch("/api/discount/validate", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ orderId: previousOrderId }),
+        }).catch(() => {});
+      }
       setAppliedDiscount(null);
-      setIsFreeOrder(false);
-      setAmountInCents(900);
+      if (step !== "pay") {
+        setIsFreeOrder(false);
+        setAmountInCents(900);
+      }
       dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
+      dispatch({ type: "SET_APPLIED_OFFER", payload: null });
+      if (appliedDiscount) {
+        trackEventV2("discount_removed", {
+          promoCode: appliedDiscount.code,
+        });
+      }
     } finally {
       discountRequestInFlight.current = false;
     }
   };
+
+  // Destination-aware auto-apply: detect ?discount=, ?code=, or ?promo= on entry routes
+  useEffect(() => {
+    if (!isLoaded) return;
+    const codeFromUrl = extractOfferCodeFromUrlParams(searchParams);
+    if (codeFromUrl && !appliedDiscount && !draft.appliedOffer) {
+      handleApplyDiscount(codeFromUrl);
+    }
+  }, [isLoaded, searchParams]);
 
   // Payment success handler (server records verified telemetry)
   const handlePaymentSuccess = (
@@ -1158,6 +1645,9 @@ export function EntryPrototypeClient({
 
   // Reset entire flow handler for "Clear draft" and "Send another card"
   const resetEntireFlow = () => {
+    customerEmailEdited.current = false;
+    setCustomerEmail(user?.email || "");
+    setPaymentInFlight(false);
     clearDraft();
     setIsOrderConfirmed(false);
     setStep("card");
@@ -1173,6 +1663,8 @@ export function EntryPrototypeClient({
       state: "",
       zip: "",
     });
+    setDomesticRecipient({ fullName: "", street1: "", street2: "", city: "", state: "", zip: "" });
+    setInternationalRecipient(null);
     setSender({
       fullName: "",
       street1: "",
@@ -1206,6 +1698,12 @@ export function EntryPrototypeClient({
         sessionStorage.removeItem("smn_completed_order_id");
         sessionStorage.removeItem("smn_completed_view_token");
         sessionStorage.removeItem("smn_draft_hydrated");
+        const nextUrl = getStepUrl("card");
+        window.history.replaceState(
+          { ...(window.history.state || {}), smnStep: "card", smnDepth: 0 },
+          "",
+          nextUrl
+        );
       } catch {
         // ignore
       }
@@ -1227,7 +1725,7 @@ export function EntryPrototypeClient({
     ) {
       initializeCheckout();
     }
-  }, [isLoaded, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode]);
+  }, [isLoaded, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.appliedOffer]);
 
   // Check if address is valid for advancing
   const isAddressValid = isAddressDeferred
@@ -1262,7 +1760,7 @@ export function EntryPrototypeClient({
   if (isOrderConfirmed) {
     return (
       <div className={`min-h-screen bg-[#FAF8F5] text-stone-900 flex flex-col antialiased ${embedded ? "rounded-3xl border border-stone-200/90 shadow-xs overflow-hidden" : ""}`}>
-        {!embedded && <FlowHeader showClearDraft={false} onClearDraft={resetEntireFlow} />}
+        {!embedded && <FlowHeader showClearDraft={false} onClearDraft={resetEntireFlow} orderTotalCents={amountInCents} resetDisabled={isOrderConfirmed || paymentInFlight} />}
         <main className="flex-1 max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
           <Step5Confirmation
             orderId={orderId}
@@ -1280,6 +1778,7 @@ export function EntryPrototypeClient({
             customerEmail={customerEmail}
             amountInCents={amountInCents}
             onSendAnotherCard={resetEntireFlow}
+            isPreviewHold={isInternational && Boolean(mailingOptions?.previewAvailable)}
             isAddressDeferred={isAddressDeferred || !recipient.street1?.trim()}
           />
         </main>
@@ -1297,10 +1796,10 @@ export function EntryPrototypeClient({
       )}
 
       {/* 1. COMPACT SENDMYNOTES FLOW HEADER (suppressed when embedded in an occasion/scenario landing page with its own navbar) */}
-      {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} />}
+      {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} orderTotalCents={step === "pay" ? amountInCents : undefined} resetDisabled={paymentInFlight || isOrderConfirmed} />}
 
       {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
-      <ProgressIndicator currentStep={step} />
+      <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
 
       {/* 3. STEP CONTENT */}
       <main className="flex-1 w-full">
@@ -1311,6 +1810,8 @@ export function EntryPrototypeClient({
             onAcceptAndContinue={() => handleStepTransition("note")}
             initialOccasion={occasionParam}
             onOpenCustomArt={() => setIsCustomAiOpen(true)}
+            lastCustomArtwork={draft.lastCustomArtwork}
+            onRestoreCustomArt={handleRestoreCustomArt}
           />
         )}
 
@@ -1330,25 +1831,7 @@ export function EntryPrototypeClient({
               cardTitle={currentCard.title}
               cardUrl={currentCard.imageUrl}
               scenarioSlug={scenarioSlug}
-              onSelectCover={(preset) => handleSelectPreset(preset)}
-              onChangeOccasion={(newOccasion, preset) => {
-                const targetPreset = preset || CARD_PRESETS.find((p) => p.occasion === newOccasion) || CARD_PRESETS[0];
-                dispatch({
-                  type: "SELECT_DESIGN",
-                  payload: {
-                    presetId: targetPreset.id,
-                    imageUrl: targetPreset.imageUrl,
-                    title: targetPreset.title,
-                    occasion: newOccasion,
-                    source: "preset",
-                    accepted: true,
-                  },
-                });
-              }}
-              onBack={() => {
-                setStep("card");
-                dispatch({ type: "SET_STEP", payload: "card" });
-              }}
+              onBack={handleProgressBack}
               onContinue={() => handleStepTransition("address")}
             />
           </div>
@@ -1386,12 +1869,16 @@ export function EntryPrototypeClient({
               onChangeSender={handleUpdateSender}
               fontClass={activeFont.fontClass}
               isAddressDeferred={isAddressDeferred}
+              mailingOptions={mailingOptions}
+              isBusy={isInitializingCheckout}
+              isInternational={isInternational}
+              onSaveInternational={handleSaveInternationalRecipient}
+              savedInternationalRecipient={internationalRecipient}
+              onUseUSAddress={handleUseUSRecipient}
+              displayTotalCents={currentDisplayTotalCents}
               onChangeAddressDeferred={setIsAddressDeferred}
               onValidationError={(err) => setAddressValidationError(err)}
-              onBack={() => {
-                setStep("note");
-                dispatch({ type: "SET_STEP", payload: "note" });
-              }}
+              onBack={handleProgressBack}
               onContinue={handleAddressSubmit}
             />
           </div>
@@ -1414,21 +1901,25 @@ export function EntryPrototypeClient({
               recipient={recipient}
               sender={sender}
               customerEmail={customerEmail}
-              onChangeCustomerEmail={setCustomerEmail}
+              onChangeCustomerEmail={(email) => {
+                customerEmailEdited.current = true;
+                setCustomerEmail(email);
+                dispatch({ type: "SET_CHECKOUT_CONTACT", payload: { email, choice: email.trim() ? "provided" : "omitted" } });
+              }}
               orderId={orderId}
               viewToken={viewToken}
               clientSecret={clientSecret}
               publishableKey={publishableKey}
               isMock={isMockCheckout}
               isFree={isFreeOrder}
+              amountInCents={amountInCents}
+              destinationCountry={recipient.country || "US"}
               onApplyDiscount={handleApplyDiscount}
               onRemoveDiscount={handleRemoveDiscount}
               appliedDiscount={appliedDiscount}
               onPaymentSuccess={handlePaymentSuccess}
-              onBack={() => {
-                setStep("address");
-                dispatch({ type: "SET_STEP", payload: "address" });
-              }}
+              onPaymentStateChange={setPaymentInFlight}
+              onBack={handleProgressBack}
             />
           </div>
         )}
@@ -1437,11 +1928,11 @@ export function EntryPrototypeClient({
       {/* 4. PERSISTENT BOTTOM ACTION BAR (Steps 1 and 3) */}
       {step !== "pay" && step !== "note" && (
         <ActionBar
-          priceDisplay="$9 total"
-          priceSubtext="USPS mailing included"
+          priceDisplay={isInternational || currentDisplayTotalCents !== 900 ? `$${(currentDisplayTotalCents / 100).toFixed(2)} total` : "$9 total"}
+          priceSubtext={isInternational ? "International mailing included" : "USPS mailing included"}
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
-          isDisabled={false}
+          isDisabled={step === "card" ? !draft.selectedDesign : false}
           onPrimaryClick={() => {
             if (step === "card") {
               handleStepTransition("note");
@@ -1449,20 +1940,6 @@ export function EntryPrototypeClient({
               handleAddressSubmit();
             }
           }}
-          secondaryAction={
-            step === "address" ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("note");
-                  dispatch({ type: "SET_STEP", payload: "note" });
-                }}
-                className="text-xs text-stone-600 hover:text-stone-900 font-medium px-3 py-2 rounded-lg hover:bg-stone-100 transition cursor-pointer"
-              >
-                Edit note
-              </button>
-            ) : undefined
-          }
         />
       )}
 

@@ -3,9 +3,13 @@ import { getOrderById, updateOrderStatus, getSystemIncidentsCollection, resolveI
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { MailingAddress } from "@/lib/types";
+import { normalizeCountryCode } from "@/lib/mailing-destinations";
 
 export async function POST(req: NextRequest) {
   try {
+    if (process.env.STAGING_REVIEW_ONLY === "true") {
+      return NextResponse.json({ error: "Supplier fulfillment is disabled during staging review.", code: "STAGING_REVIEW_ONLY" }, { status: 423 });
+    }
     if (!verifyAdminAuth(req)) {
       return NextResponse.json({ error: "Unauthorized access to fulfillment retry" }, { status: 401 });
     }
@@ -21,18 +25,28 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    if (order.isInternationalPreview) {
+      return NextResponse.json({ error: "International preview orders are held from supplier fulfillment." }, { status: 423 });
+    }
+
     let recipientToUse = order.recipientAddress;
 
     // If operator provided an updated or corrected address
     if (updatedRecipientAddress && typeof updatedRecipientAddress === "object") {
+      const existingCountry = normalizeCountryCode(order.quote?.countryCode || order.recipientAddress?.country) || (order.recipientAddress?.country ? null : "US");
+      const submittedCountry = typeof updatedRecipientAddress.country === "string" ? normalizeCountryCode(updatedRecipientAddress.country) : existingCountry;
+      if (!existingCountry || submittedCountry !== existingCountry) {
+        return NextResponse.json({ error: "Changing a paid order's destination requires a supported repricing flow." }, { status: 409 });
+      }
       const addressUpdate: MailingAddress = {
         firstName: String(updatedRecipientAddress.firstName || "").trim(),
         lastName: String(updatedRecipientAddress.lastName || "").trim(),
         street1: String(updatedRecipientAddress.street1 || "").trim(),
         street2: String(updatedRecipientAddress.street2 || "").trim(),
         city: String(updatedRecipientAddress.city || "").trim(),
-        state: String(updatedRecipientAddress.state || "").trim().toUpperCase(),
+        state: existingCountry === "US" || existingCountry === "CA" ? String(updatedRecipientAddress.state || "").trim().toUpperCase() : String(updatedRecipientAddress.state || "").trim(),
         zip: String(updatedRecipientAddress.zip || "").trim(),
+        country: existingCountry,
       };
       await updateOrderStatus(orderId, { recipientAddress: addressUpdate });
       recipientToUse = addressUpdate;

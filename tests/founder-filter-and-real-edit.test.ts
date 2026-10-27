@@ -97,7 +97,8 @@ async function runFounderFilterAndRealEditTests() {
     excludeFounder: true,
     channel: "all",
   });
-  const vtExcluded = metricsExcluded.visitorTelemetry!;
+  const vtExcluded = metricsExcluded.visitorTelemetry;
+  assert.ok(vtExcluded, "Visitor telemetry is present in the legacy report");
 
   const foundMobile = vtExcluded.recentSessions.find((s) => s.sessionId === mobilePaidSession);
   const foundMeta = vtExcluded.recentSessions.find((s) => s.sessionId === desktopPaidSession);
@@ -122,7 +123,8 @@ async function runFounderFilterAndRealEditTests() {
     excludeFounder: false,
     channel: "all",
   });
-  const vtIncluded = metricsIncluded.visitorTelemetry!;
+  const vtIncluded = metricsIncluded.visitorTelemetry;
+  assert.ok(vtIncluded, "Visitor telemetry is present in the legacy report");
   const foundFounderWhenOff = vtIncluded.recentSessions.find((s) => s.sessionId === founderDesktopSession);
   assert.ok(foundFounderWhenOff, "Founder session is visible when excludeFounder is toggled OFF");
   console.log("✅ PASS: Founder test session correctly appears when excludeFounder is toggled OFF");
@@ -218,7 +220,8 @@ async function runFounderFilterAndRealEditTests() {
     excludeFounder: true,
     channel: "all",
   });
-  const vtStep3 = metricsStep3.visitorTelemetry!;
+  const vtStep3 = metricsStep3.visitorTelemetry;
+  assert.ok(vtStep3, "Visitor telemetry is present in the legacy report");
 
   const recPassive = vtStep3.recentSessions.find((s) => s.sessionId === passiveSessionId);
   const recActive = vtStep3.recentSessions.find((s) => s.sessionId === activeSessionId);

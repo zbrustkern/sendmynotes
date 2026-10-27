@@ -5,6 +5,7 @@ import {
   NoteDraft,
   AddressDraft,
   ScheduleDraft,
+  AppliedOfferDraft,
   AttributionDraft,
   CustomGenerationState,
 } from "./types";
@@ -28,9 +29,11 @@ export type DraftAction =
   | { type: "UPDATE_SENDER"; payload: AddressDraft | null }
   | { type: "UPDATE_SCHEDULE"; payload: ScheduleDraft | null }
   | { type: "SET_DISCOUNT_CODE"; payload: string | null }
+  | { type: "SET_APPLIED_OFFER"; payload: AppliedOfferDraft | null }
   | { type: "SET_ATTRIBUTION"; payload: AttributionDraft | null }
   | { type: "SET_CUSTOM_GENERATION"; payload: Partial<CustomGenerationState> }
   | { type: "SET_CHECKOUT_SNAPSHOT"; payload: string | null }
+  | { type: "SET_CHECKOUT_CONTACT"; payload: { email: string; choice: "untouched" | "provided" | "omitted" } }
   | { type: "SET_STEP"; payload: string }
   | { type: "MARK_COMPLETED" }
   | { type: "CLEAR_DRAFT"; payload?: { experienceVersion?: string } }
@@ -55,13 +58,16 @@ export function createInitialDraft(experienceVersion = "candidate_v1"): DraftSta
     sender: null,
     schedule: null,
     discountCode: null,
+    appliedOffer: null,
     attribution: null,
     customGeneration: {
       status: "idle",
     },
     checkoutSnapshotId: null,
+    checkoutContact: { email: "", choice: "untouched" },
     currentStep: "card",
     completed: false,
+    lastCustomArtwork: null,
   };
 }
 
@@ -76,6 +82,19 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         state.selectedDesign.title === action.payload.title &&
         state.selectedDesign.source === action.payload.source;
 
+      const isCustom = action.payload.source === "custom";
+      const nextCustomArtwork = isCustom
+        ? {
+            presetId: action.payload.presetId,
+            customId: action.payload.customId,
+            imageUrl: action.payload.imageUrl,
+            title: action.payload.title,
+            source: "custom" as const,
+            occasion: action.payload.occasion,
+            accepted: true,
+          }
+        : state.lastCustomArtwork;
+
       // If already selected and accepted status is unchanged, don't unnecessarily increment
       if (
         isSameSelection &&
@@ -89,6 +108,7 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         ...state,
         updatedAt: now,
         draftRevision: state.draftRevision + 1,
+        lastCustomArtwork: nextCustomArtwork,
         selectedDesign: {
           presetId: action.payload.presetId,
           customId: action.payload.customId,
@@ -164,6 +184,15 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       };
     }
 
+    case "SET_APPLIED_OFFER": {
+      return {
+        ...state,
+        updatedAt: now,
+        appliedOffer: action.payload,
+        discountCode: action.payload?.code ?? (action.payload === null ? null : state.discountCode),
+      };
+    }
+
     case "SET_ATTRIBUTION": {
       return {
         ...state,
@@ -190,6 +219,9 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         checkoutSnapshotId: action.payload,
       };
     }
+
+    case "SET_CHECKOUT_CONTACT":
+      return { ...state, updatedAt: now, draftRevision: state.draftRevision + 1, checkoutContact: action.payload };
 
     case "SET_STEP": {
       if (state.currentStep === action.payload) {
@@ -218,7 +250,14 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
     }
 
     case "HYDRATE_DRAFT": {
-      return action.payload;
+      return {
+        ...action.payload,
+        lastCustomArtwork:
+          action.payload.lastCustomArtwork ??
+          (action.payload.selectedDesign?.source === "custom"
+            ? action.payload.selectedDesign
+            : null),
+      };
     }
 
     default:

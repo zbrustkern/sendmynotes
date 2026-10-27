@@ -22,7 +22,7 @@ import {
 import confetti from "canvas-confetti";
 import { detectCardIntent } from "@/lib/card-intent";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
-import { AddressData } from "./Step3EnvelopeAddressing";
+import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { cancelGoogleAdsPurchaseRetries, trackGoogleAdsPurchase } from "@/lib/google-ads";
 import { trackMetaPurchase } from "@/lib/meta-ads";
 
@@ -43,6 +43,7 @@ interface Step5ConfirmationProps {
   amountInCents: number;
   onSendAnotherCard: () => void;
   isAddressDeferred?: boolean;
+  isPreviewHold?: boolean;
 }
 
 export function Step5Confirmation({
@@ -62,13 +63,16 @@ export function Step5Confirmation({
   amountInCents,
   onSendAnotherCard,
   isAddressDeferred = false,
+  isPreviewHold = false,
 }: Step5ConfirmationProps) {
   const deliveryEstimate = useMemo(() => calculateDeliveryEstimate(), []);
+  const isInternational = isInternationalCountry(recipient.country);
+  const isPreviewHoldActive = isPreviewHold && isInternational;
 
   // Launch celebration confetti and fire purchase conversions on mount
   useEffect(() => {
     try {
-      confetti({
+      if (!isPreviewHoldActive) confetti({
         particleCount: 50,
         spread: 60,
         origin: { y: 0.6 },
@@ -89,20 +93,18 @@ export function Step5Confirmation({
     // Google Ads requires the server snapshot and an active checkout marker; receipt views alone cannot emit.
     const isReconciling = fulfillmentStatus === "RECONCILING";
     let cancelled = false;
-    if (orderId && viewToken && !isReconciling) {
-      void fetch(`/api/orders/${encodeURIComponent(orderId)}?token=${encodeURIComponent(viewToken)}`)
-        .then((response) => response.ok ? response.json() : null)
-        .then((data) => {
-          if (cancelled || !data?.order?.purchaseMeasurement) return;
-          trackGoogleAdsPurchase({
-            orderId,
-            measurement: data.order.purchaseMeasurement,
-            consent: data.order.attribution,
-          });
-        })
-        .catch(() => { /* measurement delivery must not affect confirmation */ });
+    if (orderId && viewToken && !isReconciling && !isPreviewHoldActive) {
+      try {
+        void fetch(`/api/orders/${encodeURIComponent(orderId)}?token=${encodeURIComponent(viewToken)}`)
+          .then((response) => response.ok ? response.json() : null)
+          .then((data) => {
+            if (cancelled || isPreviewHoldActive || !data?.order?.purchaseMeasurement) return;
+            trackGoogleAdsPurchase({ orderId, measurement: data.order.purchaseMeasurement, consent: data.order.attribution });
+          })
+          .catch(() => { /* measurement delivery must not affect confirmation */ });
+      } catch { /* synchronous fetch failures cannot affect confirmation */ }
     }
-    if (orderId && !isReconciling) {
+    if (orderId && !isReconciling && !isPreviewHoldActive) {
       try {
         trackMetaPurchase({
           orderId,
@@ -114,13 +116,13 @@ export function Step5Confirmation({
           recipientZip: recipient.zip,
           itemName: cardTitle,
         });
-      } catch { /* independent destination must not affect confirmation UI */ }
+      } catch { /* independent destination must not affect confirmation */ }
     }
     return () => {
       cancelled = true;
       if (orderId) cancelGoogleAdsPurchaseRetries(orderId);
     };
-  }, [orderId, viewToken, fulfillmentStatus, amountInCents, customerEmail, cardTitle, sender.fullName, recipient.city, recipient.state, recipient.zip]);
+  }, [orderId, viewToken, fulfillmentStatus, amountInCents, customerEmail, cardTitle, sender.fullName, recipient.city, recipient.state, recipient.zip, isPreviewHoldActive]);
 
   // Occasion intent classification
   const intentConfig = useMemo(() => {
@@ -135,6 +137,7 @@ export function Step5Confirmation({
         city: recipient.city,
         state: recipient.state,
         zip: recipient.zip,
+        country: recipient.country || "US",
       },
     });
   }, [occasion, salutation, bodyNote, signOff, recipient]);
@@ -212,6 +215,7 @@ export function Step5Confirmation({
             city: recipient.city,
             state: recipient.state,
             zip: recipient.zip,
+            country: recipient.country || "US",
           },
         }),
       });
@@ -236,13 +240,15 @@ export function Step5Confirmation({
 
         <div className="space-y-1">
           <span className="text-xs font-semibold uppercase tracking-wider text-amber-800">
-            Order Confirmed &amp; Queued
+            {isPreviewHoldActive ? "International Staging Test · Held" : "Order Confirmed & Queued"}
           </span>
           <h1 className="font-serif font-bold text-2xl sm:text-3xl text-stone-900 tracking-tight">
-            Your Handwritten Card is in Motion
+            {isPreviewHoldActive ? "Test checkout recorded; nothing is being mailed" : "Your Handwritten Card is in Motion"}
           </h1>
           <p className="text-xs sm:text-sm text-stone-600 max-w-md mx-auto leading-relaxed">
-            Receipt dispatched to <strong className="text-stone-900">{customerEmail}</strong>.
+            {isPreviewHoldActive
+              ? "No real charge or receipt email was sent. This staging preview is held; nothing will be printed, fulfilled, or mailed."
+              : customerEmail ? <>Your order is confirmed. Receipt emails and available mailing updates will go to <strong className="text-stone-900">{customerEmail}</strong>.</> : <>No email receipt requested. Use this secure order page to check your status; no email updates will be sent.</>}
             {orderId && (
               <span className="block text-[11px] font-mono text-stone-400 mt-1">
                 Order #{orderId}
@@ -253,7 +259,7 @@ export function Step5Confirmation({
       </div>
 
       {/* DEFERRED ADDRESS HIGH-AFFORDANCE LINK DELIVERY CARD */}
-      {isDeferred && (
+      {isDeferred && !isPreviewHoldActive && (
         <div className="bg-gradient-to-br from-amber-50 via-orange-50/70 to-yellow-50 rounded-3xl p-6 sm:p-7 border-2 border-amber-400 shadow-sm space-y-4 animate-in fade-in">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse shrink-0" />
@@ -342,7 +348,7 @@ export function Step5Confirmation({
       {/* 4-STAGE FULFILLMENT STEPPER */}
       <div className="bg-white rounded-3xl p-6 sm:p-7 border border-stone-200/90 shadow-sm space-y-6">
         <h2 className="text-xs font-bold uppercase tracking-wider text-stone-500 border-b border-stone-100 pb-3">
-          Real-Time Fulfillment Stepper
+          {isPreviewHoldActive ? "International Preview Status" : "Real-Time Fulfillment Stepper"}
         </h2>
 
         <div className="space-y-6 relative before:absolute before:left-4 before:top-2 before:bottom-2 before:w-0.5 before:bg-stone-200">
@@ -354,14 +360,14 @@ export function Step5Confirmation({
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-stone-900">
-                  1. Payment Confirmed (${(amountInCents / 100).toFixed(2)})
+                  {isPreviewHoldActive ? `1. Test payment recorded ($${(amountInCents / 100).toFixed(2)})` : `1. Payment Confirmed ($${(amountInCents / 100).toFixed(2)})`}
                 </span>
                 <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
-                  Complete
+                  {isPreviewHoldActive ? "Test mode" : "Complete"}
                 </span>
               </div>
               <p className="text-xs text-stone-500">
-                Payment verified securely. Flat rate card, pen inking, and First-Class USPS postage paid in full.
+                {isPreviewHoldActive ? "No real charge occurred. This order is held for staging review." : isInternational ? "Payment verified securely. Card, pen inking, and international mailing paid in full." : "Payment verified securely. Flat rate card, pen inking, and First-Class USPS postage paid in full."}
               </p>
             </div>
           </div>
@@ -374,10 +380,11 @@ export function Step5Confirmation({
             <div className="space-y-0.5">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-bold text-amber-950">
-                  2. {isDeferred ? "Awaiting Recipient Address" : fulfillmentStatus === "MAILED" ? "Inked & Mailed" : "Real Ballpoint Inking"}
+                  2. {isPreviewHoldActive ? "Held in staging" : isDeferred ? "Awaiting Recipient Address" : fulfillmentStatus === "MAILED" ? "Inked & Mailed" : "Real Ballpoint Inking"}
                 </span>
                 <span className="text-[10px] bg-amber-100 text-amber-900 font-semibold px-2 py-0.5 rounded-full">
-                  {isDeferred
+                  {isPreviewHoldActive ? "No fulfillment"
+                    : isDeferred
                     ? "Held in Queue"
                     : fulfillmentStatus === "MAILED"
                     ? "Mailed"
@@ -389,7 +396,8 @@ export function Step5Confirmation({
                 </span>
               </div>
               <p className="text-xs text-stone-600">
-                {isDeferred
+                {isPreviewHoldActive ? "No card was printed or sent to fulfillment."
+                  : isDeferred
                   ? "Order verified and held safely in queue. Robotic pen fulfillment begins as soon as you enter the recipient address."
                   : fulfillmentStatus === "QUEUED_FOR_FULFILLMENT"
                   ? "Order verified and queued for robotic pen fulfillment at Phoenix studio."
@@ -398,17 +406,17 @@ export function Step5Confirmation({
             </div>
           </div>
 
-          {/* Stage 3: USPS First-Class Stamped */}
+          {/* Stage 3: mailing */}
           <div className="relative flex items-start gap-4">
             <div className="relative z-10 w-8 h-8 rounded-full bg-stone-100 text-stone-400 border border-stone-300 flex items-center justify-center shrink-0">
               <Mail className="w-4 h-4" />
             </div>
             <div className="space-y-0.5">
               <span className="text-xs font-bold text-stone-700">
-                3. USPS First-Class Stamped
+                {isPreviewHoldActive ? "3. Mailing not started" : isInternational ? "3. Mailing" : "3. USPS First-Class Stamped"}
               </span>
               <p className="text-xs text-stone-500">
-                Enclosed in an envelope with an authentic USPS stamp. Typically prepared in 1–2 business days.
+                {isPreviewHoldActive ? "No postage or shipment was created for this staging test." : isInternational ? "Delivery timing varies by destination. Preparation and transit are separate." : "Enclosed in an envelope with an authentic USPS stamp. Typically prepared in 1–2 business days."}
               </p>
             </div>
           </div>
@@ -420,10 +428,10 @@ export function Step5Confirmation({
             </div>
             <div className="space-y-0.5">
               <span className="text-xs font-bold text-stone-700">
-                4. Estimated USPS Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
+                {isPreviewHoldActive ? "4. Delivery not scheduled" : isInternational ? "4. Delivery timing varies by destination" : `4. Estimated USPS Arrival: ${deliveryEstimate.earliestDate} – ${deliveryEstimate.latestDate}`}
               </span>
               <p className="text-xs text-stone-500">
-                Typically 2–7 business days domestic transit delivered directly to {recipient.fullName}&apos;s physical mailbox. Timing is estimated, not guaranteed.
+                {isPreviewHoldActive ? "No delivery estimate applies because this preview is not being mailed." : isInternational ? `Transit time depends on the destination for ${recipient.fullName}.` : `Typically 2–7 business days domestic transit delivered directly to ${recipient.fullName}'s physical mailbox. Timing is estimated, not guaranteed.`}
               </p>
             </div>
           </div>
@@ -431,7 +439,7 @@ export function Step5Confirmation({
       </div>
 
       {/* OCCASION-TAILORED RETENTION PROMPT (1-CLICK ANNUAL REMINDER) */}
-      <div className="bg-amber-50/70 rounded-3xl p-6 sm:p-7 border border-amber-200/90 shadow-xs space-y-3">
+      {!isPreviewHoldActive && Boolean(customerEmail) && <div className="bg-amber-50/70 rounded-3xl p-6 sm:p-7 border border-amber-200/90 shadow-xs space-y-3">
         <div className="flex items-center gap-2">
           <span className="text-xl">{intentConfig.badgeEmoji}</span>
           <span className="text-xs font-semibold uppercase tracking-wider text-amber-900">
@@ -467,7 +475,7 @@ export function Step5Confirmation({
             <span>{intentConfig.primaryButtonLabel} (1-Click Opt-In)</span>
           </button>
         )}
-      </div>
+      </div>}
 
       {/* SUMMARY RECAP CARD */}
       <div className="bg-stone-50 rounded-2xl p-4 border border-stone-200/80 flex items-center justify-between gap-3 text-xs">
@@ -489,8 +497,8 @@ export function Step5Confirmation({
         </div>
 
         <div className="text-right shrink-0">
-          <span className="font-bold text-stone-900 text-sm">$9.00</span>
-          <span className="text-[10px] text-emerald-700 font-semibold block">Paid</span>
+          <span className="font-bold text-stone-900 text-sm">${(amountInCents / 100).toFixed(2)}</span>
+          <span className="text-[10px] text-emerald-700 font-semibold block">{isPreviewHoldActive ? "Test mode" : "Paid"}</span>
         </div>
       </div>
 

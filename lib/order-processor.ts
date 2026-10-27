@@ -13,6 +13,9 @@ import { Order } from "./types";
 import { sendMetaCapiPurchaseEvent } from "./meta-conversions-api";
 import { recordServerTelemetry } from "./metrics-rollup";
 import { sendAddressDeferredEmail } from "./email-alerts";
+import { effectiveOrderEmail, savePaidOrderReminder } from "./checkout-contact";
+import { normalizeCountryCode, getSupplierCountry, isProductionInternationalEnabled } from "./mailing-destinations";
+import { isOrderQuoteValid } from "./order-pricing";
 
 export interface ProcessPaidOrderResult {
   success: boolean;
@@ -27,6 +30,44 @@ export interface ProcessOrderOptions {
   userAgent?: string;
   isTest?: boolean;
   paymentMode?: "live" | "stripe_test" | "local_mock";
+}
+
+export function verifyPaymentIntentForOrder(input: {
+  paymentIntent: { status?: string; amount?: number; amount_received?: number; currency?: string; metadata?: Record<string, string> | null };
+  orderId: string;
+  order: Order;
+}): { valid: boolean; reason?: string; expectedAmountCents: number; capturedAmountCents: number } {
+  const pi = input.paymentIntent;
+  const storedQuote = input.order.quote;
+  const expectedAmountCents = storedQuote && Number.isInteger(storedQuote.totalCents)
+      ? storedQuote.totalCents
+      : typeof input.order.finalAmountInCents === "number" && input.order.finalAmountInCents >= 0
+      ? input.order.finalAmountInCents
+      : typeof input.order.amountInCents === "number" && input.order.amountInCents >= 0
+      ? input.order.amountInCents
+      : 900;
+  const addressCountry = normalizeCountryCode(input.order.recipientAddress?.country) || (input.order.recipientAddress?.country ? null : "US");
+  if (!addressCountry) {
+    return { valid: false, reason: "Recipient country is unknown and cannot be defaulted to the United States.", expectedAmountCents, capturedAmountCents: pi.amount_received ?? pi.amount ?? 0 };
+  }
+  if (storedQuote && (!isOrderQuoteValid(storedQuote) || storedQuote.countryCode !== addressCountry || (storedQuote.totalCents !== input.order.finalAmountInCents || storedQuote.totalCents !== input.order.amountInCents))) {
+    return { valid: false, reason: "Stored order quote does not match the immutable recipient country and amount.", expectedAmountCents, capturedAmountCents: pi.amount_received ?? pi.amount ?? 0 };
+  }
+  if (addressCountry !== "US") {
+    const verifiedDestination = getSupplierCountry(addressCountry);
+    if (!verifiedDestination || (input.order.supplierCountryId && input.order.supplierCountryId !== verifiedDestination.supplierCountryId)) {
+      return { valid: false, reason: "Stored supplier destination mapping does not match the recipient country.", expectedAmountCents, capturedAmountCents: pi.amount_received ?? pi.amount ?? 0 };
+    }
+  }
+  const capturedAmountCents = pi.amount_received ?? pi.amount ?? 0;
+  if (storedQuote && pi.metadata?.recipientCountryCode && pi.metadata.recipientCountryCode !== addressCountry) return { valid: false, reason: "Payment intent destination does not match the order quote.", expectedAmountCents, capturedAmountCents };
+  if (storedQuote && pi.metadata?.quoteVersion && pi.metadata.quoteVersion !== storedQuote.version) return { valid: false, reason: "Payment intent quote version does not match the order snapshot.", expectedAmountCents, capturedAmountCents };
+  if (storedQuote && pi.metadata?.quotedTotalCents && Number(pi.metadata.quotedTotalCents) !== storedQuote.totalCents) return { valid: false, reason: "Payment intent total does not match the order snapshot.", expectedAmountCents, capturedAmountCents };
+  if (pi.status !== "succeeded" && pi.status !== "requires_capture") return { valid: false, reason: `Payment status is ${pi.status || "unknown"}, expected succeeded`, expectedAmountCents, capturedAmountCents };
+  if ((pi.currency || "").toLowerCase() !== "usd") return { valid: false, reason: `Currency mismatch: expected usd, got ${pi.currency || "unknown"}`, expectedAmountCents, capturedAmountCents };
+  if (capturedAmountCents !== expectedAmountCents) return { valid: false, reason: `Payment amount mismatch: expected ${expectedAmountCents}¢, got ${capturedAmountCents}¢`, expectedAmountCents, capturedAmountCents };
+  if (!input.orderId || (pi.metadata?.orderId && pi.metadata.orderId !== input.orderId)) return { valid: false, reason: "PaymentIntent metadata orderId does not match the order.", expectedAmountCents, capturedAmountCents };
+  return { valid: true, expectedAmountCents, capturedAmountCents };
 }
 
 export interface SenderValidationResult {
@@ -95,6 +136,49 @@ export async function processPaidOrder(
   customerEmail?: string,
   clientContext?: ProcessOrderOptions
 ): Promise<ProcessPaidOrderResult> {
+  const authorityOrder = await getOrderById(orderId);
+  if (!authorityOrder) return { success: false, status: "NOT_FOUND", error: `Order ${orderId} not found in database.` };
+  if (authorityOrder.stripePaymentId && authorityOrder.stripePaymentId !== paymentIntentId) {
+    return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "PaymentIntent identifier does not match the PaymentIntent bound to this order." };
+  }
+  const authorityCountry = normalizeCountryCode(authorityOrder.recipientAddress?.country) || (authorityOrder.recipientAddress?.country ? null : "US");
+  const alreadySubmitted = ["PROCESSING_HANDWRYTTEN", "MAILED", "AWAITING_RECIPIENT_ADDRESS", "DISPATCH_UNCERTAIN"].includes(authorityOrder.status) || authorityOrder.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD";
+
+  if (authorityOrder.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") {
+    return { success: true, status: authorityOrder.status, alreadyProcessed: true, error: "International preview order is held for review; supplier fulfillment is disabled." };
+  }
+  if (authorityCountry && authorityCountry !== "US") {
+    const isProductionApproved = isProductionInternationalEnabled() && process.env.STAGING_REVIEW_ONLY !== "true" && !authorityOrder.isInternationalPreview;
+    if (!isProductionApproved) {
+      await updateOrderStatus(orderId, { status: "QUEUED_FOR_FULFILLMENT", fulfillmentStatus: "INTERNATIONAL_PREVIEW_HOLD", fulfillmentError: "Staging review guard prevents supplier fulfillment." } as any);
+      return { success: true, status: "QUEUED_FOR_FULFILLMENT", error: "Staging review order is held; supplier fulfillment is disabled." };
+    }
+  }
+  if (authorityCountry && authorityCountry !== "US") {
+    const verifiedDestination = getSupplierCountry(authorityCountry);
+    if (!verifiedDestination || authorityOrder.supplierCountryId !== verifiedDestination.supplierCountryId) {
+      await updateOrderStatus(orderId, { status: "QUEUED_FOR_FULFILLMENT", fulfillmentError: "Supplier country mapping does not match the accepted order snapshot." } as any);
+      return { success: false, status: "QUEUED_FOR_FULFILLMENT", error: "Supplier country mapping does not match the accepted order snapshot." };
+    }
+  }
+  if ((authorityOrder.contactPolicyVersion === 1 || authorityOrder.contactEmailChoice) && (!authorityOrder.contactEmailChoice || authorityOrder.contactEmailSyncStatus !== "synced")) {
+    await updateOrderStatus(orderId, {
+      status: "PAYMENT_RECEIVED",
+      fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED",
+      fulfillmentError: "Payment was received while the contact preference update was pending. Reconcile contact state before fulfillment.",
+    } as any);
+    await logIncident({
+      type: "STRIPE", severity: "error", summary: `Paid order contact preference needs reconciliation (${orderId})`,
+      technicalDetails: "The PaymentIntent succeeded while its explicit contact-email preference was not synchronized. Fulfillment and application email dispatch were held.",
+      metadata: { orderId, paymentIntentId },
+    });
+    return { success: true, status: "PAYMENT_RECEIVED", error: "Payment received; contact preference reconciliation is required before fulfillment." };
+  }
+  if (alreadySubmitted) {
+    if (authorityOrder.status === "DISPATCH_UNCERTAIN") return { success: false, status: "DISPATCH_UNCERTAIN", error: "Supplier submission outcome is uncertain; reconcile before retrying." };
+    return { success: true, status: authorityOrder.status, handwryttenOrderId: authorityOrder.handwryttenOrderId, alreadyProcessed: true };
+  }
+
   let order: Order;
 
   // 1. Atomic Locking via Firestore Transaction:
@@ -110,6 +194,19 @@ export async function processPaidOrder(
       }
 
       const existingOrder = snapshot.data() as Order;
+
+      // Recheck contact authorization inside the same transaction that takes the
+      // dispatch lock. A webhook may have read an older synced snapshot while a
+      // capability update was claiming its pending marker.
+      if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {
+        transaction.update(docRef, {
+          status: "PAYMENT_RECEIVED",
+          fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED",
+          fulfillmentError: "Contact preference synchronization is pending; dispatch is held.",
+          updatedAt: Date.now(),
+        });
+        return { ...existingOrder, status: "PAYMENT_RECEIVED", fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED" };
+      }
 
       // Check if already dispatched, processing, or actively being dispatched
       const isStaleLock =
@@ -129,12 +226,12 @@ export async function processPaidOrder(
         );
       }
 
-      const finalEmail = customerEmail || existingOrder.customerEmail;
+      const finalEmail = effectiveOrderEmail(existingOrder, customerEmail);
 
       if (existingOrder.addressDeferred || (existingOrder as any).address_deferred) {
         transaction.update(docRef, {
           status: "AWAITING_RECIPIENT_ADDRESS",
-          fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS",
+          fulfillmentStatus: finalEmail ? "AWAITING_RECIPIENT_ADDRESS" : "CONTACT_RECOVERY_REQUIRED",
           stripePaymentId: paymentIntentId,
           customerEmail: finalEmail,
           updatedAt: Date.now(),
@@ -149,7 +246,7 @@ export async function processPaidOrder(
         return {
           ...existingOrder,
           status: "AWAITING_RECIPIENT_ADDRESS",
-          fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS",
+          fulfillmentStatus: finalEmail ? "AWAITING_RECIPIENT_ADDRESS" : "CONTACT_RECOVERY_REQUIRED",
           stripePaymentId: paymentIntentId,
           customerEmail: finalEmail,
         };
@@ -201,6 +298,19 @@ export async function processPaidOrder(
 
     console.error(`[OrderProcessor] Transaction exception for order ${orderId}:`, msg);
     throw err;
+  }
+
+  if (order.status === "PAYMENT_RECEIVED" && order.fulfillmentStatus === "CONTACT_RECOVERY_REQUIRED") {
+    return { success: true, status: "PAYMENT_RECEIVED", error: "Payment received; contact preference reconciliation is required before fulfillment." };
+  }
+
+  try {
+    const orderFinalEmail = effectiveOrderEmail(order, customerEmail);
+    if (orderFinalEmail) {
+      await savePaidOrderReminder(order, orderFinalEmail);
+    }
+  } catch (remErr) {
+    console.warn("[OrderProcessor] Notice saving paid order reminder:", remErr);
   }
 
   // Record revenue authority only for positive, live Stripe customer captures.
@@ -295,9 +405,26 @@ export async function processPaidOrder(
     clientContext?.paymentMode === "local_mock"
   );
 
+  const recipientCountry = normalizeCountryCode(order.recipientAddress?.country) || (order.recipientAddress?.country ? null : "US");
+  const isInternationalOrder = recipientCountry && recipientCountry !== "US";
+
   let fulfillment: { success: boolean; order_id?: string; error?: string; details?: unknown };
 
-  if (isTestModePayment) {
+  if (isInternationalOrder && (order.isInternationalPreview || !isProductionInternationalEnabled())) {
+    console.log(
+      `[OrderProcessor] International preview hold active for Order ${orderId}. Skipping live supplier dispatch.`
+    );
+    await updateOrderStatus(orderId, {
+      status: "QUEUED_FOR_FULFILLMENT",
+      fulfillmentStatus: "INTERNATIONAL_PREVIEW_HOLD",
+      fulfillmentError: "International staging hold: physical fulfillment not dispatched.",
+    });
+    return {
+      success: true,
+      status: "QUEUED_FOR_FULFILLMENT",
+      handwryttenOrderId: `intl_preview_hold_${orderId}`,
+    };
+  } else if (isTestModePayment) {
     // Test/Live safety boundary: Test payments must NEVER submit to live Handwrytten supplier
     console.log(
       `[OrderProcessor] Test payment mode active (${clientContext?.paymentMode || "stripe_test"}). Skipping live Handwrytten dispatch.`

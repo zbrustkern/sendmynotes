@@ -28,9 +28,10 @@ import {
   Eye,
 } from "lucide-react";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
-import { AddressData } from "./Step3EnvelopeAddressing";
+import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { evaluatePaymentSubmission } from "@/lib/payment-mode";
-import { trackEvent } from "@/lib/telemetry";
+import { checkoutEmailRequired, normalizeCheckoutEmail } from "@/lib/checkout-contact-policy";
+import { trackEvent, trackEventV2 } from "@/lib/telemetry";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
 import { markGoogleAdsCheckoutActive, clearGoogleAdsCheckoutActive } from "@/lib/google-ads";
@@ -64,6 +65,8 @@ interface Step4ReviewAndPaymentProps {
   publishableKey: string | null;
   isMock: boolean;
   isFree: boolean;
+  amountInCents?: number;
+  destinationCountry?: string;
   isUpdatingCheckout?: boolean;
   checkoutError?: string | null;
   onRetryCheckout?: () => void;
@@ -71,6 +74,7 @@ interface Step4ReviewAndPaymentProps {
   onRemoveDiscount: () => void;
   appliedDiscount: AppliedDiscountInfo | null;
   onPaymentSuccess: (orderId: string, viewToken?: string | null, fulfillmentStatus?: string | null) => void;
+  onPaymentStateChange?: (busy: boolean) => void;
   onBack: () => void;
 }
 
@@ -91,10 +95,13 @@ interface InnerPaymentProps {
   viewToken?: string | null;
   isMock: boolean;
   isFree: boolean;
+  amountInCents?: number;
+  destinationCountry?: string;
   appliedDiscount: AppliedDiscountInfo | null;
   onApplyDiscount: (code: string) => Promise<{ success: boolean; error?: string }>;
   onRemoveDiscount: () => void;
   onPaymentSuccess: (orderId: string, viewToken?: string | null, fulfillmentStatus?: string | null) => void;
+  onPaymentStateChange?: (busy: boolean) => void;
   onBack: () => void;
 }
 
@@ -115,10 +122,13 @@ function InnerPaymentForm({
   viewToken,
   isMock,
   isFree,
+  amountInCents,
+  destinationCountry = "US",
   appliedDiscount,
   onApplyDiscount,
   onRemoveDiscount,
   onPaymentSuccess,
+  onPaymentStateChange,
   onBack,
 }: InnerPaymentProps) {
   const stripe = useStripe();
@@ -131,16 +141,40 @@ function InnerPaymentForm({
     setIsProcessingState(processing);
   };
   const [isPaymentCaptured, setIsPaymentCaptured] = useState(false);
+  const [committedEmail, setCommittedEmail] = useState(customerEmail);
+  const emailTouched = React.useRef(false);
+  useEffect(() => { if (!emailTouched.current) setCommittedEmail(customerEmail); }, [customerEmail]);
+  useEffect(() => { onPaymentStateChange?.(isProcessing || isPaymentCaptured); }, [isProcessing, isPaymentCaptured, onPaymentStateChange]);
   const [isPaymentElementReady, setIsPaymentElementReady] = useState(false);
+  const commitContactPreference = async (): Promise<string | null> => {
+    if (!orderId || !viewToken) return "Your checkout session is incomplete. Refresh the checkout and try again.";
+    const normalized = normalizeCheckoutEmail(customerEmail);
+    if (normalized === null) return "Enter a valid email address or leave the field blank.";
+    const email = normalized;
+    emailTouched.current = true;
+    setCommittedEmail(email);
+    if (email && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return "Enter a valid email address or leave the field blank.";
+    if (checkoutEmailRequired(!recipient.street1?.trim(), email)) return "An email is required to add the recipient address later.";
+    try {
+      const response = await fetch("/api/checkout/contact", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderId, viewToken, customerEmail: email }),
+      });
+      const data = await response.json();
+      return response.ok ? null : (data.error || "We couldn't save your email preference. Please retry before paying.");
+    } catch {
+      return "We couldn't save your email preference. Check your connection and retry before paying.";
+    }
+  };
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
-  // Promo code toggle & input state
   const [showPromoInput, setShowPromoInput] = useState(Boolean(appliedDiscount));
   const [promoInput, setPromoInput] = useState("");
   const [promoLoading, setPromoLoading] = useState(false);
   const [promoError, setPromoError] = useState<string | null>(null);
+  const [priceReconfirmationRequired, setPriceReconfirmationRequired] = useState(false);
 
   const deliveryEstimate = useMemo(() => calculateDeliveryEstimate(), []);
 
@@ -151,7 +185,8 @@ function InnerPaymentForm({
     return combined.slice(0, 110) + "...";
   }, [salutation, bodyNote, signOff]);
 
-  const finalPriceCents = appliedDiscount ? appliedDiscount.finalAmountInCents : 900;
+  const finalPriceCents = amountInCents ?? (appliedDiscount ? appliedDiscount.finalAmountInCents : 900);
+  const isInternational = isInternationalCountry(destinationCountry);
   const isZeroCost = isFree || finalPriceCents === 0;
 
   const handleApplyPromo = async (e: React.FormEvent) => {
@@ -175,12 +210,29 @@ function InnerPaymentForm({
     }
   };
 
+  const handleRemovePromo = async () => {
+    if (actionInFlight.current || isPaymentCaptured) return;
+    actionInFlight.current = "promo";
+    setPromoLoading(true);
+    try {
+      await onRemoveDiscount();
+    } finally {
+      actionInFlight.current = null;
+      setPromoLoading(false);
+    }
+  };
+
   const handleExpressReady = (event: {
     availablePaymentMethods?: { applePay?: boolean; googlePay?: boolean; link?: boolean };
   }) => {
     const methods = event?.availablePaymentMethods;
     const hasAny = Boolean(methods && (methods.applePay || methods.googlePay || methods.link));
     setWalletAvailable(hasAny);
+    trackEventV2("wallet_availability_observed", {
+      applePay: Boolean(methods?.applePay),
+      googlePay: Boolean(methods?.googlePay),
+      link: Boolean(methods?.link),
+    });
     trackEvent("wallet_availability_observed", 4, {
       applePay: Boolean(methods?.applePay),
       googlePay: Boolean(methods?.googlePay),
@@ -194,11 +246,29 @@ function InnerPaymentForm({
     setIsProcessing(true);
     setErrorMessage(null);
 
+    const attemptId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    trackEventV2("payment_attempted", {
+      paymentMethodType: "wallet",
+      attemptId,
+      orderId,
+    });
+    trackEvent("payment_attempted", 4, {
+      paymentMethodType: "wallet",
+      attemptId,
+    });
+
     try {
+      const contactError = await commitContactPreference();
+      if (contactError) { setErrorMessage(contactError); setIsProcessing(false); return; }
       // Per Stripe Express Checkout documentation: elements.submit() validates element fields
       const { error: submitError } = await elements.submit();
       if (submitError) {
         setErrorMessage(submitError.message || "Please complete all required payment details.");
+        trackEventV2("payment_failed", {
+          attemptId,
+          errorCategory: submitError.type || "validation_error",
+          errorCode: submitError.code || "submit_error",
+        });
         setIsProcessing(false);
         return;
       }
@@ -208,7 +278,6 @@ function InnerPaymentForm({
         elements,
         confirmParams: {
           return_url: `${window.location.origin}/order/${orderId}`,
-          receipt_email: customerEmail,
         },
         redirect: "if_required",
       });
@@ -216,8 +285,35 @@ function InnerPaymentForm({
       if (error) {
         clearGoogleAdsCheckoutActive(orderId);
         setErrorMessage(error.message || "Wallet payment failed. Please use card below.");
+        trackEventV2("payment_failed", {
+          attemptId,
+          errorCategory: error.type || "wallet_error",
+          errorCode: error.code || "decline",
+        });
+        trackEvent("payment_failed", 4, {
+          attemptId,
+          errorCategory: error.type || "wallet_error",
+        });
         setIsProcessing(false);
+      } else if (paymentIntent && paymentIntent.status === "requires_action") {
+        trackEventV2("payment_action_required", {
+          attemptId,
+          actionType: paymentIntent.next_action?.type || "3ds",
+        });
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
+        trackEventV2("payment_confirmation_observed", {
+          orderId,
+          amountInCents: finalPriceCents,
+          in_app_browser: false,
+          used_address_deferral: !recipient.street1?.trim(),
+        });
+        trackEvent("payment_confirmation_observed", 4, {
+          orderId,
+          amountInCents: finalPriceCents,
+          in_app_browser: false,
+          used_address_deferral: !recipient.street1?.trim(),
+        });
+
         // Stripe captured payment: lock form against duplicate charges
         setIsPaymentCaptured(true);
         let confirmData: any = null;
@@ -232,6 +328,12 @@ function InnerPaymentForm({
             }),
           });
           confirmData = await confirmRes.json();
+          if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation) {
+            setPriceReconfirmationRequired(true);
+            setErrorMessage(confirmData?.error || "Price changed or quote expired. Please reconfirm total before paying.");
+            setIsProcessing(false);
+            return;
+          }
           if (confirmRes.ok && confirmData.success) {
             setIsProcessing(false);
             onPaymentSuccess(orderId, confirmData?.viewToken, confirmData?.status);
@@ -249,19 +351,12 @@ function InnerPaymentForm({
       clearGoogleAdsCheckoutActive(orderId);
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
+      trackEventV2("payment_failed", {
+        attemptId,
+        errorCategory: "unexpected_error",
+        errorCode: "exception",
+      });
       setIsProcessing(false);
-    }
-  };
-
-  const handleRemovePromo = async () => {
-    if (actionInFlight.current || isPaymentCaptured || !onRemoveDiscount) return;
-    actionInFlight.current = "promo";
-    setPromoLoading(true);
-    try {
-      await onRemoveDiscount();
-    } finally {
-      actionInFlight.current = null;
-      setPromoLoading(false);
     }
   };
 
@@ -269,13 +364,19 @@ function InnerPaymentForm({
     e.preventDefault();
     if (actionInFlight.current || isPaymentCaptured) return;
 
-    if (!customerEmail.trim() || !customerEmail.includes("@")) {
-      setErrorMessage("Please enter a valid email for your order receipt and any available mailing updates.");
+    if (normalizeCheckoutEmail(customerEmail) === null) {
+      setErrorMessage("Enter a valid email address or leave the field blank.");
+      return;
+    }
+    if (checkoutEmailRequired(!recipient.street1?.trim(), customerEmail.trim())) {
+      setErrorMessage("An email is required to add the recipient address later.");
       return;
     }
 
     setErrorMessage(null);
     setIsProcessing(true);
+    const contactError = await commitContactPreference();
+    if (contactError) { setErrorMessage(contactError); setIsProcessing(false); return; }
 
     // 1. FREE ORDER FLOW
     if (isZeroCost) {
@@ -292,6 +393,12 @@ function InnerPaymentForm({
 
         const data = await res.json();
         if (!res.ok) {
+          if (res.status === 409 || data?.requiresPriceReconfirmation) {
+            setPriceReconfirmationRequired(true);
+            setErrorMessage(data?.error || "Price changed or promo expired. Please reconfirm total before proceeding.");
+            setIsProcessing(false);
+            return;
+          }
           throw new Error(data.error || "Failed to process free order.");
         }
 
@@ -335,6 +442,12 @@ function InnerPaymentForm({
           }),
         });
         const confirmData = await confirmRes.json();
+        if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation) {
+          setPriceReconfirmationRequired(true);
+          setErrorMessage(confirmData?.error || "Price changed or quote expired. Please reconfirm total before paying.");
+          setIsProcessing(false);
+          return;
+        }
         if (!confirmRes.ok || !confirmData.success) {
           throw new Error(confirmData.error || "Failed to confirm simulated order.");
         }
@@ -352,6 +465,10 @@ function InnerPaymentForm({
     // 3. REAL STRIPE PAYMENT CONFIRMATION
     if (!stripe || !elements) {
       setErrorMessage("Payment processor is unavailable. Please check your connection and retry.");
+      trackEventV2("payment_ui_failed", {
+        errorCategory: "stripe_elements_unavailable",
+        errorCode: "elements_null",
+      });
       setIsProcessing(false);
       return;
     }
@@ -362,13 +479,23 @@ function InnerPaymentForm({
       return;
     }
 
+    const attemptId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    trackEventV2("payment_attempted", {
+      paymentMethodType: "card",
+      attemptId,
+      orderId,
+    });
+    trackEvent("payment_attempted", 4, {
+      paymentMethodType: "card",
+      attemptId,
+    });
+
     try {
       markGoogleAdsCheckoutActive(orderId, viewToken);
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
           return_url: `${window.location.origin}/order/${orderId}`,
-          receipt_email: customerEmail,
         },
         redirect: "if_required",
       });
@@ -376,8 +503,35 @@ function InnerPaymentForm({
       if (error) {
         clearGoogleAdsCheckoutActive(orderId);
         setErrorMessage(error.message || "Payment declined. Please check your card information.");
+        trackEventV2("payment_failed", {
+          attemptId,
+          errorCategory: error.type || "card_error",
+          errorCode: error.code || "decline",
+        });
+        trackEvent("payment_failed", 4, {
+          attemptId,
+          errorCategory: error.type || "card_error",
+        });
         setIsProcessing(false);
+      } else if (paymentIntent && paymentIntent.status === "requires_action") {
+        trackEventV2("payment_action_required", {
+          attemptId,
+          actionType: paymentIntent.next_action?.type || "3ds",
+        });
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
+        trackEventV2("payment_confirmation_observed", {
+          orderId,
+          amountInCents: finalPriceCents,
+          in_app_browser: false,
+          used_address_deferral: !recipient.street1?.trim(),
+        });
+        trackEvent("payment_confirmation_observed", 4, {
+          orderId,
+          amountInCents: finalPriceCents,
+          in_app_browser: false,
+          used_address_deferral: !recipient.street1?.trim(),
+        });
+
         // Stripe captured payment: lock form against duplicate charges
         setIsPaymentCaptured(true);
         let confirmData: any = null;
@@ -392,6 +546,12 @@ function InnerPaymentForm({
             }),
           });
           confirmData = await confirmRes.json();
+          if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation) {
+            setPriceReconfirmationRequired(true);
+            setErrorMessage(confirmData?.error || "Price changed or quote expired. Please reconfirm total before paying.");
+            setIsProcessing(false);
+            return;
+          }
           if (confirmRes.ok && confirmData.success) {
             setIsProcessing(false);
             onPaymentSuccess(orderId, confirmData?.viewToken, confirmData?.status);
@@ -409,6 +569,11 @@ function InnerPaymentForm({
       clearGoogleAdsCheckoutActive(orderId);
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
+      trackEventV2("payment_failed", {
+        attemptId,
+        errorCategory: "unexpected_error",
+        errorCode: "exception",
+      });
       setIsProcessing(false);
     }
   };
@@ -419,24 +584,16 @@ function InnerPaymentForm({
     }
   }, []);
 
-  const [committedEmail, setCommittedEmail] = useState(customerEmail);
-
-  useEffect(() => {
-    if (customerEmail && !committedEmail) {
-      setCommittedEmail(customerEmail);
-    }
-  }, [customerEmail, committedEmail]);
-
   const recipientDisplayName = recipient.fullName?.trim() || "Recipient";
   const recipientLocation = useMemo(() => {
     if (!recipient.street1?.trim()) {
       return "Address Added Later";
     }
-    if (recipient.city?.trim() && recipient.state?.trim()) {
-      return `${recipient.city.trim()}, ${recipient.state.trim()}`;
+    if (recipient.city?.trim()) {
+      return `${recipient.city.trim()}${recipient.state?.trim() ? `, ${recipient.state.trim()}` : ""}${isInternational ? `, ${recipient.country || destinationCountry}` : ""}`;
     }
     return recipient.street1.trim();
-  }, [recipient]);
+  }, [recipient, isInternational, destinationCountry]);
 
   const paymentElementOptions = useMemo(
     () => ({
@@ -444,7 +601,7 @@ function InnerPaymentForm({
       paymentMethodOrder: ["apple_pay", "google_pay", "card", "link"],
       defaultValues: {
         billingDetails: {
-          email: committedEmail || undefined,
+          email: committedEmail.trim() || undefined,
           name: recipient.fullName || sender.fullName || undefined,
         },
       },
@@ -467,7 +624,12 @@ function InnerPaymentForm({
 
         <button
           type="button"
-          onClick={() => { if (!actionInFlight.current && !isPaymentCaptured) onBack(); }}
+          onClick={() => {
+            if (actionInFlight.current || isPaymentCaptured) return;
+            trackEventV2("payment_canceled", { stage: "review_and_pay" });
+            trackEvent("payment_canceled", 4, { stage: "review_and_pay" });
+            onBack();
+          }}
           className="px-2.5 py-1 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer shrink-0"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
@@ -513,7 +675,7 @@ function InnerPaymentForm({
 
             <div className="text-[11px] text-stone-500 flex items-center gap-1">
               <Truck className="w-3 h-3 text-amber-700 shrink-0" />
-              <span>Est. Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}</span>
+              <span>{isInternational ? "Delivery timing varies by destination" : `Est. Arrival: ${deliveryEstimate.earliestDate} – ${deliveryEstimate.latestDate}`}</span>
             </div>
           </div>
         </div>
@@ -524,7 +686,7 @@ function InnerPaymentForm({
             {isZeroCost ? "$0.00 Total" : `$${(finalPriceCents / 100).toFixed(2)} Total`}
           </div>
           <div className="text-[10px] sm:text-[11px] text-stone-500 whitespace-nowrap">
-            Postage &amp; Real Pen Included
+            {isInternational ? "International mailing included" : "Postage & Real Pen Included"}
           </div>
         </div>
       </div>
@@ -544,7 +706,7 @@ function InnerPaymentForm({
                   {cardTitle}
                 </h2>
                 <p className="text-[11px] text-stone-500 mt-0.5">
-                  Folded Cardstock Card • Real Pen Ink • USPS 1st Class Stamp
+                  {isInternational ? "Folded Cardstock Card • Real Pen Ink • International mailing" : "Folded Cardstock Card • Real Pen Ink • USPS 1st Class Stamp"}
                 </p>
               </div>
               <div className="text-right shrink-0">
@@ -615,7 +777,8 @@ function InnerPaymentForm({
                   {recipient.street1?.trim() ? (
                     <div className="text-stone-600 text-[11px] leading-tight mt-0.5">
                       <div>{recipient.street1}{recipient.street2 ? `, ${recipient.street2}` : ""}</div>
-                      <div>{recipient.city}, {recipient.state} {recipient.zip}</div>
+                      <div>{recipient.city}{recipient.state ? `, ${recipient.state}` : ""}{recipient.zip ? ` ${recipient.zip}` : ""}</div>
+                      {isInternational && <div>{recipient.country || destinationCountry}</div>}
                     </div>
                   ) : (
                     <div className="text-amber-800 text-[11px] font-medium mt-0.5">
@@ -653,31 +816,14 @@ function InnerPaymentForm({
               </div>
               <div className="min-w-0">
                 <div className="text-xs font-bold text-stone-900">
-                  Est. USPS Arrival: {deliveryEstimate.earliestDate} – {deliveryEstimate.latestDate}
+                  {isInternational ? "Delivery timing varies by destination" : `Est. USPS Arrival: ${deliveryEstimate.earliestDate} – ${deliveryEstimate.latestDate}`}
                 </div>
                 <div className="text-[11px] text-stone-500">
-                  Sent via First-Class Mail. Tracking details appear when provided by the mail service.
+                  {isInternational ? "Delivery estimates depend on the destination. Tracking appears when provided by the mail service." : "Sent via First-Class Mail. Tracking details appear when provided by the mail service."}
                 </div>
               </div>
             </div>
 
-            {/* Security Badges on Left Desk */}
-            <div className="grid grid-cols-2 gap-2.5 text-xs text-stone-600 pt-1">
-              <div className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-stone-200/70">
-                <Lock className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                <div>
-                  <span className="font-semibold text-stone-900 block text-[11px]">256-Bit SSL</span>
-                  <span className="text-[10px] text-stone-500">Stripe encrypted</span>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 p-2.5 bg-white rounded-xl border border-stone-200/70">
-                <ShieldCheck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                <div>
-                  <span className="font-semibold text-stone-900 block text-[11px]">Guaranteed</span>
-                  <span className="text-[10px] text-stone-500">Real pen or free re-mail</span>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
 
@@ -691,7 +837,7 @@ function InnerPaymentForm({
             >
               <span className="flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-amber-800" />
-                <span>Receipt &amp; Mailing Updates Email</span>
+                <span>Email {recipient.street1?.trim() ? "(optional)" : "(required to add the address later)"}</span>
               </span>
               <span className="text-[10px] text-stone-400 font-normal lowercase">no password needed</span>
             </label>
@@ -704,22 +850,19 @@ function InnerPaymentForm({
               autoCapitalize="none"
               autoCorrect="off"
               spellCheck={false}
-              required
+              disabled={isProcessing || isPaymentCaptured}
               value={customerEmail}
               onChange={(e) => {
+                emailTouched.current = true;
                 onChangeCustomerEmail(e.target.value);
                 if (errorMessage) setErrorMessage(null);
               }}
-              onBlur={() => {
-                if (customerEmail !== committedEmail) {
-                  setCommittedEmail(customerEmail);
-                }
-              }}
+              onBlur={() => setCommittedEmail(customerEmail)}
               placeholder="your.email@example.com"
               className="w-full px-3.5 py-2 text-base sm:text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
             />
-            <p className="text-[11px] text-stone-400">
-              Zero accounts or passwords required. We send your receipt and any available mailing updates.
+            <p className="text-[11px] text-stone-500">
+              {recipient.street1?.trim() ? "For your receipt and available mailing updates. You can leave this blank." : "We’ll email a secure link so you can add the recipient address later."}
             </p>
           </div>
 
@@ -731,7 +874,7 @@ function InnerPaymentForm({
                 <span>100% Free Order Voucher</span>
               </div>
               <p className="text-xs text-emerald-800 leading-relaxed">
-                Your card, real ballpoint inking, and USPS postage are completely covered by voucher{" "}
+                Your card, real ballpoint inking, and {isInternational ? "international mailing" : "USPS postage"} are completely covered by voucher{" "}
                 <strong className="font-mono">{appliedDiscount?.code}</strong>. Zero billing info needed.
               </p>
             </div>
@@ -740,9 +883,8 @@ function InnerPaymentForm({
               <div className="flex items-center justify-between border-b border-stone-100 pb-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-stone-900 flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-emerald-600" />
-                  <span>Apple Pay, Google Pay &amp; Card</span>
+                  <span>Payment</span>
                 </span>
-                <span className="text-[10px] text-stone-400">256-bit Encrypted</span>
               </div>
 
               {isMock ? (
@@ -809,10 +951,20 @@ function InnerPaymentForm({
                   <PaymentElement
                     id="v3-payment-element"
                     options={paymentElementOptions}
-                    onReady={() => setIsPaymentElementReady(true)}
+                    onReady={() => {
+                      setIsPaymentElementReady(true);
+                      trackEventV2("payment_ui_ready", {
+                        paymentElement: true,
+                        mode: isMock ? "mock" : "stripe",
+                      });
+                    }}
                     onLoadError={(err) => {
                       console.error("[Stripe Load Error]", err);
                       setErrorMessage(err.error?.message || "Could not load payment form.");
+                      trackEventV2("payment_ui_failed", {
+                        errorCategory: "stripe_element_load_error",
+                        errorCode: err.error?.code || "load_error",
+                      });
                     }}
                   />
                 </div>
@@ -885,6 +1037,35 @@ function InnerPaymentForm({
             )}
           </div>
 
+          {priceReconfirmationRequired && (
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-xl space-y-2 text-xs text-amber-900 shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-2 font-bold text-amber-950">
+                <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>Price Quote Updated</span>
+              </div>
+              <p className="text-amber-900 text-xs leading-relaxed">
+                The promotional price quote has expired or terms have changed. Please reconfirm your order total before paying.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setPriceReconfirmationRequired(false);
+                    setErrorMessage(null);
+                    if (appliedDiscount?.code) {
+                      await onApplyDiscount(appliedDiscount.code);
+                    } else {
+                      handleRemovePromo();
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-800 hover:bg-amber-900 text-white font-semibold rounded-lg text-xs transition cursor-pointer"
+                >
+                  Reconfirm &amp; Refresh Total
+                </button>
+              </div>
+            </div>
+          )}
+
           {errorMessage && (
             <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-800 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -892,24 +1073,7 @@ function InnerPaymentForm({
             </div>
           )}
 
-          {/* MOBILE ONLY SECURITY BADGES */}
-          <div className="lg:hidden grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs text-stone-600">
-            <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-200/70">
-              <Lock className="w-4 h-4 text-emerald-700 shrink-0" />
-              <div>
-                <span className="font-semibold text-stone-900 block">256-Bit SSL Encryption</span>
-                <span className="text-[11px] text-stone-500">Bank-grade security via Stripe</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 p-3 bg-stone-50 rounded-xl border border-stone-200/70">
-              <Feather className="w-4 h-4 text-amber-700 shrink-0" />
-              <div>
-                <span className="font-semibold text-stone-900 block">100% Satisfaction Guarantee</span>
-                <span className="text-[11px] text-stone-500">Real ballpoint inking or free re-mail</span>
-              </div>
-            </div>
-          </div>
+          <p className="text-center text-xs text-stone-500">Payments processed securely by Stripe</p>
 
           {/* DESKTOP ADVANCE BAR */}
           <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
