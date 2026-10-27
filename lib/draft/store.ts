@@ -107,6 +107,22 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
     error: typeof customObj?.error === "string" ? customObj.error : undefined,
   };
 
+  // Ensure lastCustomArtwork is well-formed if present
+  if (record.lastCustomArtwork && typeof record.lastCustomArtwork === "object") {
+    const customArt = record.lastCustomArtwork as Record<string, unknown>;
+    sanitized.lastCustomArtwork = {
+      presetId: typeof customArt.presetId === "string" ? customArt.presetId : undefined,
+      customId: typeof customArt.customId === "string" ? customArt.customId : undefined,
+      imageUrl: typeof customArt.imageUrl === "string" ? customArt.imageUrl : "",
+      title: typeof customArt.title === "string" ? customArt.title : "",
+      source: "custom",
+      occasion: typeof customArt.occasion === "string" ? customArt.occasion : undefined,
+      accepted: typeof customArt.accepted === "boolean" ? customArt.accepted : true,
+    };
+  } else if (record.lastCustomArtwork === null) {
+    sanitized.lastCustomArtwork = null;
+  }
+
   return sanitized as DraftState;
 }
 

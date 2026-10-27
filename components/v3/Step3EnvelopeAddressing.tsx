@@ -4,13 +4,13 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   Mail,
   ArrowRight,
-  ArrowLeft,
   ShieldCheck,
   Plus,
   Eye,
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+import { EnvelopePreview } from "@/components/flow/EnvelopePreview";
 
 export const US_STATES = [
   { code: "AL", name: "Alabama" },
@@ -116,6 +116,7 @@ interface LiveEnvelopeCardProps {
   fontClass: string;
   isAddressDeferred?: boolean;
   isInternational?: boolean;
+  countryName?: string;
 }
 
 class OptionalInternationalEditorBoundary extends React.Component<{
@@ -148,6 +149,7 @@ function LiveEnvelopeCard({
   fontClass,
   isAddressDeferred,
   isInternational = false,
+  countryName,
 }: LiveEnvelopeCardProps) {
   return (
     <div className="bg-[#FAF8F5] rounded-3xl p-4 sm:p-5 border border-stone-200/90 shadow-sm space-y-3">
@@ -163,197 +165,14 @@ function LiveEnvelopeCard({
         </span>
       </div>
 
-      {/* PHYSICAL ENVELOPE (A2 FORMAT: 4.375" x 5.75", ratio ~1.31) */}
-      <div className="relative w-full rounded-2xl bg-[#FCFAF7] border border-[#E6DFD5] p-4 sm:p-5 shadow-md overflow-hidden text-stone-900 select-none">
-        {/* TOP ROW: HANDWRITTEN RETURN ADDRESS + POSTMARK & FOREVER STAMP */}
-        <div className="flex items-start justify-between gap-2 mb-5">
-          {/* Top-Left: SENDER RETURN ADDRESS IN REAL BLUE PEN INK */}
-          <div
-            className={`max-w-[170px] text-[#1e3a8a] text-xs leading-tight select-none ${fontClass}`}
-          >
-            <p className="font-medium">{sender.fullName || "Your Name"}</p>
-            <p>{sender.street1 || "Street Address"}</p>
-            {sender.street2 && <p>{sender.street2}</p>}
-            <p>
-              {sender.city || "City"}, {sender.state || "ST"}{" "}
-              {sender.zip || "ZIP"}
-            </p>
-          </div>
-
-          {/* Top-Right: REALISTIC POSTMARK & USPS FOREVER STAMP */}
-          <div className="flex items-start shrink-0 select-none">
-            {isInternational ? <span className="rounded-lg border border-stone-300 bg-white px-2 py-1 text-[9px] text-stone-600">International
-              <br />Mailing
-            </span> : <>
-            {/* Cancellation postmark (Phoenix, AZ hub per supplier specs) */}
-            <div className="hidden sm:flex flex-col items-end justify-center mr-1 mt-1 text-stone-600/70 text-[9px] font-mono leading-none tracking-tight text-right">
-              <span>PHOENIX AZ 852</span>
-              <span className="text-[8px] text-stone-500/80 my-0.5">
-                FIRST-CLASS
-              </span>
-              {/* Wavy cancellation ink lines */}
-              <svg
-                viewBox="0 0 48 16"
-                className="w-10 h-3 text-stone-600/60 stroke-current fill-none"
-              >
-                <path
-                  d="M0,4 Q6,0 12,4 T24,4 T36,4 T48,4"
-                  strokeWidth="1.2"
-                />
-                <path
-                  d="M0,8 Q6,4 12,8 T24,8 T36,8 T48,8"
-                  strokeWidth="1.2"
-                />
-                <path
-                  d="M0,12 Q6,8 12,12 T24,12 T36,12 T48,12"
-                  strokeWidth="1.2"
-                />
-              </svg>
-            </div>
-
-            {/* USPS FOREVER STAMP (AUTHENTIC PERFORATED POSTAGE STAMP) */}
-            <div className="relative w-12 h-16 sm:w-14 sm:h-18 bg-white rounded-xs border border-stone-300 shadow-xs p-1 flex flex-col justify-between overflow-hidden">
-              {/* Perforated scalloped stamp edges */}
-              <div className="absolute inset-0 border border-dashed border-stone-400/40 pointer-events-none" />
-
-              {/* Stamp artwork: Flag / USA Forever */}
-              <div className="h-full w-full bg-gradient-to-b from-[#1e3a8a] via-[#f8fafc] to-[#991b1b] rounded-[2px] p-1 flex flex-col justify-between relative overflow-hidden">
-                {/* Flag stars header */}
-                <div className="flex items-center justify-between text-white text-[7px] font-sans font-bold leading-none tracking-widest">
-                  <span>USA</span>
-                  <span className="text-[6px] font-serif">★</span>
-                </div>
-                {/* Center emblem */}
-                <div className="text-center py-0.5">
-                  <span className="text-[9px] sm:text-[10px] font-serif font-black tracking-wider text-white drop-shadow-xs">
-                    FOREVER
-                  </span>
-                </div>
-                {/* Bottom value */}
-                <div className="flex items-center justify-between text-white/90 text-[6px] font-mono leading-none">
-                  <span>USPS</span>
-                  <span>2026</span>
-                </div>
-                {/* Cancellation wavy line crossing stamp */}
-                <svg
-                  viewBox="0 0 60 40"
-                  className="absolute inset-0 w-full h-full text-stone-800/40 stroke-current fill-none pointer-events-none"
-                >
-                  <path
-                    d="M-10,10 Q10,5 30,12 T70,10"
-                    strokeWidth="1.5"
-                  />
-                  <path
-                    d="M-10,22 Q10,17 30,24 T70,22"
-                    strokeWidth="1.5"
-                  />
-                </svg>
-              </div>
-            </div>
-            </>}
-          </div>
-        </div>
-
-        {/* CENTER: MAILING RECIPIENT IN AUTHENTIC BLUE PEN INK */}
-        <div className="flex justify-center px-2 py-2 sm:py-3 select-none">
-          <div
-            className={`w-fit min-w-[180px] max-w-xs text-left space-y-0.5 text-base sm:text-lg text-[#1e3a8a] leading-snug ${fontClass}`}
-          >
-            <p className="font-semibold text-lg sm:text-xl text-[#1e3a8a]">
-              {recipient.fullName || "Recipient Name"}
-            </p>
-            {isAddressDeferred ? (
-              <p className="text-xs text-stone-500 italic mt-1 font-sans">
-                [ Street address to be added via link after checkout ]
-              </p>
-            ) : (
-              <>
-                <p>
-                  {recipient.street1 || "Street Address"}
-                  {recipient.street2 ? `, ${recipient.street2}` : ""}
-                </p>
-                <p>
-                  {recipient.city || "City"}{recipient.state ? `, ${recipient.state}` : !isInternational ? ", State" : ""} {recipient.zip || (!isInternational ? "ZIP" : "")}
-                </p>
-                {isInternational && <p>{recipient.country}</p>}
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Domestic visual only; international postage treatment is not represented as verified. */}
-        {!isInternational && <div className="mt-4 pt-2 flex flex-col items-center justify-center select-none">
-          <svg
-            viewBox="0 0 240 14"
-            className="w-44 sm:w-56 h-3 text-stone-800/70 fill-current opacity-80"
-          >
-            <rect x="0" y="2" width="2" height="10" />
-            <rect x="4" y="2" width="2" height="6" />
-            <rect x="8" y="2" width="2" height="10" />
-            <rect x="12" y="5" width="2" height="7" />
-            <rect x="16" y="2" width="2" height="10" />
-            <rect x="20" y="2" width="2" height="10" />
-            <rect x="24" y="5" width="2" height="4" />
-            <rect x="28" y="2" width="2" height="10" />
-            <rect x="32" y="2" width="2" height="7" />
-            <rect x="36" y="5" width="2" height="7" />
-            <rect x="40" y="2" width="2" height="10" />
-            <rect x="44" y="5" width="2" height="4" />
-            <rect x="48" y="2" width="2" height="10" />
-            <rect x="52" y="2" width="2" height="7" />
-            <rect x="56" y="2" width="2" height="10" />
-            <rect x="60" y="5" width="2" height="7" />
-            <rect x="64" y="2" width="2" height="10" />
-            <rect x="68" y="2" width="2" height="10" />
-            <rect x="72" y="5" width="2" height="4" />
-            <rect x="76" y="2" width="2" height="7" />
-            <rect x="80" y="2" width="2" height="10" />
-            <rect x="84" y="5" width="2" height="7" />
-            <rect x="88" y="2" width="2" height="10" />
-            <rect x="92" y="2" width="2" height="10" />
-            <rect x="96" y="5" width="2" height="4" />
-            <rect x="100" y="2" width="2" height="10" />
-            <rect x="104" y="2" width="2" height="7" />
-            <rect x="108" y="5" width="2" height="7" />
-            <rect x="112" y="2" width="2" height="10" />
-            <rect x="116" y="5" width="2" height="4" />
-            <rect x="120" y="2" width="2" height="10" />
-            <rect x="124" y="2" width="2" height="7" />
-            <rect x="128" y="2" width="2" height="10" />
-            <rect x="132" y="5" width="2" height="7" />
-            <rect x="136" y="2" width="2" height="10" />
-            <rect x="140" y="2" width="2" height="10" />
-            <rect x="144" y="5" width="2" height="4" />
-            <rect x="148" y="2" width="2" height="7" />
-            <rect x="152" y="2" width="2" height="10" />
-            <rect x="156" y="5" width="2" height="7" />
-            <rect x="160" y="2" width="2" height="10" />
-            <rect x="164" y="2" width="2" height="10" />
-            <rect x="168" y="5" width="2" height="4" />
-            <rect x="172" y="2" width="2" height="10" />
-            <rect x="176" y="2" width="2" height="7" />
-            <rect x="180" y="5" width="2" height="7" />
-            <rect x="184" y="2" width="2" height="10" />
-            <rect x="188" y="5" width="2" height="4" />
-            <rect x="192" y="2" width="2" height="10" />
-            <rect x="196" y="2" width="2" height="7" />
-            <rect x="200" y="2" width="2" height="10" />
-            <rect x="204" y="5" width="2" height="7" />
-            <rect x="208" y="2" width="2" height="10" />
-            <rect x="212" y="2" width="2" height="10" />
-            <rect x="216" y="5" width="2" height="4" />
-            <rect x="220" y="2" width="2" height="7" />
-            <rect x="224" y="2" width="2" height="10" />
-            <rect x="228" y="5" width="2" height="7" />
-            <rect x="232" y="2" width="2" height="10" />
-            <rect x="236" y="2" width="2" height="10" />
-          </svg>
-        </div>}
-      </div>
-
-      <p className="text-[11px] text-stone-500 text-center">
-        {isInternational ? "International mailing destination preview." : "Mailed in an envelope directly to your recipient via USPS First-Class."}
-      </p>
+      <EnvelopePreview
+        sender={sender}
+        recipient={recipient}
+        fontClass={fontClass}
+        isAddressDeferred={isAddressDeferred}
+        isInternational={isInternational}
+        countryName={countryName}
+      />
     </div>
   );
 }
@@ -496,15 +315,6 @@ export function Step3EnvelopeAddressing({
             {isInternational ? "Your selected destination is shown below. Delivery timing varies by destination." : "Mailed directly to your recipient via USPS First-Class Mail."}
           </p>
         </div>
-
-        <button
-          type="button"
-          onClick={onBack}
-          className="self-start sm:self-auto px-3 py-1.5 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          <span>Edit note</span>
-        </button>
       </div>
 
       {/* TWO-COLUMN SPLIT-SCREEN WORKBENCH (lg:grid-cols-12) */}
@@ -927,16 +737,7 @@ export function Step3EnvelopeAddressing({
           )}
 
           {/* DESKTOP ADVANCE BAR */}
-          <div className="hidden md:flex items-center justify-between p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
-            <button
-              type="button"
-              onClick={onBack}
-              className="px-4 py-2.5 text-stone-600 hover:text-stone-900 text-sm font-semibold flex items-center gap-1.5 transition cursor-pointer"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>← Back to note</span>
-            </button>
-
+          <div className="hidden md:flex items-center justify-end p-4 bg-white rounded-2xl border border-stone-200 shadow-xs">
             <button
               type="button"
               onClick={handleProceed}
@@ -951,20 +752,11 @@ export function Step3EnvelopeAddressing({
 
       {/* MOBILE STICKY BOTTOM ACTION BAR */}
       {!hideFixedActionBar && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/90 p-3 shadow-lg flex items-center justify-between gap-3 safe-area-inset-bottom">
-          <button
-            type="button"
-            onClick={onBack}
-            className="px-3 py-2 text-stone-600 hover:text-stone-900 text-xs font-semibold flex items-center gap-1"
-          >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>Note</span>
-          </button>
-
+        <div className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-stone-200/90 p-3 shadow-lg safe-area-inset-bottom">
           <button
             type="button"
             onClick={handleProceed}
-            className="px-5 py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition shadow-sm flex items-center gap-1.5 cursor-pointer"
+            className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white font-semibold rounded-xl text-xs transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <span>Review &amp; pay (${(displayTotalCents / 100).toFixed(2)}) →</span>
             <ArrowRight className="w-3.5 h-3.5" />

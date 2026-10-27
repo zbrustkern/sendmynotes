@@ -65,6 +65,7 @@ export function createInitialDraft(experienceVersion = "candidate_v1"): DraftSta
     checkoutSnapshotId: null,
     currentStep: "card",
     completed: false,
+    lastCustomArtwork: null,
   };
 }
 
@@ -79,6 +80,19 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         state.selectedDesign.title === action.payload.title &&
         state.selectedDesign.source === action.payload.source;
 
+      const isCustom = action.payload.source === "custom";
+      const nextCustomArtwork = isCustom
+        ? {
+            presetId: action.payload.presetId,
+            customId: action.payload.customId,
+            imageUrl: action.payload.imageUrl,
+            title: action.payload.title,
+            source: "custom" as const,
+            occasion: action.payload.occasion,
+            accepted: true,
+          }
+        : state.lastCustomArtwork;
+
       // If already selected and accepted status is unchanged, don't unnecessarily increment
       if (
         isSameSelection &&
@@ -92,6 +106,7 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         ...state,
         updatedAt: now,
         draftRevision: state.draftRevision + 1,
+        lastCustomArtwork: nextCustomArtwork,
         selectedDesign: {
           presetId: action.payload.presetId,
           customId: action.payload.customId,
@@ -230,7 +245,14 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
     }
 
     case "HYDRATE_DRAFT": {
-      return action.payload;
+      return {
+        ...action.payload,
+        lastCustomArtwork:
+          action.payload.lastCustomArtwork ??
+          (action.payload.selectedDesign?.source === "custom"
+            ? action.payload.selectedDesign
+            : null),
+      };
     }
 
     default:

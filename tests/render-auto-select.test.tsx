@@ -55,8 +55,8 @@ assert(
   "Desktop forward CTA 'Continue to Recipient Address — $9.00 All-In →' is rendered"
 );
 assert(
-  htmlGeneral.includes("See All"),
-  "Visual cover thumbnail strip with 'See All' button is rendered"
+  !htmlGeneral.includes("See All"),
+  "Visual cover thumbnail strip with 'See All' button is removed"
 );
 assert(
   !htmlGeneral.includes("Swap Cover Design"),

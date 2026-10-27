@@ -30,6 +30,8 @@ interface EntryCardStepProps {
   onAcceptAndContinue: () => void;
   initialOccasion?: string;
   onOpenCustomArt?: () => void;
+  lastCustomArtwork?: SelectedDesign | null;
+  onRestoreCustomArt?: () => void;
 }
 
 export function EntryCardStep({
@@ -38,6 +40,8 @@ export function EntryCardStep({
   onAcceptAndContinue,
   initialOccasion,
   onOpenCustomArt,
+  lastCustomArtwork,
+  onRestoreCustomArt,
 }: EntryCardStepProps) {
   // Normalize initial occasion if provided
   const normalizedInitial = useMemo<PersonalOccasion>(() => {
@@ -84,8 +88,12 @@ export function EntryCardStep({
     return seasonalActive.filter((p) => p.occasion === activeOccasion);
   }, [activeOccasion]);
 
-  // Handle card click (selection only, does NOT advance)
+  // Handle card click: decouple browsing from overwriting if custom art is currently active
   const handleCardClick = (preset: CardPreset) => {
+    if (selectedDesign?.source === "custom") {
+      setPreviewPreset(preset);
+      return;
+    }
     // TODO: Lane B schema - track 'builder_started' on first deliberate interaction
     onSelectDesign(preset);
   };
@@ -235,6 +243,68 @@ export function EntryCardStep({
           </div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 lg:gap-6">
+            {/* Dedicated Your Custom Cover card if custom art is selected or saved */}
+            {(selectedDesign?.source === "custom" || lastCustomArtwork) && (() => {
+              const customArt = selectedDesign?.source === "custom" ? selectedDesign : lastCustomArtwork!;
+              const isSelected = selectedDesign?.source === "custom";
+
+              return (
+                <div
+                  key="custom-art-cover-card"
+                  onClick={() => {
+                    if (!isSelected && onRestoreCustomArt) {
+                      onRestoreCustomArt();
+                    }
+                  }}
+                  className={`group relative flex flex-col rounded-xl overflow-hidden border transition-all text-left bg-white select-none focus-within:ring-2 focus-within:ring-emerald-600 ${
+                    isSelected
+                      ? "border-emerald-600 ring-2 ring-emerald-600/20 shadow-md cursor-default"
+                      : "border-stone-200/90 hover:border-emerald-400/80 shadow-2xs cursor-pointer"
+                  }`}
+                >
+                  <div className="relative w-full aspect-[17/22] bg-stone-100 overflow-hidden">
+                    <CardFrontPreview
+                      artworkUrl={customArt.imageUrl}
+                      title={customArt.title || "Your Custom Cover"}
+                      sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 25vw"
+                      priority
+                    />
+
+                    {isSelected ? (
+                      <div
+                        className="absolute top-2 left-2 z-10 bg-emerald-700 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-md ring-2 ring-white"
+                        aria-label="Selected"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" aria-hidden="true" />
+                      </div>
+                    ) : (
+                      <div className="absolute inset-x-2 bottom-2 z-10">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRestoreCustomArt?.();
+                          }}
+                          className="w-full bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-semibold py-1.5 px-2 rounded-lg shadow-sm transition cursor-pointer text-center"
+                        >
+                          Use my custom cover
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="p-2 sm:p-2.5 flex items-center justify-between gap-1.5">
+                    <span className="text-xs font-semibold text-stone-900 truncate font-serif">
+                      Your Custom Cover
+                    </span>
+                    <span className="text-[10px] text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded font-semibold uppercase tracking-wider shrink-0">
+                      Custom
+                    </span>
+                  </div>
+                </div>
+              );
+            })()}
+
             {filteredPresets.map((preset, index) => {
               const isSelected = selectedDesign?.imageUrl === preset.imageUrl;
               // Eager load first row (first 4 items on desktop) for LCP / CLS prevention; lazy load remaining
@@ -334,7 +404,7 @@ export function EntryCardStep({
               >
                 {selectedDesign?.imageUrl === previewPreset.imageUrl
                   ? "Selected"
-                  : "Choose this card"}
+                  : "Use this cover"}
               </button>
               <button
                 type="button"

@@ -94,6 +94,7 @@ export interface DraftOptionalPreferences {
   customGeneration: CustomGenerationState;
   checkoutSnapshotId: string | null;
   currentStep?: string;
+  lastCustomArtwork?: SelectedDesign | null;
 }
 
 /**
@@ -121,6 +122,7 @@ export interface DraftState {
   checkoutSnapshotId: string | null;
   currentStep?: string;
   completed?: boolean;
+  lastCustomArtwork?: SelectedDesign | null;
 }
 
 /**
@@ -145,6 +147,7 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "checkoutSnapshotId",
   "currentStep",
   "completed",
+  "lastCustomArtwork",
 ] as const;
 
 /**

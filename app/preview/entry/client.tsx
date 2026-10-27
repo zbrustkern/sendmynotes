@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { CARD_PRESETS, OCCASIONS, CardPreset, matchOccasionToPreset, getTopPresetForOccasion, canonicalOccasion } from "@/lib/card-presets";
 import { useDraft, AddressDraft } from "@/lib/draft";
@@ -50,6 +50,13 @@ export interface EntryPrototypeClientProps {
   scenarioTitle?: string;
   embedded?: boolean;
   initialStep?: FlowStep;
+}
+
+export function getStepUrl(targetStep: FlowStep): string {
+  if (typeof window === "undefined") return "";
+  const url = new URL(window.location.href);
+  url.searchParams.set("step", targetStep);
+  return url.pathname + url.search;
 }
 
 export function EntryPrototypeClient({
@@ -525,6 +532,54 @@ export function EntryPrototypeClient({
     dispatch,
   ]);
 
+  // Browser History and ?step= synchronization (Single Navigation Home)
+  const initialHistoryReplacedRef = useRef(false);
+
+  useEffect(() => {
+    if (!isLoaded || initialHistoryReplacedRef.current) return;
+    initialHistoryReplacedRef.current = true;
+
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const stepInUrl = params.get("step") as FlowStep | null;
+    const validSteps: FlowStep[] = ["card", "note", "address", "pay"];
+
+    const activeInitialStep = stepInUrl && validSteps.includes(stepInUrl) ? stepInUrl : step;
+    if (stepInUrl && validSteps.includes(stepInUrl) && stepInUrl !== step) {
+      setStep(stepInUrl);
+      dispatch({ type: "SET_STEP", payload: stepInUrl });
+    }
+
+    const currentDepth =
+      typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
+    const url = getStepUrl(activeInitialStep);
+    window.history.replaceState(
+      { ...(window.history.state || {}), smnStep: activeInitialStep, smnDepth: currentDepth },
+      "",
+      url
+    );
+  }, [isLoaded, step, dispatch]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const stepParam = params.get("step") as FlowStep | null;
+      const validSteps: FlowStep[] = ["card", "note", "address", "pay"];
+
+      if (stepParam && validSteps.includes(stepParam)) {
+        setStep(stepParam);
+        dispatch({ type: "SET_STEP", payload: stepParam });
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [dispatch]);
+
   // Current selected card details
   const currentCard = useMemo(() => {
     if (draft.selectedDesign) {
@@ -714,46 +769,101 @@ export function EntryPrototypeClient({
   };
 
   // Handle Custom AI generation selection (Finding 8: never transmit customer prompt to Meta)
-  const handleSelectCustomCover = (art: { imageUrl: string; prompt: string; occasion: string }) => {
+  const handleSelectCustomCover = (art: {
+    imageUrl: string;
+    prompt: string;
+    occasion: string;
+    source?: "preset" | "custom";
+    presetId?: string;
+  }) => {
+    const isPreset = art.source === "preset";
     dispatch({
       type: "SELECT_DESIGN",
       payload: {
+        presetId: isPreset ? art.presetId : undefined,
         imageUrl: art.imageUrl,
-        title: "Custom Artwork Card",
+        title: isPreset ? art.prompt : "Custom Artwork Card",
         occasion: art.occasion,
-        source: "custom",
+        source: isPreset ? "preset" : "custom",
         accepted: true,
       },
     });
 
-    trackEvent("custom_generation_completed", 1, {
-      occasion: art.occasion,
-    });
-    trackEvent("card_completed", 1, {
-      cardType: "custom",
-    });
-    trackEventV2("cover_selected", {
-      occasion: art.occasion,
-      source: "custom_ai",
-      autoSelected: false,
-      auto_selected: false,
-    });
+    if (isPreset) {
+      trackEvent("cover_preset_selected", 1, {
+        presetId: art.presetId,
+        title: art.prompt,
+        occasion: art.occasion,
+      });
+      trackEventV2("cover_selected", {
+        presetId: art.presetId,
+        occasion: art.occasion,
+        source: "drawer_preset_fallback",
+        autoSelected: false,
+        auto_selected: false,
+      });
+    } else {
+      trackEvent("custom_generation_completed", 1, {
+        occasion: art.occasion,
+      });
+      trackEvent("card_completed", 1, {
+        cardType: "custom",
+      });
+      trackEventV2("cover_selected", {
+        occasion: art.occasion,
+        source: "custom_ai",
+        autoSelected: false,
+        auto_selected: false,
+      });
 
-    trackMetaCustomizeProduct({
-      customizationType: "AI Art Generated",
-      occasion: art.occasion,
-      contentName: "Custom Artwork Card",
-    });
-    trackMetaAddToCart({
-      contentId: "custom_ai",
-      contentName: "Custom Artwork Card",
-      value: 9.0,
-    });
+      trackMetaCustomizeProduct({
+        customizationType: "AI Art Generated",
+        occasion: art.occasion,
+        contentName: "Custom Artwork Card",
+      });
+      trackMetaAddToCart({
+        contentId: "custom_ai",
+        contentName: "Custom Artwork Card",
+        value: 9.0,
+      });
+    }
 
     setStep("note");
     dispatch({ type: "SET_STEP", payload: "note" });
     if (typeof window !== "undefined") {
+      const currentDepth = typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
+      const nextDepth = currentDepth + 1;
+      const nextUrl = getStepUrl("note");
+      window.history.pushState(
+        { ...(window.history.state || {}), smnStep: "note", smnDepth: nextDepth },
+        "",
+        nextUrl
+      );
       window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  // Restore saved custom cover from draft without regenerating
+  const handleRestoreCustomArt = () => {
+    if (draft.lastCustomArtwork) {
+      dispatch({
+        type: "SELECT_DESIGN",
+        payload: {
+          presetId: draft.lastCustomArtwork.presetId,
+          customId: draft.lastCustomArtwork.customId,
+          imageUrl: draft.lastCustomArtwork.imageUrl,
+          title: draft.lastCustomArtwork.title,
+          source: "custom",
+          occasion: draft.lastCustomArtwork.occasion,
+          accepted: true,
+        },
+      });
+      trackEventV2("cover_selected", {
+        occasion: draft.lastCustomArtwork.occasion,
+        source: "custom_ai_restored",
+        autoSelected: false,
+        auto_selected: false,
+      });
     }
   };
 
@@ -1016,9 +1126,50 @@ export function EntryPrototypeClient({
     setStep(nextStep);
     dispatch({ type: "SET_STEP", payload: nextStep });
     if (typeof window !== "undefined") {
+      const currentDepth = typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
+      const nextDepth = currentDepth + 1;
+      const nextUrl = getStepUrl(nextStep);
+      window.history.pushState(
+        { ...(window.history.state || {}), smnStep: nextStep, smnDepth: nextDepth },
+        "",
+        nextUrl
+      );
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
+
+  // Determine target previous step and handle back navigation
+  const handleProgressBack = useCallback(() => {
+    const stepOrder: Record<FlowStep, FlowStep | null> = {
+      card: null,
+      note: "card",
+      address: "note",
+      pay: "address",
+    };
+    const targetStep = stepOrder[step];
+    if (!targetStep) return;
+
+    const depth =
+      typeof window !== "undefined" && typeof window.history.state?.smnDepth === "number"
+        ? window.history.state.smnDepth
+        : 0;
+
+    if (depth > 0) {
+      window.history.back();
+    } else {
+      setStep(targetStep);
+      dispatch({ type: "SET_STEP", payload: targetStep });
+      if (typeof window !== "undefined") {
+        const nextUrl = getStepUrl(targetStep);
+        window.history.replaceState(
+          { ...(window.history.state || {}), smnStep: targetStep, smnDepth: 0 },
+          "",
+          nextUrl
+        );
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    }
+  }, [step, dispatch]);
 
   // Validate address and transition to checkout (never disable button silently without explanation)
   const handleAddressSubmit = () => {
@@ -1300,6 +1451,14 @@ export function EntryPrototypeClient({
       setStep("pay");
       dispatch({ type: "SET_STEP", payload: "pay" });
       if (typeof window !== "undefined") {
+        const currentDepth = typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
+        const nextDepth = currentDepth + 1;
+        const nextUrl = getStepUrl("pay");
+        window.history.pushState(
+          { ...(window.history.state || {}), smnStep: "pay", smnDepth: nextDepth },
+          "",
+          nextUrl
+        );
         window.scrollTo({ top: 0, behavior: "instant" });
       }
       return true;
@@ -1527,6 +1686,12 @@ export function EntryPrototypeClient({
         sessionStorage.removeItem("smn_completed_order_id");
         sessionStorage.removeItem("smn_completed_view_token");
         sessionStorage.removeItem("smn_draft_hydrated");
+        const nextUrl = getStepUrl("card");
+        window.history.replaceState(
+          { ...(window.history.state || {}), smnStep: "card", smnDepth: 0 },
+          "",
+          nextUrl
+        );
       } catch {
         // ignore
       }
@@ -1622,7 +1787,7 @@ export function EntryPrototypeClient({
       {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} orderTotalCents={isInternational ? currentDisplayTotalCents : undefined} />}
 
       {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
-      <ProgressIndicator currentStep={step} />
+      <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
 
       {/* 3. STEP CONTENT */}
       <main className="flex-1 w-full">
@@ -1633,6 +1798,8 @@ export function EntryPrototypeClient({
             onAcceptAndContinue={() => handleStepTransition("note")}
             initialOccasion={occasionParam}
             onOpenCustomArt={() => setIsCustomAiOpen(true)}
+            lastCustomArtwork={draft.lastCustomArtwork}
+            onRestoreCustomArt={handleRestoreCustomArt}
           />
         )}
 
@@ -1652,25 +1819,7 @@ export function EntryPrototypeClient({
               cardTitle={currentCard.title}
               cardUrl={currentCard.imageUrl}
               scenarioSlug={scenarioSlug}
-              onSelectCover={(preset) => handleSelectPreset(preset)}
-              onChangeOccasion={(newOccasion, preset) => {
-                const targetPreset = preset || CARD_PRESETS.find((p) => p.occasion === newOccasion) || CARD_PRESETS[0];
-                dispatch({
-                  type: "SELECT_DESIGN",
-                  payload: {
-                    presetId: targetPreset.id,
-                    imageUrl: targetPreset.imageUrl,
-                    title: targetPreset.title,
-                    occasion: newOccasion,
-                    source: "preset",
-                    accepted: true,
-                  },
-                });
-              }}
-              onBack={() => {
-                setStep("card");
-                dispatch({ type: "SET_STEP", payload: "card" });
-              }}
+              onBack={handleProgressBack}
               onContinue={() => handleStepTransition("address")}
             />
           </div>
@@ -1717,12 +1866,7 @@ export function EntryPrototypeClient({
               displayTotalCents={currentDisplayTotalCents}
               onChangeAddressDeferred={setIsAddressDeferred}
               onValidationError={(err) => setAddressValidationError(err)}
-              onBack={() => {
-                if (!isInitializingCheckout) {
-                  setStep("note");
-                  dispatch({ type: "SET_STEP", payload: "note" });
-                }
-              }}
+              onBack={handleProgressBack}
               onContinue={handleAddressSubmit}
             />
           </div>
@@ -1758,10 +1902,7 @@ export function EntryPrototypeClient({
               onRemoveDiscount={handleRemoveDiscount}
               appliedDiscount={appliedDiscount}
               onPaymentSuccess={handlePaymentSuccess}
-              onBack={() => {
-                setStep("address");
-                dispatch({ type: "SET_STEP", payload: "address" });
-              }}
+              onBack={handleProgressBack}
             />
           </div>
         )}
@@ -1782,20 +1923,6 @@ export function EntryPrototypeClient({
               handleAddressSubmit();
             }
           }}
-          secondaryAction={
-            step === "address" ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setStep("note");
-                  dispatch({ type: "SET_STEP", payload: "note" });
-                }}
-                className="text-xs text-stone-600 hover:text-stone-900 font-medium px-3 py-2 rounded-lg hover:bg-stone-100 transition cursor-pointer"
-              >
-                Edit note
-              </button>
-            ) : undefined
-          }
         />
       )}
 
