@@ -67,7 +67,7 @@ async function runTests() {
   console.log("\n--- 3. Testing Scenario A (address_deferred === true) Email ---");
   const resScenarioA = await sendDeferredAddressReceiptEmail({
     order: mockDeferredOrder,
-    customerEmail: "sender@example.com",
+    customerEmail: "delivered@resend.dev",
   });
 
   assert.strictEqual(resScenarioA.success, true, "Scenario A email dispatch must succeed");
@@ -93,7 +93,7 @@ async function runTests() {
 
   const resScenarioB = await sendOrderPenningReceiptEmail({
     order: mockCompletedOrder,
-    customerEmail: "sender@example.com",
+    customerEmail: "delivered@resend.dev",
   });
 
   assert.strictEqual(resScenarioB.success, true, "Scenario B email dispatch must succeed");
@@ -142,7 +142,7 @@ async function runTests() {
           currency: "usd",
           status: "succeeded",
           livemode: false,
-          receipt_email: "customer_a@example.com",
+          receipt_email: "delivered@resend.dev",
           metadata: {
             orderId: webhookOrderA.id,
             address_deferred: "true",
@@ -189,7 +189,7 @@ async function runTests() {
           currency: "usd",
           status: "succeeded",
           livemode: false,
-          receipt_email: "customer_b@example.com",
+          receipt_email: "delivered@resend.dev",
           metadata: {
             orderId: webhookOrderB.id,
             address_deferred: "false",
