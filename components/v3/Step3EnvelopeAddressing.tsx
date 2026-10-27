@@ -77,6 +77,7 @@ export interface MailingOption {
   postalCodeRequired: boolean;
   regionRequired: boolean;
   available: boolean;
+  regions?: Array<{ code: string; name: string }>;
 }
 
 export function isInternationalCountry(country?: string): boolean {
@@ -228,7 +229,15 @@ export function Step3EnvelopeAddressing({
   const openInternationalEditor = () => {
     setInternationalDraft(isInternationalCountry(recipient.country)
       ? recipient
-      : savedInternationalRecipient || { ...recipient, country: "" });
+      : savedInternationalRecipient || {
+          fullName: recipient.fullName,
+          street1: "",
+          street2: "",
+          city: "",
+          state: "",
+          zip: "",
+          country: "",
+        });
     setIsInternationalEditorOpen(true);
   };
   const saveInternationalAddress = () => {
@@ -236,7 +245,12 @@ export function Step3EnvelopeAddressing({
     if (!internationalDraft.country) return;
     const selected = countries.find((item) => item.countryCode === internationalDraft.country);
     if (!selected) return;
-    if (!internationalDraft.fullName.trim() || !internationalDraft.street1.trim() || !internationalDraft.city.trim() || (selected.regionRequired && !internationalDraft.state.trim()) || (selected.postalCodeRequired && !internationalDraft.zip.trim())) return;
+    const hasValidRegion = !selected.regionRequired || (
+      selected.regions && selected.regions.length > 0
+        ? selected.regions.some((r) => r.code === internationalDraft.state)
+        : Boolean(internationalDraft.state?.trim())
+    );
+    if (!internationalDraft.fullName.trim() || !internationalDraft.street1.trim() || !internationalDraft.city.trim() || !hasValidRegion || (selected.postalCodeRequired && !internationalDraft.zip.trim())) return;
     onSaveInternational?.(internationalDraft);
     setIsInternationalEditorOpen(false);
   };
@@ -257,7 +271,12 @@ export function Step3EnvelopeAddressing({
         return;
       }
       const countryRule = countries.find((item) => item.countryCode === recipient.country);
-      if (!recipient.city.trim() || (isInternational && countryRule?.regionRequired && !recipient.state.trim()) || (isInternational && countryRule?.postalCodeRequired && !recipient.zip.trim()) || (!isInternational && (!recipient.state.trim() || !recipient.zip.trim()))) {
+      const isRegionValid = !countryRule?.regionRequired || (
+        countryRule.regions && countryRule.regions.length > 0
+          ? countryRule.regions.some((r) => r.code === recipient.state)
+          : Boolean(recipient.state?.trim())
+      );
+      if (!recipient.city.trim() || (isInternational && !isRegionValid) || (isInternational && countryRule?.postalCodeRequired && !recipient.zip.trim()) || (!isInternational && (!recipient.state.trim() || !recipient.zip.trim()))) {
         const err = "Please complete the recipient's City, State, and ZIP code.";
         setFormError(err);
         onValidationError?.(err);
@@ -368,9 +387,9 @@ export function Step3EnvelopeAddressing({
                   <p className="text-sm text-stone-700">{recipient.street1}{recipient.street2 ? `, ${recipient.street2}` : ""}</p>
                   <p className="text-sm text-stone-700">{[recipient.city, recipient.state, recipient.zip].filter(Boolean).join(", ")}</p>
                   <p className="text-sm font-medium text-stone-800">{countries.find((item) => item.countryCode === recipient.country)?.countryName || recipient.country}</p>
-                  {mailingOptions?.previewAvailable && (mailingOptions.enabled
-                    ? <p className="mt-2 text-xs text-amber-900">Staging test only: no real charge, card printing, fulfillment, or mailing will occur.</p>
-                    : <p className="mt-2 text-xs text-amber-800">Preview only. International checkout is not enabled.</p>)}
+                  {mailingOptions?.previewAvailable && !mailingOptions.enabled && (
+                    <p className="mt-2 text-xs text-amber-800">Preview only. International checkout is not enabled.</p>
+                  )}
                 </div>
                 <button ref={internationalTriggerRef} type="button" disabled={isBusy} onClick={openInternationalEditor} className="text-xs font-semibold text-emerald-800 underline underline-offset-2 disabled:opacity-50">Edit</button>
               </div>
@@ -681,9 +700,9 @@ export function Step3EnvelopeAddressing({
             <div>
               <h2 id="international-address-title" className="font-serif text-xl font-bold text-stone-900">Send internationally</h2>
               <p className="mt-1 text-sm text-stone-600">{internationalTotalLabel} total, including international mailing. Your US return address stays on the envelope.</p>
-              {mailingOptions?.previewAvailable && (mailingOptions.enabled
-                ? <p className="mt-2 text-xs text-amber-900">Staging test only: no real charge, card printing, fulfillment, or mailing will occur.</p>
-                : <p className="mt-2 text-xs text-amber-800">Staging preview only. You can save this address to review the flow; checkout remains unavailable.</p>)}
+              {mailingOptions?.previewAvailable && !mailingOptions.enabled && (
+                <p className="mt-2 text-xs text-amber-800">Staging preview only. You can save this address to review the flow; checkout remains unavailable.</p>
+              )}
             </div>
             <label className="block text-xs font-semibold text-stone-700">Country or region
               <select autoFocus disabled={isBusy} value={internationalDraft.country || ""} onChange={(event) => setInternationalDraft({ ...internationalDraft, country: event.target.value, state: "", zip: "" })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base">
@@ -691,17 +710,117 @@ export function Step3EnvelopeAddressing({
                 {countries.map((country) => <option key={country.countryCode} value={country.countryCode}>{country.countryName}{!country.available ? " — preview" : ""}</option>)}
               </select>
             </label>
-            {internationalDraft.country && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {([
-                  ["fullName", "Recipient name", true], ["street1", "Street address", true], ["street2", "Address line 2", false], ["city", "City or locality", true], ["state", "State, province or region", Boolean(countries.find((item) => item.countryCode === internationalDraft.country)?.regionRequired)], ["zip", "Postal code", Boolean(countries.find((item) => item.countryCode === internationalDraft.country)?.postalCodeRequired)],
-                ] as const).map(([field, label, required]) => <label key={field} className={`block text-xs font-semibold text-stone-700 ${field === "street1" || field === "street2" ? "sm:col-span-2" : ""}`}>{label}{required ? " *" : ""}<input disabled={isBusy} value={internationalDraft[field] || ""} required={required} onChange={(event) => setInternationalDraft({ ...internationalDraft, [field]: event.target.value })} className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base" autoComplete={field === "fullName" ? "shipping name" : undefined} /></label>)}
-              </div>
-            )}
-            <div className="flex justify-end gap-2 pt-2">
-              <button type="button" disabled={isBusy} onClick={() => setIsInternationalEditorOpen(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-stone-700 border border-stone-300 disabled:opacity-50">Cancel</button>
-              <button type="button" onClick={saveInternationalAddress} disabled={isBusy || !internationalDraft.country || !internationalDraft.fullName.trim() || !internationalDraft.street1.trim() || !internationalDraft.city.trim() || Boolean(countries.find((item) => item.countryCode === internationalDraft.country)?.regionRequired && !internationalDraft.state.trim()) || Boolean(countries.find((item) => item.countryCode === internationalDraft.country)?.postalCodeRequired && !internationalDraft.zip.trim())} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-emerald-800 disabled:opacity-40">Save address · {internationalTotalLabel} total</button>
-            </div>
+            {internationalDraft.country && (() => {
+              const selectedCountry = countries.find((item) => item.countryCode === internationalDraft.country);
+              const stateLabel = internationalDraft.country === "CA" ? "Province or territory" : "State, province or region";
+              const hasRegions = Boolean(selectedCountry?.regions && selectedCountry.regions.length > 0);
+              const regionRequired = Boolean(selectedCountry?.regionRequired);
+              const postalCodeRequired = Boolean(selectedCountry?.postalCodeRequired);
+
+              return (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <label className="block text-xs font-semibold text-stone-700">
+                    Recipient name *
+                    <input
+                      disabled={isBusy}
+                      value={internationalDraft.fullName || ""}
+                      required
+                      onChange={(event) => setInternationalDraft({ ...internationalDraft, fullName: event.target.value })}
+                      className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base"
+                      autoComplete="shipping name"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-stone-700 sm:col-span-2">
+                    Street address *
+                    <input
+                      disabled={isBusy}
+                      value={internationalDraft.street1 || ""}
+                      required
+                      onChange={(event) => setInternationalDraft({ ...internationalDraft, street1: event.target.value })}
+                      className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-stone-700 sm:col-span-2">
+                    Address line 2
+                    <input
+                      disabled={isBusy}
+                      value={internationalDraft.street2 || ""}
+                      onChange={(event) => setInternationalDraft({ ...internationalDraft, street2: event.target.value })}
+                      className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-stone-700">
+                    City or locality *
+                    <input
+                      disabled={isBusy}
+                      value={internationalDraft.city || ""}
+                      required
+                      onChange={(event) => setInternationalDraft({ ...internationalDraft, city: event.target.value })}
+                      className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base"
+                    />
+                  </label>
+                  <label className="block text-xs font-semibold text-stone-700">
+                    {stateLabel}{regionRequired ? " *" : ""}
+                    {hasRegions ? (
+                      <select
+                        disabled={isBusy}
+                        value={internationalDraft.state || ""}
+                        required={regionRequired}
+                        onChange={(event) => setInternationalDraft({ ...internationalDraft, state: event.target.value })}
+                        className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base font-medium"
+                      >
+                        <option value="">Select {stateLabel.toLowerCase()}</option>
+                        {selectedCountry!.regions!.map((region) => (
+                          <option key={region.code} value={region.code}>
+                            {region.code} - {region.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        disabled={isBusy}
+                        value={internationalDraft.state || ""}
+                        required={regionRequired}
+                        onChange={(event) => setInternationalDraft({ ...internationalDraft, state: event.target.value })}
+                        className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base"
+                      />
+                    )}
+                  </label>
+                  <label className="block text-xs font-semibold text-stone-700">
+                    Postal code{postalCodeRequired ? " *" : ""}
+                    <input
+                      disabled={isBusy}
+                      value={internationalDraft.zip || ""}
+                      required={postalCodeRequired}
+                      onChange={(event) => setInternationalDraft({ ...internationalDraft, zip: event.target.value })}
+                      className="mt-1 w-full rounded-xl border border-stone-300 bg-white px-3 py-2.5 text-base"
+                    />
+                  </label>
+                </div>
+              );
+            })()}
+            {(() => {
+              const selectedCountry = countries.find((item) => item.countryCode === internationalDraft.country);
+              const isRegionValid = !selectedCountry?.regionRequired || (
+                selectedCountry?.regions && selectedCountry.regions.length > 0
+                  ? selectedCountry.regions.some((r) => r.code === internationalDraft.state)
+                  : Boolean(internationalDraft.state?.trim())
+              );
+              const isSaveDisabled = isBusy ||
+                !internationalDraft.country ||
+                !internationalDraft.fullName.trim() ||
+                !internationalDraft.street1.trim() ||
+                !internationalDraft.city.trim() ||
+                !isRegionValid ||
+                Boolean(selectedCountry?.postalCodeRequired && !internationalDraft.zip.trim());
+
+              return (
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" disabled={isBusy} onClick={() => setIsInternationalEditorOpen(false)} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-stone-700 border border-stone-300 disabled:opacity-50">Cancel</button>
+                  <button type="button" onClick={saveInternationalAddress} disabled={isSaveDisabled} className="rounded-xl px-4 py-2.5 text-sm font-semibold text-white bg-emerald-800 disabled:opacity-40">Save address · {internationalTotalLabel} total</button>
+                </div>
+              );
+            })()}
           </section>
         </div>
         </OptionalInternationalEditorBoundary>

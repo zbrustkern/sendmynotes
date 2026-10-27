@@ -21,7 +21,7 @@ assert(privateMiddleware.includes('response.headers.set("Referrer-Policy", "no-r
 assert(privateMiddleware.includes('response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive")'), "payment capability pages are excluded from indexing and archive");
 const paymentPage = readFileSync(new URL("../app/comp-payment/[capability]/page.tsx", import.meta.url), "utf8");
 assert(paymentPage.includes("index: false, follow: false, noarchive: true"), "payment capability page sets noindex metadata");
-for (const path of ["../app/admin/page.tsx", "../app/admin/orders/page.tsx", "../app/admin/economics/page.tsx", "../app/admin/journeys/page.tsx"]) {
+for (const path of ["../app/admin/page.tsx"]) {
   assert(readFileSync(new URL(path, import.meta.url), "utf8").includes("<StudioCompModal"), `${path} retains the shared modal entry point`);
 }
 

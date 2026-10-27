@@ -19,7 +19,17 @@ const previewOptions = {
   enabled: false,
   previewAvailable: true,
   destinations: [
-    { countryCode: "CA", countryName: "Canada", postalCodeRequired: true, regionRequired: true, available: false },
+    {
+      countryCode: "CA",
+      countryName: "Canada",
+      postalCodeRequired: true,
+      regionRequired: true,
+      available: false,
+      regions: [
+        { code: "ON", name: "Ontario" },
+        { code: "QC", name: "Quebec" },
+      ],
+    },
     { countryCode: "JP", countryName: "Japan", postalCodeRequired: true, regionRequired: false, available: false },
   ],
 };
@@ -44,7 +54,7 @@ assert(!international.includes("USPS First-Class"), "international envelope copy
 assert(international.includes("Use a US address instead"), "the committed address can be switched back to the separate US draft");
 
 const testModeAddress = renderToStaticMarkup(<Step3EnvelopeAddressing {...common} recipient={{ fullName: "Taylor Doe", street1: "1 Queen St", city: "Toronto", state: "ON", zip: "M5V 2T6", country: "CA" }} mailingOptions={{ ...previewOptions, enabled: true }} isInternational onUseUSAddress={() => {}} displayTotalCents={1400} />);
-assert(testModeAddress.includes("Staging test only"), "an enabled Stripe-test preview says no physical card or mailing will occur");
+assert(!testModeAddress.includes("Staging test only"), "customer-facing addressing UI omits internal staging copy");
 
 const previewHold = renderToStaticMarkup(<Step5Confirmation
   orderId="order-preview-1" fulfillmentStatus="QUEUED_FOR_FULFILLMENT" cardTitle="A card" cardUrl="/card.jpg" occasion="Thinking of You"
