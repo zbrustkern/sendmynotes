@@ -24,9 +24,16 @@ import {
   Info,
   DollarSign,
   PenTool,
+  AlertTriangle,
+  ShieldCheck,
+  Mail,
+  Send,
+  Filter,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-import { AdminMetrics, Order, DiscountCode, DiscountType } from "@/lib/types";
+import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType } from "@/lib/types";
 import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWidget";
 import { AdminMeasurementPanel } from "@/components/admin/AdminMeasurementPanel";
 import { ProofInspectorModal } from "@/components/admin/ProofInspectorModal";
@@ -42,8 +49,8 @@ export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState("");
 
-  // Navigation tab state: clean, 3 focused views
-  const [activeTab, setActiveTab] = useState<"orders" | "measurement" | "discounts">("orders");
+  // Navigation tab state: 4 focused views
+  const [activeTab, setActiveTab] = useState<"orders" | "measurement" | "discounts" | "incidents">("orders");
 
   // Orders State
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
@@ -58,7 +65,19 @@ export default function AdminDashboardPage() {
   // Modals
   const [selectedProofOrderId, setSelectedProofOrderId] = useState<string | null>(null);
   const [addressRetryOrder, setAddressRetryOrder] = useState<Order | null>(null);
+  const [addressRetryIncidentId, setAddressRetryIncidentId] = useState<string | null>(null);
   const [showCompModal, setShowCompModal] = useState(false);
+
+  // Incidents & Alerts State
+  const [incidents, setIncidents] = useState<SystemIncident[]>([]);
+  const [alertEmail, setAlertEmail] = useState("");
+  const [newAlertEmail, setNewAlertEmail] = useState("");
+  const [loadingIncidents, setLoadingIncidents] = useState(false);
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [testingAlertEmail, setTestingAlertEmail] = useState(false);
+  const [expandedIncidentId, setExpandedIncidentId] = useState<string | null>(null);
+  const [alertFormOpen, setAlertFormOpen] = useState(false);
+  const [incidentFilter, setIncidentFilter] = useState<"UNRESOLVED" | "RESOLVED" | "ALL">("UNRESOLVED");
 
   // Discounts State
   const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
@@ -83,7 +102,7 @@ export default function AdminDashboardPage() {
   const [discountFormError, setDiscountFormError] = useState("");
   const [discountFormSuccess, setDiscountFormSuccess] = useState("");
 
-  const handleTabChange = (tab: "orders" | "measurement" | "discounts") => {
+  const handleTabChange = (tab: "orders" | "measurement" | "discounts" | "incidents") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -120,6 +139,7 @@ export default function AdminDashboardPage() {
         setAdminUserEmail(data.email || currentUser.email || null);
         fetchMetrics();
         fetchDiscounts();
+        fetchIncidents();
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Error authenticating with Google.";
@@ -178,6 +198,105 @@ export default function AdminDashboardPage() {
       console.error("Error fetching discounts:", err);
     } finally {
       setLoadingDiscounts(false);
+    }
+  };
+
+  const fetchIncidents = async () => {
+    setLoadingIncidents(true);
+    try {
+      const res = await fetch("/api/admin/incidents");
+      if (res.status === 401) {
+        setIsAuthenticated(false);
+        return;
+      }
+      if (res.ok) {
+        const data = await res.json();
+        setIncidents(data.incidents || []);
+        setAlertEmail(data.alertEmail || "");
+        setNewAlertEmail(data.alertEmail || "");
+      }
+    } catch (err) {
+      console.error("Error fetching incidents:", err);
+    } finally {
+      setLoadingIncidents(false);
+    }
+  };
+
+  const handleSaveAlertEmail = async () => {
+    setSavingEmail(true);
+    try {
+      const res = await fetch("/api/admin/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "save_alert_email", email: newAlertEmail }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setAlertEmail(data.alertEmail);
+        alert(data.message || "Alert email updated successfully");
+      } else {
+        alert(data.error || "Failed to save alert email");
+      }
+    } catch {
+      alert("Network error saving alert email");
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleTestAlertEmail = async () => {
+    const targetEmail = newAlertEmail.trim() || alertEmail.trim();
+    if (!targetEmail) {
+      alert("Please enter an alert email address first.");
+      return;
+    }
+    setTestingAlertEmail(true);
+    try {
+      const res = await fetch("/api/admin/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test_alert_email", email: targetEmail }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert(data.message || `Test alert dispatched to ${targetEmail}`);
+      } else {
+        alert(data.error || "Failed to dispatch test alert");
+      }
+    } catch {
+      alert("Network error dispatching test alert.");
+    } finally {
+      setTestingAlertEmail(false);
+    }
+  };
+
+  const handleResolveIncident = async (incidentId: string) => {
+    try {
+      const res = await fetch("/api/admin/incidents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "resolve_incident",
+          incidentId,
+          resolutionNote: "Marked resolved by operator",
+        }),
+      });
+      if (res.ok) {
+        setIncidents((prev) =>
+          prev.map((inc) =>
+            inc.id === incidentId
+              ? {
+                  ...inc,
+                  resolved: true,
+                  resolvedAt: Date.now(),
+                  resolutionNote: "Marked resolved by operator",
+                }
+              : inc
+          )
+        );
+      }
+    } catch (err) {
+      console.error("Error resolving incident:", err);
     }
   };
 
@@ -398,6 +517,7 @@ export default function AdminDashboardPage() {
           }
           fetchMetrics();
           fetchDiscounts();
+          fetchIncidents();
         }
       } catch (err) {
         console.error("Admin auth check failed:", err);
@@ -414,6 +534,8 @@ export default function AdminDashboardPage() {
         setActiveTab("measurement");
       } else if (tabParam === "discounts" || tabParam === "promotions") {
         setActiveTab("discounts");
+      } else if (tabParam === "incidents" || tabParam === "reliability") {
+        setActiveTab("incidents");
       } else if (tabParam === "orders") {
         setActiveTab("orders");
       }
@@ -526,6 +648,16 @@ export default function AdminDashboardPage() {
     );
   });
 
+  const unresolvedIncidents = incidents.filter((inc) => !inc.resolved);
+  const resolvedIncidents = incidents.filter((inc) => inc.resolved);
+  const hasActiveAlerts = unresolvedIncidents.length > 0;
+  const filteredIncidents =
+    incidentFilter === "UNRESOLVED"
+      ? unresolvedIncidents
+      : incidentFilter === "RESOLVED"
+      ? resolvedIncidents
+      : incidents;
+
   const revenueDollars = ((metrics?.totalRevenueCents || 0) / 100).toFixed(2);
   const conversionRate =
     metrics && metrics.funnel.totalSessions > 0
@@ -535,94 +667,87 @@ export default function AdminDashboardPage() {
   return (
     <div className="min-h-screen bg-[#FAF8F5] text-stone-900 pb-16">
       {/* TOP HEADER */}
-      <header className="border-b border-stone-200/90 bg-white sticky top-0 z-30 shadow-2xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-xl bg-stone-900 flex items-center justify-center text-amber-400 font-bold font-serif shadow-xs">
+      <header className="border-b border-stone-200/90 bg-white sticky top-0 z-30">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-7 h-7 rounded-lg bg-stone-900 flex items-center justify-center text-amber-400 font-bold font-serif text-sm shrink-0">
               S
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-serif text-base font-bold text-stone-900">SendMyNotes</h1>
-                <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 border border-stone-200">
-                  Admin Portal
-                </span>
-              </div>
-              <p className="text-[11px] text-stone-500 hidden sm:block">
-                Operations, verified measurement, and promotions
-              </p>
+            <div className="flex items-baseline gap-2 min-w-0">
+              <h1 className="font-serif text-base font-bold text-stone-900 whitespace-nowrap">
+                SendMyNotes
+              </h1>
+              <span className="text-xs font-medium text-stone-400 whitespace-nowrap">
+                Admin
+              </span>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={() => setShowCompModal(true)}
-              className="py-1.5 px-3 bg-amber-600 hover:bg-amber-700 text-white rounded-xl text-xs font-semibold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            {adminUserEmail && (
+              <span className="text-xs text-stone-400 hidden lg:inline truncate max-w-[180px] mr-1">
+                {adminUserEmail}
+              </span>
+            )}
+
+            <Link
+              href="/"
+              className="hidden sm:inline-flex items-center h-8 px-2.5 rounded-lg text-xs font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition whitespace-nowrap"
             >
-              <Gift className="w-3.5 h-3.5" />
-              <span>Send Studio Comp</span>
-            </button>
+              Storefront
+            </Link>
 
             <button
               type="button"
               onClick={() => {
                 fetchMetrics();
                 fetchDiscounts();
+                fetchIncidents();
               }}
-              disabled={loading}
+              disabled={loading || loadingIncidents}
               title="Refresh data"
-              className="p-2 text-stone-600 hover:text-stone-900 hover:bg-stone-100 rounded-xl border border-stone-200 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 h-8 px-2.5 rounded-lg text-xs font-medium text-stone-600 hover:text-stone-900 hover:bg-stone-100 transition cursor-pointer whitespace-nowrap"
             >
-              <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${
+                  loading || loadingIncidents ? "animate-spin" : ""
+                }`}
+              />
+              <span className="hidden sm:inline">Refresh</span>
             </button>
 
-            {adminUserEmail && (
-              <span className="text-xs text-stone-500 hidden md:inline truncate max-w-[180px]">
-                {adminUserEmail}
-              </span>
-            )}
+            <div className="h-4 w-px bg-stone-200 mx-0.5" aria-hidden="true" />
 
             <button
               type="button"
               onClick={handleLogout}
-              className="py-1.5 px-3 text-xs font-medium text-stone-600 hover:text-rose-700 hover:bg-rose-50 border border-stone-200 rounded-xl transition cursor-pointer"
+              className="inline-flex items-center h-8 px-2.5 rounded-lg text-xs font-medium text-stone-600 hover:text-rose-700 hover:bg-rose-50 transition cursor-pointer whitespace-nowrap"
             >
               Sign Out
             </button>
-
-            <Link
-              href="/"
-              className="text-xs font-medium text-stone-500 hover:text-stone-800 transition hidden lg:inline"
-            >
-              &larr; Storefront
-            </Link>
           </div>
         </div>
 
-        {/* 3 FOCUSED TABS NAVIGATION */}
+        {/* 4 FOCUSED TABS NAVIGATION */}
         <div className="border-t border-stone-100 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <nav className="flex items-center gap-2 sm:gap-8 overflow-x-auto py-2 sm:py-0" aria-label="Admin Tabs">
+            <nav
+              className="flex items-center gap-4 sm:gap-8 overflow-x-auto no-scrollbar"
+              aria-label="Admin Tabs"
+            >
               <button
                 type="button"
                 onClick={() => handleTabChange("orders")}
-                className={`py-2 sm:py-3.5 px-3 rounded-xl sm:rounded-none sm:border-b-2 text-xs sm:text-sm font-medium inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
                   activeTab === "orders"
-                    ? "bg-stone-900 text-white sm:bg-transparent sm:border-stone-900 sm:text-stone-900 font-semibold"
-                    : "text-stone-600 hover:text-stone-900 hover:bg-stone-50 sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300"
+                    ? "border-stone-900 text-stone-900 font-semibold"
+                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
                 }`}
               >
-                <Package className="w-4 h-4 text-amber-600 shrink-0" />
-                <span>Orders &amp; Fulfillment</span>
+                <Package className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Orders</span>
                 {metrics?.totalOrders !== undefined && (
-                  <span
-                    className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                      activeTab === "orders"
-                        ? "bg-stone-800 text-stone-200 sm:bg-stone-100 sm:text-stone-700"
-                        : "bg-stone-100 text-stone-600"
-                    }`}
-                  >
+                  <span className="ml-0.5 py-0.5 px-1.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-700">
                     {metrics.totalOrders}
                   </span>
                 )}
@@ -631,36 +756,52 @@ export default function AdminDashboardPage() {
               <button
                 type="button"
                 onClick={() => handleTabChange("measurement")}
-                className={`py-2 sm:py-3.5 px-3 rounded-xl sm:rounded-none sm:border-b-2 text-xs sm:text-sm font-medium inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
                   activeTab === "measurement"
-                    ? "bg-stone-900 text-white sm:bg-transparent sm:border-stone-900 sm:text-stone-900 font-semibold"
-                    : "text-stone-600 hover:text-stone-900 hover:bg-stone-50 sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300"
+                    ? "border-stone-900 text-stone-900 font-semibold"
+                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
                 }`}
               >
-                <TrendingUp className="w-4 h-4 text-emerald-600 shrink-0" />
+                <TrendingUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>Measurement</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleTabChange("discounts")}
-                className={`py-2 sm:py-3.5 px-3 rounded-xl sm:rounded-none sm:border-b-2 text-xs sm:text-sm font-medium inline-flex items-center gap-2 cursor-pointer transition whitespace-nowrap ${
+                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
                   activeTab === "discounts"
-                    ? "bg-stone-900 text-white sm:bg-transparent sm:border-stone-900 sm:text-stone-900 font-semibold"
-                    : "text-stone-600 hover:text-stone-900 hover:bg-stone-50 sm:border-transparent sm:text-stone-500 sm:hover:border-stone-300"
+                    ? "border-stone-900 text-stone-900 font-semibold"
+                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
                 }`}
               >
-                <Tag className="w-4 h-4 text-indigo-600 shrink-0" />
+                <Tag className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
                 <span>Discounts</span>
                 {discountStats?.activeCodes !== undefined && discountStats.activeCodes > 0 && (
-                  <span
-                    className={`ml-1 py-0.5 px-1.5 rounded-full text-[10px] font-bold ${
-                      activeTab === "discounts"
-                        ? "bg-stone-800 text-stone-200 sm:bg-stone-100 sm:text-stone-700"
-                        : "bg-stone-100 text-stone-600"
-                    }`}
-                  >
+                  <span className="ml-0.5 py-0.5 px-1.5 rounded-full text-[10px] font-bold bg-stone-100 text-stone-700">
                     {discountStats.activeCodes}
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange("incidents")}
+                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                  activeTab === "incidents"
+                    ? "border-stone-900 text-stone-900 font-semibold"
+                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
+                }`}
+              >
+                {hasActiveAlerts ? (
+                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                ) : (
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                )}
+                <span>Troubleshooting</span>
+                {hasActiveAlerts && (
+                  <span className="ml-0.5 py-0.5 px-1.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-200">
+                    {unresolvedIncidents.length}
                   </span>
                 )}
               </button>
@@ -676,6 +817,30 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             {/* Handwrytten Status Widget */}
             <HandwryttenStatusWidget />
+
+            {/* ACTIVE TROUBLESHOOTING ALERT CALLOUT */}
+            {hasActiveAlerts && (
+              <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-rose-900 text-xs">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-rose-950">
+                      {unresolvedIncidents.length} Unresolved System Alert{unresolvedIncidents.length > 1 ? "s" : ""}
+                    </p>
+                    <p className="text-rose-800">
+                      Latest: {unresolvedIncidents[0]?.summary}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange("incidents")}
+                  className="px-3 py-1.5 rounded-lg bg-rose-700 hover:bg-rose-800 text-white font-semibold text-xs transition cursor-pointer shrink-0"
+                >
+                  Open Troubleshooting &rarr;
+                </button>
+              </div>
+            )}
 
             {/* CANONICAL BASELINE DISCLOSURE BANNER */}
             <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-900 text-xs">
@@ -739,7 +904,7 @@ export default function AdminDashboardPage() {
 
             {/* RECENT ORDERS TABLE & CONTROLS */}
             <div className="bg-white rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-4 sm:space-y-5 w-full min-w-0 overflow-hidden">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-stone-100">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 pb-3 sm:pb-4 border-b border-stone-100">
                 <div>
                   <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
                     <Package className="w-4 h-4 text-stone-600 shrink-0" />
@@ -750,28 +915,37 @@ export default function AdminDashboardPage() {
                   </p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-                  <div className="relative flex-1 sm:w-64">
-                    <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-stone-400" />
+                <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                  <div className="relative flex-1 sm:w-56">
+                    <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-stone-400" />
                     <input
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search orders, emails..."
-                      className="w-full pl-8 pr-3 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
+                      className="w-full h-8 pl-8 pr-3 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
                     />
                   </div>
 
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="px-2.5 py-1.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none"
+                    className="h-8 px-2.5 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none"
                   >
                     <option value="ALL">All Statuses</option>
                     <option value="PROCESSING_HANDWRYTTEN">Submitted to Supplier</option>
                     <option value="PENDING_PAYMENT">Pending Draft</option>
                     <option value="FAILED">Failed</option>
                   </select>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCompModal(true)}
+                    className="h-8 px-3 bg-stone-900 hover:bg-black text-white rounded-lg text-xs font-semibold inline-flex items-center gap-1.5 transition cursor-pointer whitespace-nowrap"
+                  >
+                    <Gift className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Send Studio Comp</span>
+                  </button>
                 </div>
               </div>
 
@@ -1745,6 +1919,354 @@ export default function AdminDashboardPage() {
             </div>
           </div>
         )}
+
+        {/* ===================== TAB 4: TROUBLESHOOTING & INCIDENTS ===================== */}
+        {activeTab === "incidents" && (
+          <div className="space-y-6">
+            <HandwryttenStatusWidget />
+
+            {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}
+            <div className="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 border border-stone-200 shadow-sm space-y-5">
+              <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pb-4 border-b border-stone-100">
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h2
+                      className={`text-base font-bold flex items-center gap-2 ${
+                        hasActiveAlerts ? "text-rose-700" : "text-stone-900"
+                      }`}
+                    >
+                      {hasActiveAlerts ? (
+                        <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                      ) : (
+                        <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                      )}
+                      <span>System Health &amp; Troubleshooting Feed</span>
+                    </h2>
+                    {hasActiveAlerts ? (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
+                        {unresolvedIncidents.length} Unresolved
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        0 Open Alerts
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    Diagnostic log and graceful error recovery for Stripe checkout, AI image generation, and Handwrytten fulfillment.
+                  </p>
+                </div>
+
+                {/* CONTROLS: FILTER & ALERT SUBSCRIPTIONS */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full lg:w-auto">
+                  {/* MOBILE 3-WAY SEGMENTED FILTER */}
+                  <div className="grid grid-cols-3 gap-1 p-1 bg-stone-100 rounded-xl w-full sm:hidden">
+                    <button
+                      type="button"
+                      onClick={() => setIncidentFilter("UNRESOLVED")}
+                      className={`py-1.5 text-[11px] font-semibold rounded-lg transition text-center cursor-pointer ${
+                        incidentFilter === "UNRESOLVED"
+                          ? "bg-white shadow-2xs text-stone-900"
+                          : "text-stone-500 hover:text-stone-900"
+                      }`}
+                    >
+                      Unresolved ({unresolvedIncidents.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIncidentFilter("RESOLVED")}
+                      className={`py-1.5 text-[11px] font-semibold rounded-lg transition text-center cursor-pointer ${
+                        incidentFilter === "RESOLVED"
+                          ? "bg-white shadow-2xs text-stone-900"
+                          : "text-stone-500 hover:text-stone-900"
+                      }`}
+                    >
+                      Resolved ({resolvedIncidents.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setIncidentFilter("ALL")}
+                      className={`py-1.5 text-[11px] font-semibold rounded-lg transition text-center cursor-pointer ${
+                        incidentFilter === "ALL"
+                          ? "bg-white shadow-2xs text-stone-900"
+                          : "text-stone-500 hover:text-stone-900"
+                      }`}
+                    >
+                      All ({incidents.length})
+                    </button>
+                  </div>
+
+                  {/* DESKTOP STATUS FILTER DROPDOWN */}
+                  <div className="hidden sm:flex items-center gap-1.5 bg-stone-50 border border-stone-300 rounded-lg px-2.5 h-8">
+                    <Filter className="w-3.5 h-3.5 text-stone-400 shrink-0" />
+                    <select
+                      value={incidentFilter}
+                      onChange={(e) =>
+                        setIncidentFilter(e.target.value as "UNRESOLVED" | "RESOLVED" | "ALL")
+                      }
+                      className="text-xs font-semibold bg-transparent text-stone-700 focus:outline-none cursor-pointer pr-1"
+                      aria-label="Filter incidents"
+                    >
+                      <option value="UNRESOLVED">
+                        Unresolved ({unresolvedIncidents.length})
+                      </option>
+                      <option value="RESOLVED">
+                        Resolved ({resolvedIncidents.length})
+                      </option>
+                      <option value="ALL">
+                        All Incidents ({incidents.length})
+                      </option>
+                    </select>
+                  </div>
+
+                  {/* ALERT EMAIL SUBSCRIPTION */}
+                  <div className="w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setAlertFormOpen(!alertFormOpen)}
+                      className="sm:hidden w-full flex items-center justify-between py-2 px-3 text-xs font-semibold text-stone-700 bg-stone-50 border border-stone-200 rounded-xl cursor-pointer"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <Mail className="w-3.5 h-3.5 text-stone-500" />
+                        <span>Email Alert Notifications</span>
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-stone-400 transition-transform ${
+                          alertFormOpen ? "rotate-180" : ""
+                        }`}
+                      />
+                    </button>
+
+                    <div
+                      className={`${
+                        alertFormOpen ? "block" : "hidden"
+                      } sm:flex flex-wrap items-center gap-2 mt-2 sm:mt-0 w-full sm:w-auto`}
+                    >
+                      <div className="relative flex-1 w-full sm:w-56">
+                        <Mail className="w-3.5 h-3.5 absolute left-2.5 top-2.5 text-stone-400" />
+                        <input
+                          type="email"
+                          value={newAlertEmail}
+                          onChange={(e) => setNewAlertEmail(e.target.value)}
+                          placeholder="Alert email (e.g. zeke@...)"
+                          className="w-full h-8 pl-8 pr-3 text-xs bg-stone-50 border border-stone-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-stone-400"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 sm:flex sm:items-center gap-1.5 mt-2 sm:mt-0 w-full sm:w-auto">
+                        <button
+                          type="button"
+                          onClick={handleSaveAlertEmail}
+                          disabled={savingEmail}
+                          className="h-8 px-3 text-xs font-semibold rounded-lg bg-stone-900 hover:bg-black text-white transition disabled:opacity-50 shrink-0 cursor-pointer text-center"
+                        >
+                          {savingEmail ? "Saving..." : alertEmail ? "Update Email" : "Subscribe"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleTestAlertEmail}
+                          disabled={testingAlertEmail}
+                          className="h-8 px-2.5 text-xs font-medium rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 border border-stone-200 transition disabled:opacity-50 shrink-0 cursor-pointer inline-flex items-center justify-center gap-1 text-center"
+                          title="Send a sample diagnostic alert email to verify notifications work"
+                        >
+                          <Send className="w-3 h-3" />
+                          <span>{testingAlertEmail ? "Testing..." : "Test Alert"}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* INCIDENTS LIST */}
+              {filteredIncidents.length === 0 ? (
+                incidentFilter === "UNRESOLVED" ? (
+                  <div className="text-center py-10 px-4 rounded-2xl bg-emerald-50/40 border border-emerald-100 space-y-2">
+                    <ShieldCheck className="w-9 h-9 text-emerald-600 mx-auto" />
+                    <p className="font-bold text-sm text-emerald-900">No Unresolved Errors</p>
+                    <p className="text-xs text-emerald-700 max-w-md mx-auto">
+                      No open Stripe, AI image generation, or Handwrytten fulfillment incidents require attention right now.
+                    </p>
+                    {resolvedIncidents.length > 0 && (
+                      <div className="pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setIncidentFilter("RESOLVED")}
+                          className="text-xs font-semibold text-emerald-800 hover:text-emerald-950 underline cursor-pointer"
+                        >
+                          View {resolvedIncidents.length} resolved incident{resolvedIncidents.length > 1 ? "s" : ""} &rarr;
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-10 px-4 rounded-2xl bg-stone-50 border border-stone-200 text-stone-500 text-xs space-y-1">
+                    <CheckCircle2 className="w-8 h-8 text-stone-400 mx-auto mb-1 opacity-70" />
+                    <p className="font-semibold text-stone-700">No Incidents Found</p>
+                    <p className="text-[11px] text-stone-400">
+                      No incidents match the selected filter.
+                    </p>
+                  </div>
+                )
+              ) : (
+                <div className="space-y-3">
+                  {filteredIncidents.map((incident) => {
+                    const isExpanded = expandedIncidentId === incident.id;
+                    const typeColor =
+                      incident.type === "STRIPE"
+                        ? "bg-purple-100 text-purple-800 border-purple-200"
+                        : incident.type === "IMAGE_GEN"
+                        ? "bg-amber-100 text-amber-800 border-amber-200"
+                        : incident.type === "HANDWRYTTEN"
+                        ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                        : "bg-stone-100 text-stone-800 border-stone-200";
+
+                    return (
+                      <div
+                        key={incident.id}
+                        className={`p-4 rounded-2xl border transition-all ${
+                          incident.resolved
+                            ? "bg-stone-50/70 border-stone-200 opacity-75"
+                            : incident.severity === "error"
+                            ? "bg-rose-50/40 border-rose-200"
+                            : "bg-amber-50/40 border-amber-200"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${typeColor}`}
+                            >
+                              {incident.type}
+                            </span>
+                            {incident.category === "STUDIO_BILLING" && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-100 text-rose-800 border border-rose-300">
+                                Studio Wholesale Billing
+                              </span>
+                            )}
+                            {incident.category === "OPERATOR_ACTION" && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-100 text-amber-800 border border-amber-300">
+                                Operator Action Required
+                              </span>
+                            )}
+                            {incident.category === "CUSTOMER_RECOVERED" && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-sky-100 text-sky-800 border border-sky-300">
+                                Customer Recovered
+                              </span>
+                            )}
+                            {incident.category === "TRANSIENT" && (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-stone-100 text-stone-700 border border-stone-300">
+                                Transient API
+                              </span>
+                            )}
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${
+                                incident.severity === "error"
+                                  ? "bg-rose-100 text-rose-800 border-rose-300"
+                                  : "bg-amber-100 text-amber-800 border-amber-300"
+                              }`}
+                            >
+                              {incident.severity}
+                            </span>
+                            <span className="text-[11px] text-stone-400">
+                              {new Date(incident.createdAt).toLocaleDateString()} at{" "}
+                              {new Date(incident.createdAt).toLocaleTimeString([], {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                            {incident.resolved && (
+                              <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                                Resolved
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {incident.technicalDetails && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedIncidentId(isExpanded ? null : incident.id)
+                                }
+                                className="text-[11px] font-medium text-stone-600 hover:text-stone-900 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-stone-100 hover:bg-stone-200 transition cursor-pointer"
+                              >
+                                <span>{isExpanded ? "Hide Details" : "Inspect"}</span>
+                                {isExpanded ? (
+                                  <ChevronUp className="w-3 h-3" />
+                                ) : (
+                                  <ChevronDown className="w-3 h-3" />
+                                )}
+                              </button>
+                            )}
+                            {Boolean(incident.metadata?.orderId) && !incident.resolved && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const orderId = String(incident.metadata?.orderId);
+                                  const found = metrics?.recentOrders.find(
+                                    (o) => o.id === orderId
+                                  );
+                                  if (found) {
+                                    setAddressRetryOrder(found);
+                                    setAddressRetryIncidentId(incident.id);
+                                  } else {
+                                    fetch(
+                                      `/api/admin/order-proof?orderId=${encodeURIComponent(
+                                        orderId
+                                      )}`
+                                    )
+                                      .then((r) => r.json())
+                                      .then((d) => {
+                                        if (d.order) {
+                                          setAddressRetryOrder(d.order);
+                                          setAddressRetryIncidentId(incident.id);
+                                        }
+                                      });
+                                  }
+                                }}
+                                className="text-[11px] font-medium text-amber-900 hover:text-amber-950 bg-amber-50 hover:bg-amber-100 border border-amber-300 px-2.5 py-1 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <MapPin className="w-3 h-3 text-amber-600" />
+                                <span>Fix Address</span>
+                              </button>
+                            )}
+                            {!incident.resolved && (
+                              <button
+                                type="button"
+                                onClick={() => handleResolveIncident(incident.id)}
+                                className="text-[11px] font-semibold text-emerald-800 hover:text-emerald-950 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 px-2.5 py-1 rounded-lg transition cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <Check className="w-3 h-3 text-emerald-600" />
+                                <span>Mark Resolved</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
+                        <p className="font-semibold text-xs text-stone-800 mt-2">
+                          {incident.summary}
+                        </p>
+
+                        {incident.resolutionNote && (
+                          <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-emerald-800 bg-emerald-50/80 border border-emerald-200/80 px-2.5 py-1 rounded-lg">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>{incident.resolutionNote}</span>
+                          </div>
+                        )}
+
+                        {isExpanded && incident.technicalDetails && (
+                          <div className="mt-3 p-3 bg-stone-900 text-stone-100 rounded-xl font-mono text-[11px] overflow-x-auto whitespace-pre-wrap max-h-64 shadow-inner">
+                            {incident.technicalDetails}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </main>
 
       {/* ===================== STUDIO & OPERATOR MODALS ===================== */}
@@ -1758,8 +2280,15 @@ export default function AdminDashboardPage() {
       {addressRetryOrder && (
         <AddressRetryModal
           order={addressRetryOrder}
-          onClose={() => setAddressRetryOrder(null)}
-          onSuccess={() => fetchMetrics()}
+          incidentId={addressRetryIncidentId}
+          onClose={() => {
+            setAddressRetryOrder(null);
+            setAddressRetryIncidentId(null);
+          }}
+          onSuccess={() => {
+            fetchMetrics();
+            fetchIncidents();
+          }}
         />
       )}
 
