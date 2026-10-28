@@ -739,18 +739,10 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     allOrdersList.push(doc.data() as Order);
   });
 
-  const filteredOrders = allOrdersList.filter((o) => {
+  const operationalOrders = allOrdersList.filter((o) => {
     const orderCreatedAt = o.createdAt || 0;
     if (dateRange !== "all") {
       if (orderCreatedAt < fromTime || orderCreatedAt > toTime) {
-        return false;
-      }
-    }
-
-    if (excludeFounder) {
-      if (isExcludedOrderCohort(o)) return false;
-      if (o.sessionId && founderSessionIds.has(o.sessionId)) return false;
-      if (o.customerEmail && (o.customerEmail.toLowerCase().includes("founder") || o.customerEmail.toLowerCase().includes("zeke"))) {
         return false;
       }
     }
@@ -762,6 +754,18 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     const fbclid = o.attribution?.fbclid;
     if (!matchesChannelFilter(channel, utmSrc, utmMed, utmCamp, gclid, fbclid)) {
       return false;
+    }
+
+    return true;
+  });
+
+  const filteredOrders = operationalOrders.filter((o) => {
+    if (excludeFounder) {
+      if (isExcludedOrderCohort(o)) return false;
+      if (o.sessionId && founderSessionIds.has(o.sessionId)) return false;
+      if (o.customerEmail && (o.customerEmail.toLowerCase().includes("founder") || o.customerEmail.toLowerCase().includes("zeke"))) {
+        return false;
+      }
     }
 
     return true;
@@ -1435,7 +1439,7 @@ export async function getAdminDashboardMetrics(options?: AdminDashboardFilterOpt
     recentSessions: recentSessionsList,
   };
 
-  const recentOrdersList = [...filteredOrders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 50);
+  const recentOrdersList = [...operationalOrders].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)).slice(0, 50);
 
   return {
     totalRevenueCents,

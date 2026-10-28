@@ -6,10 +6,12 @@ import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { logIncident } from "@/lib/incident-logger";
 import { buildPurchaseMeasurement, persistPurchaseMeasurement, projectPurchaseMeasurementForOrder, validateVerifiedCapture } from "@/lib/purchase-measurement";
 import { effectiveOrderEmail } from "@/lib/checkout-contact";
+import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/receipt-email-delivery";
+import { sendDeferredAddressReceiptEmail, sendOrderPenningReceiptEmail } from "@/lib/email/transactional";
 
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, paymentIntentId, customerEmail } = await req.json();
+    const { orderId, paymentIntentId, customerEmail, verifyOnly } = await req.json();
 
     if (!orderId) {
       return NextResponse.json({ error: "Missing required orderId parameter" }, { status: 400 });
@@ -189,24 +191,62 @@ export async function POST(req: NextRequest) {
 
     purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
 
+    if (verifyOnly === true) {
+      return NextResponse.json({
+        success: true,
+        status: "PAYMENT_RECEIVED",
+        orderId,
+        viewToken: order.viewToken,
+        purchaseMeasurement,
+      });
+    }
+
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
       undefined;
     const userAgent = req.headers.get("user-agent") || undefined;
+    const resolvedEmail = effectiveOrderEmail(order, customerEmail || customerEmailFromStripe);
 
     // Process and fulfill the verified paid order (atomic locking handled in order-processor)
     const result = await processPaidOrder(
       orderId,
       verifiedPaymentIntentId,
-      effectiveOrderEmail(order, customerEmail || customerEmailFromStripe),
+      resolvedEmail,
       { clientIp, userAgent, isTest, paymentMode }
     );
+
+    if (result.success && resolvedEmail) {
+      try {
+        const claim = await claimReceiptEmailDelivery(orderId);
+        if (claim) {
+          const isAddressDeferred = Boolean(
+            claim.addressDeferred ||
+            (claim as any).address_deferred ||
+            claim.status === "AWAITING_RECIPIENT_ADDRESS"
+          );
+          try {
+            if (isAddressDeferred) {
+              await sendDeferredAddressReceiptEmail({ order: claim, customerEmail: resolvedEmail });
+            } else {
+              await sendOrderPenningReceiptEmail({ order: claim, customerEmail: resolvedEmail });
+            }
+            await finishReceiptEmailDelivery(orderId, isAddressDeferred);
+          } catch (sendErr: unknown) {
+            const sendMsg = sendErr instanceof Error ? sendErr.message : String(sendErr);
+            await finishReceiptEmailDelivery(orderId, isAddressDeferred, sendMsg);
+          }
+        }
+      } catch (emailErr) {
+        console.warn("[Confirm Order] Receipt email dispatch check failed:", emailErr);
+      }
+    }
 
     return NextResponse.json({
       success: result.success,
       status: result.status,
       orderId,
+      viewToken: order.viewToken,
       handwryttenOrderId: result.handwryttenOrderId,
       error: result.error,
       alreadyProcessed: result.alreadyProcessed,

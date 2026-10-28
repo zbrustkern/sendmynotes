@@ -325,6 +325,7 @@ function InnerPaymentForm({
               orderId,
               paymentIntentId: paymentIntent.id,
               customerEmail,
+              verifyOnly: true,
             }),
           });
           confirmData = await confirmRes.json();
@@ -335,8 +336,20 @@ function InnerPaymentForm({
             return;
           }
           if (confirmRes.ok && confirmData.success) {
+            // Fire background supplier fulfillment + receipt dispatch without blocking confirmation UI
+            void fetch("/api/checkout/confirm-order", {
+              method: "POST",
+              keepalive: true,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId,
+                paymentIntentId: paymentIntent.id,
+                customerEmail,
+              }),
+            }).catch((bgErr) => console.warn("[Checkout] Background fulfillment notice:", bgErr));
+
             setIsProcessing(false);
-            onPaymentSuccess(orderId, confirmData?.viewToken, confirmData?.status);
+            onPaymentSuccess(orderId, confirmData?.viewToken || viewToken, confirmData?.status);
             return;
           }
         } catch (confirmErr) {
@@ -543,6 +556,7 @@ function InnerPaymentForm({
               orderId,
               paymentIntentId: paymentIntent.id,
               customerEmail,
+              verifyOnly: true,
             }),
           });
           confirmData = await confirmRes.json();
@@ -553,8 +567,20 @@ function InnerPaymentForm({
             return;
           }
           if (confirmRes.ok && confirmData.success) {
+            // Fire background supplier fulfillment + receipt dispatch without blocking confirmation UI
+            void fetch("/api/checkout/confirm-order", {
+              method: "POST",
+              keepalive: true,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                orderId,
+                paymentIntentId: paymentIntent.id,
+                customerEmail,
+              }),
+            }).catch((bgErr) => console.warn("[Checkout] Background fulfillment notice:", bgErr));
+
             setIsProcessing(false);
-            onPaymentSuccess(orderId, confirmData?.viewToken, confirmData?.status);
+            onPaymentSuccess(orderId, confirmData?.viewToken || viewToken, confirmData?.status);
             return;
           }
         } catch (confirmErr) {
