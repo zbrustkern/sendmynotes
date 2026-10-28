@@ -159,12 +159,15 @@ export default function AdminDashboardPage() {
     }
   };
 
-  const fetchMetrics = async () => {
+  const [excludeFounder, setExcludeFounder] = useState(false);
+
+  const fetchMetrics = async (overrideExcludeFounder?: boolean) => {
     setLoading(true);
     try {
+      const shouldExclude = overrideExcludeFounder !== undefined ? overrideExcludeFounder : excludeFounder;
       const params = new URLSearchParams();
       params.set("dateRange", "oct13");
-      params.set("excludeFounder", "true");
+      params.set("excludeFounder", shouldExclude ? "true" : "false");
 
       const res = await fetch(`/api/admin/metrics?${params.toString()}`);
       if (res.status === 401) {
@@ -842,19 +845,6 @@ export default function AdminDashboardPage() {
               </div>
             )}
 
-            {/* CANONICAL BASELINE DISCLOSURE BANNER */}
-            <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-50 border border-amber-200 flex items-start gap-3 text-amber-900 text-xs">
-              <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-              <div className="space-y-0.5">
-                <p className="font-semibold text-amber-950">
-                  Canonical Baseline Notice (Oct 11, 2026)
-                </p>
-                <p className="text-amber-800 leading-relaxed">
-                  Canonical baseline (Oct 11, 2026): 0 independent customer conversions (1 founder test). Any un-reconciled historical paid record requires verification against Stripe and founder test records before counting as independent customer demand.
-                </p>
-              </div>
-            </div>
-
             {/* KPI METRIC CARDS */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
               <div className="bg-white p-3.5 sm:p-5 rounded-2xl border border-stone-200 shadow-2xs space-y-1">
@@ -937,6 +927,22 @@ export default function AdminDashboardPage() {
                     <option value="PENDING_PAYMENT">Pending Draft</option>
                     <option value="FAILED">Failed</option>
                   </select>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next = !excludeFounder;
+                      setExcludeFounder(next);
+                      void fetchMetrics(next);
+                    }}
+                    className={`h-8 px-2.5 rounded-lg text-xs font-medium border transition cursor-pointer whitespace-nowrap ${
+                      excludeFounder
+                        ? "bg-amber-50 border-amber-300 text-amber-900"
+                        : "bg-stone-50 border-stone-300 text-stone-600 hover:bg-stone-100"
+                    }`}
+                  >
+                    {excludeFounder ? "Founder Hidden" : "All Traffic"}
+                  </button>
 
                   <button
                     type="button"

@@ -51,10 +51,10 @@ export async function createCardPaymentIntent(params: CreateIntentParams): Promi
   const paymentIntent = await client.paymentIntents.create({
     amount: amountToCharge,
     currency: "usd",
-    receipt_email: params.customerEmail,
     metadata: {
       orderId: params.orderId,
       product: "Folded A2 greeting card, written in pen and mailed",
+      ...(params.customerEmail ? { customerEmail: params.customerEmail } : {}),
       ...(params.metadata || {}),
     },
     payment_method_types: ["card", "link"],

@@ -30,70 +30,25 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "An email is required to add the recipient address later." }, { status: 400 });
     }
 
-    // Stripe clears a prior receipt_email when the update parameter is an empty string.
-    const stripe = order.stripePaymentId && !order.stripePaymentId.startsWith("pi_mock_") ? getStripeClient() : null;
-    const updateId = crypto.randomUUID();
-    if (stripe && order.stripePaymentId) {
-      const pi = await stripe.paymentIntents.retrieve(order.stripePaymentId, {}, { timeout: 15_000 });
-      const eligibleStatus = paidRecovery ? pi.status === "succeeded" : ["requires_payment_method", "requires_confirmation"].includes(pi.status);
-      if (pi.metadata?.orderId !== orderId || !eligibleStatus) {
-        return NextResponse.json({ error: "Payment is already in progress. Your email preference could not be changed." }, { status: 409 });
-      }
-      if (paidRecovery && pi.receipt_email && pi.receipt_email.toLowerCase() !== email) {
-        return NextResponse.json({ error: "Payment was received with a different receipt address. Contact support to reconcile this order." }, { status: 409 });
-      }
-    }
-    // Claim a short update lease and expose a pending marker. Confirmation paths and
-    // webhooks fail closed until Stripe and Firestore agree on this preference.
     const savedState = await firestoreDb.runTransaction(async (transaction: any) => {
       const ref = getOrdersCollection().doc(orderId);
       const snapshot = await transaction.get(ref);
       const current = snapshot.exists ? snapshot.data() : null;
       if (!current || current.viewToken !== viewToken) throw new Error("ORDER_ACCESS_DENIED");
       if (current.status !== "PENDING_PAYMENT" && !(paidRecovery && current.status === "PAYMENT_RECEIVED" && current.fulfillmentStatus === "CONTACT_RECOVERY_REQUIRED")) throw new Error("ORDER_ALREADY_IN_PROGRESS");
-      // Stripe's per-request deadline below is 15s (with at most two SDK retries).
-      // Keep the lease longer than the maximum provider call window to prevent
-      // overlapping remote writes from racing after a stale lease is reclaimed.
-      if (current.contactEmailUpdateId && Date.now() - (current.contactEmailUpdateStartedAt || 0) < 120_000) throw new Error("CONTACT_UPDATE_IN_PROGRESS");
       transaction.update(ref, {
         customerEmail: email,
         contactEmailChoice: contactEmailChoice(email),
-        contactEmailSyncStatus: stripe && !paidRecovery ? "pending" : "synced",
-        contactEmailUpdateId: stripe && !paidRecovery ? updateId : null,
-        contactEmailUpdateStartedAt: stripe && !paidRecovery ? Date.now() : null,
+        contactEmailSyncStatus: "synced",
+        contactEmailUpdateId: null,
+        contactEmailUpdateStartedAt: null,
         updatedAt: Date.now(),
       });
       return { status: current.status, paymentIntentId: current.stripePaymentId as string | undefined };
     });
-    let completedState = savedState;
-    if (stripe && order.stripePaymentId && !paidRecovery) {
-      const updated = await stripe.paymentIntents.update(order.stripePaymentId, { receipt_email: email || "" }, { timeout: 15_000 });
-      if ((email && updated.receipt_email?.toLowerCase() !== email) || (!email && updated.receipt_email)) {
-        throw new Error("Stripe did not confirm the requested receipt email state.");
-      }
-      const verified = await stripe.paymentIntents.retrieve(order.stripePaymentId, {}, { timeout: 15_000 });
-      if ((email && verified.receipt_email?.toLowerCase() !== email) || (!email && verified.receipt_email)) {
-        throw new Error("Stripe receipt email state could not be verified.");
-      }
-      completedState = await firestoreDb.runTransaction(async (transaction: any) => {
-        const ref = getOrdersCollection().doc(orderId);
-        const snapshot = await transaction.get(ref);
-        const current = snapshot.exists ? snapshot.data() : null;
-        if (!current || current.contactEmailUpdateId !== updateId || !["PENDING_PAYMENT", "PAYMENT_RECEIVED"].includes(current.status)) throw new Error("CONTACT_UPDATE_STALE");
-        transaction.update(ref, { contactEmailSyncStatus: "synced", contactEmailUpdateId: null, contactEmailUpdateStartedAt: null, updatedAt: Date.now() });
-        return { status: current.status, paymentIntentId: current.stripePaymentId as string | undefined };
-      });
-      if (completedState.status === "PAYMENT_RECEIVED" && completedState.paymentIntentId) {
-        // A webhook may have safely held a capture while this preference synchronized.
-        // Re-enter the idempotent processor so the paid order can resume now.
-        const { processPaidOrder } = await import("@/lib/order-processor");
-        await processPaidOrder(orderId, completedState.paymentIntentId, email);
-        await sendRecoveredReceipt(orderId, email);
-      }
-    }
-    if (paidRecovery && completedState.paymentIntentId) {
+    if (paidRecovery && savedState.paymentIntentId) {
       const { processPaidOrder } = await import("@/lib/order-processor");
-      await processPaidOrder(orderId, completedState.paymentIntentId, email);
+      await processPaidOrder(orderId, savedState.paymentIntentId, email);
       await sendRecoveredReceipt(orderId, email);
     }
     return NextResponse.json({ success: true, contactEmailChoice: contactEmailChoice(email) });
