@@ -119,11 +119,11 @@ async function run() {
   // More than 500 older records must not push a selected one-row cohort out of view.
   const oldRows = Array.from({ length: 750 }, (_, index) => ({
     id: `old_${String(index).padStart(4, "0")}`,
-    data: { eventName: "inside_note_edited", sessionId: `old_session_${index}`, timestamp: started - 60_000, isFounder: false },
+    data: { eventName: "inside_note_edited", sessionId: `old_session_${index}`, timestamp: started + 20 + index, isFounder: false },
   }));
   const selectedRows = fullJourney("s_google").slice(0, 4).map((event, index) => ({
     id: `new_${index}`,
-    data: { ...event },
+    data: { ...event, timestamp: started + 2_000 + index },
   }));
   const v2Rows = [
     {
@@ -132,6 +132,8 @@ async function run() {
         event_id: "new_0",
         event_name: "entry_viewed",
         session_id: "s_google",
+        journey_id: "jny_google",
+        degraded_identity: false,
         occurred_at: started + 1_000,
         classification: { role: "customer", reason: "default" },
         properties: { utmSource: "google", utmMedium: "cpc", utmCampaign: "smn_first_sale_v1" },
@@ -143,13 +145,19 @@ async function run() {
         event_id: "v2_checkout",
         event_name: "checkout_created",
         session_id: "s_google",
+        journey_id: "jny_google",
+        order_id: "order_google",
+        degraded_identity: true,
         occurred_at: started + 5_000,
         classification: { role: "customer", reason: "default" },
         properties: { utmSource: "google", utmMedium: "cpc", utmCampaign: "smn_first_sale_v1" },
       },
     },
   ];
-  const orders = [{ id: "order_google", data: verifiedOrder("order_google", "s_google") as unknown as Record<string, unknown> }];
+  const linkedOrder = verifiedOrder("order_google", "s_google");
+  delete linkedOrder.sessionId;
+  if (linkedOrder.attribution) delete linkedOrder.attribution.sessionId;
+  const orders = [{ id: "order_google", data: linkedOrder as unknown as Record<string, unknown> }];
   const sources = await readWaterfallSources(
     scope.startUtc,
     scope.endUtc,
@@ -162,7 +170,7 @@ async function run() {
       dated_spend_ledger: [],
     })
   );
-  assert.equal(sources.telemetry.length, 5, "bounded pagination should return the selected new cohort, not oldest rows");
+  assert.equal(sources.telemetry.length, 755, "750 earlier same-day events and the selected journey survive bounded pagination beyond page 1");
   assert.equal(sources.telemetry.filter((event) => event.eventName === "entry_viewed").length, 1, "legacy and V2 records with one stable ID count once");
   assert.ok(sources.telemetry.some((event) => event.eventName === "checkout_created"), "V2-only canonical milestones are included");
   assert.equal(sources.sources.telemetry.status, "complete");
@@ -187,6 +195,11 @@ async function run() {
   assert.equal(report.kpis.conversionRatePct, 100, "only exact session + campaign match can produce conversion rate");
   assert.equal(report.coverage.unmatchedPaidOrders, 0);
   assert.equal(report.coverage.journeyDiagnostics[0]?.linkStatus, "joined");
+  assert.equal(report.coverage.journeyDiagnostics[0]?.linkSource, "telemetry_order_id", "canonical checkout order_id is an exact reconciliation key when the order lacks session_id");
+  assert.equal(report.coverage.journeyDiagnostics[0]?.journeyId, "jny_google");
+  assert.equal(report.coverage.journeyDiagnostics[0]?.degradedIdentity, true);
+  assert.equal(report.coverage.degradedIdentityEvents, 1);
+  assert.equal(report.coverage.degradedIdentitySessions, 1);
   assert.equal(report.waterfall.find((step) => step.step === "6_PAID")?.sessions, 1);
   assert.equal(report.waterfall.find((step) => step.step === "6_PAID")?.paidOrders, 1);
 
@@ -242,6 +255,86 @@ async function run() {
   assert.equal(unlinkedReport.coverage.unmatchedPaidOrders, 1);
   assert.equal(unlinkedReport.kpis.conversionRatePct, null);
   assert.equal(unlinkedReport.coverage.journeyDiagnostics[0]?.linkStatus, "missing_session_id");
+
+  const ambiguousOrder = verifiedOrder("order_ambiguous", "s_one");
+  delete ambiguousOrder.sessionId;
+  if (ambiguousOrder.attribution) delete ambiguousOrder.attribution.sessionId;
+  const ambiguousReport = aggregateWaterfallReport({
+    asOf: now,
+    scope,
+    orders: [ambiguousOrder],
+    telemetry: [
+      ...fullJourney("s_one"),
+      { sessionId: "s_one", orderId: "order_ambiguous", eventName: "checkout_created", timestamp: started + 6_000 },
+      { sessionId: "s_two", orderId: "order_ambiguous", eventName: "checkout_created", timestamp: started + 7_000 },
+    ],
+  });
+  assert.equal(ambiguousReport.coverage.journeyDiagnostics[0]?.linkStatus, "ambiguous_order_id", "one order_id observed in multiple sessions is never guessed");
+  assert.equal(ambiguousReport.coverage.unmatchedPaidOrders, 1);
+  assert.equal(ambiguousReport.kpis.conversionRatePct, null);
+
+  const mismatchOrder = verifiedOrder("order_session_conflict", "s_one");
+  const mismatchReport = aggregateWaterfallReport({
+    asOf: now,
+    scope,
+    orders: [mismatchOrder],
+    telemetry: [
+      ...fullJourney("s_one"),
+      { sessionId: "s_other", orderId: "order_session_conflict", eventName: "checkout_created", timestamp: started + 6_000 },
+    ],
+  });
+  assert.equal(mismatchReport.coverage.journeyDiagnostics[0]?.linkStatus, "order_session_mismatch", "conflicting exact keys are surfaced and never silently reconciled");
+  assert.equal(mismatchReport.coverage.unmatchedPaidOrders, 1);
+
+  const googleJourney = fullJourney("s_filter_google");
+  const directJourney = fullJourney("s_filter_direct").map((event) => ({ ...event, utmSource: "direct", utmMedium: "none", utmCampaign: undefined }));
+  const directOrder = verifiedOrder("order_filter_direct", "s_filter_direct");
+  directOrder.attribution = { sessionId: "s_filter_direct", source: "direct", medium: "none", campaign: "unknown" };
+  const filteredReport = aggregateWaterfallReport({
+    asOf: now,
+    scope: { ...scope, channel: "google" },
+    orders: [verifiedOrder("order_filter_google", "s_filter_google"), directOrder],
+    telemetry: [...googleJourney, ...directJourney],
+  });
+  assert.equal(filteredReport.scope.channel, "google");
+  assert.equal(filteredReport.kpis.uniqueSessions, 1, "the selected channel filters the conversion denominator");
+  assert.equal(filteredReport.kpis.paidCustomerOrders, 1, "the same channel filters the order KPI");
+  assert.equal(filteredReport.kpis.capturedRevenueCents, 765, "the same channel filters revenue");
+  assert.deepEqual(filteredReport.originMatrix.map((row) => row.channel), ["google"], "the same channel filters the attribution matrix");
+  assert.equal(filteredReport.waterfall.find((step) => step.step === "6_PAID")?.paidOrders, 1);
+
+  // Exact mixed founder/customer cohort proves business denominator AND numerator
+  // are owner-excluded in both dashboard audience modes.
+  const exactFounderSession = fullJourney("s_exact_founder", true);
+  const exactCustomerSessions = [fullJourney("s_exact_customer_paid"), fullJourney("s_exact_customer_abandoned")];
+  const exactFounderOrder = verifiedOrder("order_exact_founder", "s_exact_founder");
+  exactFounderOrder.isFounderTest = true;
+  const exactOrders = [verifiedOrder("order_exact_customer", "s_exact_customer_paid"), exactFounderOrder];
+  const exactTelemetry = [...exactCustomerSessions.flat(), ...exactFounderSession];
+  const exactCustomers = aggregateWaterfallReport({
+    asOf: now,
+    scope: { ...scope, audience: "customers" },
+    orders: exactOrders,
+    telemetry: exactTelemetry,
+  });
+  const exactAllTraffic = aggregateWaterfallReport({
+    asOf: now,
+    scope: { ...scope, audience: "all_traffic" },
+    orders: exactOrders,
+    telemetry: exactTelemetry,
+  });
+  for (const view of [exactCustomers, exactAllTraffic]) {
+    assert.equal(view.kpis.uniqueSessions, 2, "two customer sessions form the conversion denominator; founder session is excluded");
+    assert.equal(view.kpis.paidCustomerOrders, 1, "only the verified customer order is in the revenue numerator");
+    assert.equal(view.kpis.capturedRevenueCents, 765, "founder order value is excluded from customer revenue");
+    assert.equal(view.kpis.conversionRatePct, 50, "exact eligible paid-session numerator / customer-session denominator is 1/2");
+    assert.equal(view.waterfall.find((step) => step.step === "1_LANDING")?.sessions, 2);
+    assert.equal(view.waterfall.find((step) => step.step === "6_PAID")?.sessions, 1);
+    assert.equal(view.waterfall.find((step) => step.step === "6_PAID")?.paidOrders, 1);
+    assert.equal(view.deviceBreakdown.founderFilteredCount, 1);
+    assert.equal(view.deviceBreakdown.ownerQaSessionCount, 1);
+    assert.equal(view.kpis.excludedNonCustomerOrders, 1, "founder test order exclusion is counted explicitly");
+  }
 
   // Owner QA toggling changes only the operational QA comparison, never business metrics.
   const customerTelemetry = fullJourney("s_google");

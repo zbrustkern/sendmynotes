@@ -138,9 +138,12 @@ export interface WaterfallSourceCoverage {
 export interface WaterfallJourneyDiagnostic {
   orderId: string;
   sessionId: string | null;
+  journeyId: string | null;
   campaign: string;
   amountCents: number;
-  linkStatus: "joined" | "missing_session_id" | "session_not_observed" | "session_not_qualified" | "attribution_mismatch";
+  linkSource: "order_session_id" | "telemetry_order_id" | "unresolved";
+  degradedIdentity: boolean | null;
+  linkStatus: "joined" | "missing_session_id" | "ambiguous_order_id" | "order_session_mismatch" | "session_not_observed" | "session_not_qualified" | "attribution_mismatch";
 }
 
 export interface WaterfallCoverage {
@@ -153,6 +156,8 @@ export interface WaterfallCoverage {
   ratesAvailable: boolean;
   unmatchedPaidOrders: number;
   unknownAttributionSessions: number;
+  degradedIdentityEvents: number;
+  degradedIdentitySessions: number;
   lastActivityAt: string | null;
   journeyDiagnostics: WaterfallJourneyDiagnostic[];
   sources: {
@@ -241,6 +246,11 @@ export interface WaterfallTelemetryEventInput {
   id?: string;
   eventId?: string;
   sessionId?: string;
+  journeyId?: string;
+  orderId?: string;
+  paymentAttemptId?: string;
+  degradedIdentity?: boolean;
+  consentState?: string;
   classification?: { role?: string; reason?: string; source?: string };
   attributionObserved?: boolean;
   eventName?: string;

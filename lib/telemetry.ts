@@ -121,7 +121,7 @@ export function generateStableEventId(): string {
   return `evt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
-export type TelemetryDeliveryResult = "accepted" | "permanent_failure" | "retry_exhausted" | "queue_full";
+export type TelemetryDeliveryResult = "accepted" | "permanent_failure" | "retry_exhausted" | "queue_full" | "queue_storage_unavailable";
 
 export interface TelemetryDeliveryDependencies {
   fetcher?: typeof fetch;
@@ -135,6 +135,10 @@ const TELEMETRY_RETRY_BASE_MS = 250;
 const TELEMETRY_RETRY_MAX_MS = 2_500;
 const TELEMETRY_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
 const TELEMETRY_REQUEST_TIMEOUT_MS = 3_000;
+export const TELEMETRY_OUTBOX_SESSION_KEY = "smn_telemetry_outbox_v1";
+const TELEMETRY_OUTBOX_MAX_EVENTS = 20;
+const TELEMETRY_OUTBOX_TTL_MS = 60 * 60 * 1000;
+const TELEMETRY_OUTBOX_MAX_BYTES = 4 * 1024;
 const pendingDeliveries = new Map<string, { startedAt: number; promise: Promise<TelemetryDeliveryResult> }>();
 let lastDeliveryWarningAt = 0;
 
@@ -142,7 +146,132 @@ function reportDeliveryFailure(result: TelemetryDeliveryResult, now: number): vo
   if (result === "accepted" || now - lastDeliveryWarningAt < 60_000) return;
   lastDeliveryWarningAt = now;
   // Report only a category; never include event contents, IDs, or attribution.
-  console.warn("[Telemetry] delivery incomplete", result);
+  console.warn(result === "queue_storage_unavailable" ? "[Telemetry] refresh recovery unavailable; delivery remains in memory" : "[Telemetry] delivery incomplete", result);
+}
+
+interface PersistedTelemetryDelivery {
+  eventId: string;
+  payload: string;
+  createdAt: number;
+}
+
+function currentSessionStorage(): Storage | null {
+  if (typeof window === "undefined") return null;
+  try { return window.sessionStorage; } catch { return null; }
+}
+
+function payloadIsPersistableV2(payload: string, eventId: string): boolean {
+  try {
+    const bytes = new TextEncoder().encode(payload).byteLength;
+    if (bytes > TELEMETRY_OUTBOX_MAX_BYTES) return false;
+    const parsed = JSON.parse(payload) as Record<string, unknown>;
+    return parsed.schema_version === "v2.0" &&
+      parsed.source === "browser" &&
+      parsed.consent_state === "granted" &&
+      parsed.event_id === eventId &&
+      typeof parsed.event_name === "string" &&
+      typeof parsed.session_id === "string" &&
+      typeof parsed.route_template === "string" &&
+      Boolean(parsed.properties && typeof parsed.properties === "object" && !Array.isArray(parsed.properties));
+  } catch {
+    return false;
+  }
+}
+
+function readPersistedDeliveries(now = Date.now()): PersistedTelemetryDelivery[] {
+  const storage = currentSessionStorage();
+  if (!storage) return [];
+  try {
+    const raw = storage.getItem(TELEMETRY_OUTBOX_SESSION_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    const valid = parsed.filter((entry): entry is PersistedTelemetryDelivery => {
+      if (!entry || typeof entry !== "object") return false;
+      const candidate = entry as PersistedTelemetryDelivery;
+      return typeof candidate.eventId === "string" &&
+        typeof candidate.payload === "string" &&
+        typeof candidate.createdAt === "number" &&
+        now - candidate.createdAt <= TELEMETRY_OUTBOX_TTL_MS &&
+        now >= candidate.createdAt &&
+        payloadIsPersistableV2(candidate.payload, candidate.eventId);
+    }).slice(-TELEMETRY_OUTBOX_MAX_EVENTS);
+    if (valid.length !== parsed.length) {
+      if (valid.length) storage.setItem(TELEMETRY_OUTBOX_SESSION_KEY, JSON.stringify(valid));
+      else storage.removeItem(TELEMETRY_OUTBOX_SESSION_KEY);
+    }
+    return valid;
+  } catch {
+    reportDeliveryFailure("queue_storage_unavailable", Date.now());
+    return [];
+  }
+}
+
+function writePersistedDeliveries(entries: PersistedTelemetryDelivery[]): boolean {
+  const storage = currentSessionStorage();
+  if (!storage) {
+    reportDeliveryFailure("queue_storage_unavailable", Date.now());
+    return false;
+  }
+  try {
+    if (!entries.length) storage.removeItem(TELEMETRY_OUTBOX_SESSION_KEY);
+    else storage.setItem(TELEMETRY_OUTBOX_SESSION_KEY, JSON.stringify(entries.slice(-TELEMETRY_OUTBOX_MAX_EVENTS)));
+    return true;
+  } catch {
+    reportDeliveryFailure("queue_storage_unavailable", Date.now());
+    return false;
+  }
+}
+
+function persistV2Delivery(payload: string, eventId: string): boolean {
+  if (!payloadIsPersistableV2(payload, eventId)) return false;
+  const entries = readPersistedDeliveries();
+  if (entries.some((entry) => entry.eventId === eventId)) return true;
+  entries.push({ eventId, payload, createdAt: Date.now() });
+  if (entries.length > TELEMETRY_OUTBOX_MAX_EVENTS) {
+    entries.splice(0, entries.length - TELEMETRY_OUTBOX_MAX_EVENTS);
+    reportDeliveryFailure("queue_full", Date.now());
+  }
+  return writePersistedDeliveries(entries);
+}
+
+function removePersistedDelivery(eventId: string): void {
+  const entries = readPersistedDeliveries().filter((entry) => entry.eventId !== eventId);
+  writePersistedDeliveries(entries);
+}
+
+function clearPersistedDeliveries(): void {
+  const storage = currentSessionStorage();
+  if (!storage) return;
+  try { storage.removeItem(TELEMETRY_OUTBOX_SESSION_KEY); } catch {
+    reportDeliveryFailure("queue_storage_unavailable", Date.now());
+  }
+}
+
+/**
+ * Replays sanitized V2 envelopes after a refresh, but only when consent is
+ * currently granted. The tab-scoped outbox is capped at 20 events/4 KiB each
+ * and expires after one hour. Denied/GPC/not-required traffic stays memory-only.
+ */
+export async function flushPendingTelemetry(
+  consentState: ReturnType<typeof resolveConsentState> = resolveConsentState(),
+  dependencies: TelemetryDeliveryDependencies = {}
+): Promise<void> {
+  if (consentState !== "granted") {
+    clearPersistedDeliveries();
+    return;
+  }
+
+  const attempted = new Set<string>();
+  while (true) {
+    const batch = readPersistedDeliveries().filter((entry) => !attempted.has(entry.eventId));
+    if (!batch.length) return;
+    await Promise.all(batch.map(async (entry) => {
+      attempted.add(entry.eventId);
+      const result = await dispatchTelemetryPayload(entry.payload, entry.eventId, dependencies);
+      if (result === "accepted" || result === "permanent_failure") removePersistedDelivery(entry.eventId);
+    }));
+  }
 }
 
 function retryDelayMs(response: Response | undefined, retryIndex: number, now: number): number {
@@ -212,8 +341,8 @@ export async function postTelemetryWithRetry(
 
 /**
  * Coalesce concurrent sends for the same event and bound in-memory pending
- * requests. This queue is intentionally memory-only and never persists visitor
- * payloads into browser storage.
+ * requests. Refresh recovery is handled separately by the consent-gated,
+ * bounded V2 sessionStorage outbox above; legacy traffic remains memory-only.
  */
 export function dispatchTelemetryPayload(
   payload: string,
@@ -313,7 +442,12 @@ export async function trackEventV2(
 
     // Fetch for an explicit collector ACK; sendBeacon only reports that a
     // request was queued, not that the server accepted or persisted it.
-    void dispatchTelemetryPayload(payload, eventId);
+    if (!persistV2Delivery(payload, eventId)) {
+      void flushPendingTelemetry(consentState);
+      void dispatchTelemetryPayload(payload, eventId);
+    } else {
+      void flushPendingTelemetry(consentState);
+    }
 
     // Consent enforcement: if consent is denied or gpc_restricted, NEVER call window.gtag!
     if (consentState !== "denied" && consentState !== "gpc_restricted") {
@@ -411,6 +545,7 @@ export async function trackEvent(
       ...(googleClientId ? { googleClientId } : {}),
     };
 
+    void flushPendingTelemetry(consentState);
     void dispatchTelemetryPayload(JSON.stringify(payload), eventId);
 
     // Forward to GA4 / gtag if active and consent is NOT denied or restricted

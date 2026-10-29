@@ -454,6 +454,9 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     campaign: string;
     originKey: string;
     sessionId?: string;
+    linkSource: "order_session_id" | "telemetry_order_id" | "unresolved";
+    ambiguousOrderId?: boolean;
+    orderSessionMismatch?: boolean;
     joinedSession: boolean;
   }> = [];
 
@@ -471,6 +474,19 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const events = sessionEvents.get(sId) ?? [];
     events.push(event);
     sessionEvents.set(sId, events);
+  }
+
+  // An order ID explicitly carried by a browser checkout milestone is a second
+  // exact join key. Use it only when it resolves to one session; never infer a
+  // join from a similar campaign, timestamp, or anonymous ID.
+  const telemetrySessionsByOrderId = new Map<string, Set<string>>();
+  for (const [sessionId, events] of sessionEvents) {
+    for (const event of events) {
+      if (!event.orderId) continue;
+      const sessions = telemetrySessionsByOrderId.get(event.orderId) ?? new Set<string>();
+      sessions.add(sessionId);
+      telemetrySessionsByOrderId.set(event.orderId, sessions);
+    }
   }
 
   const sessionAttribution = new Map<string, { source: string; medium: string; campaign: string }>();
@@ -494,7 +510,19 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     if (endMillis !== null && created >= endMillis) continue;
 
     const sidecar = sidecarByOrder.get(order.id);
-    const orderSessionId = order.sessionId || order.attribution?.sessionId;
+    const explicitOrderSessionId = order.sessionId || order.attribution?.sessionId;
+    const eventOrderSessions = telemetrySessionsByOrderId.get(order.id) ?? new Set<string>();
+    const ambiguousOrderId = !explicitOrderSessionId && eventOrderSessions.size > 1;
+    const telemetryOrderSessionId = eventOrderSessions.size === 1 ? [...eventOrderSessions][0] : undefined;
+    const orderSessionMismatch = Boolean(
+      explicitOrderSessionId && eventOrderSessions.size > 0 && !eventOrderSessions.has(explicitOrderSessionId)
+    );
+    const orderSessionId = explicitOrderSessionId || (!ambiguousOrderId ? telemetryOrderSessionId : undefined);
+    const linkSource = explicitOrderSessionId
+      ? "order_session_id" as const
+      : orderSessionId
+      ? "telemetry_order_id" as const
+      : "unresolved" as const;
     const exactSessionEvents = orderSessionId ? sessionEvents.get(orderSessionId) : undefined;
     const linkedOwnerQa = Boolean(exactSessionEvents?.some(isFounderEvent));
     const classification = linkedOwnerQa ? "founder" : classifyOrder(order, sidecar);
@@ -579,6 +607,9 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         campaign: campaignClean,
         originKey,
         sessionId: orderSessionId,
+        linkSource,
+        ...(ambiguousOrderId ? { ambiguousOrderId: true } : {}),
+        ...(orderSessionMismatch ? { orderSessionMismatch: true } : {}),
         joinedSession: Boolean(exactSessionEvents?.length),
       });
     }
@@ -798,7 +829,9 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
   const qualifiedSessions = eligibleSessions.filter((session) => session.reachedSteps.has("1_LANDING"));
   const eligibleSessionIds = new Set(qualifiedSessions.map((session) => session.sessionId));
   const sessionOriginById = new Map(qualifiedSessions.map((session) => [session.sessionId, session.originKey]));
-  const orderLinkStatus = (paid: (typeof validPaidCustomerOrders)[number]): "joined" | "missing_session_id" | "session_not_observed" | "session_not_qualified" | "attribution_mismatch" => {
+  const orderLinkStatus = (paid: (typeof validPaidCustomerOrders)[number]): "joined" | "missing_session_id" | "ambiguous_order_id" | "order_session_mismatch" | "session_not_observed" | "session_not_qualified" | "attribution_mismatch" => {
+    if (paid.ambiguousOrderId) return "ambiguous_order_id";
+    if (paid.orderSessionMismatch) return "order_session_mismatch";
     if (!paid.sessionId) return "missing_session_id";
     if (!sessionEvents.has(paid.sessionId)) return "session_not_observed";
     const sessionOrigin = sessionOriginById.get(paid.sessionId);
@@ -913,13 +946,20 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     : Object.values(sources).some((source) => source.status === "partial")
     ? "partial" as const
     : "complete" as const;
-  const journeyDiagnostics = validPaidCustomerOrders.map((paid) => ({
-    orderId: paid.order.id,
-    sessionId: paid.sessionId || null,
-    campaign: paid.campaign,
-    amountCents: paid.amountCents,
-    linkStatus: orderLinkStatus(paid),
-  })).slice(0, 100);
+  const journeyDiagnostics = validPaidCustomerOrders.map((paid) => {
+    const linkedEvents = paid.sessionId ? sessionEvents.get(paid.sessionId) ?? [] : [];
+    const journeyIds = [...new Set(linkedEvents.map((event) => event.journeyId).filter((id): id is string => Boolean(id)))];
+    return {
+      orderId: paid.order.id,
+      sessionId: paid.sessionId || null,
+      journeyId: journeyIds.length === 1 ? journeyIds[0] : null,
+      campaign: paid.campaign,
+      amountCents: paid.amountCents,
+      linkSource: paid.linkSource,
+      degradedIdentity: paid.sessionId ? linkedEvents.some((event) => event.degradedIdentity === true) : null,
+      linkStatus: orderLinkStatus(paid),
+    };
+  }).slice(0, 100);
 
   for (const row of originMatrix) {
     const linkedSessions = new Set(validPaidCustomerOrders
@@ -992,6 +1032,10 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
       ratesAvailable,
       unmatchedPaidOrders,
       unknownAttributionSessions: unresolvedSessionCount,
+      degradedIdentityEvents: input.telemetry.filter((event) => event.degradedIdentity === true).length,
+      degradedIdentitySessions: new Set(input.telemetry
+        .filter((event) => event.degradedIdentity === true && event.sessionId)
+        .map((event) => event.sessionId!)).size,
       lastActivityAt: input.telemetry.reduce<string | null>((latest, event) => {
         const ts = timestampMillis(event.timestamp ?? event.createdAt);
         return ts !== null && (!latest || ts > Date.parse(latest)) ? new Date(ts).toISOString() : latest;

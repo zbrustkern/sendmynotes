@@ -391,21 +391,23 @@ export function AdminWaterfallConsole({
               <span className="block text-xs text-stone-500 mt-0.5">Order/session links, unknown attribution, and source coverage</span>
             </span>
             <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-              report.coverage.unmatchedPaidOrders > 0 || report.coverage.status !== "complete"
+              report.coverage.unmatchedPaidOrders > 0 || report.coverage.status !== "complete" || report.coverage.degradedIdentitySessions > 0
                 ? "bg-amber-100 text-amber-900"
                 : "bg-emerald-50 text-emerald-800"
             }`}>
               {report.coverage.unmatchedPaidOrders > 0
                 ? `${report.coverage.unmatchedPaidOrders} payment links need review`
-                : report.coverage.status === "complete" ? "No integrity flags" : `${report.coverage.status} coverage`}
+                : report.coverage.status !== "complete" ? `${report.coverage.status} coverage`
+                : report.coverage.degradedIdentitySessions > 0 ? `${report.coverage.degradedIdentitySessions} degraded identity sessions`
+                : "No integrity flags"}
             </span>
           </summary>
           <div className="border-t border-stone-100 px-4 sm:px-5 py-4 space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
               <div className="rounded-xl bg-stone-50 p-3">
                 <div className="text-[11px] uppercase tracking-wide text-stone-500">Unlinked paid orders</div>
                 <div className="mt-1 text-lg font-semibold text-stone-900">{report.coverage.unmatchedPaidOrders}</div>
-                <div className="text-xs text-stone-500">Exact session and campaign match required for conversion rate</div>
+                <div className="text-xs text-stone-500">Exact order or session link; attribution mismatches keep rates unknown</div>
               </div>
               <div className="rounded-xl bg-stone-50 p-3">
                 <div className="text-[11px] uppercase tracking-wide text-stone-500">Unknown acquisition</div>
@@ -419,6 +421,11 @@ export function AdminWaterfallConsole({
                 </div>
                 <div className="text-xs text-stone-500">Report read: {formatAsOfChicago(report.asOf)}</div>
               </div>
+              <div className="rounded-xl bg-stone-50 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-stone-500">Identity quality</div>
+                <div className="mt-1 text-lg font-semibold text-stone-900">{report.coverage.degradedIdentitySessions} sessions degraded</div>
+                <div className="text-xs text-stone-500">{report.coverage.degradedIdentityEvents} events used page-memory identity</div>
+              </div>
             </div>
 
             <div className="rounded-xl border border-stone-200 overflow-hidden">
@@ -427,10 +434,13 @@ export function AdminWaterfallConsole({
                 {report.coverage.journeyDiagnostics.length === 0 ? (
                   <p className="px-3 py-4 text-sm text-stone-500">No verified customer orders in this window.</p>
                 ) : report.coverage.journeyDiagnostics.map((item) => (
-                  <div key={item.orderId} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] gap-1 sm:gap-3 px-3 py-2.5 text-xs">
+                  <div key={item.orderId} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1fr_1fr_auto_auto_auto] gap-1 sm:gap-3 px-3 py-2.5 text-xs">
                     <span className="font-mono text-stone-800 break-all">Order {item.orderId}</span>
                     <span className="font-mono text-stone-600 break-all">Session {item.sessionId || "missing"}</span>
+                    <span className="font-mono text-stone-600 break-all">Journey {item.journeyId || "unobserved"}</span>
                     <span className="text-stone-600">{item.campaign} · {formatCents(item.amountCents)}</span>
+                    <span className="text-stone-600">Link: {item.linkSource.replaceAll("_", " ")}</span>
+                    <span className={`font-semibold ${item.degradedIdentity ? "text-amber-800" : "text-stone-500"}`}>{item.degradedIdentity === null ? "identity unknown" : item.degradedIdentity ? "identity degraded" : "identity stable"}</span>
                     <span className={`font-semibold ${item.linkStatus === "joined" ? "text-emerald-800" : "text-amber-800"}`}>{item.linkStatus.replaceAll("_", " ")}</span>
                   </div>
                 ))}

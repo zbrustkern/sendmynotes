@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { NextRequest } from "next/server";
 import { POST as postTelemetry } from "../app/api/telemetry/route";
-import { dispatchTelemetryPayload, postTelemetryWithRetry, trackEventV2 } from "../lib/telemetry";
+import { dispatchTelemetryPayload, flushPendingTelemetry, postTelemetryWithRetry, TELEMETRY_OUTBOX_SESSION_KEY, trackEventV2 } from "../lib/telemetry";
 import { firestoreDb } from "../lib/firebase-admin";
 import { getTelemetrySummary } from "../lib/metrics-rollup";
 
@@ -251,6 +251,87 @@ async function testDeniedEmitterKeepsOnlyFirstPartyMilestone() {
   }
 }
 
+async function testGrantedOutboxRecoversAfterRefreshWithoutPersonalContent() {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const originalDocument = Object.getOwnPropertyDescriptor(globalThis, "document");
+  const originalNavigator = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+  const originalFetch = globalThis.fetch;
+  const values = new Map<string, string>([["smn_privacy_consent", "granted"]]);
+  const storage = {
+    getItem: (key: string) => values.get(key) || null,
+    setItem: (key: string, value: string) => { values.set(key, value); },
+    removeItem: (key: string) => { values.delete(key); },
+  };
+  const browserWindow = () => ({
+    localStorage: storage,
+    sessionStorage: storage,
+    location: { pathname: "/send" },
+    innerWidth: 390,
+    screen: { width: 390, height: 844 },
+  });
+  Object.defineProperty(globalThis, "window", { configurable: true, value: browserWindow() });
+  Object.defineProperty(globalThis, "document", { configurable: true, value: { cookie: "", referrer: "" } });
+  Object.defineProperty(globalThis, "navigator", { configurable: true, value: { userAgent: "Mozilla/5.0", globalPrivacyControl: false } });
+
+  const failedBodies: string[] = [];
+  let failures = 0;
+  globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
+    failedBodies.push(String(init?.body || ""));
+    failures++;
+    return new Response("temporarily unavailable", { status: 503, headers: { "Retry-After": "0" } });
+  }) as typeof fetch;
+
+  try {
+    await trackEventV2("entry_viewed", {
+      utmSource: "google",
+      utmCampaign: "quiet_recovery_test",
+      noteText: "MUST NEVER BE STORED",
+      recipientEmail: "private@example.invalid",
+      streetAddress: "123 Private Street",
+    });
+    for (let i = 0; failures < 3 && i < 200; i++) await new Promise((resolve) => setTimeout(resolve, 5));
+    assert.equal(failures, 3, "first-page delivery attempts remain bounded at three");
+    const stored = values.get(TELEMETRY_OUTBOX_SESSION_KEY);
+    assert.ok(stored, "granted V2 event remains in tab sessionStorage after bounded retry exhaustion");
+    const queue = JSON.parse(stored!) as Array<{ eventId: string; payload: string; createdAt: number }>;
+    assert.equal(queue.length, 1, "one logical milestone has one queued envelope");
+    const parsed = JSON.parse(queue[0].payload);
+    assert.equal(parsed.event_id, queue[0].eventId, "outbox stable ID matches the immutable envelope ID");
+    for (const forbidden of ["MUST NEVER BE STORED", "private@example.invalid", "123 Private Street"]) {
+      assert.equal(stored!.includes(forbidden), false, "outbox stores only the sanitized event contract");
+    }
+
+    // A new page runtime receives the same tab-scoped sessionStorage, modeling refresh.
+    Object.defineProperty(globalThis, "window", { configurable: true, value: browserWindow() });
+    const recoveredBodies: string[] = [];
+    await flushPendingTelemetry("granted", {
+      wait: async () => undefined,
+      fetcher: (async (_url: RequestInfo | URL, init?: RequestInit) => {
+        recoveredBodies.push(String(init?.body || ""));
+        return accepted();
+      }) as typeof fetch,
+    });
+    assert.equal(recoveredBodies.length, 1, "refresh recovery sends the one pending event once");
+    assert.equal(recoveredBodies[0], queue[0].payload, "refresh retry reuses the exact same payload and event ID");
+    assert.equal(values.has(TELEMETRY_OUTBOX_SESSION_KEY), false, "ACK removes recovered payload from sessionStorage");
+
+    // A later opt-out clears any prior queue and does not persist a new event.
+    values.set("smn_privacy_consent", "denied");
+    globalThis.fetch = (async () => accepted()) as typeof fetch;
+    await trackEventV2("entry_viewed", { utmSource: "google" });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(values.has(TELEMETRY_OUTBOX_SESSION_KEY), false, "denied-consent traffic is never persisted to the recovery queue");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete (globalThis as any).window;
+    if (originalDocument) Object.defineProperty(globalThis, "document", originalDocument);
+    else delete (globalThis as any).document;
+    if (originalNavigator) Object.defineProperty(globalThis, "navigator", originalNavigator);
+    else delete (globalThis as any).navigator;
+  }
+}
+
 async function testV2DuplicateRepairsPartialLegacyProjectionExactlyOnce() {
   const eventId = "evt_partial_projection_001";
   const sessionId = "sess_partial_projection_001";
@@ -324,6 +405,7 @@ async function main() {
   await testVersionedPayloadRequiresStableId();
   await testDeniedAndGpcStripAcquisition();
   await testDeniedEmitterKeepsOnlyFirstPartyMilestone();
+  await testGrantedOutboxRecoversAfterRefreshWithoutPersonalContent();
   await testV2DuplicateRepairsPartialLegacyProjectionExactlyOnce();
   console.log("PASS telemetry-delivery-contract: retries bounded, idempotent ACK, snake_case attribution, privacy allowlist, authority guard");
 }

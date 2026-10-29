@@ -140,7 +140,8 @@ export async function readWaterfallSources(
     const fields = [
       "eventName", "sessionId", "timestamp", "createdAt", "utmSource", "utmMedium", "utmCampaign",
       "source", "medium", "campaign", "gclid", "wbraid", "gbraid", "fbclid", "emailClickId",
-      "deviceType", "userAgent", "isBot", "isFounder", "is_founder", "metadata",
+      "deviceType", "userAgent", "isBot", "isFounder", "is_founder", "orderId", "journeyId",
+      "paymentAttemptId", "degradedIdentity", "consent_state", "metadata",
     ];
     let legacyQuery: any = db.collection("telemetry_events").select(...fields);
     if (startUtc) legacyQuery = legacyQuery.where("timestamp", ">=", Date.parse(startUtc));
@@ -149,7 +150,7 @@ export async function readWaterfallSources(
 
     const v2Fields = [
       "event_id", "event_name", "session_id", "occurred_at", "received_at", "anonymous_id",
-      "classification", "consent_state", "properties",
+      "journey_id", "order_id", "payment_attempt_id", "degraded_identity", "classification", "consent_state", "properties",
     ];
     let v2Query: any = db.collection("telemetry_events_v2").select(...v2Fields);
     if (startUtc) v2Query = v2Query.where("occurred_at", ">=", Date.parse(startUtc));
@@ -174,6 +175,11 @@ export async function readWaterfallSources(
         eventId: data.event_id,
         eventName: data.event_name,
         sessionId: data.session_id,
+        journeyId: data.journey_id,
+        orderId: data.order_id,
+        paymentAttemptId: data.payment_attempt_id,
+        degradedIdentity: data.degraded_identity === true,
+        consentState: data.consent_state,
         timestamp: data.occurred_at ?? data.received_at,
         source: propertyString(properties, "source"),
         medium: propertyString(properties, "medium"),
