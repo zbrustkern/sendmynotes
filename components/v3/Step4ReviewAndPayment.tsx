@@ -31,7 +31,8 @@ import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { evaluatePaymentSubmission } from "@/lib/payment-mode";
 import { checkoutEmailRequired, normalizeCheckoutEmail } from "@/lib/checkout-contact-policy";
-import { trackEvent, trackEventV2 } from "@/lib/telemetry";
+import { trackEventV2 as sendEventV2 } from "@/lib/telemetry";
+import { emitMilestoneOnce } from "@/lib/telemetry-milestones";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
 import { markGoogleAdsCheckoutActive, clearGoogleAdsCheckoutActive } from "@/lib/google-ads";
@@ -60,6 +61,7 @@ interface Step4ReviewAndPaymentProps {
   customerEmail: string;
   onChangeCustomerEmail: (email: string) => void;
   orderId: string;
+  draftId?: string;
   viewToken?: string | null;
   clientSecret: string | null;
   publishableKey: string | null;
@@ -92,6 +94,7 @@ interface InnerPaymentProps {
   customerEmail: string;
   onChangeCustomerEmail: (email: string) => void;
   orderId: string;
+  draftId?: string;
   viewToken?: string | null;
   isMock: boolean;
   isFree: boolean;
@@ -119,6 +122,7 @@ function InnerPaymentForm({
   customerEmail,
   onChangeCustomerEmail,
   orderId,
+  draftId,
   viewToken,
   isMock,
   isFree,
@@ -131,6 +135,15 @@ function InnerPaymentForm({
   onPaymentStateChange,
   onBack,
 }: InnerPaymentProps) {
+  const emittedPaymentFacts = React.useRef(new Set<string>());
+  const trackPaymentEvent = (eventName: string, properties: Record<string, unknown>) => {
+    const attemptId = typeof properties.attemptId === "string" ? properties.attemptId : undefined;
+    const eventOrderId = typeof properties.orderId === "string" ? properties.orderId : orderId;
+    const scope = `${draftId || "draft-unknown"}:${eventOrderId || "order-pending"}:${attemptId || eventName}`;
+    emitMilestoneOnce(emittedPaymentFacts.current, sendEventV2, eventName, properties, {
+      scope, draftId, orderId: eventOrderId, paymentAttemptId: attemptId,
+    });
+  };
   const stripe = useStripe();
   const elements = useElements();
 
@@ -228,12 +241,7 @@ function InnerPaymentForm({
     const methods = event?.availablePaymentMethods;
     const hasAny = Boolean(methods && (methods.applePay || methods.googlePay || methods.link));
     setWalletAvailable(hasAny);
-    trackEventV2("wallet_availability_observed", {
-      applePay: Boolean(methods?.applePay),
-      googlePay: Boolean(methods?.googlePay),
-      link: Boolean(methods?.link),
-    });
-    trackEvent("wallet_availability_observed", 4, {
+    trackPaymentEvent("wallet_availability_observed", {
       applePay: Boolean(methods?.applePay),
       googlePay: Boolean(methods?.googlePay),
       link: Boolean(methods?.link),
@@ -247,14 +255,10 @@ function InnerPaymentForm({
     setErrorMessage(null);
 
     const attemptId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    trackEventV2("payment_attempted", {
+    trackPaymentEvent("payment_attempted", {
       paymentMethodType: "wallet",
       attemptId,
       orderId,
-    });
-    trackEvent("payment_attempted", 4, {
-      paymentMethodType: "wallet",
-      attemptId,
     });
 
     try {
@@ -264,7 +268,7 @@ function InnerPaymentForm({
       const { error: submitError } = await elements.submit();
       if (submitError) {
         setErrorMessage(submitError.message || "Please complete all required payment details.");
-        trackEventV2("payment_failed", {
+        trackPaymentEvent("payment_failed", {
           attemptId,
           errorCategory: submitError.type || "validation_error",
           errorCode: submitError.code || "submit_error",
@@ -285,29 +289,19 @@ function InnerPaymentForm({
       if (error) {
         clearGoogleAdsCheckoutActive(orderId);
         setErrorMessage(error.message || "Wallet payment failed. Please use card below.");
-        trackEventV2("payment_failed", {
+        trackPaymentEvent("payment_failed", {
           attemptId,
           errorCategory: error.type || "wallet_error",
           errorCode: error.code || "decline",
         });
-        trackEvent("payment_failed", 4, {
-          attemptId,
-          errorCategory: error.type || "wallet_error",
-        });
         setIsProcessing(false);
       } else if (paymentIntent && paymentIntent.status === "requires_action") {
-        trackEventV2("payment_action_required", {
+        trackPaymentEvent("payment_action_required", {
           attemptId,
           actionType: paymentIntent.next_action?.type || "3ds",
         });
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
-        trackEventV2("payment_confirmation_observed", {
-          orderId,
-          amountInCents: finalPriceCents,
-          in_app_browser: false,
-          used_address_deferral: !recipient.street1?.trim(),
-        });
-        trackEvent("payment_confirmation_observed", 4, {
+        trackPaymentEvent("payment_confirmation_observed", {
           orderId,
           amountInCents: finalPriceCents,
           in_app_browser: false,
@@ -364,7 +358,7 @@ function InnerPaymentForm({
       clearGoogleAdsCheckoutActive(orderId);
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
-      trackEventV2("payment_failed", {
+      trackPaymentEvent("payment_failed", {
         attemptId,
         errorCategory: "unexpected_error",
         errorCode: "exception",
@@ -478,7 +472,7 @@ function InnerPaymentForm({
     // 3. REAL STRIPE PAYMENT CONFIRMATION
     if (!stripe || !elements) {
       setErrorMessage("Payment processor is unavailable. Please check your connection and retry.");
-      trackEventV2("payment_ui_failed", {
+      trackPaymentEvent("payment_ui_failed", {
         errorCategory: "stripe_elements_unavailable",
         errorCode: "elements_null",
       });
@@ -493,14 +487,10 @@ function InnerPaymentForm({
     }
 
     const attemptId = `att_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-    trackEventV2("payment_attempted", {
+    trackPaymentEvent("payment_attempted", {
       paymentMethodType: "card",
       attemptId,
       orderId,
-    });
-    trackEvent("payment_attempted", 4, {
-      paymentMethodType: "card",
-      attemptId,
     });
 
     try {
@@ -516,29 +506,19 @@ function InnerPaymentForm({
       if (error) {
         clearGoogleAdsCheckoutActive(orderId);
         setErrorMessage(error.message || "Payment declined. Please check your card information.");
-        trackEventV2("payment_failed", {
+        trackPaymentEvent("payment_failed", {
           attemptId,
           errorCategory: error.type || "card_error",
           errorCode: error.code || "decline",
         });
-        trackEvent("payment_failed", 4, {
-          attemptId,
-          errorCategory: error.type || "card_error",
-        });
         setIsProcessing(false);
       } else if (paymentIntent && paymentIntent.status === "requires_action") {
-        trackEventV2("payment_action_required", {
+        trackPaymentEvent("payment_action_required", {
           attemptId,
           actionType: paymentIntent.next_action?.type || "3ds",
         });
       } else if (paymentIntent && paymentIntent.status === "succeeded") {
-        trackEventV2("payment_confirmation_observed", {
-          orderId,
-          amountInCents: finalPriceCents,
-          in_app_browser: false,
-          used_address_deferral: !recipient.street1?.trim(),
-        });
-        trackEvent("payment_confirmation_observed", 4, {
+        trackPaymentEvent("payment_confirmation_observed", {
           orderId,
           amountInCents: finalPriceCents,
           in_app_browser: false,
@@ -595,7 +575,7 @@ function InnerPaymentForm({
       clearGoogleAdsCheckoutActive(orderId);
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
-      trackEventV2("payment_failed", {
+      trackPaymentEvent("payment_failed", {
         attemptId,
         errorCategory: "unexpected_error",
         errorCode: "exception",
@@ -652,8 +632,7 @@ function InnerPaymentForm({
           type="button"
           onClick={() => {
             if (actionInFlight.current || isPaymentCaptured) return;
-            trackEventV2("payment_canceled", { stage: "review_and_pay" });
-            trackEvent("payment_canceled", 4, { stage: "review_and_pay" });
+            trackPaymentEvent("payment_canceled", { stage: "review_and_pay" });
             onBack();
           }}
           className="px-2.5 py-1 text-xs text-stone-600 hover:text-stone-900 bg-white border border-stone-200 rounded-lg shadow-2xs hover:bg-stone-50 transition flex items-center gap-1 cursor-pointer shrink-0"
@@ -979,7 +958,7 @@ function InnerPaymentForm({
                     options={paymentElementOptions}
                     onReady={() => {
                       setIsPaymentElementReady(true);
-                      trackEventV2("payment_ui_ready", {
+                      trackPaymentEvent("payment_ui_ready", {
                         paymentElement: true,
                         mode: isMock ? "mock" : "stripe",
                       });
@@ -987,7 +966,7 @@ function InnerPaymentForm({
                     onLoadError={(err) => {
                       console.error("[Stripe Load Error]", err);
                       setErrorMessage(err.error?.message || "Could not load payment form.");
-                      trackEventV2("payment_ui_failed", {
+                      trackPaymentEvent("payment_ui_failed", {
                         errorCategory: "stripe_element_load_error",
                         errorCode: err.error?.code || "load_error",
                       });

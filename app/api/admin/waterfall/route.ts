@@ -61,6 +61,7 @@ export async function GET(req: NextRequest) {
       telemetryCap: WATERFALL_TELEMETRY_CAP,
       reconciliations: sources.reconciliations,
       adSpendRecords: sources.adSpendRecords,
+      sources: sources.sources,
     });
 
     return NextResponse.json(report, { status: 200, headers: PRIVATE_HEADERS });

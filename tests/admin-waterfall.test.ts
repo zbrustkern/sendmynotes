@@ -75,6 +75,12 @@ async function runAdminWaterfallTests() {
   assert.strictEqual(scopeAll.startUtc, null);
   assert.strictEqual(scopeAll.endUtc, null);
 
+  const unknownAttributionScope = normalizeWaterfallScope(
+    new URLSearchParams({ window: "last7", channel: "unknown" }),
+    fixedClock
+  );
+  assert.strictEqual(unknownAttributionScope.channel, "unknown", "Unknown attribution must be a selectable, filterable channel");
+
   // 1g. Custom Range
   const scopeCustom = normalizeWaterfallScope(
     new URLSearchParams({ window: "custom", start: "2026-10-15", end: "2026-10-20" }),
@@ -231,16 +237,19 @@ async function runAdminWaterfallTests() {
     telemetry: mixedTelemetry,
   });
 
-  // In all_traffic mode, bot is still filtered (it's a crawler), but founder is retained
+  // Owner QA is counted for diagnosis but never mixed into customer KPIs.
   assert.strictEqual(allTrafficReport.deviceBreakdown.botFilteredCount, 1, "Bot is still filtered in all_traffic");
-  assert.strictEqual(allTrafficReport.deviceBreakdown.founderFilteredCount, 0, "Founder session is retained in all_traffic");
+  assert.strictEqual(allTrafficReport.deviceBreakdown.founderFilteredCount, 1, "Founder remains excluded from the business view in all_traffic");
+  assert.strictEqual(allTrafficReport.deviceBreakdown.ownerQaSessionCount, 1, "Owner QA is visible as a separate comparison");
+  assert.strictEqual(allTrafficReport.kpis.uniqueSessions, custReport.kpis.uniqueSessions, "QA toggle must not change customer session KPI");
+  assert.strictEqual(allTrafficReport.kpis.paidCustomerOrders, custReport.kpis.paidCustomerOrders, "QA toggle must not change customer orders");
 
   console.log("   ✓ Bot and founder sessions and orders are strictly filtered in 'customers' mode");
 
   // =========================================================================
-  // 3. MONOTONIC SESSION FUNNEL CALCULATION (INCLUDING DIRECT-ENTRY 3_COMPOSE)
+  // 3. OBSERVED MILESTONES DO NOT BACKFILL MISSING EARLIER STEPS
   // =========================================================================
-  console.log("-> 3. Testing Monotonic Funnel Reach (including direct-entry note users)");
+  console.log("-> 3. Testing independent observed milestone counts");
 
   // Scenario:
   // User enters directly to Note via /?auto_select=1 (e.g. ad campaign)
@@ -293,43 +302,30 @@ async function runAdminWaterfallTests() {
   const s5 = wf.find((w) => w.step === "5_CHECKOUT")!;
   const s6 = wf.find((w) => w.step === "6_PAID")!;
 
-  // The direct entry user reached Step 4. Monotonic reach marks them for 1, 2, 3, 4!
-  // Plus sess_drop_landing reached Step 1.
-  // So:
-  // Step 1: 2 sessions
-  // Step 2: 1 session
-  // Step 3: 1 session
-  // Step 4: 1 session
-  // Step 5: 0 sessions
-  // Step 6: 0 sessions
-  assert.strictEqual(s1.sessions, 2, "Step 1 must have 2 sessions");
-  assert.strictEqual(s2.sessions, 1, "Step 2 must have 1 session (monotonic reach backfilled)");
+  // Only the explicit landing event qualifies a landing session. Note and address
+  // confirmations stay visible on the direct-entry session without fabricating a
+  // card selection or landing record.
+  assert.strictEqual(s1.sessions, 1, "Only the explicit landing event counts as a qualified entry session");
+  assert.strictEqual(s2.sessions, 0, "Missing card selection is not backfilled from later milestones");
   assert.strictEqual(s3.sessions, 1, "Step 3 must have 1 session");
   assert.strictEqual(s4.sessions, 1, "Step 4 must have 1 session");
   assert.strictEqual(s5.sessions, 0, "Step 5 must have 0 sessions");
   assert.strictEqual(s6.sessions, 0, "Step 6 must have 0 sessions");
 
-  // Monotonic step decrease check: s1 >= s2 >= s3 >= s4 >= s5 >= s6
-  assert.ok(s1.sessions >= s2.sessions, "Step 1 >= Step 2");
-  assert.ok(s2.sessions >= s3.sessions, "Step 2 >= Step 3");
-  assert.ok(s3.sessions >= s4.sessions, "Step 3 >= Step 4");
-  assert.ok(s4.sessions >= s5.sessions, "Step 4 >= Step 5");
-  assert.ok(s5.sessions >= s6.sessions, "Step 5 >= Step 6");
+  assert.ok(s3.sessions > s2.sessions, "A later observed milestone may exceed missing earlier events");
 
-  // Non-negative drop-offs check:
+  // A transition with missing earlier evidence has no derived drop-off.
   assert.strictEqual(s1.dropOffFromPrevPct, null, "Step 1 drop-off is null");
-  assert.ok(s2.dropOffFromPrevPct !== null && s2.dropOffFromPrevPct >= 0, "Step 2 drop-off is non-negative");
-  assert.strictEqual(s3.dropOffFromPrevPct, 0, "Step 3 drop-off is 0% (1 session from 1 session)");
-  assert.strictEqual(s4.dropOffFromPrevPct, 0, "Step 4 drop-off is 0% (1 session from 1 session)");
+  assert.strictEqual(s2.dropOffFromPrevPct, 100, "The observed landing-to-card transition shows an observed 100% drop");
+  assert.strictEqual(s3.dropOffFromPrevPct, null, "Step 3 transition is unknown because Step 2 has no observations");
+  assert.strictEqual(s4.dropOffFromPrevPct, 0, "Step 4 is unchanged from the one session with explicit note confirmation");
   assert.strictEqual(s5.dropOffFromPrevPct, 100, "Step 5 drop-off is 100% (0 sessions from 1 session)");
   assert.strictEqual(s6.dropOffFromPrevPct, null, "Step 6 drop-off from 0 sessions is null");
 
-  // Biggest drop flag check:
-  // Transition with largest drop is Step 4 -> Step 5 (100% drop).
-  assert.strictEqual(s5.isBiggestDrop, true, "Step 5 must be marked as biggest drop (100%)");
-  assert.strictEqual(s2.isBiggestDrop, false, "Step 2 is not biggest drop (50%)");
+  assert.strictEqual(s2.isBiggestDrop, true, "First complete 100% observed drop is highlighted");
+  assert.strictEqual(s4.isBiggestDrop, false, "Missing predecessor evidence is not highlighted as a drop");
 
-  console.log("   ✓ Direct entry sessions monotonically reach prior steps without negative drops");
+  console.log("   ✓ Later milestones do not fabricate missing earlier steps or rates");
 
   // =========================================================================
   // 4. ORIGIN / ATTRIBUTION MATRIX GROUPING
@@ -363,8 +359,10 @@ async function runAdminWaterfallTests() {
     // Direct session (no UTMs)
     {
       sessionId: "sess_direct_1",
-      eventName: "session_start",
+      eventName: "landing_viewed",
       timestamp: tsNow,
+      utmSource: "direct",
+      utmMedium: "none",
       deviceType: "desktop",
     },
   ];
@@ -417,7 +415,8 @@ async function runAdminWaterfallTests() {
   assert.strictEqual(metaRow!.campaign, "fall_special");
   assert.strictEqual(metaRow!.paidOrders, 1);
   assert.strictEqual(metaRow!.capturedRevenueCents, 900);
-  assert.strictEqual(metaRow!.conversionRatePct, 100);
+  assert.strictEqual(metaRow!.conversionRatePct, null, "Campaign similarity cannot replace the missing exact order/session link");
+  assert.strictEqual(originReport.coverage.unmatchedPaidOrders, 1);
 
   assert.strictEqual(googleRow!.source, "google");
   assert.strictEqual(googleRow!.medium, "cpc");

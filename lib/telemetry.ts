@@ -121,6 +121,125 @@ export function generateStableEventId(): string {
   return `evt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
+export type TelemetryDeliveryResult = "accepted" | "permanent_failure" | "retry_exhausted" | "queue_full";
+
+export interface TelemetryDeliveryDependencies {
+  fetcher?: typeof fetch;
+  wait?: (delayMs: number) => Promise<void>;
+  now?: () => number;
+}
+
+const TELEMETRY_MAX_ATTEMPTS = 3;
+const TELEMETRY_MAX_PENDING = 20;
+const TELEMETRY_RETRY_BASE_MS = 250;
+const TELEMETRY_RETRY_MAX_MS = 2_500;
+const TELEMETRY_PENDING_TTL_MS = 24 * 60 * 60 * 1000;
+const TELEMETRY_REQUEST_TIMEOUT_MS = 3_000;
+const pendingDeliveries = new Map<string, { startedAt: number; promise: Promise<TelemetryDeliveryResult> }>();
+let lastDeliveryWarningAt = 0;
+
+function reportDeliveryFailure(result: TelemetryDeliveryResult, now: number): void {
+  if (result === "accepted" || now - lastDeliveryWarningAt < 60_000) return;
+  lastDeliveryWarningAt = now;
+  // Report only a category; never include event contents, IDs, or attribution.
+  console.warn("[Telemetry] delivery incomplete", result);
+}
+
+function retryDelayMs(response: Response | undefined, retryIndex: number, now: number): number {
+  const retryAfter = response?.headers.get("Retry-After");
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+    const retryAt = Number.isFinite(seconds) ? now + seconds * 1000 : Date.parse(retryAfter);
+    if (Number.isFinite(retryAt)) {
+      return Math.min(TELEMETRY_RETRY_MAX_MS, Math.max(0, retryAt - now));
+    }
+  }
+  return Math.min(TELEMETRY_RETRY_MAX_MS, TELEMETRY_RETRY_BASE_MS * 2 ** retryIndex);
+}
+
+function isRetryableStatus(status: number): boolean {
+  return status === 429 || status >= 500;
+}
+
+/**
+ * Send one immutable payload with bounded retries. The same event ID and body
+ * are reused so the collector's create-if-absent write can safely ACK replays.
+ */
+export async function postTelemetryWithRetry(
+  payload: string,
+  dependencies: TelemetryDeliveryDependencies = {}
+): Promise<TelemetryDeliveryResult> {
+  const fetcher = dependencies.fetcher || fetch;
+  const wait = dependencies.wait || ((delayMs: number) => new Promise<void>((resolve) => setTimeout(resolve, delayMs)));
+  const now = dependencies.now || Date.now;
+  let response: Response | undefined;
+
+  for (let attempt = 0; attempt < TELEMETRY_MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TELEMETRY_REQUEST_TIMEOUT_MS);
+    try {
+      response = await fetcher("/api/telemetry", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: payload,
+        keepalive: true,
+        signal: controller.signal,
+      });
+
+      if (response.ok) {
+        const acknowledgement = await response.clone().json().catch(() => null);
+        if (acknowledgement?.received === true && acknowledgement?.accepted === true) {
+          return "accepted";
+        }
+        // A 2xx without an ACK is ambiguous: replay the same idempotent request.
+        response = undefined;
+      } else if (!isRetryableStatus(response.status)) {
+        return "permanent_failure";
+      }
+    } catch {
+      // Network failures are transient; the retry below uses the identical body.
+      response = undefined;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (attempt < TELEMETRY_MAX_ATTEMPTS - 1) {
+      await wait(retryDelayMs(response, attempt, now()));
+    }
+  }
+  return "retry_exhausted";
+}
+
+/**
+ * Coalesce concurrent sends for the same event and bound in-memory pending
+ * requests. This queue is intentionally memory-only and never persists visitor
+ * payloads into browser storage.
+ */
+export function dispatchTelemetryPayload(
+  payload: string,
+  eventId: string,
+  dependencies: TelemetryDeliveryDependencies = {}
+): Promise<TelemetryDeliveryResult> {
+  const now = dependencies.now || Date.now;
+  for (const [id, pending] of pendingDeliveries) {
+    if (now() - pending.startedAt > TELEMETRY_PENDING_TTL_MS) pendingDeliveries.delete(id);
+  }
+
+  const existing = pendingDeliveries.get(eventId);
+  if (existing) return existing.promise;
+  if (pendingDeliveries.size >= TELEMETRY_MAX_PENDING) {
+    reportDeliveryFailure("queue_full", now());
+    return Promise.resolve("queue_full");
+  }
+
+  const promise = postTelemetryWithRetry(payload, dependencies).finally(() => {
+    pendingDeliveries.delete(eventId);
+  });
+  pendingDeliveries.set(eventId, { startedAt: now(), promise });
+  void promise.then((result) => reportDeliveryFailure(result, now()));
+  return promise;
+}
+
 export interface TrackEventV2Options {
   experienceVersion?: string;
   eventId?: string;
@@ -150,10 +269,15 @@ export async function trackEventV2(
   try {
     const identity = getOrCreateJourneyIdentity({ draftId: options?.draftId });
     const consentState = resolveConsentState();
+    const attributionAllowed = consentState !== "denied" && consentState !== "gpc_restricted";
     const eventId = options?.eventId || generateStableEventId();
     const cleanPath = sanitizeUrlOrPath(window.location.pathname) || "/";
     const inApp = isInAppBrowser();
     const attribution = getStoredAttribution();
+    const cleanCallerProperties = sanitizeMetadata(eventName, properties || {}).sanitized;
+    const eventProperties = attributionAllowed
+      ? cleanCallerProperties
+      : {};
 
     const envelope = buildEventV2Envelope({
       event_name: eventName,
@@ -170,14 +294,16 @@ export async function trackEventV2(
       degraded_identity: identity.degradedIdentity,
       consent_state: consentState,
       properties: {
-        in_app_browser: inApp,
-        attribution_observed: true,
-        utmSource: attribution?.utmSource,
-        utmMedium: attribution?.utmMedium,
-        utmCampaign: attribution?.utmCampaign,
-        referrer: sanitizeUrlOrPath(attribution?.referrer || document.referrer),
-        device_category: getDeviceType(),
-        ...(properties || {}),
+        ...(attributionAllowed ? {
+          in_app_browser: inApp,
+          attribution_observed: true,
+          utmSource: attribution?.utmSource,
+          utmMedium: attribution?.utmMedium,
+          utmCampaign: attribution?.utmCampaign,
+          referrer: sanitizeUrlOrPath(attribution?.referrer || document.referrer),
+          device_category: getDeviceType(),
+          ...eventProperties,
+        } : eventProperties),
       },
       source: "browser",
       isFounderFlag: isFounderDevice(),
@@ -185,25 +311,9 @@ export async function trackEventV2(
 
     const payload = JSON.stringify(envelope);
 
-    // Send via sendBeacon first, fallback to fetch with keepalive using the exact same eventId
-    let sent = false;
-    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-      try {
-        const blob = new Blob([payload], { type: "application/json" });
-        sent = navigator.sendBeacon("/api/telemetry", blob);
-      } catch {
-        sent = false;
-      }
-    }
-
-    if (!sent) {
-      fetch("/api/telemetry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: payload,
-        keepalive: true,
-      }).catch(() => {});
-    }
+    // Fetch for an explicit collector ACK; sendBeacon only reports that a
+    // request was queued, not that the server accepted or persisted it.
+    void dispatchTelemetryPayload(payload, eventId);
 
     // Consent enforcement: if consent is denied or gpc_restricted, NEVER call window.gtag!
     if (consentState !== "denied" && consentState !== "gpc_restricted") {
@@ -244,11 +354,12 @@ export async function trackEvent(
 
   const identity = getOrCreateJourneyIdentity();
   const consentState = resolveConsentState();
+  const attributionAllowed = consentState !== "denied" && consentState !== "gpc_restricted";
   const eventId = generateStableEventId();
 
   try {
     const attr = getStoredAttribution();
-    const googleClientId = getGoogleClientId();
+    const googleClientId = attributionAllowed ? getGoogleClientId() : undefined;
     const deviceType = getDeviceType();
     const screenResolution = getScreenResolution();
     const inApp = isInAppBrowser();
@@ -270,51 +381,37 @@ export async function trackEvent(
       orderId,
       clientId: identity.anonymousId,
       degradedIdentity: identity.degradedIdentity,
+      consent_state: consentState,
       ...(founder ? { is_founder: true, isFounder: true } : {}),
-      metadata: {
+      metadata: attributionAllowed ? {
         in_app_browser: inApp,
         ...(founder ? { is_founder: true, isFounder: true } : {}),
-        ...(metadata || {}),
-      },
+        ...sanitizeMetadata(eventName, metadata || {}).sanitized,
+      } : {},
       timestamp: Date.now(),
       path: cleanPath,
       // Visitor acquisition attribution
-      utmSource: attr?.utmSource,
-      utmMedium: attr?.utmMedium,
-      utmCampaign: attr?.utmCampaign,
-      utmContent: attr?.utmContent,
-      utmTerm: attr?.utmTerm,
-      gclid: attr?.gclid,
-      wbraid: attr?.wbraid,
-      gbraid: attr?.gbraid,
-      fbclid: attr?.fbclid,
-      referrer: cleanReferrer,
-      landingPath: cleanLandingPath,
+      ...(attributionAllowed ? {
+        utmSource: attr?.utmSource,
+        utmMedium: attr?.utmMedium,
+        utmCampaign: attr?.utmCampaign,
+        utmContent: attr?.utmContent,
+        utmTerm: attr?.utmTerm,
+        gclid: attr?.gclid,
+        wbraid: attr?.wbraid,
+        gbraid: attr?.gbraid,
+        fbclid: attr?.fbclid,
+        referrer: cleanReferrer,
+        landingPath: cleanLandingPath,
+        googleClientIdNormalized: attr?.googleClientIdNormalized,
+        deviceType,
+        screenResolution,
+      } : {}),
       // Technology & Google Analytics identity
-      googleClientId,
-      googleClientIdNormalized: attr?.googleClientIdNormalized,
-      deviceType,
-      screenResolution,
+      ...(googleClientId ? { googleClientId } : {}),
     };
 
-    // Try sendBeacon first, fallback to fetch with keepalive
-    let sent = false;
-    if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
-      try {
-        const blob = new Blob([JSON.stringify(payload)], { type: "application/json" });
-        sent = navigator.sendBeacon("/api/telemetry", blob);
-      } catch {
-        sent = false;
-      }
-    }
-    if (!sent) {
-      fetch("/api/telemetry", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive: true,
-      }).catch(() => {});
-    }
+    void dispatchTelemetryPayload(JSON.stringify(payload), eventId);
 
     // Forward to GA4 / gtag if active and consent is NOT denied or restricted
     if (consentState !== "denied" && consentState !== "gpc_restricted") {

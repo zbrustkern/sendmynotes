@@ -31,11 +31,13 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType } from "@/lib/types";
 import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWidget";
 import { AdminMeasurementPanel } from "@/components/admin/AdminMeasurementPanel";
+import { AdminWaterfallConsole } from "@/components/admin/AdminWaterfallConsole";
 import { ProofInspectorModal } from "@/components/admin/ProofInspectorModal";
 import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
 import { StudioCompModal } from "@/components/admin/StudioCompModal";
@@ -50,7 +52,7 @@ export default function AdminDashboardPage() {
   const [authError, setAuthError] = useState("");
 
   // Navigation tab state: 4 focused views
-  const [activeTab, setActiveTab] = useState<"orders" | "measurement" | "discounts" | "incidents">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "measurement" | "telemetry" | "discounts" | "incidents">("orders");
 
   // Orders State
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
@@ -102,7 +104,7 @@ export default function AdminDashboardPage() {
   const [discountFormError, setDiscountFormError] = useState("");
   const [discountFormSuccess, setDiscountFormSuccess] = useState("");
 
-  const handleTabChange = (tab: "orders" | "measurement" | "discounts" | "incidents") => {
+  const handleTabChange = (tab: "orders" | "measurement" | "telemetry" | "discounts" | "incidents") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -535,6 +537,8 @@ export default function AdminDashboardPage() {
       const tabParam = params.get("tab") || params.get("workspace");
       if (tabParam === "measurement") {
         setActiveTab("measurement");
+      } else if (tabParam === "telemetry") {
+        setActiveTab("telemetry");
       } else if (tabParam === "discounts" || tabParam === "promotions") {
         setActiveTab("discounts");
       } else if (tabParam === "incidents" || tabParam === "reliability") {
@@ -767,6 +771,19 @@ export default function AdminDashboardPage() {
               >
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>Measurement</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange("telemetry")}
+                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                  activeTab === "telemetry"
+                    ? "border-stone-900 text-stone-900 font-semibold"
+                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span>Experiment</span>
               </button>
 
               <button
@@ -1469,6 +1486,19 @@ export default function AdminDashboardPage() {
                 setExpandedJourneyOrderId(orderId);
               }}
             />
+          </div>
+        )}
+
+        {/* ===================== TELEMETRY EXPERIMENT OVERVIEW ===================== */}
+        {activeTab === "telemetry" && (
+          <div className="space-y-6">
+            <div className="pb-2 border-b border-stone-200">
+              <h2 className="text-lg font-serif font-bold text-stone-900">Experiment overview &amp; journey</h2>
+              <p className="mt-1 text-xs text-stone-500">
+                Observed session milestones, exact order links, attribution coverage, and source freshness. Verified payment evidence remains in Measurement.
+              </p>
+            </div>
+            <AdminWaterfallConsole initialWindow="last7" initialChannel="all" initialAudience="customers" />
           </div>
         )}
 

@@ -50,8 +50,19 @@ function formatCents(cents: number | null | undefined): string {
 }
 
 function formatRate(rate: number | null | undefined): string {
-  if (rate === null || rate === undefined) return "0.0%";
+  if (rate === null || rate === undefined) return "Unknown";
   return `${rate.toFixed(1)}%`;
+}
+
+function formatObservedCount(value: number | undefined, status: "complete" | "partial" | "unavailable" | undefined): string {
+  if (value === undefined || status === "unavailable") return "Unavailable";
+  return status === "partial" ? `≥${value.toLocaleString("en-US")}` : value.toLocaleString("en-US");
+}
+
+function formatObservedMoney(value: number | undefined, status: "complete" | "partial" | "unavailable" | undefined): string {
+  if (value === undefined || status === "unavailable") return "Unavailable";
+  const money = formatCents(value);
+  return status === "partial" ? `≥ ${money}` : money;
 }
 
 function formatAsOfChicago(asOfIso?: string): string {
@@ -86,6 +97,7 @@ const CHANNEL_LABELS: Record<WaterfallChannel, string> = {
   meta: "Meta (Facebook / IG)",
   google: "Google Ads (CPC)",
   direct: "Direct Traffic",
+  unknown: "Unknown Attribution",
   organic: "Organic Search",
   email: "Email Marketing",
   referral: "Referral / Affiliate",
@@ -248,8 +260,8 @@ export function AdminWaterfallConsole({
               </div>
             </div>
 
-            {/* Audience Segmented Toggle */}
-            <div className="inline-flex rounded-xl p-0.5 bg-stone-100 border border-stone-200" role="radiogroup" aria-label="Audience Filter">
+            {/* Owner QA is a diagnostic comparison only; business KPIs stay customer-only. */}
+            <div className="inline-flex rounded-xl p-0.5 bg-stone-100 border border-stone-200" role="radiogroup" aria-label="Owner QA comparison">
               <button
                 type="button"
                 onClick={() => handleAudienceToggle("customers")}
@@ -260,9 +272,9 @@ export function AdminWaterfallConsole({
                     ? "bg-white text-stone-900 shadow-2xs"
                     : "text-stone-600 hover:text-stone-900"
                 }`}
-                title="Filters out crawler bots and identified founder sessions"
+                title="Business view excludes identified owner and staff QA"
               >
-                Customer Traffic
+                Customer results
               </button>
               <button
                 type="button"
@@ -274,9 +286,9 @@ export function AdminWaterfallConsole({
                     ? "bg-white text-stone-900 shadow-2xs"
                     : "text-stone-600 hover:text-stone-900"
                 }`}
-                title="Includes founder test activity alongside customer traffic"
+                title="Show owner/staff QA separately without changing customer results"
               >
-                All Traffic
+                Owner QA
               </button>
             </div>
 
@@ -341,8 +353,8 @@ export function AdminWaterfallConsole({
             {device && (
               <>
                 <span className="px-2 py-0.5 rounded-full bg-stone-100 text-stone-700 font-sans font-medium">
-                  Filtered: <strong className="font-mono text-stone-900">{device.botFilteredCount}</strong> bots ·{" "}
-                  <strong className="font-mono text-stone-900">{device.founderFilteredCount}</strong> founder
+                  Excluded: <strong className="font-mono text-stone-900">{device.botFilteredCount}</strong> bots ·{" "}
+                  <strong className="font-mono text-stone-900">{device.ownerQaSessionCount}</strong> owner QA
                 </span>
                 <span className="text-stone-400 hidden sm:inline">|</span>
                 <span className="text-stone-500 hidden sm:inline">
@@ -350,14 +362,93 @@ export function AdminWaterfallConsole({
                 </span>
               </>
             )}
-            {report?.coverage?.truncated && (
-              <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 font-sans font-bold">
-                Bounded (2,000 cap reached)
+            {report?.coverage && (
+              <span className={`px-2 py-0.5 rounded-full font-sans font-semibold ${
+                report.coverage.status === "complete"
+                  ? "bg-emerald-50 text-emerald-800"
+                  : report.coverage.status === "partial"
+                  ? "bg-amber-100 text-amber-900"
+                  : "bg-rose-100 text-rose-900"
+              }`}>
+                {report.coverage.status === "complete" ? "Complete read" : report.coverage.status === "partial" ? "Partial read · rates hidden" : "Source unavailable"}
               </span>
             )}
           </div>
         </div>
       </div>
+
+      {audienceState === "all_traffic" && report?.deviceBreakdown && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 px-4 py-3 text-sm text-amber-950" data-testid="owner-qa-comparison">
+          <strong>Owner/staff QA comparison:</strong> {report.deviceBreakdown.ownerQaSessionCount} identified QA sessions are available for review. Customer orders, sessions, revenue, and rates above remain unchanged.
+        </div>
+      )}
+
+      {report?.coverage && (
+        <details className="bg-white rounded-2xl border border-stone-200/90 shadow-2xs" data-testid="journey-diagnostics">
+          <summary className="cursor-pointer list-none px-4 sm:px-5 py-4 flex items-center justify-between gap-3">
+            <span>
+              <span className="block text-sm font-semibold text-stone-900">Journey & measurement diagnostics</span>
+              <span className="block text-xs text-stone-500 mt-0.5">Order/session links, unknown attribution, and source coverage</span>
+            </span>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+              report.coverage.unmatchedPaidOrders > 0 || report.coverage.status !== "complete"
+                ? "bg-amber-100 text-amber-900"
+                : "bg-emerald-50 text-emerald-800"
+            }`}>
+              {report.coverage.unmatchedPaidOrders > 0
+                ? `${report.coverage.unmatchedPaidOrders} payment links need review`
+                : report.coverage.status === "complete" ? "No integrity flags" : `${report.coverage.status} coverage`}
+            </span>
+          </summary>
+          <div className="border-t border-stone-100 px-4 sm:px-5 py-4 space-y-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="rounded-xl bg-stone-50 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-stone-500">Unlinked paid orders</div>
+                <div className="mt-1 text-lg font-semibold text-stone-900">{report.coverage.unmatchedPaidOrders}</div>
+                <div className="text-xs text-stone-500">Exact session and campaign match required for conversion rate</div>
+              </div>
+              <div className="rounded-xl bg-stone-50 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-stone-500">Unknown acquisition</div>
+                <div className="mt-1 text-lg font-semibold text-stone-900">{report.coverage.unknownAttributionSessions} sessions</div>
+                <div className="text-xs text-stone-500">Kept separate from direct traffic</div>
+              </div>
+              <div className="rounded-xl bg-stone-50 p-3">
+                <div className="text-[11px] uppercase tracking-wide text-stone-500">Latest observed event</div>
+                <div className="mt-1 text-sm font-semibold text-stone-900">
+                  {report.coverage.lastActivityAt ? formatAsOfChicago(report.coverage.lastActivityAt) : "No event in window"}
+                </div>
+                <div className="text-xs text-stone-500">Report read: {formatAsOfChicago(report.asOf)}</div>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-stone-200 overflow-hidden">
+              <div className="px-3 py-2 bg-[#FAF8F5] text-xs font-semibold text-stone-700">Paid order reconciliation · identifiers only</div>
+              <div className="divide-y divide-stone-100">
+                {report.coverage.journeyDiagnostics.length === 0 ? (
+                  <p className="px-3 py-4 text-sm text-stone-500">No verified customer orders in this window.</p>
+                ) : report.coverage.journeyDiagnostics.map((item) => (
+                  <div key={item.orderId} className="grid grid-cols-1 sm:grid-cols-[1fr_1fr_1fr_auto] gap-1 sm:gap-3 px-3 py-2.5 text-xs">
+                    <span className="font-mono text-stone-800 break-all">Order {item.orderId}</span>
+                    <span className="font-mono text-stone-600 break-all">Session {item.sessionId || "missing"}</span>
+                    <span className="text-stone-600">{item.campaign} · {formatCents(item.amountCents)}</span>
+                    <span className={`font-semibold ${item.linkStatus === "joined" ? "text-emerald-800" : "text-amber-800"}`}>{item.linkStatus.replaceAll("_", " ")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              {Object.entries(report.coverage.sources).map(([name, source]) => (
+                <div key={name} className="rounded-lg bg-stone-50 px-3 py-2 text-stone-600">
+                  <div className="capitalize font-semibold text-stone-800">{name}</div>
+                  <div>{source.status} · {source.recordsRead}/{source.maxRecords} read</div>
+                  {source.error && <div className="text-amber-800">{source.error}</div>}
+                </div>
+              ))}
+            </div>
+          </div>
+        </details>
+      )}
 
       {/* ERROR BANNER */}
       {error && (
@@ -384,10 +475,10 @@ export function AdminWaterfallConsole({
           </div>
           <div className="my-2">
             <div className="text-2xl sm:text-3xl font-serif font-bold text-stone-900 tracking-tight">
-              {formatCents(kpis?.netRevenueCents)}
+              {formatObservedMoney(kpis?.netRevenueCents, report?.coverage?.sources.orders.status)}
             </div>
             <div className="text-xs text-stone-500 mt-0.5 truncate">
-              Gross: {formatCents(kpis?.capturedRevenueCents)}
+              Gross: {formatObservedMoney(kpis?.capturedRevenueCents, report?.coverage?.sources.orders.status)}
               {kpis && kpis.refundedCents > 0 && (
                 <span className="text-rose-600 ml-1">(-{formatCents(kpis.refundedCents)})</span>
               )}
@@ -408,15 +499,15 @@ export function AdminWaterfallConsole({
           </div>
           <div className="my-2">
             <div className="text-2xl sm:text-3xl font-serif font-bold text-stone-900 tracking-tight">
-              {kpis?.paidCustomerOrders ?? 0}{" "}
+              {formatObservedCount(kpis?.paidCustomerOrders, report?.coverage?.sources.orders.status)}{" "}
               <span className="text-xs font-sans font-medium text-stone-500">paid</span>
             </div>
             <div className="text-xs text-stone-500 mt-0.5 truncate">
-              {kpis?.excludedNonCustomerOrders ?? 0} excluded (founder/comp)
+              {kpis?.excludedNonCustomerOrders ?? 0} founder/test/comp orders excluded
             </div>
           </div>
           <div className="text-[11px] text-stone-400 pt-2 border-t border-stone-100">
-            Oct 11 Baseline: 0 Indep.
+            Verified customer orders only
           </div>
         </div>
 
@@ -433,11 +524,11 @@ export function AdminWaterfallConsole({
               {formatRate(kpis?.conversionRatePct)}
             </div>
             <div className="text-xs text-stone-500 mt-0.5 truncate">
-              {kpis?.paidCustomerOrders ?? 0} orders / {kpis?.uniqueSessions ?? 0} sessions
+              {formatObservedCount(kpis?.paidCustomerOrders, report?.coverage?.sources.orders.status)} orders / {formatObservedCount(kpis?.uniqueSessions, report?.coverage?.sources.telemetry.status)} qualified sessions
             </div>
           </div>
           <div className="text-[11px] text-stone-400 pt-2 border-t border-stone-100">
-            Unique human sessions
+            Observed entry sessions only
           </div>
         </div>
 
@@ -474,8 +565,8 @@ export function AdminWaterfallConsole({
           <div className="my-2">
             <div className="text-2xl sm:text-3xl font-serif font-bold text-stone-900 tracking-tight">
               {kpis?.recordedAdSpendCents !== null && kpis?.recordedAdSpendCents !== undefined
-                ? formatCents(kpis.recordedAdSpendCents)
-                : "Not logged"}
+                ? formatObservedMoney(kpis.recordedAdSpendCents, report?.coverage?.sources.adSpend.status)
+                : report?.coverage?.sources.adSpend.status === "unavailable" ? "Unavailable" : "Not logged"}
             </div>
             <div className="text-xs text-stone-500 mt-0.5 truncate">
               {kpis?.cpaCents !== null && kpis?.cpaCents !== undefined
@@ -498,15 +589,15 @@ export function AdminWaterfallConsole({
             <h3 className="text-base font-semibold text-stone-900 flex items-center gap-2">
               <span>6-Step Conversion Waterfall & Funnel</span>
               <span className="text-xs px-2 py-0.5 rounded-full bg-stone-100 text-stone-600 font-normal">
-                Monotonic Reach
+                Observed milestones
               </span>
             </h3>
             <p className="text-xs text-stone-500">
-              Guarantees non-negative conversion transitions even when direct entry or ad links jump straight to composing.
+              Each count is a distinct session with that explicit milestone. Missing earlier steps are left unknown, never filled in.
             </p>
           </div>
           <div className="text-xs text-stone-400">
-            Landed cohort: <strong className="text-stone-800">{kpis?.uniqueSessions ?? 0}</strong> unique sessions
+            Qualified observed sessions: <strong className="text-stone-800">{formatObservedCount(kpis?.uniqueSessions, report?.coverage?.sources.telemetry.status)}</strong>
           </div>
         </div>
 
@@ -515,7 +606,7 @@ export function AdminWaterfallConsole({
           {waterfall.map((step, idx) => {
             const isLanded = idx === 0;
             const isPaid = idx === waterfall.length - 1;
-            const barWidth = Math.max(2, Math.min(100, step.pctOfLanded));
+            const barWidth = Math.max(2, Math.min(100, step.pctOfLanded ?? 0));
 
             return (
               <div
@@ -537,7 +628,7 @@ export function AdminWaterfallConsole({
                         {step.label}
                       </span>
                       <span className="text-xs text-stone-400 font-mono ml-2">
-                        ({step.rawEvents} raw events)
+                        {step.step === "6_PAID" && <span className="text-xs text-stone-500 ml-2">· {formatObservedCount(step.paidOrders, report?.coverage?.sources.orders.status)} orders</span>}
                       </span>
                     </div>
                   </div>
@@ -545,9 +636,9 @@ export function AdminWaterfallConsole({
                   {/* Drop-off & Sessions stats */}
                   <div className="flex items-center gap-3 text-xs">
                     {step.isBiggestDrop && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300 animate-pulse">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-800 border border-rose-300">
                         <Flame className="w-3.5 h-3.5 text-rose-600" />
-                        BIGGEST LEAK (-{step.dropOffFromPrevPct}%)
+                        Largest observed drop ({step.dropOffFromPrevPct}%)
                       </span>
                     )}
 
@@ -559,10 +650,12 @@ export function AdminWaterfallConsole({
 
                     <div className="text-right">
                       <strong className="text-sm font-bold text-stone-900 font-mono">
-                        {step.sessions}
+                        {step.step === "6_PAID"
+                          ? formatObservedCount(step.sessions, report?.coverage?.sources.orders.status)
+                          : formatObservedCount(step.sessions, report?.coverage?.sources.telemetry.status)}
                       </strong>{" "}
                       <span className="text-stone-500 text-xs">sessions</span>{" "}
-                      <span className="text-stone-400 font-mono">({step.pctOfLanded}%)</span>
+                      <span className="text-stone-400 font-mono">({formatRate(step.pctOfLanded)})</span>
                     </div>
                   </div>
                 </div>
@@ -577,9 +670,9 @@ export function AdminWaterfallConsole({
                         ? "bg-rose-500"
                         : "bg-amber-700"
                     }`}
-                    style={{ width: `${barWidth}%` }}
+                    style={{ width: `${step.pctOfLanded === null ? 0 : barWidth}%` }}
                     role="progressbar"
-                    aria-valuenow={step.pctOfLanded}
+                    aria-valuenow={step.pctOfLanded ?? undefined}
                     aria-valuemin={0}
                     aria-valuemax={100}
                     aria-label={`${step.label} conversion reach`}
@@ -590,6 +683,18 @@ export function AdminWaterfallConsole({
           })}
         </div>
       </div>
+
+      <details className="rounded-xl border border-stone-200 bg-stone-50/70 px-4 py-3 text-xs text-stone-600">
+        <summary className="cursor-pointer font-semibold text-stone-700">Raw event totals (diagnostic only)</summary>
+        <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+          {waterfall.map((step) => (
+            <div key={step.step} className="rounded-lg bg-white px-3 py-2 border border-stone-100">
+              <span className="text-stone-500">{step.label}</span>
+              <strong className="block text-stone-800">{step.rawEvents} raw records</strong>
+            </div>
+          ))}
+        </div>
+      </details>
 
       {/* =========================================================================
           TIER 3: ORIGIN & ATTRIBUTION WATERFALL MATRIX

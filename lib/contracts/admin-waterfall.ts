@@ -59,6 +59,7 @@ export type WaterfallChannel =
   | "meta"
   | "google"
   | "direct"
+  | "unknown"
   | "organic"
   | "email"
   | "referral";
@@ -68,6 +69,7 @@ export const WATERFALL_CHANNELS: WaterfallChannel[] = [
   "meta",
   "google",
   "direct",
+  "unknown",
   "organic",
   "email",
   "referral",
@@ -92,9 +94,11 @@ export interface WaterfallStepMetric {
   label: string;
   sessions: number;
   rawEvents: number;
-  pctOfLanded: number;
+  pctOfLanded: number | null;
   dropOffFromPrevPct: number | null;
   isBiggestDrop: boolean;
+  /** Verified paid orders are separate from observed unique sessions. */
+  paidOrders?: number;
 }
 
 export interface WaterfallOriginRow {
@@ -109,7 +113,7 @@ export interface WaterfallOriginRow {
   address: number;
   checkout: number;
   paidOrders: number;
-  conversionRatePct: number;
+  conversionRatePct: number | null;
   capturedRevenueCents: number;
 }
 
@@ -119,6 +123,24 @@ export interface WaterfallDeviceBreakdown {
   tablet: number;
   botFilteredCount: number;
   founderFilteredCount: number;
+  ownerQaSessionCount: number;
+  unresolvedSessionCount: number;
+}
+
+export interface WaterfallSourceCoverage {
+  status: "complete" | "partial" | "unavailable";
+  recordsRead: number;
+  maxRecords: number;
+  error?: string;
+  details?: Record<string, WaterfallSourceCoverage>;
+}
+
+export interface WaterfallJourneyDiagnostic {
+  orderId: string;
+  sessionId: string | null;
+  campaign: string;
+  amountCents: number;
+  linkStatus: "joined" | "missing_session_id" | "session_not_observed" | "session_not_qualified" | "attribution_mismatch";
 }
 
 export interface WaterfallCoverage {
@@ -127,6 +149,18 @@ export interface WaterfallCoverage {
   telemetryCount: number;
   telemetryCap: number;
   truncated: boolean;
+  status: "complete" | "partial" | "unavailable";
+  ratesAvailable: boolean;
+  unmatchedPaidOrders: number;
+  unknownAttributionSessions: number;
+  lastActivityAt: string | null;
+  journeyDiagnostics: WaterfallJourneyDiagnostic[];
+  sources: {
+    orders: WaterfallSourceCoverage;
+    telemetry: WaterfallSourceCoverage;
+    reconciliation: WaterfallSourceCoverage;
+    adSpend: WaterfallSourceCoverage;
+  };
 }
 
 export interface WaterfallKPIs {
@@ -136,7 +170,7 @@ export interface WaterfallKPIs {
   paidCustomerOrders: number;
   excludedNonCustomerOrders: number;
   uniqueSessions: number;
-  conversionRatePct: number;
+  conversionRatePct: number | null;
   dispatchedOrders: number;
   heldOrFailedOrders: number;
   recordedAdSpendCents: number | null;
@@ -156,6 +190,7 @@ export interface AdminWaterfallReport {
 
 export interface WaterfallOrderInput {
   id: string;
+  sessionId?: string;
   createdAt?: number | string | { seconds?: number; _seconds?: number };
   amountInCents?: number;
   stripePaymentId?: string;
@@ -185,6 +220,7 @@ export interface WaterfallOrderInput {
   disputeStatus?: string;
   campaignId?: string;
   attribution?: {
+    sessionId?: string;
     campaignId?: string;
     source?: string;
     medium?: string;
@@ -205,6 +241,8 @@ export interface WaterfallTelemetryEventInput {
   id?: string;
   eventId?: string;
   sessionId?: string;
+  classification?: { role?: string; reason?: string; source?: string };
+  attributionObserved?: boolean;
   eventName?: string;
   timestamp?: number | string;
   createdAt?: number | string;

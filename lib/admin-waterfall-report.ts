@@ -1,7 +1,6 @@
 import {
   AdminWaterfallReport,
   FUNNEL_STEP_LABELS,
-  FUNNEL_STEP_ORDER,
   REPORT_TIMEZONE,
   StandardFunnelStep,
   STANDARD_FUNNEL_STEPS,
@@ -181,7 +180,6 @@ export function mapEventToFunnelStep(eventName?: string): StandardFunnelStep | n
   // Step 1: Landing
   if (
     [
-      "session_start",
       "landing_viewed",
       "scenario_landing_viewed",
       "step_1_landed",
@@ -198,10 +196,7 @@ export function mapEventToFunnelStep(eventName?: string): StandardFunnelStep | n
       "cover_preset_selected",
       "custom_generation_completed",
       "card_completed",
-      "step_2_cover_ready",
       "cover_selected",
-      "cover_loaded",
-      "generation_completed",
     ].includes(name)
   ) {
     return "2_ITEM_SELECT";
@@ -210,16 +205,8 @@ export function mapEventToFunnelStep(eventName?: string): StandardFunnelStep | n
   // Step 3: Compose
   if (
     [
-      "inside_note_edited",
       "note_completed",
-      "step_3_note_typed",
-      "font_style_selected",
-      "starter_prompt_used",
       "note_confirmed",
-      "note_edit_started",
-      "inspiration_applied",
-      "note_shuffled",
-      "note_template_loaded",
     ].includes(name)
   ) {
     return "3_COMPOSE";
@@ -231,8 +218,6 @@ export function mapEventToFunnelStep(eventName?: string): StandardFunnelStep | n
       "address_completed",
       "step_4b_address_completed",
       "address_confirmed",
-      "address_viewed",
-      "step_4a_address_viewed",
       "address_deferred",
     ].includes(name)
   ) {
@@ -243,14 +228,7 @@ export function mapEventToFunnelStep(eventName?: string): StandardFunnelStep | n
   if (
     [
       "checkout_initiated",
-      "payment_viewed",
-      "step_5_checkout_initiated",
       "checkout_created",
-      "checkout_requested",
-      "payment_ui_ready",
-      "payment_attempted",
-      "wallet_availability_observed",
-      "wallet_selected",
     ].includes(name)
   ) {
     return "5_CHECKOUT";
@@ -299,10 +277,10 @@ export function classifyChannel(params: {
   if (["referral", "affiliate"].includes(medium)) {
     return "referral";
   }
-  if (source === "direct" || ["none", "direct"].includes(medium) || (!source && !medium)) {
+  if (source === "direct" || ["none", "direct"].includes(medium)) {
     return "direct";
   }
-  return "direct";
+  return "unknown";
 }
 
 export function classifyDevice(deviceType?: string, userAgent?: string): "mobile" | "desktop" | "tablet" {
@@ -318,12 +296,14 @@ export function classifyDevice(deviceType?: string, userAgent?: string): "mobile
 const BOT_REGEX = /bot|crawler|spider|googlebot|bingbot|yandex|baidu|slurp|duckduckgo|semrush|ahrefs|lighthouse|headless|facebookexternalhit|whatsapp|twitterbot|pingdom|uptimerobot/i;
 
 export function isBotEvent(event: WaterfallTelemetryEventInput): boolean {
+  if (event.classification?.role === "known_bot") return true;
   if (event.isBot === true) return true;
   if (event.userAgent && BOT_REGEX.test(event.userAgent)) return true;
   return false;
 }
 
 export function isFounderEvent(event: WaterfallTelemetryEventInput): boolean {
+  if (["founder", "staff", "synthetic"].includes(event.classification?.role || "")) return true;
   if (event.isFounder === true || event.is_founder === true) return true;
   if (event.metadata && (event.metadata.is_founder === true || event.metadata.isFounder === true)) return true;
   return false;
@@ -428,6 +408,7 @@ export interface WaterfallAggregateInput {
   telemetryCap?: number;
   ordersCount?: number;
   telemetryCount?: number;
+  sources?: AdminWaterfallReport["coverage"]["sources"];
 }
 
 export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminWaterfallReport {
@@ -472,10 +453,38 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     medium: string;
     campaign: string;
     originKey: string;
+    sessionId?: string;
+    joinedSession: boolean;
   }> = [];
 
   const startMillis = scope.startUtc ? Date.parse(scope.startUtc) : null;
   const endMillis = scope.endUtc ? Date.parse(scope.endUtc) : null;
+
+  // Build a selected-window session index once. Campaign similarity is never
+  // treated as a session/order join; only a persisted session ID can link them.
+  const sessionEvents = new Map<string, WaterfallTelemetryEventInput[]>();
+  for (const event of input.telemetry) {
+    const sId = event.sessionId;
+    if (!sId) continue;
+    const ts = timestampMillis(event.timestamp ?? event.createdAt);
+    if (ts !== null && ((startMillis !== null && ts < startMillis) || (endMillis !== null && ts >= endMillis))) continue;
+    const events = sessionEvents.get(sId) ?? [];
+    events.push(event);
+    sessionEvents.set(sId, events);
+  }
+
+  const sessionAttribution = new Map<string, { source: string; medium: string; campaign: string }>();
+  for (const [sessionId, events] of sessionEvents) {
+    const ordered = [...events].sort((a, b) => (timestampMillis(a.timestamp ?? a.createdAt) ?? 0) - (timestampMillis(b.timestamp ?? b.createdAt) ?? 0));
+    const event = ordered.find((candidate) => Boolean(
+      candidate.utmSource || candidate.source || candidate.utmMedium || candidate.medium || candidate.utmCampaign || candidate.campaign || candidate.gclid || candidate.wbraid || candidate.gbraid || candidate.fbclid || candidate.emailClickId
+    ));
+    sessionAttribution.set(sessionId, {
+      source: event?.utmSource || event?.source || (event?.gclid || event?.wbraid || event?.gbraid ? "google" : event?.fbclid ? "meta" : "unknown"),
+      medium: event?.utmMedium || event?.medium || (event?.gclid || event?.wbraid || event?.gbraid ? "cpc" : event?.fbclid ? "paid_social" : "unknown"),
+      campaign: event?.utmCampaign || event?.campaign || "unknown",
+    });
+  }
 
   for (const order of input.orders) {
     if (!order.id) continue;
@@ -485,7 +494,10 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     if (endMillis !== null && created >= endMillis) continue;
 
     const sidecar = sidecarByOrder.get(order.id);
-    const classification = classifyOrder(order, sidecar);
+    const orderSessionId = order.sessionId || order.attribution?.sessionId;
+    const exactSessionEvents = orderSessionId ? sessionEvents.get(orderSessionId) : undefined;
+    const linkedOwnerQa = Boolean(exactSessionEvents?.some(isFounderEvent));
+    const classification = linkedOwnerQa ? "founder" : classifyOrder(order, sidecar);
 
     if (classification === "founder" || classification === "comp" || classification === "admin") {
       excludedNonCustomerOrders++;
@@ -500,6 +512,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
 
       // Determine order channel & attribution
       const attr = order.attribution ?? {};
+      const linkedAttribution = orderSessionId ? sessionAttribution.get(orderSessionId) : undefined;
       const hasFb = Boolean(attr.fbclid);
       const hasGoogle = Boolean(attr.gclid || attr.wbraid || attr.gbraid);
       const hasEmail = Boolean(attr.emailClickId);
@@ -508,14 +521,14 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         attr.source ||
         attr.utmSource ||
         order.source ||
-        (hasFb ? "meta" : hasGoogle ? "google" : hasEmail ? "email" : "direct");
+        (hasFb ? "meta" : hasGoogle ? "google" : hasEmail ? "email" : linkedAttribution?.source || "unknown");
 
       const rawMedium =
         attr.medium ||
         attr.utmMedium ||
-        (hasFb ? "paid_social" : hasGoogle ? "cpc" : hasEmail ? "email" : "none");
+        (hasFb ? "paid_social" : hasGoogle ? "cpc" : hasEmail ? "email" : linkedAttribution?.medium || "unknown");
 
-      const rawCampaign = attr.campaign || attr.utmCampaign || order.campaignId || "none";
+      const rawCampaign = attr.campaign || attr.utmCampaign || order.campaignId || linkedAttribution?.campaign || "unknown";
 
       const orderChannel = classifyChannel({
         source: rawSource,
@@ -552,9 +565,9 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         heldOrFailedOrders++;
       }
 
-      const sourceClean = (rawSource || "direct").toLowerCase().trim();
-      const mediumClean = (rawMedium || "none").toLowerCase().trim();
-      const campaignClean = (rawCampaign || "none").toLowerCase().trim();
+      const sourceClean = (rawSource || "unknown").toLowerCase().trim();
+      const mediumClean = (rawMedium || "unknown").toLowerCase().trim();
+      const campaignClean = (rawCampaign || "unknown").toLowerCase().trim();
       const originKey = `${sourceClean}|${mediumClean}|${campaignClean}`;
 
       validPaidCustomerOrders.push({
@@ -565,6 +578,8 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         medium: mediumClean,
         campaign: campaignClean,
         originKey,
+        sessionId: orderSessionId,
+        joinedSession: Boolean(exactSessionEvents?.length),
       });
     }
   }
@@ -572,22 +587,10 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
   const netRevenueCents = capturedRevenueCents - refundedCents;
 
   // 3. Telemetry Session Grouping & Filtering
-  const sessionEvents = new Map<string, WaterfallTelemetryEventInput[]>();
-  for (const event of input.telemetry) {
-    const sId = event.sessionId;
-    if (!sId) continue;
-    const ts = timestampMillis(event.timestamp ?? event.createdAt);
-    if (ts !== null) {
-      if (startMillis !== null && ts < startMillis) continue;
-      if (endMillis !== null && ts >= endMillis) continue;
-    }
-    const events = sessionEvents.get(sId) ?? [];
-    events.push(event);
-    sessionEvents.set(sId, events);
-  }
-
   let botFilteredCount = 0;
   let founderFilteredCount = 0;
+  let ownerQaSessionCount = 0;
+  let unresolvedSessionCount = 0;
   let mobileCount = 0;
   let desktopCount = 0;
   let tabletCount = 0;
@@ -603,7 +606,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
 
   interface SessionSummary {
     sessionId: string;
-    maxStepReached: number; // 1 to 5
+    reachedSteps: Set<StandardFunnelStep>;
     channel: WaterfallChannel;
     source: string;
     medium: string;
@@ -616,13 +619,20 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
   for (const [sessionId, events] of sessionEvents) {
     const hasBot = events.some(isBotEvent);
     if (hasBot) {
-      botFilteredCount++;
+      const botAttribution = sessionAttribution.get(sessionId);
+      const botChannel = classifyChannel({ source: botAttribution?.source, medium: botAttribution?.medium, campaign: botAttribution?.campaign });
+      if (scope.channel === "all" || botChannel === scope.channel) botFilteredCount++;
       continue;
     }
 
     const hasFounder = events.some(isFounderEvent);
-    if (scope.audience === "customers" && hasFounder) {
-      founderFilteredCount++;
+    if (hasFounder) {
+      const qaAttribution = sessionAttribution.get(sessionId);
+      const qaChannel = classifyChannel({ source: qaAttribution?.source, medium: qaAttribution?.medium, campaign: qaAttribution?.campaign });
+      if (scope.channel === "all" || qaChannel === scope.channel) {
+        founderFilteredCount++;
+        ownerQaSessionCount++;
+      }
       continue;
     }
 
@@ -631,10 +641,10 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const device = classifyDevice(primaryEvent?.deviceType, primaryEvent?.userAgent);
 
     // Determine attribution from earliest event carrying UTM or click IDs
-    let sessionChannel: WaterfallChannel = "direct";
-    let sessionSource = "direct";
-    let sessionMedium = "none";
-    let sessionCampaign = "none";
+    let sessionChannel: WaterfallChannel = "unknown";
+    let sessionSource = "unknown";
+    let sessionMedium = "unknown";
+    let sessionCampaign = "unknown";
 
     for (const ev of events) {
       const src = ev.utmSource || ev.source;
@@ -665,11 +675,11 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         sessionCampaign = cmp || "none";
         break;
       }
-      if (src || med || cmp) {
+      if (src || med || cmp || ev.gclid || ev.wbraid || ev.gbraid || ev.fbclid || ev.emailClickId) {
         sessionChannel = ch;
-        sessionSource = src || "direct";
-        sessionMedium = med || "none";
-        sessionCampaign = cmp || "none";
+        sessionSource = src || (ev.gclid || ev.wbraid || ev.gbraid ? "google" : ev.fbclid ? "meta" : "unknown");
+        sessionMedium = med || (ev.gclid || ev.wbraid || ev.gbraid ? "cpc" : ev.fbclid ? "paid_social" : "unknown");
+        sessionCampaign = cmp || "unknown";
         break;
       }
     }
@@ -678,21 +688,20 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
       continue;
     }
 
+    if (sessionChannel === "unknown") unresolvedSessionCount++;
+
     // Increment device counter for retained sessions
     if (device === "mobile") mobileCount++;
     else if (device === "tablet") tabletCount++;
     else desktopCount++;
 
     // Calculate step reach
-    let maxStep = 1; // Any retained session in telemetry reached at least Step 1 Landing
+    const reachedSteps = new Set<StandardFunnelStep>();
     for (const ev of events) {
       const step = mapEventToFunnelStep(ev.eventName);
       if (step) {
         rawStepCounts[step]++;
-        const orderNum = FUNNEL_STEP_ORDER[step];
-        if (orderNum > maxStep && orderNum <= 5) {
-          maxStep = orderNum;
-        }
+        if (step !== "6_PAID") reachedSteps.add(step);
       }
     }
 
@@ -703,7 +712,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
 
     eligibleSessions.push({
       sessionId,
-      maxStepReached: maxStep,
+      reachedSteps,
       channel: sessionChannel,
       source: sourceClean,
       medium: mediumClean,
@@ -716,6 +725,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
   const originMap = new Map<string, WaterfallOriginRow>();
 
   for (const s of eligibleSessions) {
+    if (!s.reachedSteps.has("1_LANDING")) continue;
     let row = originMap.get(s.originKey);
     if (!row) {
       row = {
@@ -730,17 +740,17 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         address: 0,
         checkout: 0,
         paidOrders: 0,
-        conversionRatePct: 0,
+        conversionRatePct: null,
         capturedRevenueCents: 0,
       };
       originMap.set(s.originKey, row);
     }
 
     row.sessions++;
-    if (s.maxStepReached >= 2) row.itemSelect++;
-    if (s.maxStepReached >= 3) row.compose++;
-    if (s.maxStepReached >= 4) row.address++;
-    if (s.maxStepReached >= 5) row.checkout++;
+    if (s.reachedSteps.has("2_ITEM_SELECT")) row.itemSelect++;
+    if (s.reachedSteps.has("3_COMPOSE")) row.compose++;
+    if (s.reachedSteps.has("4_ADDRESS")) row.address++;
+    if (s.reachedSteps.has("5_CHECKOUT")) row.checkout++;
   }
 
   // Add paid orders to Origin Matrix
@@ -759,7 +769,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         address: 0,
         checkout: 0,
         paidOrders: 0,
-        conversionRatePct: 0,
+        conversionRatePct: null,
         capturedRevenueCents: 0,
       };
       originMap.set(paid.originKey, row);
@@ -768,19 +778,11 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     row.capturedRevenueCents += paid.amountCents;
   }
 
-  // Ensure origin row monotonic reach:
-  // (sessions, itemSelect, compose, address, checkout must be at least paidOrders)
+  // Paid orders and observed session steps are separate facts. Never infer a
+  // landing, card, note, address, or checkout session from payment alone.
   const originMatrix: WaterfallOriginRow[] = [];
   for (const row of originMap.values()) {
-    row.sessions = Math.max(row.sessions, row.paidOrders);
-    row.itemSelect = Math.max(row.itemSelect, row.paidOrders);
-    row.compose = Math.max(row.compose, row.paidOrders);
-    row.address = Math.max(row.address, row.paidOrders);
-    row.checkout = Math.max(row.checkout, row.paidOrders);
-    row.conversionRatePct =
-      row.sessions > 0
-        ? Number(((row.paidOrders / row.sessions) * 100).toFixed(1))
-        : 0;
+    row.conversionRatePct = null;
     originMatrix.push(row);
   }
 
@@ -788,20 +790,26 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
 
   // 5. Monotonic Waterfall Steps Calculation
   // Initial session reach from eligible sessions:
-  let step1Sessions = eligibleSessions.length;
-  let step2Sessions = eligibleSessions.filter((s) => s.maxStepReached >= 2).length;
-  let step3Sessions = eligibleSessions.filter((s) => s.maxStepReached >= 3).length;
-  let step4Sessions = eligibleSessions.filter((s) => s.maxStepReached >= 4).length;
-  let step5Sessions = eligibleSessions.filter((s) => s.maxStepReached >= 5).length;
-  const step6Sessions = paidCustomerOrders;
-
-  // Enforce monotonic reach with paidCustomerOrders:
-  // Step 6 is authoritative paidCustomerOrders. Steps 1..5 must be at least paidCustomerOrders.
-  step5Sessions = Math.max(step5Sessions, step6Sessions);
-  step4Sessions = Math.max(step4Sessions, step5Sessions);
-  step3Sessions = Math.max(step3Sessions, step4Sessions);
-  step2Sessions = Math.max(step2Sessions, step3Sessions);
-  step1Sessions = Math.max(step1Sessions, step2Sessions);
+  const step1Sessions = eligibleSessions.filter((s) => s.reachedSteps.has("1_LANDING")).length;
+  const step2Sessions = eligibleSessions.filter((s) => s.reachedSteps.has("2_ITEM_SELECT")).length;
+  const step3Sessions = eligibleSessions.filter((s) => s.reachedSteps.has("3_COMPOSE")).length;
+  const step4Sessions = eligibleSessions.filter((s) => s.reachedSteps.has("4_ADDRESS")).length;
+  const step5Sessions = eligibleSessions.filter((s) => s.reachedSteps.has("5_CHECKOUT")).length;
+  const qualifiedSessions = eligibleSessions.filter((session) => session.reachedSteps.has("1_LANDING"));
+  const eligibleSessionIds = new Set(qualifiedSessions.map((session) => session.sessionId));
+  const sessionOriginById = new Map(qualifiedSessions.map((session) => [session.sessionId, session.originKey]));
+  const orderLinkStatus = (paid: (typeof validPaidCustomerOrders)[number]): "joined" | "missing_session_id" | "session_not_observed" | "session_not_qualified" | "attribution_mismatch" => {
+    if (!paid.sessionId) return "missing_session_id";
+    if (!sessionEvents.has(paid.sessionId)) return "session_not_observed";
+    const sessionOrigin = sessionOriginById.get(paid.sessionId);
+    if (!sessionOrigin) return "session_not_qualified";
+    if (sessionOrigin !== paid.originKey) return "attribution_mismatch";
+    return "joined";
+  };
+  const paidSessionIds = new Set(validPaidCustomerOrders
+    .filter((paid) => paid.sessionId && eligibleSessionIds.has(paid.sessionId) && orderLinkStatus(paid) === "joined")
+    .map((paid) => paid.sessionId!));
+  const step6Sessions = paidSessionIds.size;
 
   const stepSessionCounts: Record<StandardFunnelStep, number> = {
     "1_LANDING": step1Sessions,
@@ -825,7 +833,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     } else {
       const prevStep = STANDARD_FUNNEL_STEPS[i - 1];
       const prevSess = stepSessionCounts[prevStep];
-      if (prevSess > 0) {
+      if (prevSess > 0 && sess <= prevSess) {
         const drop = Number((((prevSess - sess) / prevSess) * 100).toFixed(1));
         stepDrops.push({ step, dropPct: drop });
       } else {
@@ -849,19 +857,19 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const sess = stepSessionCounts[step];
     const dropPct = stepDrops[i].dropPct;
     const isBiggestDrop = step === biggestDropStep;
-    const pctOfLanded =
-      landedSessions > 0
-        ? Number(((sess / landedSessions) * 100).toFixed(1))
-        : 0;
+    const pctOfLanded = landedSessions > 0
+      ? Number(((sess / landedSessions) * 100).toFixed(1))
+      : null;
 
     waterfallSteps.push({
       step,
       label: FUNNEL_STEP_LABELS[step],
       sessions: sess,
-      rawEvents: rawStepCounts[step] || (step === "6_PAID" ? paidCustomerOrders : 0),
+      rawEvents: rawStepCounts[step],
       pctOfLanded,
       dropOffFromPrevPct: dropPct,
       isBiggestDrop,
+      ...(step === "6_PAID" ? { paidOrders: paidCustomerOrders } : {}),
     });
   }
 
@@ -887,19 +895,64 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     }
   }
 
+  const uniqueSessions = landedSessions;
+  const totalOrdersObserved = input.ordersCount ?? input.orders.length;
+  const totalTelemetryObserved = input.telemetryCount ?? input.telemetry.length;
+  const sources = input.sources ?? {
+    orders: { status: totalOrdersObserved > ordersCap ? "partial" as const : "complete" as const, recordsRead: totalOrdersObserved, maxRecords: ordersCap },
+    telemetry: { status: totalTelemetryObserved > telemetryCap ? "partial" as const : "complete" as const, recordsRead: totalTelemetryObserved, maxRecords: telemetryCap },
+    reconciliation: { status: "complete" as const, recordsRead: input.reconciliations?.length ?? 0, maxRecords: 2_000 },
+    adSpend: { status: "complete" as const, recordsRead: input.adSpendRecords?.length ?? 0, maxRecords: 2_000 },
+  };
+  const essentialSourcesComplete = [sources.orders, sources.telemetry, sources.reconciliation]
+    .every((source) => source.status === "complete");
+  const unmatchedPaidOrders = validPaidCustomerOrders.filter((paid) => orderLinkStatus(paid) !== "joined").length;
+  const ratesAvailable = essentialSourcesComplete && unmatchedPaidOrders === 0;
+  const coverageStatus = Object.values(sources).some((source) => source.status === "unavailable")
+    ? "unavailable" as const
+    : Object.values(sources).some((source) => source.status === "partial")
+    ? "partial" as const
+    : "complete" as const;
+  const journeyDiagnostics = validPaidCustomerOrders.map((paid) => ({
+    orderId: paid.order.id,
+    sessionId: paid.sessionId || null,
+    campaign: paid.campaign,
+    amountCents: paid.amountCents,
+    linkStatus: orderLinkStatus(paid),
+  })).slice(0, 100);
+
+  for (const row of originMatrix) {
+    const linkedSessions = new Set(validPaidCustomerOrders
+      .filter((paid) => paid.originKey === row.originKey && paid.sessionId && orderLinkStatus(paid) === "joined")
+      .map((paid) => paid.sessionId!));
+    row.conversionRatePct = ratesAvailable && row.sessions > 0
+      ? Number(((linkedSessions.size / row.sessions) * 100).toFixed(1))
+      : null;
+  }
+
+  const conversionRatePct = ratesAvailable && uniqueSessions > 0
+    ? Number(((paidSessionIds.size / uniqueSessions) * 100).toFixed(1))
+    : null;
   const cpaCents =
-    recordedAdSpendCents !== null && paidCustomerOrders > 0
+    sources.adSpend.status === "complete" && sources.orders.status === "complete" && recordedAdSpendCents !== null && paidCustomerOrders > 0
       ? Math.round(recordedAdSpendCents / paidCustomerOrders)
       : null;
 
-  const uniqueSessions = landedSessions;
-  const conversionRatePct =
-    uniqueSessions > 0
-      ? Number(((paidCustomerOrders / uniqueSessions) * 100).toFixed(1))
-      : 0;
-
-  const totalOrdersObserved = input.ordersCount ?? input.orders.length;
-  const totalTelemetryObserved = input.telemetryCount ?? input.telemetry.length;
+  if (!essentialSourcesComplete) {
+    for (const step of waterfallSteps) {
+      step.pctOfLanded = null;
+      step.dropOffFromPrevPct = null;
+      step.isBiggestDrop = false;
+    }
+    for (const row of originMatrix) row.conversionRatePct = null;
+  } else if (unmatchedPaidOrders > 0) {
+    const paidStep = waterfallSteps.find((step) => step.step === "6_PAID");
+    if (paidStep) {
+      paidStep.pctOfLanded = null;
+      paidStep.dropOffFromPrevPct = null;
+      paidStep.isBiggestDrop = false;
+    }
+  }
 
   return {
     asOf: asOf.toISOString(),
@@ -926,13 +979,25 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
       tablet: tabletCount,
       botFilteredCount,
       founderFilteredCount,
+      ownerQaSessionCount,
+      unresolvedSessionCount,
     },
     coverage: {
       ordersCount: Math.min(totalOrdersObserved, ordersCap),
       ordersCap,
       telemetryCount: Math.min(totalTelemetryObserved, telemetryCap),
       telemetryCap,
-      truncated: totalOrdersObserved > ordersCap || totalTelemetryObserved > telemetryCap,
+      truncated: coverageStatus !== "complete",
+      status: coverageStatus,
+      ratesAvailable,
+      unmatchedPaidOrders,
+      unknownAttributionSessions: unresolvedSessionCount,
+      lastActivityAt: input.telemetry.reduce<string | null>((latest, event) => {
+        const ts = timestampMillis(event.timestamp ?? event.createdAt);
+        return ts !== null && (!latest || ts > Date.parse(latest)) ? new Date(ts).toISOString() : latest;
+      }, null),
+      journeyDiagnostics,
+      sources,
     },
   };
 }

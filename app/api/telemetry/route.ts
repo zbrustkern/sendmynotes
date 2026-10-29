@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { firestoreDb } from "@/lib/firebase-admin";
 import { ingestTelemetryEvent } from "@/lib/metrics-rollup";
-import { TelemetryEvent, TelemetryEventName } from "@/lib/types";
+import { TelemetryEvent } from "@/lib/types";
 import {
   isAuthorityEvent,
   ALLOWED_BROWSER_EVENT_NAMES,
@@ -16,6 +17,7 @@ import {
   ingestEventV2,
   buildEventV2Envelope,
   recordTelemetryCollectorRejection,
+  TELEMETRY_V2_COLLECTION,
 } from "@/lib/telemetry-v2";
 import { classifyTrafficProvenance, resolveConsentState } from "@/lib/journey-identity";
 
@@ -25,6 +27,84 @@ const MAX_BODY_BYTES = 4096; // 4KB
 const ipStore = new Map<string, number[]>();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const MAX_REQUESTS_PER_WINDOW = 60; // 60 telemetry pings per minute per IP
+const LEGACY_PROJECTION_LEASE_MS = 30_000;
+
+type LegacyProjectionClaim =
+  | { state: "claimed"; eventDoc: TelemetryEvent }
+  | { state: "complete" | "busy" };
+const ACQUISITION_METADATA_KEYS = new Set([
+  "utmSource", "utmMedium", "utmCampaign", "utmContent", "utmTerm",
+  "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
+  "gclid", "wbraid", "gbraid", "fbclid", "emailClickId", "referrer",
+]);
+
+function omitAcquisitionMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(metadata).filter(([key]) => !ACQUISITION_METADATA_KEYS.has(key)));
+}
+
+/**
+ * Complete the compatibility projection once per V2 event. The legacy raw
+ * event document doubles as the durable idempotency marker, so a replay can
+ * distinguish an unstarted write from a projection already committed by the
+ * V2 bridge or a previous request. The V2 envelope remains the source record.
+ */
+async function claimLegacyProjection(eventDoc: TelemetryEvent): Promise<LegacyProjectionClaim> {
+  const eventId = eventDoc.id;
+  const ref = firestoreDb.collection("telemetry_events").doc(eventId);
+  const now = Date.now();
+  return firestoreDb.runTransaction(async (transaction: any) => {
+    const snapshot = await transaction.get(ref);
+    const existing = snapshot.data() as (Record<string, unknown> & { eventName?: string; _telemetryProjectionState?: string; _telemetryProjectionLeaseUntil?: number; _telemetryProjectionPayload?: TelemetryEvent }) | undefined;
+
+    // The raw event already exists. This includes semantic records written by
+    // the V2 bridge. Never call the incrementing legacy rollup a second time.
+    if (existing?.eventName) {
+      return { state: "complete" as const };
+    }
+
+    if (
+      existing?._telemetryProjectionState === "processing" &&
+      typeof existing._telemetryProjectionLeaseUntil === "number" &&
+      existing._telemetryProjectionLeaseUntil > now
+    ) {
+      return { state: "busy" as const };
+    }
+
+    // Keep the original sanitized compatibility payload until the projection
+    // commits. A retry with the same V2 ID can then finish the exact adapter
+    // write without trusting changed fields from a later request.
+    const projectionPayload = existing?._telemetryProjectionPayload || eventDoc;
+    transaction.set(ref, {
+      _telemetryProjectionState: "processing",
+      _telemetryProjectionLeaseUntil: now + LEGACY_PROJECTION_LEASE_MS,
+      _telemetryProjectionPayload: projectionPayload,
+    }, { merge: true });
+    return { state: "claimed" as const, eventDoc: projectionPayload };
+  });
+}
+
+async function writeLegacyProjection(eventDoc: TelemetryEvent): Promise<"complete" | "busy"> {
+  const claim = await claimLegacyProjection(eventDoc);
+  if (claim.state !== "claimed") return claim.state;
+
+  const ref = firestoreDb.collection("telemetry_events").doc(eventDoc.id);
+  try {
+    await ingestTelemetryEvent({
+      ...claim.eventDoc,
+      _telemetryProjectionState: "processing",
+      _telemetryProjectionLeaseUntil: Date.now() + LEGACY_PROJECTION_LEASE_MS,
+    } as TelemetryEvent);
+    // Strip the transient idempotency payload/state from successful raw rows;
+    // eventName itself is then the durable completion marker for later retries.
+    await ref.set(claim.eventDoc);
+    return "complete";
+  } catch (error) {
+    // If the raw event was written before a later summary failure, retaining
+    // eventName lets a retry finish without incrementing semantic counts twice.
+    await ref.set({ _telemetryProjectionState: "failed", _telemetryProjectionLeaseUntil: 0 }, { merge: true }).catch(() => {});
+    throw error;
+  }
+}
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
@@ -82,6 +162,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Payload must be a JSON object" }, { status: 400 });
     }
 
+    const hasSchemaVersion = Object.prototype.hasOwnProperty.call(body, "schema_version");
+    if (hasSchemaVersion && body.schema_version !== "v2.0") {
+      await recordTelemetryCollectorRejection("unsupported_schema_version");
+      return NextResponse.json({ error: "Unsupported telemetry schema_version" }, { status: 400 });
+    }
+
+    const isV2Payload = hasSchemaVersion || Object.prototype.hasOwnProperty.call(body, "event_name") || Object.prototype.hasOwnProperty.call(body, "session_id");
+    if (isV2Payload && (typeof body.event_id !== "string" || !/^[a-zA-Z0-9_-]{6,100}$/.test(body.event_id.trim()))) {
+      await recordTelemetryCollectorRejection("missing_stable_event_id");
+      return NextResponse.json({ error: "V2 telemetry requires a stable event_id" }, { status: 400 });
+    }
+
     const eventName = body.eventName || body.event_name;
     const sessionId = body.sessionId || body.session_id;
 
@@ -108,9 +200,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const secGpc = req.headers.get("sec-gpc") === "1";
+    const requestedConsent = body.consent_state || body.consentState;
+    const knownConsent = ["granted", "denied", "gpc_restricted", "not_required"].includes(requestedConsent)
+      ? requestedConsent
+      : undefined;
+    const consentState = resolveConsentState({
+      secGpcHeader: secGpc ? "1" : null,
+      gpc: knownConsent === "gpc_restricted",
+      storedConsent: knownConsent,
+    });
+    const attributionAllowed = consentState !== "denied" && consentState !== "gpc_restricted";
+
     // 5. Metadata hygiene: per-event allowlist schemas
-    const rawMetadata = body.metadata || body.properties;
-    const { sanitized: sanitizedMetadata, error: metadataError } = sanitizeMetadata(
+    const rawProperties = body.properties && typeof body.properties === "object" && !Array.isArray(body.properties)
+      ? body.properties
+      : {};
+    const rawMetadata = body.metadata || rawProperties;
+    const { sanitized: sanitizedMetadataRaw, error: metadataError } = sanitizeMetadata(
       eventName,
       rawMetadata
     );
@@ -118,23 +225,25 @@ export async function POST(req: NextRequest) {
       await recordTelemetryCollectorRejection("invalid_metadata");
       return NextResponse.json({ error: metadataError }, { status: 400 });
     }
+    const sanitizedMetadata = attributionAllowed
+      ? sanitizedMetadataRaw
+      : omitAcquisitionMetadata(sanitizedMetadataRaw);
 
     // 6. URL hygiene: path, referrer, landingPath reduced to origin + pathname
     const rawPath = body.path || body.route_template;
     const cleanPath = sanitizeUrlOrPath(rawPath) || "/";
-    const cleanReferrer = sanitizeUrlOrPath(body.referrer);
+    const cleanReferrer = attributionAllowed
+      ? sanitizeUrlOrPath(body.referrer || rawProperties.referrer)
+      : undefined;
     const cleanLandingPath = sanitizeUrlOrPath(body.landingPath);
 
+    const readAttributionField = (...values: unknown[]): unknown =>
+      values.find((value) => typeof value === "string" && value.trim().length > 0);
+
     // 7. Attribution hygiene: allowlisted keys, length-bounded, email stripped
-    const cleanUtmSource = sanitizeAttribution(body.utmSource);
-    const cleanUtmMedium = sanitizeAttribution(body.utmMedium);
-    const cleanUtmCampaign = sanitizeAttribution(body.utmCampaign);
-    const cleanUtmContent = sanitizeAttribution(body.utmContent);
-    const cleanUtmTerm = sanitizeAttribution(body.utmTerm);
-    const cleanGclid = sanitizeAttribution(body.gclid, 255);
-    const cleanWbraid = sanitizeAttribution(body.wbraid, 255);
-    const cleanGbraid = sanitizeAttribution(body.gbraid, 255);
-    const cleanFbclid = sanitizeAttribution(body.fbclid, 255);
+    const cleanUtmSource = attributionAllowed ? sanitizeAttribution(readAttributionField(body.utmSource, body.utm_source, rawProperties.utmSource, rawProperties.utm_source)) : undefined;
+    const cleanUtmMedium = attributionAllowed ? sanitizeAttribution(readAttributionField(body.utmMedium, body.utm_medium, rawProperties.utmMedium, rawProperties.utm_medium)) : undefined;
+    const cleanUtmCampaign = attributionAllowed ? sanitizeAttribution(readAttributionField(body.utmCampaign, body.utm_campaign, rawProperties.utmCampaign, rawProperties.utm_campaign)) : undefined;
 
     // 8. Common context
     const cleanExpVersion =
@@ -150,7 +259,7 @@ export async function POST(req: NextRequest) {
         : undefined;
 
     // Honor client-supplied eventId / event_id for idempotent retry deduplication
-    const rawClientEventId = body.eventId || body.event_id || body.id;
+    const rawClientEventId = isV2Payload ? body.event_id : body.eventId || body.id;
     const clientEventId =
       typeof rawClientEventId === "string" && /^[a-zA-Z0-9_-]{6,100}$/.test(rawClientEventId.trim())
         ? rawClientEventId.trim()
@@ -161,34 +270,11 @@ export async function POST(req: NextRequest) {
     const isFounder = Boolean(body.is_founder || body.isFounder || cookieFounder);
     const rawClientId = body.clientId || body.anonymous_id;
     const clientId = typeof rawClientId === "string" ? rawClientId.slice(0, 100) : undefined;
-    const secGpc = req.headers.get("sec-gpc") === "1";
 
-    // Extract Edge Geo headers (Vercel, Cloudflare, etc.)
-    const rawCity =
-      req.headers.get("x-vercel-ip-city") ||
-      req.headers.get("cf-ipcity") ||
-      undefined;
-    const ipRegion =
-      req.headers.get("x-vercel-ip-country-region") ||
-      req.headers.get("cf-region") ||
-      undefined;
-    const ipCountry =
-      req.headers.get("x-vercel-ip-country") ||
-      req.headers.get("cf-ipcountry") ||
-      undefined;
     const userAgent = req.headers.get("user-agent") || undefined;
     const isBot = /bot|crawler|spider|googlebot|bingbot|yandex|baidu|slurp|duckduckgo|semrush|ahrefs|lighthouse|headless|facebookexternalhit|whatsapp|twitterbot|pingdom|uptimerobot/i.test(
       userAgent || ""
     );
-
-    let ipCity: string | undefined = undefined;
-    if (rawCity) {
-      try {
-        ipCity = decodeURIComponent(rawCity);
-      } catch {
-        ipCity = rawCity;
-      }
-    }
 
     // 9. Build and Ingest Event V2 Envelope with Deduplication
     const classification = classifyTrafficProvenance({
@@ -196,10 +282,6 @@ export async function POST(req: NextRequest) {
       isBot,
       userAgent,
     });
-    const consentState = resolveConsentState({
-      secGpcHeader: secGpc ? "1" : null,
-    });
-
     const envelope = buildEventV2Envelope({
       event_name: eventName,
       event_id: eventId,
@@ -228,62 +310,100 @@ export async function POST(req: NextRequest) {
 
     const v2Result = await ingestEventV2(envelope);
 
+    // 10. Build a sanitized compatibility projection. A duplicate's canonical
+    // V2 envelope is read back so changed retry fields cannot replace it. If a
+    // prior projection attempt has a durable retry marker, that first payload
+    // takes precedence inside writeLegacyProjection.
+    let eventDoc: TelemetryEvent;
     if (v2Result.duplicate) {
-      return NextResponse.json({
-        received: true,
-        accepted: true,
-        duplicate: true,
-        eventId: v2Result.eventId,
-        dedupeKey: v2Result.dedupeKey,
-      });
+      const canonicalSnapshot = await firestoreDb.collection(TELEMETRY_V2_COLLECTION).doc(v2Result.dedupeKey).get();
+      const canonical = canonicalSnapshot.data() as {
+        event_id?: string;
+        event_name?: string;
+        session_id?: string;
+        anonymous_id?: string;
+        order_id?: string;
+        occurred_at?: number;
+        received_at?: number;
+        experience_version?: string;
+        route_template?: string;
+        classification?: { role?: string };
+        properties?: Record<string, unknown>;
+      } | undefined;
+      if (!canonicalSnapshot.exists || !canonical?.event_id || !canonical.event_name) {
+        throw new Error("Persisted V2 telemetry envelope is unavailable for legacy projection");
+      }
+      const canonicalProperties = canonical.properties || {};
+      const role = canonical.classification?.role || "";
+      eventDoc = {
+        id: canonical.event_id,
+        eventName: canonical.event_name as TelemetryEvent["eventName"],
+        sessionId: canonical.session_id || "unknown_session",
+        ...(canonical.order_id ? { orderId: canonical.order_id } : {}),
+        metadata: canonicalProperties,
+        path: canonical.route_template || "/",
+        timestamp: typeof canonical.occurred_at === "number" ? canonical.occurred_at : Date.now(),
+        createdAt: typeof canonical.received_at === "number" ? canonical.received_at : Date.now(),
+        experienceVersion: canonical.experience_version,
+        draftRevision: typeof canonicalProperties.draftRevision === "number" ? canonicalProperties.draftRevision : undefined,
+        utmSource: typeof canonicalProperties.utmSource === "string" ? canonicalProperties.utmSource : undefined,
+        utmMedium: typeof canonicalProperties.utmMedium === "string" ? canonicalProperties.utmMedium : undefined,
+        utmCampaign: typeof canonicalProperties.utmCampaign === "string" ? canonicalProperties.utmCampaign : undefined,
+        referrer: typeof canonicalProperties.referrer === "string" ? canonicalProperties.referrer : undefined,
+        clientId: canonical.anonymous_id,
+        isBot: ["known_bot", "synthetic"].includes(role),
+        ...(role === "founder" ? { isFounder: true, is_founder: true } : {}),
+      };
+    } else {
+      eventDoc = {
+        id: eventId,
+        eventName: eventName as TelemetryEvent["eventName"],
+        sessionId: sessionId.trim().slice(0, 100),
+        ...(typeof body.step === "number" && Number.isFinite(body.step) ? { step: body.step } : {}),
+        ...(typeof body.orderId === "string" ? { orderId: body.orderId.trim().slice(0, 100) } : typeof body.order_id === "string" ? { orderId: body.order_id.trim().slice(0, 100) } : {}),
+        metadata: sanitizedMetadata,
+        path: cleanPath,
+        timestamp: typeof body.timestamp === "number" ? body.timestamp : typeof body.occurred_at === "number" ? body.occurred_at : Date.now(),
+        createdAt: Date.now(),
+        experienceVersion: cleanExpVersion,
+        draftRevision: cleanDraftRev,
+        utmSource: cleanUtmSource,
+        utmMedium: cleanUtmMedium,
+        utmCampaign: cleanUtmCampaign,
+        ...(attributionAllowed ? {
+          utmContent: sanitizeAttribution(readAttributionField(body.utmContent, body.utm_content, rawProperties.utmContent, rawProperties.utm_content)),
+          utmTerm: sanitizeAttribution(readAttributionField(body.utmTerm, body.utm_term, rawProperties.utmTerm, rawProperties.utm_term)),
+          gclid: sanitizeAttribution(readAttributionField(body.gclid, rawProperties.gclid), 255),
+          wbraid: sanitizeAttribution(readAttributionField(body.wbraid, rawProperties.wbraid), 255),
+          gbraid: sanitizeAttribution(readAttributionField(body.gbraid, rawProperties.gbraid), 255),
+          fbclid: sanitizeAttribution(readAttributionField(body.fbclid, rawProperties.fbclid), 255),
+          referrer: cleanReferrer,
+          landingPath: cleanLandingPath,
+          googleClientId: sanitizeGoogleClientId(body.googleClientId),
+          googleClientIdNormalized: sanitizeGoogleClientIdNormalized(body.googleClientIdNormalized),
+          deviceType: validateDeviceType(body.deviceType),
+          screenResolution: sanitizeScreenResolution(body.screenResolution),
+          userAgent: userAgent ? userAgent.slice(0, 300) : undefined,
+        } : {}),
+        isBot,
+        clientId,
+        ...(isFounder ? { isFounder: true, is_founder: true } : {}),
+      };
     }
 
-    // 10. Persist Legacy Telemetry Event
-    const eventDoc: TelemetryEvent = {
-      id: eventId,
-      eventName: eventName as TelemetryEventName,
-      sessionId: sessionId.trim().slice(0, 100),
-      ...(typeof body.step === "number" && Number.isFinite(body.step) ? { step: body.step } : {}),
-      ...(typeof body.orderId === "string" ? { orderId: body.orderId.trim().slice(0, 100) } : {}),
-      metadata: sanitizedMetadata,
-      path: cleanPath,
-      timestamp: typeof body.timestamp === "number" ? body.timestamp : Date.now(),
-      createdAt: Date.now(),
-      experienceVersion: cleanExpVersion,
-      draftRevision: cleanDraftRev,
-      // Attribution
-      utmSource: cleanUtmSource,
-      utmMedium: cleanUtmMedium,
-      utmCampaign: cleanUtmCampaign,
-      utmContent: cleanUtmContent,
-      utmTerm: cleanUtmTerm,
-      gclid: cleanGclid,
-      wbraid: cleanWbraid,
-      gbraid: cleanGbraid,
-      fbclid: cleanFbclid,
-      referrer: cleanReferrer,
-      landingPath: cleanLandingPath,
-      // Identity & Tech
-      googleClientId: sanitizeGoogleClientId(body.googleClientId),
-      googleClientIdNormalized: sanitizeGoogleClientIdNormalized(body.googleClientIdNormalized),
-      deviceType: validateDeviceType(body.deviceType),
-      screenResolution: sanitizeScreenResolution(body.screenResolution),
-      ipCity,
-      ipRegion,
-      ipCountry,
-      userAgent: userAgent ? userAgent.slice(0, 300) : undefined,
-      isBot,
-      clientId,
-      ...(isFounder ? { isFounder: true, is_founder: true } : {}),
-    };
-
-    await ingestTelemetryEvent(eventDoc);
+    const projection = await writeLegacyProjection(eventDoc);
+    if (projection === "busy") {
+      return NextResponse.json(
+        { received: false, accepted: false, retryable: true, eventId: eventDoc.id },
+        { status: 503, headers: { "Retry-After": "1" } }
+      );
+    }
 
     return NextResponse.json({
       received: true,
       accepted: true,
-      duplicate: false,
-      eventId,
+      duplicate: Boolean(v2Result.duplicate),
+      eventId: eventDoc.id,
       dedupeKey: v2Result.dedupeKey,
     });
   } catch (err: unknown) {

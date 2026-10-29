@@ -17,8 +17,9 @@ import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step
 import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
 import { evaluateCheckoutInitTransition } from "@/lib/payment-mode";
-import { trackEvent, trackEventV2, getSessionId } from "@/lib/telemetry";
+import { trackEventV2, getSessionId } from "@/lib/telemetry";
 import { bindJourneyToDraft } from "@/lib/journey-identity";
+import { emitMilestoneOnce } from "@/lib/telemetry-milestones";
 import {
   trackGA4ViewItem,
   trackGA4BeginCheckout,
@@ -204,6 +205,30 @@ export function EntryPrototypeClient({
 
   // Payment & checkout state
   const [customerEmail, setCustomerEmail] = useState("");
+  const telemetryDraftIdRef = useRef<string | null>(null);
+  const emittedMilestonesRef = useRef<Set<string>>(new Set());
+  const initialTelemetryEmittedRef = useRef(false);
+  const getTelemetryDraftId = () => {
+    if (!telemetryDraftIdRef.current) {
+      let storedId: string | null = null;
+      try {
+        const saved = localStorage.getItem(`smn_active_draft_v2_${targetOccasionSlug}`) || localStorage.getItem("smn_active_draft_v2");
+        const parsed = saved ? JSON.parse(saved) : null;
+        if (typeof parsed?.draftId === "string" && parsed.draftId !== `draft_${targetOccasionSlug}`) storedId = parsed.draftId;
+      } catch { /* use a fresh opaque identifier */ }
+      telemetryDraftIdRef.current = storedId || `draft_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return telemetryDraftIdRef.current;
+  };
+  const emitJourneyMilestone = (eventName: string, properties: Record<string, unknown>, options: { dedupeKey?: string; scopeSuffix?: string; orderId?: string; paymentAttemptId?: string } = {}) => {
+    const draftId = getTelemetryDraftId();
+    const scope = `${getSessionId()}:${draftId}:${options.scopeSuffix || "journey"}`;
+    emitMilestoneOnce(emittedMilestonesRef.current, trackEventV2, eventName, properties, {
+      scope, dedupeKey: options.dedupeKey, draftId, orderId: options.orderId, paymentAttemptId: options.paymentAttemptId,
+    });
+  };
+  const trackJourneyEvent = (eventName: string, properties: Record<string, unknown>, options: { orderId?: string; paymentAttemptId?: string } = {}) =>
+    trackEventV2(eventName, properties, { draftId: getTelemetryDraftId(), ...options });
   const customerEmailEdited = React.useRef(false);
   const [orderId, setOrderId] = useState("");
   const [viewToken, setViewToken] = useState<string | null>(null);
@@ -507,9 +532,10 @@ export function EntryPrototypeClient({
         }
 
         if (!isAlreadyHydrated) {
-          const draftId = parsed.draftId || `draft_${targetOccasionSlug}`;
+          const draftId = parsed.draftId === `draft_${targetOccasionSlug}` ? getTelemetryDraftId() : parsed.draftId || getTelemetryDraftId();
+          telemetryDraftIdRef.current = draftId;
           bindJourneyToDraft(draftId);
-          trackEventV2("draft_resumed", {
+          emitJourneyMilestone("draft_resumed", {
             draftId,
             restoredStep: parsed.currentStep || "note",
             hasEdits: hasRealUserEdits,
@@ -619,18 +645,14 @@ export function EntryPrototypeClient({
 
   // Telemetry on initial load
   useEffect(() => {
-    trackEvent("session_start", 1, { experience: "candidate_v1" });
-    trackEvent("step_1_landed", 1, {
-      landingPath: typeof window !== "undefined" ? window.location.pathname : undefined,
-      auto_selected: isAutoSelectMode,
-      autoSelected: isAutoSelectMode,
-    });
-    trackEventV2("entry_viewed", {
+    if (!isLoaded || initialTelemetryEmittedRef.current) return;
+    initialTelemetryEmittedRef.current = true;
+    emitJourneyMilestone("entry_viewed", {
       entryRoute: typeof window !== "undefined" ? window.location.pathname : "/",
       occasion: occasionParam || currentCard.occasion,
       scenarioSlug,
     });
-    trackEventV2("cover_loaded", {
+    emitJourneyMilestone("cover_loaded", {
       presetId: resolvedInitialPresetId || currentCard.presetId,
       occasion: occasionParam || currentCard.occasion,
       autoSelected: isAutoSelectMode,
@@ -639,7 +661,7 @@ export function EntryPrototypeClient({
     });
 
     if (initialHandwrittenNote) {
-      trackEventV2("note_template_loaded", {
+      emitJourneyMilestone("note_template_loaded", {
         charCount: initialHandwrittenNote.length,
         occasion: occasionParam,
         scenarioSlug,
@@ -650,21 +672,12 @@ export function EntryPrototypeClient({
 
     const promo = extractOfferCodeFromUrlParams(searchParams);
     if (promo) {
-      trackEventV2("offer_viewed", {
+      emitJourneyMilestone("offer_viewed", {
         promoCode: promo,
         source: "url_param",
       });
     }
 
-    if (isAutoSelectMode) {
-      trackEvent("step_2_cover_ready", 1, {
-        presetId: resolvedInitialPresetId || currentCard.presetId,
-        occasion: occasionParam || currentCard.occasion,
-        title: resolvedInitialPresetTitle || currentCard.title,
-        auto_selected: true,
-        autoSelected: true,
-      });
-    }
     trackGA4ViewItem({
       itemId: resolvedInitialPresetId || CARD_PRESETS[0].id,
       itemName: resolvedInitialPresetTitle || CARD_PRESETS[0].title,
@@ -678,6 +691,7 @@ export function EntryPrototypeClient({
       value: 9.0,
     });
   }, [
+    isLoaded,
     isAutoSelectMode,
     resolvedInitialPresetId,
     resolvedInitialPresetTitle,
@@ -697,7 +711,7 @@ export function EntryPrototypeClient({
   useEffect(() => {
     if (typeof window === "undefined" || !isLoaded || isOrderConfirmed) return;
     try {
-      const draftId = `draft_${targetOccasionSlug}`;
+      const draftId = getTelemetryDraftId();
       bindJourneyToDraft(draftId);
       const draftData = {
         draftId,
@@ -762,18 +776,14 @@ export function EntryPrototypeClient({
       },
     });
 
-    trackEvent("cover_preset_selected", 1, {
-      presetId: preset.id,
-      title: preset.title,
-      occasion: preset.occasion,
-    });
-    trackEventV2("cover_selected", {
+    emitJourneyMilestone("cover_selected", {
       presetId: preset.id,
       occasion: preset.occasion,
       source: "preset_picker",
       autoSelected: false,
       auto_selected: false,
     });
+    emitJourneyMilestone("builder_engaged", { control: "cover_selection" });
   };
 
   // Handle Custom AI generation selection (Finding 8: never transmit customer prompt to Meta)
@@ -798,12 +808,7 @@ export function EntryPrototypeClient({
     });
 
     if (isPreset) {
-      trackEvent("cover_preset_selected", 1, {
-        presetId: art.presetId,
-        title: art.prompt,
-        occasion: art.occasion,
-      });
-      trackEventV2("cover_selected", {
+      emitJourneyMilestone("cover_selected", {
         presetId: art.presetId,
         occasion: art.occasion,
         source: "drawer_preset_fallback",
@@ -811,18 +816,13 @@ export function EntryPrototypeClient({
         auto_selected: false,
       });
     } else {
-      trackEvent("custom_generation_completed", 1, {
-        occasion: art.occasion,
-      });
-      trackEvent("card_completed", 1, {
-        cardType: "custom",
-      });
-      trackEventV2("cover_selected", {
+      emitJourneyMilestone("cover_selected", {
         occasion: art.occasion,
         source: "custom_ai",
         autoSelected: false,
         auto_selected: false,
       });
+      emitJourneyMilestone("builder_engaged", { control: "custom_cover_selection" });
 
       trackMetaCustomizeProduct({
         customizationType: "AI Art Generated",
@@ -866,7 +866,7 @@ export function EntryPrototypeClient({
           accepted: true,
         },
       });
-      trackEventV2("cover_selected", {
+      emitJourneyMilestone("cover_selected", {
         occasion: draft.lastCustomArtwork.occasion,
         source: "custom_ai_restored",
         autoSelected: false,
@@ -880,10 +880,7 @@ export function EntryPrototypeClient({
     markUserCustomEdit();
     if (!userCustomizedNote) {
       setUserCustomizedNote(true);
-      trackEventV2("note_edit_started", {
-        inputField: "salutation",
-        charCount: newSalutation.length,
-      });
+      emitJourneyMilestone("builder_engaged", { control: "salutation" });
     }
     setSalutation(newSalutation);
     dispatch({ type: "UPDATE_NOTE", payload: { salutation: newSalutation } });
@@ -909,10 +906,7 @@ export function EntryPrototypeClient({
     markUserCustomEdit();
     if (!userCustomizedNote) {
       setUserCustomizedNote(true);
-      trackEventV2("note_edit_started", {
-        inputField: "signOff",
-        charCount: newSignOff.length,
-      });
+      emitJourneyMilestone("builder_engaged", { control: "sign_off" });
     }
     setSignOff(newSignOff);
     dispatch({ type: "UPDATE_NOTE", payload: { signOff: newSignOff } });
@@ -937,20 +931,11 @@ export function EntryPrototypeClient({
     markUserCustomEdit();
     if (!userCustomizedNote) {
       setUserCustomizedNote(true);
-      trackEventV2("note_edit_started", {
-        inputField: "note",
-        charCount: newText.length,
-      });
+      emitJourneyMilestone("builder_engaged", { control: "note" });
     }
     dispatch({
       type: "UPDATE_NOTE",
       payload: { text: newText },
-    });
-    trackEvent("inside_note_edited", 2, {
-      charCount: newText.length,
-      hasContent: newText.trim().length > 0,
-      noteEdited: true,
-      isDirty: true,
     });
   };
 
@@ -960,7 +945,7 @@ export function EntryPrototypeClient({
       type: "UPDATE_NOTE",
       payload: { style: newFontId },
     });
-    trackEvent("font_style_selected", 2, { fontId: newFontId });
+    emitJourneyMilestone("builder_engaged", { control: "font_style" });
   };
 
   // Handle recipient address updates
@@ -1049,14 +1034,6 @@ export function EntryPrototypeClient({
       }
       dispatch({ type: "ACCEPT_DESIGN" });
 
-      trackEvent("card_completed", 1, {
-        presetId: draft.selectedDesign?.presetId,
-        cardType: draft.selectedDesign?.source || "preset",
-      });
-      trackEvent("step_2_cover_ready", 1, {
-        presetId: draft.selectedDesign?.presetId || currentCard.presetId,
-        occasion: currentCard.occasion,
-      });
       trackMetaAddToCart({
         contentId: currentCard.presetId || "card",
         contentName: currentCard.title,
@@ -1104,22 +1081,17 @@ export function EntryPrototypeClient({
         (!initialHandwrittenNote && draft.note.text.trim().length > 0)
       );
 
-      trackEventV2("note_confirmed", {
+      emitJourneyMilestone("note_confirmed", {
         charCount: draft.note.text.length,
         fontId: draft.note.style || "hwDavid",
         wasEdited: noteWasEdited,
         noteEdited: noteWasEdited,
         hasPrintedGreeting: Boolean(salutation || signOff),
       });
-      trackEventV2("address_viewed", {
+      emitJourneyMilestone("address_viewed", {
         deferred: isAddressDeferred,
       });
 
-      trackEvent("note_completed", 2, {
-        charCount: draft.note.text.length,
-        fontId: draft.note.style || "hwDavid",
-      });
-      trackEvent("step_4a_address_viewed", 4);
       trackGA4BeginCheckout({
         itemId: currentCard.presetId || "card",
         itemName: currentCard.title,
@@ -1181,12 +1153,10 @@ export function EntryPrototypeClient({
 
   // Validate address and transition to checkout (never disable button silently without explanation)
   const handleAddressSubmit = () => {
-    trackEvent("step_4a_address_viewed", 4);
     if (!recipient.fullName.trim()) {
       const err = "Please provide the recipient's full name.";
       setAddressValidationError(err);
-      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-      trackEventV2("address_validation_failed", {
+      trackJourneyEvent("address_validation_failed", {
         errorCategory: "missing_recipient_name",
         fieldName: "recipient.fullName",
       });
@@ -1196,8 +1166,7 @@ export function EntryPrototypeClient({
       if (!recipient.street1.trim()) {
         const err = "Please provide the recipient's street address.";
         setAddressValidationError(err);
-        trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-        trackEventV2("address_validation_failed", {
+        trackJourneyEvent("address_validation_failed", {
           errorCategory: "missing_recipient_street",
           fieldName: "recipient.street1",
         });
@@ -1209,8 +1178,7 @@ export function EntryPrototypeClient({
       if (!recipient.city.trim() || (needsRegion && !recipient.state.trim()) || (needsPostal && !recipient.zip.trim())) {
         const err = isInternational ? "Please complete the required locality, region, and postal details for this destination." : "Please complete the recipient's City, State, and ZIP code.";
         setAddressValidationError(err);
-        trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-        trackEventV2("address_validation_failed", {
+        trackJourneyEvent("address_validation_failed", {
           errorCategory: "missing_recipient_city_state_zip",
         });
         return;
@@ -1219,8 +1187,7 @@ export function EntryPrototypeClient({
     if (!sender.fullName.trim()) {
       const err = "Please provide your name for your return address.";
       setAddressValidationError(err);
-      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-      trackEventV2("address_validation_failed", {
+      trackJourneyEvent("address_validation_failed", {
         errorCategory: "missing_sender_name",
         fieldName: "sender.fullName",
       });
@@ -1229,26 +1196,22 @@ export function EntryPrototypeClient({
     if (!isAddressDeferred && (!sender.city.trim() || !sender.state.trim())) {
       const err = "Please provide your city and state for your return address.";
       setAddressValidationError(err);
-      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-      trackEventV2("address_validation_failed", {
+      trackJourneyEvent("address_validation_failed", {
         errorCategory: "missing_sender_city_state",
       });
       return;
     }
 
     setAddressValidationError(null);
-    trackEvent("step_4b_address_completed", 4, {
-      used_address_deferral: isAddressDeferred,
-    });
     if (isAddressDeferred) {
-      trackEventV2("address_deferred", {
+      emitJourneyMilestone("address_deferred", {
         reason: "sender_will_provide_later",
-      });
+      }, { dedupeKey: "address_path" });
     } else {
-      trackEventV2("address_confirmed", {
+      emitJourneyMilestone("address_confirmed", {
         hasReturnAddress: Boolean(sender.street1 && sender.city),
         hasRecipientStreet2: Boolean(recipient.street2),
-      });
+      }, { dedupeKey: "address_path" });
     }
     initializeCheckout();
   };
@@ -1312,7 +1275,7 @@ export function EntryPrototypeClient({
         discountToApply = validation;
       }
 
-      trackEventV2("checkout_requested", {
+      trackJourneyEvent("checkout_requested", {
         amountInCents: currentDisplayTotalCents,
         hasDiscount: Boolean(discountCodeToUse),
         isAddressDeferred,
@@ -1434,22 +1397,12 @@ export function EntryPrototypeClient({
       }
       setCheckoutInitError(null);
 
-      trackEventV2("checkout_created", {
+      emitJourneyMilestone("checkout_created", {
         orderId: data.orderId,
         isMock: Boolean(data.isMock),
         isFree: Boolean(data.isFree),
         amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
-      });
-
-      trackEvent("address_completed", 3, {
-        hasReturnAddress: Boolean(sender.street1 && sender.city),
-        usedAddressDeferral: isAddressDeferred,
-      });
-      trackEvent("step_5_checkout_initiated", 5, {
-        isMock: Boolean(data.isMock),
-        isFree: Boolean(data.isFree),
-        amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
-      });
+      }, { orderId: data.orderId, scopeSuffix: `order:${data.orderId}` });
       trackGA4AddShippingInfo({
         itemId: currentCard.presetId || "card",
         itemName: currentCard.title,
@@ -1490,7 +1443,7 @@ export function EntryPrototypeClient({
   const handleApplyDiscount = async (code: string) => {
     if (discountRequestInFlight.current || checkoutRequestInFlight.current) return { success: false, error: "Checkout is updating. Please try again." };
     discountRequestInFlight.current = true;
-    trackEventV2("discount_apply_requested", {
+    trackJourneyEvent("discount_apply_requested", {
       promoCode: code.trim(),
     });
     try {
@@ -1501,7 +1454,7 @@ export function EntryPrototypeClient({
       });
       const data = await res.json();
       if (!res.ok || !data.valid) {
-        trackEventV2("discount_rejected", {
+        trackJourneyEvent("discount_rejected", {
           promoCode: code.trim(),
           rejectionReason: data.error || "invalid_code",
         });
@@ -1528,7 +1481,7 @@ export function EntryPrototypeClient({
         setAmountInCents(data.finalAmountInCents ?? 900);
       }
       dispatch({ type: "SET_DISCOUNT_CODE", payload: data.code });
-      trackEventV2("discount_applied", {
+      trackJourneyEvent("discount_applied", {
         promoCode: data.code,
         discountType: data.discountType || (data.isFree ? "free_order" : "percent_or_fixed"),
         amountSavedInCents: 900 - (data.finalAmountInCents ?? 900),
@@ -1552,7 +1505,7 @@ export function EntryPrototypeClient({
       });
       return { success: true };
     } catch {
-      trackEventV2("discount_rejected", {
+      trackJourneyEvent("discount_rejected", {
         promoCode: code.trim(),
         rejectionReason: "network_error",
       });
@@ -1583,7 +1536,7 @@ export function EntryPrototypeClient({
       dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
       dispatch({ type: "SET_APPLIED_OFFER", payload: null });
       if (appliedDiscount) {
-        trackEventV2("discount_removed", {
+        trackJourneyEvent("discount_removed", {
           promoCode: appliedDiscount.code,
         });
       }
@@ -1618,9 +1571,6 @@ export function EntryPrototypeClient({
     setIsOrderConfirmed(true);
     dispatch({ type: "MARK_COMPLETED" });
 
-    trackEvent("step_6_paid_order", 6, {
-      orderId: completedOrderId,
-    });
 
     setHasCustomUserEdits(false);
     setRestoredToast(false);
@@ -1645,6 +1595,8 @@ export function EntryPrototypeClient({
 
   // Reset entire flow handler for "Clear draft" and "Send another card"
   const resetEntireFlow = () => {
+    telemetryDraftIdRef.current = null;
+    emittedMilestonesRef.current.clear();
     customerEmailEdited.current = false;
     setCustomerEmail(user?.email || "");
     setPaymentInFlight(false);
@@ -1907,6 +1859,7 @@ export function EntryPrototypeClient({
                 dispatch({ type: "SET_CHECKOUT_CONTACT", payload: { email, choice: email.trim() ? "provided" : "omitted" } });
               }}
               orderId={orderId}
+              draftId={getTelemetryDraftId()}
               viewToken={viewToken}
               clientSecret={clientSecret}
               publishableKey={publishableKey}

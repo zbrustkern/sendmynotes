@@ -77,6 +77,24 @@ class MemoryStorage implements StorageLike {
   }
 }
 
+// Keep the no-storage fallback alive for the lifetime of this page/module. A
+// fresh MemoryStorage on each resolveStorage() call made every event appear to
+// start a new session whenever both browser storage APIs were blocked.
+const pageMemoryStorage = new MemoryStorage();
+const customStorageFallbacks = new WeakMap<object, MemoryStorage>();
+
+function memoryFallbackFor(storage?: StorageLike): MemoryStorage {
+  if (!storage || (typeof storage !== "object" && typeof storage !== "function")) {
+    return pageMemoryStorage;
+  }
+  const key = storage as object;
+  const existing = customStorageFallbacks.get(key);
+  if (existing) return existing;
+  const fallback = new MemoryStorage();
+  customStorageFallbacks.set(key, fallback);
+  return fallback;
+}
+
 /**
  * Creates an ID with a given prefix, timestamp, and random suffix.
  */
@@ -110,10 +128,12 @@ function resolveStorage(customStorage?: StorageLike): { storage: StorageLike; de
     if (isStorageAvailable(customStorage)) {
       return { storage: customStorage, degraded: false };
     }
-    return { storage: new MemoryStorage(), degraded: true };
+    return { storage: memoryFallbackFor(customStorage), degraded: true };
   }
 
   if (typeof window === "undefined") {
+    // Server requests do not have a page lifetime to share; avoid leaking a
+    // process-global identity across unrelated requests.
     return { storage: new MemoryStorage(), degraded: true };
   }
 
@@ -133,7 +153,7 @@ function resolveStorage(customStorage?: StorageLike): { storage: StorageLike; de
     // sessionStorage threw
   }
 
-  return { storage: new MemoryStorage(), degraded: true };
+  return { storage: pageMemoryStorage, degraded: true };
 }
 
 /**
@@ -172,11 +192,15 @@ export function getOrCreateJourneyIdentity(options?: GetJourneyIdentityOptions):
   // 2. Resolve Journey ID (Active card creation / checkout lifecycle)
   let journeyId = options?.journeyOverride;
   if (!journeyId && options?.draftId) {
-    // Check if this draft is already bound to a journey
-    journeyId = getDraftBoundJourneyId(options.draftId, storage) || undefined;
+    // A first-seen draft is a new card journey. Reuse only that draft's own
+    // persisted binding; falling back to the global active journey would merge
+    // unrelated cards when a sender starts another draft in the same session.
+    journeyId =
+      getDraftBoundJourneyId(options.draftId, storage) || generateIdentityId("jny");
   }
 
-  if (!journeyId) {
+  // Calls without a draft keep the legacy active-journey behavior.
+  if (!journeyId && !options?.draftId) {
     try {
       const storedJourney = storage.getItem(SMN_JOURNEY_V2_KEY);
       if (storedJourney && storedJourney.trim().length > 0) {
@@ -191,6 +215,9 @@ export function getOrCreateJourneyIdentity(options?: GetJourneyIdentityOptions):
       inMemorySessionStore.set(SMN_JOURNEY_V2_KEY, journeyId);
     }
   }
+
+  // Keep the return contract total even for malformed empty draft identifiers.
+  journeyId = journeyId || generateIdentityId("jny");
 
   // If a draftId is provided, ensure draft is bound to this journeyId
   if (options?.draftId && journeyId) {
@@ -324,7 +351,8 @@ export function getDraftBoundJourneyId(
 
 /**
  * Resumes a journey from an existing draft ID.
- * Returns the correlated journeyId or creates a fresh identity if none was stored.
+ * Returns the draft's correlated journeyId or creates and binds a new journey
+ * when this draft has not been seen before.
  */
 export function resumeJourneyFromDraft(
   draftId: string,

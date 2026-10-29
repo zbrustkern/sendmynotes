@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import {
   Sparkles,
   ArrowRight,
@@ -14,7 +14,6 @@ import {
 import { OCCASION_MESSAGE_BANK, MessageInspiration, CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
-import { trackEvent } from "@/lib/telemetry";
 
 export interface StarterPrompt {
   label: string;
@@ -277,44 +276,6 @@ export function Step2NoteComposition({
   const isApproachingLimit = charCount >= WARN_CHARS && charCount < MAX_CHARS;
   const isAtLimit = charCount >= MAX_CHARS;
 
-  // Track initial values on mount to differentiate between pre-filled default template and real edits
-  const initialValuesRef = useRef({
-    salutation,
-    bodyNote,
-    signOff,
-  });
-
-  const firedStep3Ref = useRef(false);
-
-  // Emit default_template_loaded on passive mount if initial note is pre-populated
-  useEffect(() => {
-    if (bodyNote.trim().length > 0) {
-      trackEvent("default_template_loaded", 2, {
-        charCount: fullText.length,
-        occasion,
-        scenarioSlug,
-        noteEdited: false,
-      });
-    }
-  }, []);
-
-  // Fire step_3_note_typed ONLY when the user actively interacts
-  const markNoteAsEditedAndFireStep3 = useCallback(
-    (charLength: number, fromStarterPrompt = false, field = "body") => {
-      if (!firedStep3Ref.current) {
-        firedStep3Ref.current = true;
-        trackEvent("step_3_note_typed", 2, {
-          charCount: charLength,
-          usedStarterPrompt: fromStarterPrompt,
-          noteEdited: true,
-          isDirty: true,
-          inputField: field,
-        });
-      }
-    },
-    []
-  );
-
   const applyInspirationText = (text: string) => {
     setPreviousBodyNote(bodyNote);
     const projectedCombined = [salutation, text, signOff].filter(Boolean).join("\n\n");
@@ -327,7 +288,6 @@ export function Step2NoteComposition({
     if (bracketWarning && !/\[.*?\]/.test(text)) {
       setBracketWarning(null);
     }
-    markNoteAsEditedAndFireStep3(text.length, false, "inspiration");
   };
 
   // Starter prompts bank for occasion / scenario
@@ -338,12 +298,6 @@ export function Step2NoteComposition({
   const handleUseStarterPrompt = (prompt: StarterPrompt, promptNumber: number) => {
     setPreviousBodyNote(bodyNote);
     applyInspirationText(prompt.template);
-    trackEvent("starter_prompt_used", 2, {
-      promptLabel: prompt.label,
-      occasion,
-      promptNumber,
-    });
-    markNoteAsEditedAndFireStep3(prompt.template.length, true, "starterPrompt");
   };
 
   const handleUndoStarter = () => {
@@ -371,9 +325,6 @@ export function Step2NoteComposition({
       setBracketWarning(null);
     }
 
-    if (newBody !== initialValuesRef.current.bodyNote) {
-      markNoteAsEditedAndFireStep3(newBody.length, false, "body");
-    }
   };
 
   // Smart greeting focus handler: highlight the word "Friend" if present so typing replaces it in 1 keystroke
@@ -391,11 +342,6 @@ export function Step2NoteComposition({
     const hasBracket = /\[.*?\]/.test(combined);
     if (hasBracket) {
       setBracketWarning("Quick check: Replace [bracketed text] with a real name before continuing.");
-      trackEvent("inside_note_edited", 2, {
-        has_unresolved_bracket: true,
-        salutation,
-        signOff,
-      });
       return;
     }
     setBracketWarning(null);
@@ -576,9 +522,6 @@ export function Step2NoteComposition({
                   if (bracketWarning && !/\[.*?\]/.test(`${val} ${bodyNote} ${signOff}`)) {
                     setBracketWarning(null);
                   }
-                  if (val !== initialValuesRef.current.salutation) {
-                    markNoteAsEditedAndFireStep3(bodyNote.length, false, "greeting");
-                  }
                 }}
                 placeholder="e.g. Dear Sarah,"
                 className={`w-full px-3.5 py-2.5 bg-stone-50 border rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans ${
@@ -724,9 +667,6 @@ export function Step2NoteComposition({
                   }
                   if (bracketWarning && !/\[.*?\]/.test(`${salutation} ${bodyNote} ${val}`)) {
                     setBracketWarning(null);
-                  }
-                  if (val !== initialValuesRef.current.signOff) {
-                    markNoteAsEditedAndFireStep3(bodyNote.length, false, "signOff");
                   }
                 }}
                 placeholder="e.g. Warmly, Ezekiel"
