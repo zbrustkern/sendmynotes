@@ -60,6 +60,7 @@ async function main() {
   const response = await telemetry(new NextRequest("http://localhost/api/telemetry", { method: "POST", body: JSON.stringify(envelope) }));
   assert.equal(response.status, 200);
   const stored = (await firestoreDb.collection("telemetry_events").doc(envelope.event_id).get()).data();
+  assert.ok(stored, "Accepted V2 event must be persisted");
   assert.deepEqual(stored.metadata, { httpStatus: 400, errorCategory: "validation" });
   assert.equal(stored.sessionId, envelope.session_id);
   assert.equal(stored.timestamp, envelope.occurred_at);
