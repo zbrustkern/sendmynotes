@@ -16,7 +16,11 @@ export async function GET(req: NextRequest) {
     }
     if (req.nextUrl.searchParams.get("open") === "1") {
       // Exchange the private token before loading the page's analytics/scripts.
-      const destination = new URL("/new?recover_artwork=1", req.url);
+      // Cloud Run supplies an internal request origin (0.0.0.0:8080).
+      // Redirect through the configured customer-facing origin, never that host.
+      const publicOrigin = process.env.NEXT_PUBLIC_APP_URL?.trim();
+      if (!publicOrigin && process.env.NODE_ENV === "production") throw new Error("Public app origin unavailable");
+      const destination = new URL("/new?recover_artwork=1", publicOrigin || req.url);
       const discount = req.nextUrl.searchParams.get("discount");
       if (discount && /^[A-Za-z0-9_-]{2,50}$/.test(discount)) destination.searchParams.set("discount", discount);
       const response = NextResponse.redirect(destination, 303);

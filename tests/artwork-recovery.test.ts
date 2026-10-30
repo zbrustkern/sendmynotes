@@ -48,6 +48,12 @@ async function main() {
   assert.equal(open.cookies.get("smn_recovered_artwork")?.httpOnly, true);
   const cookieRead = await GET(new NextRequest("http://localhost/api/artwork/recover", { headers: { cookie: `smn_recovered_artwork=${token}` } }));
   assert.equal(cookieRead.status, 200);
+  const previousAppUrl = process.env.NEXT_PUBLIC_APP_URL;
+  process.env.NEXT_PUBLIC_APP_URL = "https://sendmynotes.com";
+  const hosted = await GET(new NextRequest(`http://0.0.0.0:8080/api/artwork/recover?token=${token}&open=1&discount=LAUNCHVIP600`));
+  assert.equal(hosted.headers.get("location"), "https://sendmynotes.com/new?recover_artwork=1&discount=LAUNCHVIP600");
+  if (previousAppUrl === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+  else process.env.NEXT_PUBLIC_APP_URL = previousAppUrl;
   assert.equal((await GET(new NextRequest("http://localhost/api/artwork/recover?token=bad"))).status, 404);
 
   const envelope = buildEventV2Envelope({ event_name: "checkout_failed", session_id: "sess_recovery_fixture", event_id: "evt_recovery_fixture", properties: { httpStatus: 400, errorCategory: "validation", handwrittenNote: "PRIVATE WORDS", address: { street: "PRIVATE" } } });
