@@ -23,6 +23,7 @@ import {
 import { buildEventV2Envelope } from "./telemetry-v2-envelope";
 
 export const TELEMETRY_COLLECTION = "telemetry_events";
+let lastNoteEditTelemetryAt = 0;
 
 /**
  * Returns active session ID using versioned journey identity.
@@ -236,6 +237,14 @@ export async function trackEvent(
   orderId?: string
 ): Promise<void> {
   if (typeof window === "undefined") return;
+
+  // Keystrokes must not exhaust the collector's 60/minute budget before checkout.
+  // note_completed separately records the final character count.
+  if (eventName === "inside_note_edited") {
+    const now = Date.now();
+    if (now - lastNoteEditTelemetryAt < 3000 && !metadata?.has_unresolved_bracket) return;
+    lastNoteEditTelemetryAt = now;
+  }
 
   // Authority events are server-only; browser emitter skips sending them
   if (isAuthorityEvent(eventName)) {

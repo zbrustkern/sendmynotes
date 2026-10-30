@@ -208,6 +208,8 @@ export const STUDIO_OCCASION_PILLS = [
 ] as const;
 
 interface Step2NoteCompositionProps {
+  amountInCents?: number;
+  discountApplied?: boolean;
   salutation: string;
   onChangeSalutation: (val: string) => void;
   bodyNote: string;
@@ -228,6 +230,8 @@ interface Step2NoteCompositionProps {
 }
 
 export function Step2NoteComposition({
+  amountInCents = 900,
+  discountApplied = false,
   salutation,
   onChangeSalutation,
   bodyNote,
@@ -785,11 +789,11 @@ export function Step2NoteComposition({
                 onClick={handleProceedToAddress}
                 className="w-full py-3.5 px-6 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold rounded-xl text-base transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Continue to Recipient Address — $9.00 All-In</span>
+                <span>Continue to Recipient Address — ${(amountInCents / 100).toFixed(2)} All-In</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
               <p className="text-[11px] text-stone-500 text-center leading-relaxed mt-2">
-                Includes a folded cardstock card, your message written in real pen ink, and a First-Class USPS stamp. Don&apos;t know their address yet? You can add it after checkout.
+                {discountApplied ? "Discount applied. " : ""}Includes a folded cardstock card, your message written in real pen ink, and a First-Class USPS stamp. Don&apos;t know their address yet? You can add it after checkout.
               </p>
             </div>
           </div>
@@ -811,12 +815,12 @@ export function Step2NoteComposition({
               onClick={handleProceedToAddress}
               className="w-full py-3 px-4 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold rounded-xl text-sm transition shadow-sm flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <span>Continue to Address ($9.00 All-In)</span>
+              <span>Continue to Address (${(amountInCents / 100).toFixed(2)} All-In)</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
           <p className="text-[10px] text-stone-500 text-center mt-1">
-            USPS First-Class stamp included &bull; Add street address later if needed
+            {discountApplied ? "Discount applied · " : ""}USPS First-Class stamp included &bull; Add street address later if needed
           </p>
         </div>
       )}

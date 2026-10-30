@@ -72,6 +72,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Payload must be a JSON object" }, { status: 400 });
     }
 
+    // The current browser emitter uses the V2 envelope. Normalize its naming
+    // before the same authority, size, event and metadata checks as legacy pings.
+    if (body.schema_version === "v2.0") {
+      body = {
+        eventId: body.event_id, eventName: body.event_name, sessionId: body.session_id,
+        orderId: body.order_id, timestamp: body.occurred_at, path: body.route_template,
+        experienceVersion: body.experience_version, clientId: body.anonymous_id,
+        metadata: body.properties,
+        utmSource: body.properties?.utmSource, utmMedium: body.properties?.utmMedium,
+        utmCampaign: body.properties?.utmCampaign, referrer: body.properties?.referrer,
+        deviceType: body.properties?.device_category,
+      };
+    }
+
     const {
       eventName,
       sessionId,
@@ -155,7 +169,8 @@ export async function POST(req: NextRequest) {
     const cleanExpVersion = typeof experienceVersion === "string" ? experienceVersion.trim().slice(0, 50) : undefined;
     const cleanDraftRev = typeof draftRevision === "number" && Number.isFinite(draftRevision) ? draftRevision : undefined;
 
-    const eventId = `evt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    const eventId = typeof body.eventId === "string" && /^[a-zA-Z0-9_-]{6,100}$/.test(body.eventId)
+      ? body.eventId : `evt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
 
     // Extract Edge Geo headers (Vercel, Cloudflare, etc.)
     const rawCity =

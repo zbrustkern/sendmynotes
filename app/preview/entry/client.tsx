@@ -131,7 +131,7 @@ export function EntryPrototypeClient({
     ? (initialCoverUrl || initialPreset?.imageUrl || CARD_PRESETS[0].imageUrl)
     : undefined;
 
-  const { draft, dispatch, clearDraft, isLoaded } = useDraft({
+  const { draft, dispatch, clearDraft, isLoaded, wasRestored, saveLocation } = useDraft({
     experienceVersion: "candidate_v1",
     initialPresetId: resolvedInitialPresetId,
     initialPresetTitle: resolvedInitialPresetTitle,
@@ -154,6 +154,9 @@ export function EntryPrototypeClient({
   const [isAddressDeferred, setIsAddressDeferred] = useState(false);
   const [addressValidationError, setAddressValidationError] = useState<string | null>(null);
   const [restoredToast, setRestoredToast] = useState(false);
+  const [recoveryStatus, setRecoveryStatus] = useState<string | null>(null);
+  const recoveryStarted = useRef(false);
+  const legacyHydrated = useRef<string | null>(null);
   const [hasCustomUserEdits, setHasCustomUserEdits] = useState(false);
 
   // Mark draft as containing real user edits (persisted to localStorage)
@@ -248,6 +251,10 @@ export function EntryPrototypeClient({
     setCustomerEmail(draft.checkoutContact.email);
   }, [isLoaded, draft.checkoutContact]);
 
+  useEffect(() => {
+    if (isLoaded) setIsAddressDeferred(Boolean(draft.addressDeferred) && !isInternationalCountry(draft.recipient?.country));
+  }, [isLoaded, draft.addressDeferred]);
+
   // Sync draft to local state once loaded and verify any completed order server-side
   useEffect(() => {
     if (!isLoaded) return;
@@ -290,6 +297,9 @@ export function EntryPrototypeClient({
         // No order identity found — do not certify completed
         setIsOrderConfirmed(false);
       }
+    } else if (wasRestored && !draft.selectedDesign?.imageUrl) {
+      // A legacy words-only draft cannot resume payment with a fallback cover.
+      setStep("card");
     } else if (isAutoSelectMode) {
       // Auto-selection takes precedence over default "card" currentStep from createInitialDraft
       if (draft.currentStep === "address" || draft.currentStep === "pay") {
@@ -398,22 +408,59 @@ export function EntryPrototypeClient({
     parsedScenario?.signOff,
     isAutoSelectMode,
     dispatch,
+    wasRestored,
   ]);
+
+  useEffect(() => {
+    if (!isLoaded || !wasRestored) return;
+    setRestoredToast(true);
+    trackEventV2("draft_resumed", { restoredStep: draft.currentStep || "card", hasEdits: true });
+  }, [isLoaded, wasRestored]);
+
+  useEffect(() => {
+    if (!restoredToast) return;
+    const timeout = setTimeout(() => setRestoredToast(false), 5000);
+    return () => clearTimeout(timeout);
+  }, [restoredToast]);
+
+  useEffect(() => {
+    const recoveryRequested = searchParams?.get("recover_artwork") === "1";
+    if (!isLoaded || !recoveryRequested || recoveryStarted.current) return;
+    recoveryStarted.current = true;
+    setRecoveryStatus("Loading your recovered artwork…");
+    fetch("/api/artwork/recover", { cache: "no-store" })
+      .then(async response => {
+        const artwork = await response.json();
+        if (!response.ok || !artwork.imageUrl) throw new Error(artwork.error || "Unable to load this artwork.");
+        dispatch({ type: "SELECT_DESIGN", payload: { imageUrl: artwork.imageUrl, title: artwork.title, occasion: artwork.occasion, source: "custom", accepted: true } });
+        dispatch({ type: "SET_STEP", payload: "note" });
+        setStep("note");
+        setRecoveryStatus("Your recovered artwork is ready. You can continue your card below.");
+        const url = new URL(window.location.href);
+        url.searchParams.delete("recover_artwork");
+        url.searchParams.set("step", "note");
+        window.history.replaceState(window.history.state, "", url.pathname + url.search);
+      })
+      .catch(error => { setRecoveryStatus(error.message); recoveryStarted.current = false; });
+  }, [isLoaded, searchParams, dispatch]);
 
   // Hydrate draft from localStorage (scoped by occasion) for Meta in-app browser resilience
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !isLoaded || legacyHydrated.current === targetOccasionSlug) return;
+    legacyHydrated.current = targetOccasionSlug;
+    // The full draft is authoritative. The older fallback lacks its artwork.
+    if (wasRestored) return;
 
     // 2. Once Per Browser Tab Session (sessionStorage Guard)
-    const isAlreadyHydrated = sessionStorage.getItem("smn_draft_hydrated") === "1";
-    sessionStorage.setItem("smn_draft_hydrated", "1");
-
     try {
+      const isAlreadyHydrated = sessionStorage.getItem("smn_draft_hydrated") === "1";
+      sessionStorage.setItem("smn_draft_hydrated", "1");
       const scopedKey = `smn_active_draft_v2_${targetOccasionSlug}`;
       const saved = localStorage.getItem(scopedKey) || localStorage.getItem("smn_active_draft_v2");
       if (!saved) return;
       const parsed = JSON.parse(saved);
       if (!parsed || typeof parsed !== "object") return;
+      if (!Number.isFinite(parsed.updatedAt) || Date.now() - parsed.updatedAt > 24 * 60 * 60 * 1000) return;
 
       const savedOccasion = canonicalOccasion(parsed.canonicalOccasion || parsed.occasionSlug);
       const isCrossOccasion = Boolean(
@@ -471,24 +518,37 @@ export function EntryPrototypeClient({
       ) {
         if (parsed.salutation && !salutation) setSalutation(parsed.salutation);
         if (parsed.signOff && !signOff) setSignOff(parsed.signOff);
-        if (parsed.insideNoteText && !draft.note.text) {
-          dispatch({ type: "UPDATE_NOTE", payload: { text: parsed.insideNoteText } });
+        if (!draft.note.text) {
+          dispatch({ type: "UPDATE_NOTE", payload: { text: parsed.insideNoteText || "", salutation: parsed.salutation || "", signOff: parsed.signOff || "", style: parsed.fontStyleId || "hwDavid" } });
         }
         if (parsed.addressDeferred !== undefined) {
           const savedCountry = parsed.recipientAddress?.country;
           const savedInternational = isInternationalCountry(savedCountry);
           setIsAddressDeferred(savedInternational ? false : Boolean(parsed.addressDeferred));
+          dispatch({ type: "SET_ADDRESS_DEFERRED", payload: savedInternational ? false : Boolean(parsed.addressDeferred) });
         }
         if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
           setRecipient(parsed.recipientAddress);
+          dispatch({ type: "UPDATE_RECIPIENT", payload: { name: parsed.recipientAddress.fullName || "", addressLine1: parsed.recipientAddress.street1 || "", addressLine2: parsed.recipientAddress.street2 || "", city: parsed.recipientAddress.city || "", state: parsed.recipientAddress.state || "", zip: parsed.recipientAddress.zip || "", country: parsed.recipientAddress.country } });
           if (parsed.domesticRecipientAddress) setDomesticRecipient(parsed.domesticRecipientAddress);
           if (parsed.internationalRecipientAddress) setInternationalRecipient(parsed.internationalRecipientAddress);
           else if (isInternationalCountry(parsed.recipientAddress.country)) setInternationalRecipient(parsed.recipientAddress);
         }
         if (parsed.senderAddress && !sender.fullName && !sender.street1) {
           setSender(parsed.senderAddress);
+          dispatch({ type: "UPDATE_SENDER", payload: { name: parsed.senderAddress.fullName || "", addressLine1: parsed.senderAddress.street1 || "", city: parsed.senderAddress.city || "", state: parsed.senderAddress.state || "", zip: parsed.senderAddress.zip || "", country: parsed.senderAddress.country } });
         }
-        if (parsed.currentStep && parsed.currentStep !== "confirmation") {
+        // Old local drafts did not store the cover. Restore words without pretending
+        // a default cover is the one the sender chose.
+        const savedPreset = CARD_PRESETS.find(preset => preset.id === parsed.coverId);
+        if (savedPreset) {
+          dispatch({ type: "SELECT_DESIGN", payload: { presetId: savedPreset.id, imageUrl: savedPreset.imageUrl, title: savedPreset.title, occasion: savedPreset.occasion, source: "preset", accepted: true } });
+        } else {
+          dispatch({ type: "SET_STEP", payload: "card" });
+          setStep("card");
+        }
+        if (savedPreset && parsed.currentStep && parsed.currentStep !== "confirmation") {
+          dispatch({ type: "SET_STEP", payload: parsed.currentStep });
           if (isAutoSelectMode) {
             // Contextual deep links: open note editor unless user had already navigated deeper
             if (!parsed.insideNoteText?.trim()) {
@@ -519,14 +579,14 @@ export function EntryPrototypeClient({
         // Only display "Welcome back" toast if draft has real user edits AND tab was not already hydrated
         if (hasRealUserEdits && !isAlreadyHydrated) {
           setRestoredToast(true);
-          const t = setTimeout(() => setRestoredToast(false), 4500);
-          return () => clearTimeout(t);
         }
       }
     } catch {
       // ignore
     }
   }, [
+    isLoaded,
+    wasRestored,
     targetOccasionSlug,
     isAutoSelectMode,
     initialStep,
@@ -1273,6 +1333,7 @@ export function EntryPrototypeClient({
     setIsFreeOrder(false);
     dispatch({ type: "SET_CHECKOUT_SNAPSHOT", payload: null });
 
+    let checkoutHttpStatus: number | undefined;
     try {
       const discountCodeToUse =
         overrideDiscountCode !== undefined
@@ -1370,6 +1431,7 @@ export function EntryPrototypeClient({
         }),
       });
 
+      checkoutHttpStatus = res.status;
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize payment gateway.");
@@ -1477,6 +1539,7 @@ export function EntryPrototypeClient({
           ? err.message
           : "Payment is temporarily unavailable. Your card and message are saved. Please try again shortly.";
       console.warn("Notice initializing checkout intent:", msg);
+      trackEventV2("checkout_failed", { httpStatus: checkoutHttpStatus, errorCategory: checkoutHttpStatus && checkoutHttpStatus >= 400 && checkoutHttpStatus < 500 ? "validation" : checkoutHttpStatus ? "server_or_checkout_state" : "network_or_preflight" });
       evaluateCheckoutInitTransition(false);
       setCheckoutInitError(msg);
       return false;
@@ -1791,7 +1854,7 @@ export function EntryPrototypeClient({
       {/* RESTORED DRAFT HYDRATION TOAST */}
       {restoredToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 text-white px-4 py-2.5 rounded-full shadow-lg text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-          <span>✨ Welcome back — your handwritten note was saved.</span>
+          <span>{draft.selectedDesign?.imageUrl ? "Welcome back — your card and words are restored." : "Your saved words are restored. Choose a cover to continue."}</span>
         </div>
       )}
 
@@ -1801,10 +1864,21 @@ export function EntryPrototypeClient({
       {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
       <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
 
+      {recoveryStatus && <div role="status" className="mx-auto w-full max-w-6xl px-4 py-3 text-sm text-emerald-900">{recoveryStatus}</div>}
+      {(draft.selectedDesign || draft.customGeneration.resultImageUrl || draft.note.text) && !draft.completed && (
+        <div role="status" className="mx-auto w-full max-w-6xl px-4 py-2 text-xs text-stone-600">
+          {saveLocation === "device" ? "Draft saved on this device for 24 hours." : saveLocation === "tab" ? "Draft saved in this tab. Keep it open to continue later." : "Your browser could not save this draft. Keep this page open to continue."}
+          {step === "card" && draft.selectedDesign && <button type="button" className="ml-2 font-semibold text-emerald-800 underline" onClick={() => handleStepTransition("note")}>Continue saved card</button>}
+          {step === "card" && !draft.selectedDesign && draft.customGeneration.resultImageUrl && <button type="button" className="ml-2 font-semibold text-emerald-800 underline" onClick={() => setIsCustomAiOpen(true)}>View saved artwork</button>}
+        </div>
+      )}
+
       {/* 3. STEP CONTENT */}
       <main className="flex-1 w-full">
         {step === "card" && (
           <EntryCardStep
+            amountInCents={currentDisplayTotalCents}
+            discountApplied={Boolean(appliedDiscount)}
             selectedDesign={draft.selectedDesign}
             onSelectDesign={handleSelectPreset}
             onAcceptAndContinue={() => handleStepTransition("note")}
@@ -1818,6 +1892,8 @@ export function EntryPrototypeClient({
         {step === "note" && (
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step2NoteComposition
+              amountInCents={currentDisplayTotalCents}
+              discountApplied={Boolean(appliedDiscount)}
               hideFixedActionBar={false}
               salutation={salutation}
               onChangeSalutation={handleSalutationChange}
@@ -1876,7 +1952,7 @@ export function EntryPrototypeClient({
               savedInternationalRecipient={internationalRecipient}
               onUseUSAddress={handleUseUSRecipient}
               displayTotalCents={currentDisplayTotalCents}
-              onChangeAddressDeferred={setIsAddressDeferred}
+              onChangeAddressDeferred={value => { setIsAddressDeferred(value); dispatch({ type: "SET_ADDRESS_DEFERRED", payload: value }); }}
               onValidationError={(err) => setAddressValidationError(err)}
               onBack={handleProgressBack}
               onContinue={handleAddressSubmit}
@@ -1929,7 +2005,7 @@ export function EntryPrototypeClient({
       {step !== "pay" && step !== "note" && (
         <ActionBar
           priceDisplay={isInternational || currentDisplayTotalCents !== 900 ? `$${(currentDisplayTotalCents / 100).toFixed(2)} total` : "$9 total"}
-          priceSubtext={isInternational ? "International mailing included" : "USPS mailing included"}
+          priceSubtext={`${appliedDiscount ? "Discount applied · " : ""}${isInternational ? "International mailing included" : "USPS mailing included"}`}
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
           isDisabled={step === "card" ? !draft.selectedDesign : false}
@@ -1945,6 +2021,8 @@ export function EntryPrototypeClient({
 
       {/* 5. CUSTOM AI COMMISSION DRAWER */}
       <CustomAiCommissionDrawer
+        savedArtwork={draft.customGeneration.status === "completed" && draft.customGeneration.resultImageUrl ? { imageUrl: draft.customGeneration.resultImageUrl, prompt: draft.customGeneration.prompt || "", occasion: draft.selectedDesign?.occasion || currentCard.occasion } : null}
+        onArtworkGenerated={art => dispatch({ type: "SET_CUSTOM_GENERATION", payload: { status: "completed", resultImageUrl: art.imageUrl, prompt: art.prompt } })}
         isOpen={isCustomAiOpen}
         onClose={() => setIsCustomAiOpen(false)}
         onSelectCover={handleSelectCustomCover}
