@@ -36,18 +36,39 @@ export class MemoryDraftStorage implements DraftStorage {
  * Gets default browser sessionStorage safely, falling back to MemoryDraftStorage if unavailable.
  */
 export function getBrowserSessionStorage(): DraftStorage {
-  if (typeof window !== "undefined" && window.sessionStorage) {
-    try {
+  try {
+    if (typeof window !== "undefined" && window.sessionStorage) {
       // Test storage access (may throw in restricted iframe / private browsing)
       const testKey = "__smn_test__";
       window.sessionStorage.setItem(testKey, "1");
       window.sessionStorage.removeItem(testKey);
       return window.sessionStorage;
-    } catch {
-      return new MemoryDraftStorage();
     }
-  }
+  } catch { /* Browser storage can be blocked, including its getter. */ }
   return new MemoryDraftStorage();
+}
+
+export function getBrowserLocalStorage(): DraftStorage | null {
+  try {
+    if (typeof window !== "undefined") return window.localStorage;
+  } catch { /* Keep the tab usable when persistent storage is blocked. */ }
+  return null;
+}
+
+/** Prefer this tab's work; a new tab falls back to the full device draft. */
+export function loadResumableDraft(tab: DraftStorage, device: DraftStorage | null): DraftState | null {
+  return loadDraft(tab) || (device ? loadDraft(device) : null);
+}
+
+export function persistResumableDraft(draft: DraftState, tab: DraftStorage, device: DraftStorage | null): "device" | "tab" | "unavailable" {
+  const tabSaved = saveDraft(draft, tab);
+  // Completed cards must not reappear as an unpaid draft in a new tab.
+  if (draft.completed) {
+    if (device) clearDraft(device);
+    return tabSaved && !(tab instanceof MemoryDraftStorage) ? "tab" : "unavailable";
+  }
+  if (device && saveDraft(draft, device)) return "device";
+  return tabSaved && !(tab instanceof MemoryDraftStorage) ? "tab" : "unavailable";
 }
 
 /**

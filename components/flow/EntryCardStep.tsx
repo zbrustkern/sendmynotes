@@ -25,6 +25,8 @@ export const PERSONAL_OCCASIONS = [
 export type PersonalOccasion = (typeof PERSONAL_OCCASIONS)[number];
 
 interface EntryCardStepProps {
+  amountInCents?: number;
+  discountApplied?: boolean;
   selectedDesign: SelectedDesign | null;
   onSelectDesign: (preset: CardPreset) => void;
   onAcceptAndContinue: () => void;
@@ -35,6 +37,8 @@ interface EntryCardStepProps {
 }
 
 export function EntryCardStep({
+  amountInCents = 900,
+  discountApplied = false,
   selectedDesign,
   onSelectDesign,
   onAcceptAndContinue,
@@ -113,7 +117,7 @@ export function EntryCardStep({
         </p>
         <div className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200/80 px-2.5 py-1 rounded-full">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" aria-hidden="true" />
-          <span>$9 including mailing. No account needed.</span>
+          <span>${(amountInCents / 100).toFixed(2)} including mailing.{discountApplied ? " Discount applied." : " No account needed."}</span>
         </div>
       </section>
 
@@ -173,7 +177,7 @@ export function EntryCardStep({
                   {selectedDesign.title}
                 </p>
                 <p className="text-[11px] text-stone-500">
-                  $9.00 flat rate • Ready to write note
+                  ${(amountInCents / 100).toFixed(2)} including mailing{discountApplied ? " · Discount applied" : ""} · Ready to write note
                 </p>
               </div>
             </div>

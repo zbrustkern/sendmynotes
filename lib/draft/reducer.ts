@@ -11,6 +11,7 @@ import {
 } from "./types";
 
 export type DraftAction =
+  | { type: "SET_ADDRESS_DEFERRED"; payload: boolean }
   | {
       type: "SELECT_DESIGN";
       payload: {
@@ -75,6 +76,7 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
   const now = Date.now();
 
   switch (action.type) {
+    case "SET_ADDRESS_DEFERRED": return { ...state, addressDeferred: action.payload, updatedAt: now };
     case "SELECT_DESIGN": {
       const isSameSelection =
         state.selectedDesign !== null &&

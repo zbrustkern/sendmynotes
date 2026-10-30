@@ -1,4 +1,5 @@
 import { TelemetryEventName } from "./types";
+import { SERVER_ONLY_AUTHORITY_EVENTS } from "./contracts/admin-overhaul";
 
 /**
  * Authority Events that represent financial or fulfillment truth.
@@ -17,6 +18,7 @@ export const AUTHORITY_EVENTS = new Set<string>([
  * fulfillment_*, purchase_*, payment-success-like names.
  */
 export function isAuthorityEvent(eventName: string): boolean {
+  if (SERVER_ONLY_AUTHORITY_EVENTS.has(eventName)) return true;
   if (AUTHORITY_EVENTS.has(eventName)) return true;
   if (eventName.startsWith("fulfillment_")) return true;
   if (eventName.startsWith("purchase_")) return true;
@@ -28,7 +30,14 @@ export function isAuthorityEvent(eventName: string): boolean {
 /**
  * Allowed client/browser event names.
  */
-export const ALLOWED_BROWSER_EVENT_NAMES = new Set<TelemetryEventName>([
+export const ALLOWED_BROWSER_EVENT_NAMES = new Set<string>([
+  "entry_viewed", "builder_engaged", "cover_loaded", "cover_selected",
+  "generation_requested", "generation_completed", "generation_failed",
+  "note_template_loaded", "note_edit_started", "note_confirmed",
+  "address_viewed", "address_validation_failed", "address_confirmed", "address_deferred",
+  "checkout_requested", "checkout_created", "checkout_failed", "payment_ui_ready", "payment_ui_failed",
+  "wallet_selected", "wallet_canceled", "payment_action_required", "payment_confirmation_observed",
+  "offer_viewed", "discount_apply_requested", "discount_applied", "discount_rejected", "discount_removed", "draft_resumed",
   "session_start",
   "landing_viewed",
   "builder_started",
@@ -100,6 +109,20 @@ export const COMMON_METADATA_RULES: Record<string, FieldRule> = {
  * Unknown keys and non-primitives are dropped.
  */
 export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> = {
+  checkout_failed: { httpStatus: { type: "number" }, errorCategory: { type: "string", maxLength: 50 } },
+  checkout_requested: { amountInCents: { type: "number" }, hasDiscount: { type: "boolean" }, isAddressDeferred: { type: "boolean" } },
+  checkout_created: { amountInCents: { type: "number" }, orderId: { type: "string", maxLength: 100 }, isFree: { type: "boolean" }, isMock: { type: "boolean" } },
+  payment_ui_ready: { mode: { type: "string", maxLength: 50 }, paymentElement: { type: "boolean" }, loadTimeMs: { type: "number" } },
+  payment_ui_failed: { errorCategory: { type: "string", maxLength: 100 }, errorCode: { type: "string", maxLength: 100 } },
+  address_validation_failed: { errorCategory: { type: "string", maxLength: 100 }, fieldName: { type: "string", maxLength: 100 } },
+  draft_resumed: { restoredStep: { type: "string", maxLength: 50 }, hasEdits: { type: "boolean" }, draftId: { type: "string", maxLength: 100 } },
+  discount_applied: { promoCode: { type: "string", maxLength: 50 }, finalAmountInCents: { type: "number" }, amountSavedInCents: { type: "number" } },
+  discount_rejected: { promoCode: { type: "string", maxLength: 50 }, rejectionReason: { type: "string", maxLength: 100 } },
+  discount_removed: { promoCode: { type: "string", maxLength: 50 } },
+  offer_viewed: { promoCode: { type: "string", maxLength: 50 }, source: { type: "string", maxLength: 50 } },
+  cover_selected: { source: { type: "string", maxLength: 50 }, presetId: { type: "string", maxLength: 100 }, occasion: { type: "string", maxLength: 100 }, autoSelected: { type: "boolean" } },
+  note_edit_started: { inputField: { type: "string", maxLength: 50 }, charCount: { type: "number" } },
+  note_confirmed: { charCount: { type: "number" }, fontId: { type: "string", maxLength: 50 }, wasEdited: { type: "boolean" } },
   session_start: {
     experience: { type: "string", maxLength: 50 },
     scenarioSlug: { type: "string", maxLength: 100 },

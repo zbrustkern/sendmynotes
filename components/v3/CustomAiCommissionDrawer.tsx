@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { Sparkles, X, Wand2, Loader2, AlertCircle, Check, ArrowRight } from "lucide-react";
 import { OCCASIONS } from "@/lib/card-presets";
 import { CardFrontPreview } from "@/components/CardFrontPreview";
 
 interface CustomAiCommissionDrawerProps {
+  savedArtwork?: { imageUrl: string; prompt: string; occasion: string } | null;
+  onArtworkGenerated?: (art: { imageUrl: string; prompt: string; occasion: string }) => void;
   isOpen: boolean;
   onClose: () => void;
   onSelectCover: (art: {
@@ -78,6 +80,8 @@ const QUICK_IDEAS: Record<string, string[]> = {
 };
 
 export function CustomAiCommissionDrawer({
+  savedArtwork,
+  onArtworkGenerated,
   isOpen,
   onClose,
   onSelectCover,
@@ -102,6 +106,14 @@ export function CustomAiCommissionDrawer({
     prompt: string;
     occasion: string;
   } | null>(null);
+
+  useEffect(() => {
+    if (savedArtwork?.imageUrl) {
+      setGeneratedArt(savedArtwork);
+      setPrompt(savedArtwork.prompt);
+      setOccasion(savedArtwork.occasion);
+    } else setGeneratedArt(null);
+  }, [savedArtwork?.imageUrl]);
 
   if (!isOpen) return null;
 
@@ -173,11 +185,13 @@ export function CustomAiCommissionDrawer({
 
       // Success: True custom art generated
       if (data.imageUrl) {
-        setGeneratedArt({
+        const artwork = {
           imageUrl: data.imageUrl,
           prompt: prompt.trim(),
           occasion,
-        });
+        };
+        setGeneratedArt(artwork);
+        onArtworkGenerated?.(artwork);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error generating custom art";

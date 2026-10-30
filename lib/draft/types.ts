@@ -107,6 +107,7 @@ export interface DraftOptionalPreferences {
  * Complete draft state object.
  */
 export interface DraftState {
+  addressDeferred?: boolean;
   schemaVersion: number;
   createdAt: number;
   updatedAt: number;
@@ -137,6 +138,7 @@ export interface DraftState {
  * Any key not in this list will be excluded from persistent storage.
  */
 export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
+  "addressDeferred",
   "schemaVersion",
   "createdAt",
   "updatedAt",
