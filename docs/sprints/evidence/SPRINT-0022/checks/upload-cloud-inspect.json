@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-31T01:17:53.925Z",
+  "mode": "inspect",
+  "project": "sendmynotes-staging",
+  "serviceAccount": "firebase-app-hosting-compute@sendmynotes-staging.iam.gserviceaccount.com",
+  "databases": [
+    {
+      "name": "projects/sendmynotes-staging/databases/(default)",
+      "type": "FIRESTORE_NATIVE"
+    }
+  ],
+  "privateBucket": null,
+  "secretValuesLogged": false
+}

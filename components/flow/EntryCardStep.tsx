@@ -164,7 +164,9 @@ export function EntryCardStep({
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-800">
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                   <span>
-                    {selectedDesign.source === "custom"
+                    {selectedDesign.source === "upload"
+                      ? "Your private cover (Active)"
+                      : selectedDesign.source === "custom"
                       ? "Your Custom Artwork (Active)"
                       : "Curated Scenario Design (Active)"}
                   </span>

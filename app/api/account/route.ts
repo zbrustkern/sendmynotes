@@ -1,3 +1,4 @@
+import { stripPrivateOrderMedia } from "@/lib/upload/order-master";
 import { NextRequest, NextResponse } from "next/server";
 import {
   firestoreDb,
@@ -84,7 +85,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       user,
-      orders,
+      orders: orders.map(stripPrivateOrderMedia),
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error retrieving account";

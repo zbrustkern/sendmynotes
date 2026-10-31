@@ -703,6 +703,7 @@ export default function AdminDashboardPage() {
             >
               Storefront
             </Link>
+            <Link href="/admin/uploads" className="inline-flex h-8 items-center rounded-lg bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100">Upload studio</Link>
 
             <button
               type="button"

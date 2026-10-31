@@ -1,3 +1,5 @@
+import { pinUploadOrderMaster } from "@/lib/upload/order-master";
+import { UploadError } from "@/lib/upload/contracts";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { saveOrder, getSystemConfig } from "@/lib/firebase-admin";
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const {
-      frontImageUrl,
+      frontImageUrl: requestedFrontImageUrl,
       printedMessage,
       handwrittenNote,
       fontStyleId = "1",
@@ -73,7 +75,7 @@ export async function POST(req: NextRequest) {
     }
     const canonicalReturnAddress = returnAddress ? { ...returnAddress, country: "US" } : returnAddress;
 
-    if (!frontImageUrl) {
+    if (!requestedFrontImageUrl && !body.uploadDesign) {
       return NextResponse.json({ error: "Card cover image is required." }, { status: 400 });
     }
 
@@ -102,6 +104,11 @@ export async function POST(req: NextRequest) {
     // Generate unguessable 128-bit cryptographically secure Order ID and View Token
     const orderId = `order_${crypto.randomBytes(16).toString("hex")}`;
     const viewToken = `tok_${crypto.randomBytes(16).toString("hex")}`;
+
+    // Resolve private artwork before reserving a discount or creating payment.
+    const uploadMaster = await pinUploadOrderMaster(req, body, orderId);
+    const frontImageUrl = uploadMaster ? "" : requestedFrontImageUrl;
+    const verifiedUserId = uploadMaster?.uid || userId;
 
     // Evaluate discount code if provided
     let finalAmountInCents = CARD_FLAT_RATE_CENTS; // 900
@@ -162,7 +169,8 @@ export async function POST(req: NextRequest) {
       operationId,
         customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
         ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
-        ...(userId ? { userId } : {}),
+        ...(verifiedUserId ? { userId: verifiedUserId } : {}),
+        ...(uploadMaster ? { uploadMaster } : {}),
         frontImageUrl,
         printedMessage: printedMessage || "",
         handwrittenNote: handwrittenNote || "",
@@ -264,7 +272,8 @@ export async function POST(req: NextRequest) {
       stripePaymentId: paymentIntentResult.paymentIntentId,
       customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
       ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
-      ...(userId ? { userId } : {}),
+      ...(verifiedUserId ? { userId: verifiedUserId } : {}),
+        ...(uploadMaster ? { uploadMaster } : {}),
       frontImageUrl,
       printedMessage: printedMessage || "",
       handwrittenNote: handwrittenNote || "",
@@ -323,6 +332,7 @@ export async function POST(req: NextRequest) {
       isFree: false,
     }), operationId);
   } catch (error: unknown) {
+    if (error instanceof UploadError) return NextResponse.json({error: error.message, code: error.code}, {status: error.status, headers: {"Cache-Control":"private, no-store"}});
     if (error instanceof PaymentModeConfigError) {
       const keyInfo = normalizeStripeSecretKey();
       console.error("[Checkout Intent Config Error]", {

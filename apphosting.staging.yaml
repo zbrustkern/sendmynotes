@@ -30,6 +30,19 @@ env:
     value: "true"
     availability: [RUNTIME]
 
+  - variable: UPLOAD_PRIVATE_BUCKET
+    value: sendmynotes-staging-upload-private
+    availability: [RUNTIME]
+  - variable: UPLOAD_IMAGE_MODEL
+    value: gemini-nano-banana-2.1
+    availability: [RUNTIME]
+  - variable: UPLOAD_ADMIN_EMAILS
+    value: zbrustkern@gmail.com
+    availability: [RUNTIME]
+  - variable: UPLOAD_CLEANUP_SECRET
+    secret: upload-cleanup-secret
+    availability: [RUNTIME]
+
 # Advertising is suppressed by NEXT_PUBLIC_STAGING_REVIEW_ONLY in the root layout
 # and STAGING_REVIEW_ONLY in the server conversions client. Keep inherited secret
 # references intact; use explicit review flags rather than empty env values.

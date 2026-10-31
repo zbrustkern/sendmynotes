@@ -9,6 +9,7 @@ import {
   AttributionDraft,
   CustomGenerationState,
 } from "./types";
+import type { UploadSelection } from "@/lib/upload/contracts";
 
 export type DraftAction =
   | {
@@ -18,12 +19,14 @@ export type DraftAction =
         customId?: string;
         imageUrl: string;
         title: string;
-        source: "preset" | "custom";
+        source: "preset" | "custom" | "upload";
         occasion?: string;
         accepted?: boolean;
+        uploadSelection?: UploadSelection;
       };
     }
   | { type: "ACCEPT_DESIGN" }
+  | { type: "SET_UPLOAD_SELECTION"; payload: UploadSelection | null }
   | { type: "UPDATE_NOTE"; payload: Partial<NoteDraft> }
   | { type: "UPDATE_RECIPIENT"; payload: AddressDraft | null }
   | { type: "UPDATE_SENDER"; payload: AddressDraft | null }
@@ -117,7 +120,9 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
           source: action.payload.source,
           occasion: action.payload.occasion,
           accepted: action.payload.accepted ?? false,
+          uploadSelection: action.payload.uploadSelection,
         },
+        uploadSelection: action.payload.uploadSelection ?? (action.payload.source === "upload" ? state.uploadSelection : null),
       };
     }
 
@@ -134,6 +139,11 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
           accepted: true,
         },
       };
+    }
+
+    case "SET_UPLOAD_SELECTION": {
+      return { ...state, updatedAt: now, draftRevision: state.draftRevision + 1, uploadSelection: action.payload,
+        selectedDesign: action.payload ? { imageUrl: "", title: action.payload.title, source: "upload", accepted: true, uploadSelection: action.payload } : null };
     }
 
     case "UPDATE_NOTE": {

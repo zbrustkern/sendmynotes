@@ -1,3 +1,4 @@
+import { stripPrivateOrderMedia } from "@/lib/upload/order-master";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderById } from "@/lib/firebase-admin";
 import { verifyAdminAuth } from "@/lib/admin-auth";
@@ -20,7 +21,7 @@ function sanitizeOrderForPublicView(order: Order): Order {
   const { adminCompQuoteId: _quoteId, adminCompQuote: _quote, adminCompLifecycle: _lifecycle,
     adminCompPaymentRequestId: _requestId, adminCompPaymentRequestStatus: _requestStatus, ...publicOrder } = order;
   return {
-    ...publicOrder,
+    ...stripPrivateOrderMedia(publicOrder),
     customerEmail: maskEmail(order.customerEmail),
     recipientAddress: {
       ...order.recipientAddress,
@@ -77,7 +78,7 @@ export async function GET(
       const purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, order.purchaseMeasurement);
       return NextResponse.json({
         order: {
-          ...order,
+          ...stripPrivateOrderMedia(order),
           purchaseMeasurement,
           isRedacted: false,
         },
@@ -183,7 +184,7 @@ export async function POST(
       verified: true,
       viewToken: order.viewToken,
       order: {
-        ...order,
+        ...stripPrivateOrderMedia(order),
         isRedacted: false,
       },
     });

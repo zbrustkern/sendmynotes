@@ -1,3 +1,4 @@
+import { readOrderUploadMaster } from "./upload/order-master";
 import fs from "fs";
 import path from "path";
 import { HandwryttenOrderParams, HandwryttenOrderResult } from "./types";
@@ -205,7 +206,7 @@ export async function fulfillHandwryttenOrder(
 ): Promise<HandwryttenOrderResult> {
   if (process.env.STAGING_REVIEW_ONLY === "true") return { success: false, error: "Physical fulfillment is disabled in staging review." };
   // Validate image safety (containment & SSRF) immediately
-  validateCoverImagePathOrUrl(params.imageUrl);
+  if (!params.uploadMaster) validateCoverImagePathOrUrl(params.imageUrl);
 
   const apiKey =
     process.env.HANDWRYTTEN_API_KEY || process.env["handwrytten-api-key"];
@@ -235,7 +236,12 @@ export async function fulfillHandwryttenOrder(
     let mimeType = "image/jpeg";
     let fileName = "cover.jpg";
 
-    if (params.imageUrl.startsWith("data:")) {
+    if (params.uploadMaster) {
+      const bytes = await readOrderUploadMaster(params.uploadMaster);
+      imgBuffer = new Uint8Array(bytes).buffer;
+      mimeType = "image/png";
+      fileName = "accepted-cover.png";
+    } else if (params.imageUrl.startsWith("data:")) {
       console.log("[Handwrytten] Extracting cover image from base64 data URI...");
       const matches = params.imageUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
       if (matches && matches[2]) {

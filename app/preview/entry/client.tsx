@@ -39,6 +39,7 @@ import { AlertCircle } from "lucide-react";
 import { parseScenarioNote, mapScenarioFontId } from "@/lib/seo-scenarios";
 import { extractRecipientName, extractSenderName } from "@/components/v3/TargetPurchaseExperience";
 import { extractOfferCodeFromUrlParams } from "@/lib/discount";
+import type { UploadSelection } from "@/lib/upload/contracts";
 
 export interface EntryPrototypeClientProps {
   initialOccasion?: string;
@@ -73,7 +74,7 @@ export function EntryPrototypeClient({
   initialStep,
 }: EntryPrototypeClientProps = {}) {
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const occasionParam = initialOccasion || searchParams?.get("occasion") || undefined;
   const presetParam = initialPresetId || searchParams?.get("preset") || undefined;
@@ -148,8 +149,63 @@ export function EntryPrototypeClient({
   const effectiveInitialStep: FlowStep = initialStep || (isAutoSelectMode ? "note" : "card");
 
   const [step, setStep] = useState<FlowStep>(effectiveInitialStep);
+  const [uploadHandoffError, setUploadHandoffError] = useState("");
+  const [uploadHandoffLoading, setUploadHandoffLoading] = useState(false);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState("");
+  const [verifiedUploadDesignId, setVerifiedUploadDesignId] = useState("");
+  const [verifiedUploadOwnerUid, setVerifiedUploadOwnerUid] = useState("");
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
   const [paymentInFlight, setPaymentInFlight] = useState(false);
+
+  // Revalidate upload-derived designs on URL handoff, refresh, and account changes.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (authLoading) return;
+    const requestedId = searchParams?.get("uploadDesign") || draft.uploadSelection?.designId;
+    if (!requestedId) { setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid(""); return; }
+    setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid("");
+    if (!user) { setUploadHandoffError("Sign in to reopen this private card front."); setStep("card"); dispatch({ type: "SET_UPLOAD_SELECTION", payload: null }); return; }
+    if (draft.uploadSelection?.designId) setStep("card");
+    let active = true;
+    setUploadHandoffLoading(true); setUploadHandoffError("");
+    void user.getIdToken().then(token => fetch(`/api/upload/designs/${encodeURIComponent(requestedId)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.selection) throw new Error(data.error || "This private card front is no longer available. Choose another design to continue.");
+      if (!active) return;
+      const selection = data.selection as UploadSelection;
+      if (draft.uploadSelection?.designId !== selection.designId || draft.uploadSelection.masterSha256 !== selection.masterSha256) dispatch({ type: "SET_UPLOAD_SELECTION", payload: selection });
+      setVerifiedUploadDesignId(selection.designId); setVerifiedUploadOwnerUid(user.uid);
+      if (searchParams?.get("uploadDesign")) {
+        setStep("note");
+        dispatch({ type: "SET_STEP", payload: "note" });
+        const nextUrl = new URL(window.location.href); nextUrl.searchParams.delete("uploadDesign");
+        window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+      } else if (["note", "address", "pay"].includes(draft.currentStep || "")) setStep(draft.currentStep as FlowStep);
+    }).catch(error => {
+      if (!active) return;
+      setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid("");
+      dispatch({ type: "SET_UPLOAD_SELECTION", payload: null });
+      setUploadHandoffError(error instanceof Error ? error.message : "Could not verify the private card front.");
+      setStep("card");
+    }).finally(() => { if (active) setUploadHandoffLoading(false); });
+    return () => { active = false; };
+  // Re-run when Firebase changes accounts so one account cannot reuse another's saved design.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, authLoading, user, searchParams?.get("uploadDesign"), draft.uploadSelection?.designId]);
+
+  useEffect(() => {
+    const id = draft.uploadSelection?.designId;
+    if (!id || !user) { setUploadPreviewUrl(""); return; }
+    setUploadPreviewUrl("");
+    let active = true; let localUrl = "";
+    void user.getIdToken().then(token => fetch(`/api/upload/previews/design/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })).then(async response => {
+      if (!response.ok) return;
+      const next = URL.createObjectURL(await response.blob());
+      if (!active) { URL.revokeObjectURL(next); return; }
+      localUrl = next; setUploadPreviewUrl(next);
+    }).catch(() => {});
+    return () => { active = false; if (localUrl) URL.revokeObjectURL(localUrl); };
+  }, [draft.uploadSelection?.designId, user]);
 
   // Address deferral bypass & mobile keyboard/validation states
   const [isAddressDeferred, setIsAddressDeferred] = useState(false);
@@ -628,7 +684,7 @@ export function EntryPrototypeClient({
         CARD_PRESETS[0].occasion;
 
       return {
-        imageUrl: draft.selectedDesign.imageUrl,
+        imageUrl: draft.selectedDesign.source === "upload" ? uploadPreviewUrl : draft.selectedDesign.imageUrl,
         title: draft.selectedDesign.title,
         presetId: draft.selectedDesign.presetId,
         occasion,
@@ -641,7 +697,7 @@ export function EntryPrototypeClient({
       presetId: defaultPreset.id,
       occasion: defaultPreset.occasion,
     };
-  }, [draft.selectedDesign, initialPreset, occasionParam]);
+  }, [draft.selectedDesign, initialPreset, occasionParam, uploadPreviewUrl]);
 
   // Telemetry on initial load
   useEffect(() => {
@@ -1028,6 +1084,11 @@ export function EntryPrototypeClient({
 
   // Navigation handlers
   const handleStepTransition = (nextStep: FlowStep) => {
+    if (draft.uploadSelection && (uploadHandoffLoading || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) {
+      setUploadHandoffError("Please wait while we verify your private card front.");
+      setStep("card");
+      return;
+    }
     if (nextStep === "note") {
       if (!draft.selectedDesign) {
         return;
@@ -1222,6 +1283,10 @@ export function EntryPrototypeClient({
     expectedAmountInCents?: number,
     allowDuringDiscountValidation = false
   ) => {
+    if (draft.uploadSelection && (uploadHandoffLoading || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) {
+      setCheckoutInitError("Please wait while we verify your private card front.");
+      return false;
+    }
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
     checkoutRequestInFlight.current = true;
     const requestedAddressRevision = addressRevision.current;
@@ -1295,10 +1360,11 @@ export function EntryPrototypeClient({
 
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(draft.uploadSelection && user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}) },
         body: JSON.stringify({
           occasion: currentCard.occasion,
-          frontImageUrl: currentCard.imageUrl,
+          ...(draft.uploadSelection ? {} : { frontImageUrl: currentCard.imageUrl }),
+          ...(draft.uploadSelection ? { uploadDesign: draft.uploadSelection } : {}),
           printedMessage: "",
           handwrittenNote: fullHandwrittenMessage,
           fontStyleId: draft.note.style || "hwDavid",
@@ -1752,6 +1818,7 @@ export function EntryPrototypeClient({
 
       {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
       <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
+      {(uploadHandoffLoading || uploadHandoffError) && <div className="mx-auto mt-3 max-w-3xl px-4"><p role={uploadHandoffError ? "alert" : "status"} className={`rounded-xl px-4 py-3 text-sm ${uploadHandoffError ? "bg-amber-50 text-amber-900" : "bg-stone-50 text-stone-600"}`}>{uploadHandoffError || "Checking your private card front…"}</p></div>}
 
       {/* 3. STEP CONTENT */}
       <main className="flex-1 w-full">
@@ -1885,7 +1952,7 @@ export function EntryPrototypeClient({
           priceSubtext={isInternational ? "International mailing included" : "USPS mailing included"}
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
-          isDisabled={step === "card" ? !draft.selectedDesign : false}
+          isDisabled={step === "card" ? !draft.selectedDesign || Boolean(draft.uploadSelection && (uploadHandoffLoading || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) : false}
           onPrimaryClick={() => {
             if (step === "card") {
               handleStepTransition("note");

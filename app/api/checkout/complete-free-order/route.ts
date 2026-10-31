@@ -286,6 +286,7 @@ export async function POST(req: NextRequest) {
       fulfillment = await fulfillHandwryttenOrder({
         orderId,
         imageUrl: order.frontImageUrl,
+      ...(order.uploadMaster ? { uploadMaster: order.uploadMaster } : {}),
         printedGreeting: order.printedMessage,
         handwrittenMessage: order.handwrittenNote,
         fontId: order.fontStyleId || "1",

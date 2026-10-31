@@ -1,3 +1,4 @@
+import type { UploadOrderMaster } from "./upload/contracts";
 export interface MailingAddress {
   firstName: string;
   lastName: string;
@@ -114,6 +115,8 @@ export interface Order {
   userId?: string;
   occasion?: string;
   frontImageUrl: string;
+  /** Server-only pinned upload master; omit from every client response. */
+  uploadMaster?: UploadOrderMaster;
   printedMessage: string;
   handwrittenNote: string;
   fontStyleId: string;
@@ -236,6 +239,8 @@ export interface HandwryttenAddress {
 }
 
 export interface HandwryttenOrderParams {
+  /** Only a server-resolved, immutable order reference may populate this field. */
+  uploadMaster?: UploadOrderMaster;
   orderId?: string; // Internal order ID for idempotency & deduplication
   imageUrl: string;
   printedGreeting?: string;

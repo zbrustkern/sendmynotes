@@ -127,6 +127,7 @@ export async function POST(req: NextRequest) {
 
     const fulfillment = await fulfillHandwryttenOrder({
       imageUrl: order.frontImageUrl,
+      ...(order.uploadMaster ? {uploadMaster: order.uploadMaster} : {}),
       printedGreeting: order.printedMessage,
       handwrittenMessage: order.handwrittenNote,
       fontId: order.fontStyleId || "1",

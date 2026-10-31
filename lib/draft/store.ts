@@ -113,6 +113,27 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
     choice: contactObj?.choice === "provided" || contactObj?.choice === "omitted" ? contactObj.choice : "untouched",
   };
 
+  const upload = record.uploadSelection as Record<string, unknown> | null | undefined;
+  if (upload && upload.source === "upload" && typeof upload.designId === "string" && typeof upload.masterSha256 === "string" && upload.accepted === true && typeof upload.revision === "number" && typeof upload.title === "string") {
+    sanitized.uploadSelection = { source: "upload", designId: upload.designId, revision: upload.revision, masterSha256: upload.masterSha256, title: upload.title, accepted: true };
+  } else sanitized.uploadSelection = null;
+
+  const selected = record.selectedDesign as Record<string, unknown> | null | undefined;
+  if (selected && typeof selected === "object") {
+    const isUpload = selected.source === "upload";
+    sanitized.selectedDesign = {
+      presetId: typeof selected.presetId === "string" ? selected.presetId : undefined,
+      customId: typeof selected.customId === "string" ? selected.customId : undefined,
+      imageUrl: isUpload ? "" : typeof selected.imageUrl === "string" ? selected.imageUrl : "",
+      title: typeof selected.title === "string" ? selected.title : "",
+      source: isUpload ? "upload" : selected.source === "custom" ? "custom" : "preset",
+      occasion: typeof selected.occasion === "string" ? selected.occasion : undefined,
+      accepted: isUpload ? Boolean(sanitized.uploadSelection?.accepted) : typeof selected.accepted === "boolean" ? selected.accepted : false,
+      uploadSelection: isUpload ? sanitized.uploadSelection ?? undefined : undefined,
+    };
+    if (isUpload && !sanitized.uploadSelection) sanitized.selectedDesign = null;
+  }
+
   // Ensure lastCustomArtwork is well-formed if present
   if (record.lastCustomArtwork && typeof record.lastCustomArtwork === "object") {
     const customArt = record.lastCustomArtwork as Record<string, unknown>;

@@ -60,6 +60,17 @@ export default function AccountDashboardPage() {
   const [activeTab, setActiveTab] = useState<"orders" | "addresses">("orders");
   const [orders, setOrders] = useState<Order[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [uploadStudioAllowed, setUploadStudioAllowed] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    setUploadStudioAllowed(false);
+    const refreshUploadAccess = () => { if (user) void user.getIdToken().then(token => fetch("/api/upload/access", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })).then(r => r.ok ? r.json() : null).then(data => { if (alive) setUploadStudioAllowed(data?.allowed === true); }).catch(() => {}); };
+    refreshUploadAccess();
+    window.addEventListener("focus", refreshUploadAccess);
+    const interval = window.setInterval(refreshUploadAccess, 60_000);
+    return () => { alive = false; window.removeEventListener("focus", refreshUploadAccess); window.clearInterval(interval); };
+  }, [user]);
 
   // Address Modal State
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -213,6 +224,7 @@ export default function AccountDashboardPage() {
       <header className="border-b border-stone-200/80 bg-white/90 backdrop-blur-md sticky top-0 z-30">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
+            {uploadStudioAllowed && <Link href="/create/upload" className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-800/20 bg-emerald-50 px-2.5 py-2 text-[11px] font-bold text-emerald-900 sm:px-4 sm:text-xs"><Upload className="h-3.5 w-3.5" />Private card studio</Link>}
             <Link
               href="/"
               className="w-10 h-10 rounded-xl bg-amber-600 text-white flex items-center justify-center shadow-md shadow-amber-600/20 hover:bg-amber-700 transition"

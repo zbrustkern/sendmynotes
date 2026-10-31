@@ -625,6 +625,7 @@ export async function processPaidOrder(
     fulfillment = await fulfillHandwryttenOrder({
       orderId,
       imageUrl: order.frontImageUrl,
+      ...(order.uploadMaster ? { uploadMaster: order.uploadMaster } : {}),
       printedGreeting: order.printedMessage,
       handwrittenMessage: order.handwrittenNote,
       fontId: order.fontStyleId || "1",
@@ -837,7 +838,8 @@ export async function processAdminCompOrder(orderId: string, fulfillmentAdapter:
   let fulfillment: Awaited<ReturnType<typeof fulfillHandwryttenOrder>>;
   try {
     fulfillment = await fulfillmentAdapter({
-      orderId, imageUrl: order.frontImageUrl, printedGreeting: order.printedMessage,
+      orderId, imageUrl: order.frontImageUrl,
+      ...(order.uploadMaster ? { uploadMaster: order.uploadMaster } : {}), printedGreeting: order.printedMessage,
       handwrittenMessage: order.handwrittenNote, fontId: order.fontStyleId || "1",
       recipient: order.recipientAddress, returnAddress: order.returnAddress,
       scheduledSendDate: order.scheduledSendDate,

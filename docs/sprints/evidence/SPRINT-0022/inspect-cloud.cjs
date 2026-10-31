@@ -1,0 +1,24 @@
+const fs=require('node:fs');const cp=require('node:child_process');const crypto=require('node:crypto');
+const root=__dirname; const phase=process.argv[2]||'baseline'; if(!/^[a-z0-9-]+$/.test(phase))throw Error('phase');
+async function main(){
+ const token=cp.execFileSync('/Users/zeke/Downloads/google-cloud-sdk/bin/gcloud',['auth','print-access-token'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
+ const read=async(url)=>{const r=await fetch(url,{headers:{Authorization:`Bearer ${token}`,'x-goog-user-project':url.match(/projects\/([^/]+)/)?.[1]||'sendmynotes-2a417'},signal:AbortSignal.timeout(20000)});if(!r.ok){const err=await r.json().catch(()=>({}));throw Error(`Read ${new URL(url).hostname}${new URL(url).pathname}: HTTP ${r.status} ${err.error?.message||''}`)}return r.json()};
+ const digest=x=>crypto.createHash('sha256').update(JSON.stringify(x)).digest('hex');
+ const out={checkedAt:new Date().toISOString(),surfaces:[]};
+ for(const [project,backend] of [['sendmynotes-2a417','sendmynotes'],['sendmynotes-staging','sendmynotes-staging']]){
+  const base=`https://firebaseapphosting.googleapis.com/v1beta/projects/${project}/locations/us-central1/backends/${backend}`;
+  const [info,traffic,rollouts,service]=await Promise.all([read(base),read(base+'/traffic'),read(base+'/rollouts?pageSize=100'),read(`https://run.googleapis.com/v2/projects/${project}/locations/us-central1/services/${backend}`)]);
+  for(let page=0;rollouts.nextPageToken&&page<4;page++){const next=await read(base+'/rollouts?pageSize=100&pageToken='+encodeURIComponent(rollouts.nextPageToken));rollouts.rollouts=(rollouts.rollouts||[]).concat(next.rollouts||[]);rollouts.nextPageToken=next.nextPageToken;}
+  const builds=[];for(const split of traffic.current?.splits||[]){const name=split.build.split('/').pop();const build=await read(base+'/builds/'+name);builds.push({name,state:build.state,source:build.source?.codebase?.hash,createTime:build.createTime,configAvailable:Boolean(build.config),image:build.container?.image||build.image||null,keys:Object.keys(build),traffic:split.percent});}
+  const latest=(rollouts.rollouts||[]).sort((a,b)=>String(b.createTime).localeCompare(String(a.createTime)))[0];
+  let pendingBuild=null;
+  if(latest?.build && !builds.some(b=>latest.build.endsWith('/'+b.name))){const b=await read('https://firebaseapphosting.googleapis.com/v1beta/'+latest.build);pendingBuild={name:b.name,state:b.state,source:b.source?.codebase?.hash,errors:b.errors||b.error||null};}
+  const env=(service.template?.containers?.[0]?.env||[]).map(e=>({name:e.name,value:e.value??null,secret:e.valueSource?.secretKeyRef||null})).sort((a,b)=>a.name.localeCompare(b.name));
+  const safeFlags=new Set(['NEXT_PUBLIC_APP_URL','NEXT_PUBLIC_STAGING_REVIEW_ONLY','STAGING_REVIEW_ONLY','HANDWRYTTEN_TEST_MODE','INTERNATIONAL_MAILING_PREVIEW','FIREBASE_PROJECT_ID','NEXT_PUBLIC_FIREBASE_PROJECT_ID','ALLOW_ADMIN_COMP_LIVE_PAYMENT','GOOGLE_CLOUD_PROJECT']);
+  const cloud={project,backend,pendingBuild,uri:info.uri,environment:info.environment,rolloutPolicy:traffic.rolloutPolicy,currentTraffic:traffic.current,desiredTraffic:traffic.desired,reconciling:traffic.reconciling,builds,latestRollouts:(rollouts.rollouts||[]).sort((a,b)=>String(b.createTime).localeCompare(String(a.createTime))).slice(0,3).map(r=>({name:r.name,state:r.state,build:r.build,createTime:r.createTime})),revision:service.latestReadyRevision,conditions:service.conditions?.map(c=>({type:c.type,state:c.state,reason:c.reason})),traffic:(service.trafficStatuses||[]).filter(t=>t.percent>0),flags:env.filter(e=>safeFlags.has(e.name)),configSha256:digest(env.filter(e=>e.name!=='NG_ALLOWED_HOSTS')),paymentSha256:digest(env.filter(e=>/STRIPE/.test(e.name))),adsSha256:digest(env.filter(e=>/GOOGLE_ADS|GA4|ANALYTICS/.test(e.name))),secretValuesLogged:false};
+  try{const release=await read(`https://firebaserules.googleapis.com/v1/projects/${project}/releases/cloud.firestore`);const rules=await read(`https://firebaserules.googleapis.com/v1/${release.rulesetName}`);fs.writeFileSync(`${root}/checks/${project}-firestore-rules-${phase}.json`,JSON.stringify({checkedAt:out.checkedAt,release,rules},null,2));cloud.firestoreRules={name:release.rulesetName,files:rules.source?.files?.map(f=>({name:f.name,content:f.content}))};}catch(e){cloud.firestoreRules={error:e.message}}
+  out.surfaces.push(cloud);
+ }
+ fs.writeFileSync(`${root}/checks/cloud-${phase}.json`,JSON.stringify(out,null,2));console.log(JSON.stringify(out.surfaces.map(s=>({project:s.project,builds:s.builds.map(({name,state,source,traffic})=>({name,state,source,traffic})),latestRollout:s.latestRollouts[0],pendingBuild:s.pendingBuild,reconciling:s.reconciling})),null,2));
+}
+main().catch(e=>{console.error(e.message);process.exitCode=1});

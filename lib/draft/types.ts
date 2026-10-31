@@ -1,3 +1,6 @@
+
+import type { UploadSelection } from "@/lib/upload/contracts";
+
 /**
  * Versioned Draft State & Content Model for SendMyNotes.
  * Implements S1-01 requirements:
@@ -16,9 +19,10 @@ export interface SelectedDesign {
   customId?: string;
   imageUrl: string;
   title: string;
-  source: "preset" | "custom";
+  source: "preset" | "custom" | "upload";
   occasion?: string;
   accepted: boolean;
+  uploadSelection?: UploadSelection;
 }
 
 export interface CustomGenerationState {
@@ -115,6 +119,7 @@ export interface DraftState {
 
   // Required content fields
   selectedDesign: SelectedDesign | null;
+  uploadSelection?: UploadSelection | null;
   note: NoteDraft;
   recipient: AddressDraft | null;
   sender: AddressDraft | null;
@@ -143,6 +148,7 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "draftRevision",
   "experienceVersion",
   "selectedDesign",
+  "uploadSelection",
   "note",
   "recipient",
   "sender",

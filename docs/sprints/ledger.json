@@ -210,6 +210,20 @@
       "execution_model": "gpt-6-luna",
       "release_environment": "staging_only",
       "acceptance_status": "local_checks_passed_device_and_hosted_verification_pending"
+    },
+    {
+      "id": "SPRINT-0022",
+      "title": "Private upload studio and expressive cover lettering",
+      "path": "docs/sprints/SPRINT-0022.md",
+      "status": "active",
+      "run_id": "20261030-upload-studio",
+      "updated_at": "2026-10-31T02:23:48.595379+00:00",
+      "implementation_status": "implemented_pending_staging_verification",
+      "acceptance_status": "pending_staging_gates",
+      "evidence": "docs/sprints/evidence/SPRINT-0022/",
+      "planning_model": "gpt-6-sol",
+      "execution_model": "gpt-6-luna",
+      "release_environment": "staging_only"
     }
   ]
 }
