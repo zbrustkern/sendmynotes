@@ -1,0 +1,19 @@
+{
+  "deployedCommit": "04c85179012913c174eec367d76a9f7509e069a8",
+  "typecheck": "passed",
+  "productionBuild": "passed",
+  "focusedSuites": {
+    "upload-access": "passed",
+    "upload-routes-security": "passed",
+    "upload-creative": "passed",
+    "upload-checkout": "passed",
+    "draft": "74/74",
+    "payment-mode-safety": "26/26",
+    "transaction-security": "10/10"
+  },
+  "localMountedBrowser": "passed with mocked APIs",
+  "hostedApi": "passed with real synthetic generation",
+  "hostedBrowser": "passed without API mocks",
+  "syntheticCleanup": "passed",
+  "productionUnchanged": true
+}

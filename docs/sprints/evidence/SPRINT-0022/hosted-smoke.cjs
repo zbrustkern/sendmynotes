@@ -40,8 +40,9 @@ async function main(){
  await api('/api/admin/upload-access',{...json({uid:fixture.uid,revoked:true},adminHeaders),method:'PATCH'});
  await api('/api/upload/designs/'+designs[0].designId,{headers},403);
  await api('/api/admin/upload-access',{...json({uid:fixture.uid,revoked:false},adminHeaders),method:'PATCH'});
- const founder=await api('/api/admin/upload-access',json({email:'zbrustkern@gmail.com'},adminHeaders),201);
- const out={checkedAt:new Date().toISOString(),passed:true,servingRevision:service.latestReadyRevision,model:env.UPLOAD_IMAGE_MODEL,privateBucket:true,unauthDenied:true,grantRevokeVerified:true,sourceUploadVerified:true,threeHostedCompositions:true,previewMasterHashesMatch:true,acceptedRetention30Days:true,founderAccessGranted:!!founder.grant,providerCalls:1,paymentCalls:0,supplierCalls:0};
+ fs.writeFileSync('.data/upload-staging-browser.json',JSON.stringify({assetId,generationId,selection:accepted.selection}),{mode:0o600});
+ let founder=null;try{founder=await api('/api/admin/upload-access',json({email:'zbrustkern@gmail.com'},adminHeaders),201);}catch(e){if(!String(e.message).includes('account_not_found'))throw e;}
+ const out={checkedAt:new Date().toISOString(),passed:true,servingRevision:service.latestReadyRevision,model:env.UPLOAD_IMAGE_MODEL,privateBucket:true,unauthDenied:true,grantRevokeVerified:true,sourceUploadVerified:true,threeHostedCompositions:true,previewMasterHashesMatch:true,acceptedRetention30Days:true,founderAccessGranted:!!founder?.grant,founderSetupRequired:!founder,providerCalls:1,paymentCalls:0,supplierCalls:0};
  fs.writeFileSync('.data/upload-staging-browser.json',JSON.stringify({assetId,generationId,selection:accepted.selection}),{mode:0o600});fs.writeFileSync(__dirname+'/checks/hosted-smoke.json',JSON.stringify(out,null,2));console.log(JSON.stringify(out,null,2));
 }
 main().catch(e=>{console.error(e.message);process.exitCode=1});

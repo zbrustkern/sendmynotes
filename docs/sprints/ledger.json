@@ -215,15 +215,18 @@
       "id": "SPRINT-0022",
       "title": "Private upload studio and expressive cover lettering",
       "path": "docs/sprints/SPRINT-0022.md",
-      "status": "active",
+      "status": "completed",
       "run_id": "20261030-upload-studio",
-      "updated_at": "2026-10-31T02:23:48.595379+00:00",
-      "implementation_status": "implemented_pending_staging_verification",
-      "acceptance_status": "pending_staging_gates",
+      "updated_at": "2026-10-31T02:59:44.293834+00:00",
+      "implementation_status": "implemented_and_staging_verified",
+      "acceptance_status": "local_and_hosted_checks_passed",
       "evidence": "docs/sprints/evidence/SPRINT-0022/",
       "planning_model": "gpt-6-sol",
       "execution_model": "gpt-6-luna",
-      "release_environment": "staging_only"
+      "release_environment": "staging_only",
+      "deployed_commit": "04c85179012913c174eec367d76a9f7509e069a8",
+      "deployed_build": "build-2026-10-31-002",
+      "founder_setup": "Sign in once on staging, then grant the verified account from /admin/uploads."
     }
   ]
 }

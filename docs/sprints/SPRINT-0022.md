@@ -1,6 +1,6 @@
 # SPRINT-0022 — Private upload studio and expressive cover lettering
 
-Status: active. Approved staging beta; production release excluded.
+Status: completed. Staging beta deployed and verified; production release excluded.
 
 ## Pyramid Index
 - L0: Turn a personal image into a card front with prominent, exact lettering, then continue into the existing note builder.
@@ -56,3 +56,6 @@ Three focused upload modules/API/UI groups above; existing mounted builder and c
 
 ## Risks, dependencies and open items
 Private bucket/service IAM and staging Firestore rules are release gates. Fonts must be bundled and licensed; generated image quality/subject fidelity need founder evaluation. Provider account capability is proven by bounded synthetic generation, privacy terms described accurately before broad access. Staging remains review-only so founder can test builder without mail. The baseline hosting audit found no deployed staging Firestore rules release, so secure it before enabling account grants. Scope is one coherent beta, not a general design editor or public launch.
+
+## Delivery receipt
+Commit `04c85179012913c174eec367d76a9f7509e069a8`, staging build `build-2026-10-31-002`, serves 100% of traffic. Real hosted synthetic generation, all three compositions, acceptance/hash checks, grant/revoke and authenticated browser refresh passed. Production build and runtime configuration match baseline. Founder email has no staging Firebase account yet: sign in once, then grant that verified account in `/admin/uploads`. See [delivery evidence](evidence/SPRINT-0022/REPORT.md).

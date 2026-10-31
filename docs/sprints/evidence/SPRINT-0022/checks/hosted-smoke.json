@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-10-31T02:55:26.185Z",
+  "passed": true,
+  "model": "gemini-nano-banana-2.1",
+  "privateBucket": true,
+  "unauthDenied": true,
+  "grantRevokeVerified": true,
+  "sourceUploadVerified": true,
+  "threeHostedCompositions": true,
+  "previewMasterHashesMatch": true,
+  "acceptedRetention30Days": true,
+  "founderAccessGranted": false,
+  "founderSetupRequired": true,
+  "founderSetupReason": "No existing account for founder email in staging Firebase; sign in once then grant in admin.",
+  "providerCalls": 1,
+  "paymentCalls": 0,
+  "supplierCalls": 0,
+  "receiptRecoveredAfter": "All hosted-smoke assertions passed before the optional founder grant returned account_not_found."
+}
