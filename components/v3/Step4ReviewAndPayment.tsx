@@ -1168,8 +1168,8 @@ function InnerPaymentForm({
         <div className="py-2">
           <CardPreview
             coverUrl={cardUrl}
-            printedGreeting={salutation}
-            handwrittenNote={[bodyNote, signOff].filter(Boolean).join("\n\n")}
+            printedGreeting=""
+            handwrittenNote={[salutation, bodyNote, signOff].filter(Boolean).join("\n\n")}
             fontStyleId={fontStyleId || "hwDavid"}
             occasion={occasion || "Greeting Card"}
             currentStep={4}

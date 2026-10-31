@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Eye, BookOpen, PenTool, Feather, ArrowRight, ArrowLeft, Maximize2, X } from "lucide-react";
-import { FONT_OPTIONS, FontOption } from "@/lib/card-presets";
+import { resolvePreviewMessage } from "@/lib/note-preview";
+import { NoteInteriorPreview, NotePreviewFullText } from "./NoteInteriorPreview";
 import { CardFrontPreview } from "./CardFrontPreview";
 
 interface CardPreviewProps {
@@ -18,72 +19,6 @@ interface CardPreviewProps {
   onPreviousStep?: () => void;
 }
 
-/**
- * Canonical Inside Right Leaf component.
- * Uses CSS Container Queries (inline-size) with `cqw` units so that
- * font sizes, line wrapping, line heights, and margins scale in 100% exact
- * mathematical proportion across both single-page focus and panoramic spread views.
- */
-function InsideRightLeaf({
-  printedGreeting,
-  handwrittenNote,
-  currentFont,
-  showSpineShadow = false,
-}: {
-  printedGreeting: string;
-  handwrittenNote: string;
-  currentFont: FontOption;
-  showSpineShadow?: boolean;
-}) {
-  const fullMessage = printedGreeting?.trim()
-    ? `${printedGreeting.trim()}\n\n${handwrittenNote.trim()}`
-    : (handwrittenNote?.trim() || "Happy Birthday!\n\nWishing you a year filled with magic, laughter, and beautiful memories. So grateful for you!");
-
-  return (
-    <div
-      style={{ containerType: "inline-size" }}
-      className="relative w-full h-full bg-[#FDFCF7] paper-texture flex flex-col select-none overflow-hidden"
-    >
-      {/* Blind-Deboss Inset Micro-Rule (Traditional Letterpress Border, scaled in cqw) */}
-      <div
-        style={{
-          position: "absolute",
-          inset: "3.5cqw",
-          borderRadius: "2.5cqw",
-          border: "1px solid rgba(120, 113, 108, 0.22)",
-          pointerEvents: "none",
-        }}
-      />
-
-      {/* Realistic Left Spine Fold Shadow indicating the bound hinge */}
-      {showSpineShadow && (
-        <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/30 via-stone-300/10 to-transparent pointer-events-none z-10" />
-      )}
-
-      {/* Physical Pen Inking Layout */}
-      <div
-        style={{
-          paddingTop: "16cqw",
-          paddingLeft: "9.5cqw",
-          paddingRight: "9.5cqw",
-          paddingBottom: "10cqw",
-        }}
-        className="relative z-10 w-full h-full flex flex-col justify-start"
-      >
-        <p
-          style={{
-            fontFamily: currentFont.fontFamily,
-            fontSize: "5.1cqw",
-            lineHeight: 1.62,
-          }}
-          className={`text-[#1B3B6F] whitespace-pre-line ${currentFont.fontClass}`}
-        >
-          {fullMessage}
-        </p>
-      </div>
-    </div>
-  );
-}
 
 export function CardPreview({
   coverUrl,
@@ -100,6 +35,27 @@ export function CardPreview({
     initialView || (currentStep === 2 ? "rightPage" : "cover")
   );
   const [isSpreadModalOpen, setIsSpreadModalOpen] = useState(false);
+  const spreadDialogRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isSpreadModalOpen) return;
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    spreadDialogRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); setIsSpreadModalOpen(false); }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(spreadDialogRef.current?.querySelectorAll<HTMLElement>('button, summary, [tabindex="0"]') || []).filter(el => el.getClientRects().length > 0);
+      if (event.shiftKey && document.activeElement === controls[0]) { event.preventDefault(); controls.at(-1)?.focus(); }
+      else if (!event.shiftKey && document.activeElement === controls.at(-1)) { event.preventDefault(); controls[0]?.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => { document.removeEventListener("keydown", onKeyDown); document.body.style.overflow = previousOverflow; previousFocus?.focus(); };
+  }, [isSpreadModalOpen]);
+  const [spreadOverflow, setSpreadOverflow] = useState(false);
+  const [modalSpreadOverflow, setModalSpreadOverflow] = useState(false);
+  const [spreadFontState, setSpreadFontState] = useState("loading");
+  const [modalSpreadFontState, setModalSpreadFontState] = useState("loading");
 
   // Automatically focus on cover for Step 1, inside note for Step 2 (unless caller specified initialView)
   useEffect(() => {
@@ -112,10 +68,7 @@ export function CardPreview({
     }
   }, [currentStep, initialView]);
 
-  const currentFont =
-    FONT_OPTIONS.find(
-      (f) => f.handwryttenFontId === fontStyleId || f.id === fontStyleId
-    ) || FONT_OPTIONS[0];
+  const previewMessage = resolvePreviewMessage(printedGreeting, handwrittenNote);
 
   return (
     <div className="flex flex-col items-center w-full">
@@ -186,25 +139,21 @@ export function CardPreview({
 
       {/* 2. INSIDE NOTE (RIGHT PAGE FOCUS): Prominent Full A2 View with Left Spine Fold */}
       {viewMode === "rightPage" && (
-        <div className="relative w-full max-w-[340px] sm:max-w-[380px] aspect-[17/22] rounded-2xl overflow-hidden shadow-2xl border-4 border-white transition-all duration-300">
-          <InsideRightLeaf
-            printedGreeting={printedGreeting}
-            handwrittenNote={handwrittenNote}
-            currentFont={currentFont}
-            showSpineShadow={true}
-          />
+        <div className="relative w-full max-w-[340px] sm:max-w-[380px] transition-all duration-300">
+          <NoteInteriorPreview message={previewMessage} fontStyleId={fontStyleId} showSpineShadow />
         </div>
       )}
 
-      {/* 3. FULL OPEN SPREAD: Panoramic 8.5×5.5 View (17:11) Showing Both Leaves with 100% Proportional Fidelity */}
+      {/* 3. FULL OPEN SPREAD: Panoramic 8.5×5.5 View (17:11) Showing Both Leaves with proportional layout */}
       {viewMode === "spread" && (
-        <div className="relative w-full max-w-full lg:max-w-[560px] aspect-[17/11] rounded-2xl overflow-hidden shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex transition-all duration-300 group">
-          {/* LEFT PAGE: Inside Left Page (Pristine Unprinted Archival Cardstock) */}
+        <>
+        <div className="relative w-full max-w-full lg:max-w-[560px] aspect-[17/11] rounded-2xl shadow-2xl border-4 border-white bg-[#FDFCF7] paper-texture flex transition-all duration-300 group">
+          {/* LEFT PAGE: Inside left page */}
           <div
             style={{ containerType: "inline-size" }}
             className="w-1/2 relative bg-[#FDFCF7] paper-texture border-r border-stone-200/70 select-none overflow-hidden"
           >
-            {/* Blind-Deboss Inset Micro-Rule (Traditional Letterpress Border, scaled in cqw) */}
+            {/* Inset border */}
             <div
               style={{
                 position: "absolute",
@@ -221,14 +170,9 @@ export function CardPreview({
             <div className="w-[1.5px] h-full bg-stone-300/80 shadow-[0_0_8px_rgba(0,0,0,0.15)]" />
           </div>
 
-          {/* RIGHT PAGE: Uses the exact same InsideRightLeaf component */}
+          {/* RIGHT PAGE: Uses the shared approximate note renderer */}
           <div className="w-1/2 relative">
-            <InsideRightLeaf
-              printedGreeting={printedGreeting}
-              handwrittenNote={handwrittenNote}
-              currentFont={currentFont}
-              showSpineShadow={false}
-            />
+            <NoteInteriorPreview message={previewMessage} fontStyleId={fontStyleId} className="h-full" showMetadata={false} showFullText={false} onOverflowChange={setSpreadOverflow} onFontStateChange={setSpreadFontState} />
           </div>
 
           {/* Expand Full Spread Button (Overlaid in bottom right corner) */}
@@ -242,6 +186,8 @@ export function CardPreview({
             <span className="hidden sm:inline">Inspect Full Spread</span>
           </button>
         </div>
+        <NotePreviewFullText message={previewMessage} overflow={spreadOverflow} styleId={fontStyleId} fontState={spreadFontState} includeMetadata />
+        </>
       )}
 
       {/* 4. CARD BACK VIEW: Colophon Only */}
@@ -262,16 +208,16 @@ export function CardPreview({
         </div>
       )}
 
-      {/* Clean external indicator OUTSIDE the card confirming exact 1:1 print reproduction */}
-      <div className="w-full max-w-[380px] mt-3 px-1 flex items-center justify-between text-xs text-stone-500">
+      {/* Preview label outside the card */}
+      <div className="w-full max-w-[380px] mt-3 px-1 flex flex-col items-start gap-1 text-xs text-stone-500">
         <span className="font-medium text-stone-700">
           {viewMode === "cover" && "Front Cover Art"}
-          {viewMode === "rightPage" && "Inside Right Page (1:1 Detail)"}
+          {viewMode === "rightPage" && "Inside Note"}
           {viewMode === "spread" && "Open Card Spread (Both Leaves)"}
           {viewMode === "back" && "Card Back Colophon"}
         </span>
         <span className="text-[11px] text-stone-400">
-          Exact physical print preview
+          Approximate preview. Handwriting spacing and line breaks may vary.
         </span>
       </div>
 
@@ -280,33 +226,36 @@ export function CardPreview({
         <div
           role="dialog"
           aria-modal="true"
+          aria-label="Enlarged card preview"
           className="fixed inset-0 z-50 bg-stone-900/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 animate-in fade-in duration-200"
           onClick={() => setIsSpreadModalOpen(false)}
         >
           <div
-            className="relative bg-white rounded-3xl p-5 sm:p-6 max-w-4xl w-full shadow-2xl border border-stone-200"
+            ref={spreadDialogRef}
+            className="relative max-h-[calc(100dvh-3rem)] overflow-y-auto bg-white rounded-3xl p-5 sm:p-6 max-w-4xl w-full shadow-2xl border border-stone-200"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 mb-4 border-b border-stone-100">
               <div>
                 <h3 className="text-base font-bold text-stone-900 flex items-center gap-2">
                   <BookOpen className="w-4 h-4 text-stone-700" />
-                  Full Open Card Spread (8.5&quot; × 5.5&quot; Open Panoramic)
+                  Open card spread
                 </h3>
                 <p className="text-xs text-stone-500">
-                  Exact 1:1 physical proportion of inside left page and handwritten inside right page.
+                  Approximate preview. Handwriting spacing and line breaks may vary.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setIsSpreadModalOpen(false)}
-                className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition cursor-pointer"
+                aria-label="Close enlarged card preview"
+                className="shrink-0 w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-600 flex items-center justify-center transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
-            <div className="relative w-full aspect-[17/11] rounded-2xl overflow-hidden shadow-xl border-4 border-white bg-[#FDFCF7] paper-texture flex">
+            <div className="relative w-full aspect-[17/11] rounded-2xl shadow-xl border-4 border-white bg-[#FDFCF7] paper-texture flex">
               {/* Left page */}
               <div
                 style={{ containerType: "inline-size" }}
@@ -330,14 +279,10 @@ export function CardPreview({
 
               {/* Right page */}
               <div className="w-1/2 relative">
-                <InsideRightLeaf
-                  printedGreeting={printedGreeting}
-                  handwrittenNote={handwrittenNote}
-                  currentFont={currentFont}
-                  showSpineShadow={false}
-                />
+                <NoteInteriorPreview message={previewMessage} fontStyleId={fontStyleId} className="h-full" showMetadata={false} showFullText={false} onOverflowChange={setModalSpreadOverflow} onFontStateChange={setModalSpreadFontState} />
               </div>
             </div>
+            <NotePreviewFullText message={previewMessage} overflow={modalSpreadOverflow} styleId={fontStyleId} fontState={modalSpreadFontState} includeMetadata />
           </div>
         </div>
       )}

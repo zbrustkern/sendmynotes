@@ -1,0 +1,203 @@
+{
+  "passed": true,
+  "checks": [
+    "admin /admin → Proof button → Card preview",
+    "all five font IDs, legacy numeric/string aliases, and unknown fallback",
+    "blank and long synthetic messages, salutation, note, and sign-off",
+    "17:22 leaf geometry and horizontal text bounds at 320/375/390/430/768/1280px",
+    "customer /new note step → Preview card uses shared renderer",
+    "slow hwAdam font and failed hwKate font states are exercised",
+    "all /api/** responses mocked; no supplier/order creation"
+  ],
+  "variants": [
+    {
+      "orderId": "preview-font-hwDavid",
+      "expectedFontId": "hwDavid",
+      "fontId": "hwDavid",
+      "fontAvailable": "true",
+      "fontState": "ready",
+      "overflow": "false",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-hwDavid-wrap-metrics",
+      "wrapMeasurements": [
+        {
+          "width": 320,
+          "lineCount": 6,
+          "leafWidth": 228,
+          "leafHeight": 295.046875
+        },
+        {
+          "width": 375,
+          "lineCount": 6,
+          "leafWidth": 283,
+          "leafHeight": 366.234375
+        },
+        {
+          "width": 390,
+          "lineCount": 6,
+          "leafWidth": 298,
+          "leafHeight": 385.640625
+        },
+        {
+          "width": 430,
+          "lineCount": 6,
+          "leafWidth": 338,
+          "leafHeight": 437.40625
+        },
+        {
+          "width": 768,
+          "lineCount": 6,
+          "leafWidth": 520,
+          "leafHeight": 672.9375
+        },
+        {
+          "width": 1280,
+          "lineCount": 6,
+          "leafWidth": 520,
+          "leafHeight": 672.9375
+        }
+      ]
+    },
+    {
+      "orderId": "preview-font-hwChase",
+      "expectedFontId": "hwChase",
+      "fontId": "hwChase",
+      "fontAvailable": "true",
+      "fontState": "ready",
+      "overflow": "false",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-hwKate",
+      "expectedFontId": "hwKate",
+      "fontId": "hwKate",
+      "fontAvailable": "true",
+      "fontState": "fallback",
+      "overflow": "false",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-hwAdam",
+      "expectedFontId": "hwAdam",
+      "fontId": "hwAdam",
+      "fontAvailable": "true",
+      "fontState": "ready",
+      "overflow": "false",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-hwWill",
+      "expectedFontId": "hwWill",
+      "fontId": "hwWill",
+      "fontAvailable": "true",
+      "fontState": "ready",
+      "overflow": "false",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-legacy-numeric",
+      "expectedFontId": "1",
+      "fontId": "hwDavid",
+      "fontAvailable": "true",
+      "fontState": "ready",
+      "overflow": "false",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-legacy-string",
+      "expectedFontId": "font-casual",
+      "fontId": "hwDavid",
+      "fontAvailable": "true",
+      "fontState": "ready",
+      "overflow": "false",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-unknown",
+      "expectedFontId": "fixture-unknown-style",
+      "fontId": "fixture-unknown-style",
+      "fontAvailable": "false",
+      "fontState": "unavailable",
+      "overflow": "false",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-blank",
+      "expectedFontId": "hwDavid",
+      "fontId": "hwDavid",
+      "fontAvailable": "true",
+      "fontState": "ready",
+      "overflow": "false",
+      "empty": "true"
+    },
+    {
+      "orderId": "preview-font-long",
+      "expectedFontId": "hwKate",
+      "fontId": "hwKate",
+      "fontAvailable": "true",
+      "fontState": "fallback",
+      "overflow": "true",
+      "empty": "false"
+    },
+    {
+      "orderId": "preview-font-long-wrap-metrics",
+      "wrapMeasurements": [
+        {
+          "width": 320,
+          "lineCount": 255,
+          "leafWidth": 228,
+          "leafHeight": 295.046875
+        },
+        {
+          "width": 375,
+          "lineCount": 255,
+          "leafWidth": 283,
+          "leafHeight": 366.234375
+        },
+        {
+          "width": 390,
+          "lineCount": 255,
+          "leafWidth": 298,
+          "leafHeight": 385.640625
+        },
+        {
+          "width": 430,
+          "lineCount": 255,
+          "leafWidth": 338,
+          "leafHeight": 437.40625
+        },
+        {
+          "width": 768,
+          "lineCount": 255,
+          "leafWidth": 520,
+          "leafHeight": 672.9375
+        },
+        {
+          "width": 1280,
+          "lineCount": 255,
+          "leafWidth": 520,
+          "leafHeight": 672.9375
+        }
+      ]
+    }
+  ],
+  "customerPreview": {
+    "fontId": "hwDavid",
+    "fontState": "ready",
+    "overflow": "false"
+  },
+  "apiResponses": "synthetic interception for deterministic UI validation",
+  "apiCallCount": 36,
+  "pageErrors": [],
+  "blockedExternalRequests": [
+    "https://fonts.gstatic.com/s/cormorantgaramond/v21/co3bmX5slCNuHLi8bLeY9MK7whWMhyjYqXtKky2F7g.woff2",
+    "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+    "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKebunDXbtPK-F2qC0s.woff2",
+    "https://fonts.gstatic.com/s/inter/v20/UcC73FwrK3iLTeHuS_nVMrMxCp50SjIa1ZL7W0Q5nw.woff2",
+    "https://js.stripe.com/v3",
+    "https://fonts.gstatic.com/s/cormorantgaramond/v21/co3bmX5slCNuHLi8bLeY9MK7whWMhyjYqXtKky2F7g.woff2",
+    "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKebunDXbtPK-F2qC0s.woff2"
+  ]
+}

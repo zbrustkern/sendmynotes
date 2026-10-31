@@ -14,6 +14,8 @@ import {
 import { OCCASION_MESSAGE_BANK, MessageInspiration, CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
+import { NoteInteriorPreview } from "@/components/NoteInteriorPreview";
+import { resolveHandwritingStyle, resolveStep2PreviewMessage } from "@/lib/note-preview";
 
 export interface StarterPrompt {
   label: string;
@@ -261,9 +263,12 @@ export function Step2NoteComposition({
   const salutationInputRef = useRef<HTMLInputElement>(null);
 
   // Active font object
+  const resolvedStyle = useMemo(() => resolveHandwritingStyle(fontStyleId), [fontStyleId]);
   const currentFont = useMemo(() => {
-    return HANDWRITING_STYLES.find((f) => f.id === fontStyleId) || HANDWRITING_STYLES[0];
-  }, [fontStyleId]);
+    const selected = HANDWRITING_STYLES.find((f) => f.id === resolvedStyle.id);
+    return selected || { ...HANDWRITING_STYLES[0], name: resolvedStyle.available ? resolvedStyle.label : "Style unavailable", subtitle: resolvedStyle.available ? "Handwriting" : "Unavailable", description: resolvedStyle.available ? resolvedStyle.label : "This saved handwriting style is unavailable.", fontClass: resolvedStyle.fontClass, fontFamily: resolvedStyle.fontFamily };
+  }, [resolvedStyle]);
+  const previewMessage = useMemo(() => resolveStep2PreviewMessage(salutation, bodyNote, signOff), [salutation, bodyNote, signOff]);
 
   // Combined letter text for character measurement
   const fullText = useMemo(() => {
@@ -446,24 +451,9 @@ export function Step2NoteComposition({
               </div>
             </div>
 
-            {/* Desktop 100% Unobstructed White Paper Live Preview */}
-            <div className="relative w-full max-w-[400px] min-h-[500px] mx-auto aspect-[17/22] rounded-2xl overflow-hidden shadow-xl border border-stone-200 bg-[#FDFCF7] paper-texture select-none group">
-              {/* Blind-Deboss Inset Micro-Rule (Traditional letterpress border) */}
-              <div className="absolute inset-3.5 rounded-xl border border-stone-300/40 pointer-events-none" />
-
-              {/* Realistic Left Spine Fold Shadow (Folded card hinge) */}
-              <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/25 via-stone-300/10 to-transparent pointer-events-none z-10" />
-
-              {/* 1:1 Live Handwriting Inside Page — 100% Unobstructed from Top to Bottom */}
-              <div className="relative z-10 w-full h-full p-6 sm:p-7 flex flex-col justify-start overflow-hidden">
-                <div className={`text-[#1B3B6F] whitespace-pre-line text-[17px] sm:text-[19px] leading-relaxed ${currentFont.fontClass}`}>
-                  {salutation && <p className="mb-2.5 font-medium">{salutation}</p>}
-                  <p className="mb-3.5 min-h-[70px]">
-                    {bodyNote || "Your personal note written in real blue ink will appear here..."}
-                  </p>
-                  {signOff && <p className="font-medium">{signOff}</p>}
-                </div>
-              </div>
+            {/* Shared approximate inside preview */}
+            <div className="mx-auto w-full max-w-[400px]">
+              <NoteInteriorPreview message={previewMessage} fontStyleId={fontStyleId} showSpineShadow emptyPlaceholder="Your personal note will appear here." />
             </div>
 
             {/* 1-Tap Handwriting Style Selector Pills */}
@@ -474,7 +464,7 @@ export function Step2NoteComposition({
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                 {HANDWRITING_STYLES.map((style) => {
-                  const isSelected = fontStyleId === style.id;
+                  const isSelected = resolvedStyle.id === style.id;
                   return (
                     <button
                       key={style.id}
@@ -608,7 +598,7 @@ export function Step2NoteComposition({
                 )}
               </div>
 
-              {/* Note Content: Lined Stationery Textarea OR 1:1 Live Ink Pane */}
+              {/* Note Content: Lined Stationery Textarea OR Approximate Preview */}
               {noteMode === "edit" ? (
                 <div className={`relative rounded-2xl border overflow-hidden bg-white shadow-2xs ${
                   bracketWarning && /\[.*?\]/.test(bodyNote)
@@ -625,21 +615,9 @@ export function Step2NoteComposition({
                   />
                 </div>
               ) : (
-                <div className="relative rounded-2xl border border-stone-200 overflow-hidden bg-[#FDFCF7] paper-texture shadow-xs p-5 select-none min-h-[160px] flex flex-col justify-start">
-                  <div className="absolute inset-2.5 rounded-xl border border-stone-300/40 pointer-events-none" />
-                  <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/20 via-stone-300/10 to-transparent pointer-events-none z-10" />
-                  <div className={`text-[#1B3B6F] relative z-10 text-[17px] sm:text-[19px] leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}>
-                    {salutation && <p className="mb-2 font-medium">{salutation}</p>}
-                    <p className="mb-3 min-h-[60px]">{bodyNote || "Your personal note written in real blue ink will appear here..."}</p>
-                    {signOff && <p className="font-medium">{signOff}</p>}
-                  </div>
-                  <div className="mt-auto pt-2 border-t border-stone-200/60 flex items-center justify-between text-[11px] text-stone-500">
-                    <span className="flex items-center gap-1 text-emerald-800 font-medium">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                      <span>Penned in blue ink</span>
-                    </span>
-                    <span className="font-semibold text-stone-700">{currentFont.name} ({currentFont.subtitle})</span>
-                  </div>
+                <div className="rounded-2xl border border-stone-200 bg-white p-3 shadow-xs">
+                  <NoteInteriorPreview message={previewMessage} fontStyleId={fontStyleId} showSpineShadow emptyPlaceholder="Your personal note will appear here." />
+                  <p className="mt-2 text-right text-[11px] text-stone-500">{currentFont.name} · Approximate preview. Handwriting spacing and line breaks may vary.</p>
                 </div>
               )}
 
@@ -702,7 +680,7 @@ export function Step2NoteComposition({
                     type="button"
                     onClick={() => onChangeFontStyleId(style.id)}
                     className={`p-2 rounded-xl transition cursor-pointer text-center flex flex-col items-center justify-center ${
-                      fontStyleId === style.id
+                      resolvedStyle.id === style.id
                         ? "bg-emerald-800 text-white shadow-xs ring-2 ring-emerald-600/30 border border-emerald-800"
                         : "bg-stone-50 text-stone-800 border border-stone-200 hover:bg-stone-100"
                     }`}
@@ -710,7 +688,7 @@ export function Step2NoteComposition({
                     <span className={`${style.fontClass} text-[19px] sm:text-[20px] leading-tight block truncate w-full`}>
                       {style.name}
                     </span>
-                    <span className={`text-[10px] font-sans font-normal mt-0.5 block ${fontStyleId === style.id ? "text-emerald-100" : "text-stone-500"}`}>
+                    <span className={`text-[10px] font-sans font-normal mt-0.5 block ${resolvedStyle.id === style.id ? "text-emerald-100" : "text-stone-500"}`}>
                       {style.subtitle}
                     </span>
                   </button>
@@ -791,22 +769,11 @@ export function Step2NoteComposition({
             {/* 2. LIVE BLUE INK INSIDE PAGE */}
             <div className="flex flex-col items-center space-y-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-800 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-                Inside Note Live Preview
+                Inside Note
               </span>
-              <div className="relative w-full max-w-[280px] aspect-[17/22] rounded-2xl overflow-hidden shadow-md border-2 border-stone-200 bg-[#FDFCF7] paper-texture p-6 flex flex-col justify-start select-none">
-                <div className="absolute inset-2.5 rounded-xl border border-stone-300/40 pointer-events-none" />
-                <div className="absolute left-0 top-0 bottom-0 w-[4%] bg-gradient-to-r from-stone-400/25 via-stone-300/10 to-transparent pointer-events-none z-10" />
-                <div className={`text-[#1B3B6F] relative z-10 text-sm sm:text-base leading-relaxed whitespace-pre-line ${currentFont.fontClass}`}>
-                  {salutation && <p className="mb-2 font-medium">{salutation}</p>}
-                  <p className="mb-3 min-h-[70px]">
-                    {bodyNote || "Your personal note written in real blue ink will appear here..."}
-                  </p>
-                  {signOff && <p className="font-medium">{signOff}</p>}
-                </div>
+              <div className="w-full max-w-[280px]">
+                <NoteInteriorPreview message={previewMessage} fontStyleId={fontStyleId} showSpineShadow emptyPlaceholder="Your personal note will appear here." />
               </div>
-              <span className="text-xs font-medium text-stone-600 text-center">
-                Penned in <strong className="text-stone-900">{currentFont.name}</strong> ({currentFont.subtitle})
-              </span>
             </div>
           </div>
         </div>

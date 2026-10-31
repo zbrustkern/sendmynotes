@@ -37,7 +37,7 @@ env:
     value: gemini-nano-banana-2.1
     availability: [RUNTIME]
   - variable: UPLOAD_ADMIN_EMAILS
-    value: zbrustkern@gmail.com
+    value: zbrustkern@gmail.com,sentral@gmail.com
     availability: [RUNTIME]
   - variable: UPLOAD_CLEANUP_SECRET
     secret: upload-cleanup-secret

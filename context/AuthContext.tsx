@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import {
   User,
   onAuthStateChanged,
@@ -34,8 +34,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [account, setAccount] = useState<UserAccount | null>(null);
   const [loading, setLoading] = useState(true);
+  const accountRequestSequence = useRef(0);
 
-  const fetchAccount = async (currentUser: User) => {
+  const fetchAccount = async (currentUser: User, sequence: number) => {
+    const isCurrent = () => {
+      try { return sequence === accountRequestSequence.current && getFirebaseAuth().currentUser?.uid === currentUser.uid; }
+      catch { return false; }
+    };
     try {
       const idToken = await currentUser.getIdToken();
       const res = await fetch(
@@ -46,8 +51,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         }
       );
+      if (!isCurrent()) return;
       if (res.ok) {
         const data = await res.json();
+        if (!isCurrent()) return;
         if (data.user) {
           setAccount(data.user);
         } else {
@@ -65,9 +72,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               savedAddresses: [],
             }),
           });
+          if (!isCurrent()) return;
           if (initRes.ok) {
             const initData = await initRes.json();
-            setAccount(initData.user);
+            if (isCurrent()) setAccount(initData.user);
           }
         }
       }
@@ -80,13 +88,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const auth = getFirebaseAuth();
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        const sequence = ++accountRequestSequence.current;
         setUser(currentUser);
+        setAccount(null);
         if (currentUser) {
-          await fetchAccount(currentUser);
-        } else {
-          setAccount(null);
+          await fetchAccount(currentUser, sequence);
         }
-        setLoading(false);
+        if (sequence === accountRequestSequence.current) setLoading(false);
       });
       return () => unsubscribe();
     } catch (err) {
@@ -112,15 +120,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signOut = async () => {
+    let response: Response;
+    try {
+      response = await fetch("/api/admin/auth", { method: "DELETE", cache: "no-store" });
+    } catch {
+      throw new Error("Could not clear the administrator session. Your current sender account is still signed in.");
+    }
+    if (!response.ok) throw new Error("Could not clear the administrator session. Your current sender account is still signed in.");
     const auth = getFirebaseAuth();
-    await firebaseSignOut(auth);
+    try {
+      await firebaseSignOut(auth);
+    } catch {
+      throw new Error("The administrator session ended, but your sender account is still signed in. Please retry sign out.");
+    }
+    accountRequestSequence.current += 1;
     setUser(null);
     setAccount(null);
   };
 
   const refreshAccount = async () => {
     if (user) {
-      await fetchAccount(user);
+      await fetchAccount(user, ++accountRequestSequence.current);
     }
   };
 

@@ -25,6 +25,11 @@ export interface SelectedDesign {
   uploadSelection?: UploadSelection;
 }
 
+export interface PrivateUploadRecovery {
+  ownerUid: string;
+  selection: UploadSelection;
+}
+
 export interface CustomGenerationState {
   status: "idle" | "generating" | "completed" | "failed";
   prompt?: string;
@@ -120,6 +125,12 @@ export interface DraftState {
   // Required content fields
   selectedDesign: SelectedDesign | null;
   uploadSelection?: UploadSelection | null;
+  /** Owner for the currently visible upload selection; never inferred from email. */
+  uploadOwnerUid?: string | null;
+  /** Hidden owner-bound reference retained until the same UID reauthenticates. */
+  privateUploadRecovery?: PrivateUploadRecovery | null;
+  /** Blocks checkout until this sender explicitly chooses a usable cover. */
+  coverChoiceRequired?: boolean;
   note: NoteDraft;
   recipient: AddressDraft | null;
   sender: AddressDraft | null;
@@ -149,6 +160,9 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "experienceVersion",
   "selectedDesign",
   "uploadSelection",
+  "uploadOwnerUid",
+  "privateUploadRecovery",
+  "coverChoiceRequired",
   "note",
   "recipient",
   "sender",

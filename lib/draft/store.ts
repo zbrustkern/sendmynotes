@@ -32,6 +32,23 @@ export class MemoryDraftStorage implements DraftStorage {
   }
 }
 
+function validUploadSelection(value: unknown): value is NonNullable<DraftState["uploadSelection"]> {
+  if (!value || typeof value !== "object") return false;
+  const upload = value as Record<string, unknown>;
+  return upload.source === "upload" && upload.accepted === true &&
+    typeof upload.designId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(upload.designId) &&
+    typeof upload.masterSha256 === "string" && /^[a-f0-9]{64}$/i.test(upload.masterSha256) &&
+    Number.isSafeInteger(upload.revision) && (upload.revision as number) > 0 &&
+    typeof upload.title === "string" && upload.title.length <= 120;
+}
+
+function validPrivateUploadRecovery(value: unknown): DraftState["privateUploadRecovery"] {
+  if (!value || typeof value !== "object") return null;
+  const recovery = value as Record<string, unknown>;
+  if (typeof recovery.ownerUid !== "string" || recovery.ownerUid.length < 1 || recovery.ownerUid.length > 128 || !validUploadSelection(recovery.selection)) return null;
+  return { ownerUid: recovery.ownerUid, selection: recovery.selection };
+}
+
 /**
  * Gets default browser sessionStorage safely, falling back to MemoryDraftStorage if unavailable.
  */
@@ -113,10 +130,15 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
     choice: contactObj?.choice === "provided" || contactObj?.choice === "omitted" ? contactObj.choice : "untouched",
   };
 
-  const upload = record.uploadSelection as Record<string, unknown> | null | undefined;
-  if (upload && upload.source === "upload" && typeof upload.designId === "string" && typeof upload.masterSha256 === "string" && upload.accepted === true && typeof upload.revision === "number" && typeof upload.title === "string") {
-    sanitized.uploadSelection = { source: "upload", designId: upload.designId, revision: upload.revision, masterSha256: upload.masterSha256, title: upload.title, accepted: true };
-  } else sanitized.uploadSelection = null;
+  const activeUpload = validUploadSelection(record.uploadSelection) ? record.uploadSelection : null;
+  const storedRecovery = validPrivateUploadRecovery(record.privateUploadRecovery);
+  const ownerUid = typeof record.uploadOwnerUid === "string" && record.uploadOwnerUid.length > 0 && record.uploadOwnerUid.length <= 128
+    ? record.uploadOwnerUid
+    : null;
+  sanitized.uploadSelection = null;
+  sanitized.uploadOwnerUid = null;
+  sanitized.privateUploadRecovery = (activeUpload && ownerUid ? { ownerUid, selection: activeUpload } : null) || storedRecovery;
+  sanitized.coverChoiceRequired = activeUpload ? true : record.coverChoiceRequired === true;
 
   const selected = record.selectedDesign as Record<string, unknown> | null | undefined;
   if (selected && typeof selected === "object") {
@@ -125,13 +147,13 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
       presetId: typeof selected.presetId === "string" ? selected.presetId : undefined,
       customId: typeof selected.customId === "string" ? selected.customId : undefined,
       imageUrl: isUpload ? "" : typeof selected.imageUrl === "string" ? selected.imageUrl : "",
-      title: typeof selected.title === "string" ? selected.title : "",
+      title: isUpload ? "" : typeof selected.title === "string" ? selected.title : "",
       source: isUpload ? "upload" : selected.source === "custom" ? "custom" : "preset",
       occasion: typeof selected.occasion === "string" ? selected.occasion : undefined,
-      accepted: isUpload ? Boolean(sanitized.uploadSelection?.accepted) : typeof selected.accepted === "boolean" ? selected.accepted : false,
-      uploadSelection: isUpload ? sanitized.uploadSelection ?? undefined : undefined,
+      accepted: isUpload ? false : typeof selected.accepted === "boolean" ? selected.accepted : false,
+      uploadSelection: undefined,
     };
-    if (isUpload && !sanitized.uploadSelection) sanitized.selectedDesign = null;
+    if (isUpload) sanitized.selectedDesign = null;
   }
 
   // Ensure lastCustomArtwork is well-formed if present

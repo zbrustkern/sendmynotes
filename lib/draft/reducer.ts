@@ -8,6 +8,7 @@ import {
   AppliedOfferDraft,
   AttributionDraft,
   CustomGenerationState,
+  PrivateUploadRecovery,
 } from "./types";
 import type { UploadSelection } from "@/lib/upload/contracts";
 
@@ -26,7 +27,9 @@ export type DraftAction =
       };
     }
   | { type: "ACCEPT_DESIGN" }
-  | { type: "SET_UPLOAD_SELECTION"; payload: UploadSelection | null }
+  | { type: "RESTORE_PRIVATE_UPLOAD"; payload: PrivateUploadRecovery & { replaceRecovery?: boolean } }
+  | { type: "SET_PRIVATE_UPLOAD_RECOVERY"; payload: PrivateUploadRecovery | null }
+  | { type: "UPLOAD_IDENTITY_CHANGED"; payload: string | null }
   | { type: "UPDATE_NOTE"; payload: Partial<NoteDraft> }
   | { type: "UPDATE_RECIPIENT"; payload: AddressDraft | null }
   | { type: "UPDATE_SENDER"; payload: AddressDraft | null }
@@ -102,7 +105,8 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       if (
         isSameSelection &&
         state.selectedDesign &&
-        (action.payload.accepted ?? false) === state.selectedDesign.accepted
+        (action.payload.accepted ?? false) === state.selectedDesign.accepted &&
+        !state.privateUploadRecovery && !state.coverChoiceRequired && !state.uploadSelection
       ) {
         return state;
       }
@@ -123,6 +127,9 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
           uploadSelection: action.payload.uploadSelection,
         },
         uploadSelection: action.payload.uploadSelection ?? (action.payload.source === "upload" ? state.uploadSelection : null),
+        uploadOwnerUid: action.payload.source === "upload" ? state.uploadOwnerUid : null,
+        privateUploadRecovery: null,
+        coverChoiceRequired: false,
       };
     }
 
@@ -141,9 +148,56 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       };
     }
 
-    case "SET_UPLOAD_SELECTION": {
-      return { ...state, updatedAt: now, draftRevision: state.draftRevision + 1, uploadSelection: action.payload,
-        selectedDesign: action.payload ? { imageUrl: "", title: action.payload.title, source: "upload", accepted: true, uploadSelection: action.payload } : null };
+    case "RESTORE_PRIVATE_UPLOAD": {
+      if (state.privateUploadRecovery && !action.payload.replaceRecovery && (
+        state.privateUploadRecovery.ownerUid !== action.payload.ownerUid ||
+        state.privateUploadRecovery.selection.designId !== action.payload.selection.designId ||
+        state.privateUploadRecovery.selection.masterSha256 !== action.payload.selection.masterSha256 ||
+        state.privateUploadRecovery.selection.revision !== action.payload.selection.revision
+      )) return state;
+      return {
+        ...state,
+        updatedAt: now,
+        draftRevision: state.draftRevision + 1,
+        uploadSelection: action.payload.selection,
+        uploadOwnerUid: action.payload.ownerUid,
+        privateUploadRecovery: null,
+        coverChoiceRequired: false,
+        selectedDesign: { imageUrl: "", title: action.payload.selection.title, source: "upload", accepted: true, uploadSelection: action.payload.selection },
+      };
+    }
+
+    case "SET_PRIVATE_UPLOAD_RECOVERY": {
+      return {
+        ...state,
+        updatedAt: now,
+        draftRevision: state.draftRevision + 1,
+        uploadSelection: null,
+        uploadOwnerUid: null,
+        privateUploadRecovery: action.payload,
+        coverChoiceRequired: Boolean(action.payload),
+        selectedDesign: state.selectedDesign?.source === "upload" || action.payload ? null : state.selectedDesign,
+      };
+    }
+
+    case "UPLOAD_IDENTITY_CHANGED": {
+      if (state.uploadSelection && state.uploadOwnerUid === action.payload) return state;
+      const recovery = state.uploadSelection && state.uploadOwnerUid
+        ? { ownerUid: state.uploadOwnerUid, selection: state.uploadSelection }
+        : state.privateUploadRecovery ?? null;
+      const hadPrivateCover = Boolean(state.uploadSelection || state.privateUploadRecovery || state.coverChoiceRequired);
+      const hasExplicitCatalogCover = Boolean(state.selectedDesign && state.selectedDesign.source !== "upload");
+      return {
+        ...state,
+        updatedAt: now,
+        draftRevision: state.draftRevision + 1,
+        uploadSelection: null,
+        uploadOwnerUid: null,
+        privateUploadRecovery: recovery,
+        coverChoiceRequired: hadPrivateCover && !hasExplicitCatalogCover,
+        selectedDesign: state.selectedDesign?.source === "upload" ? null : state.selectedDesign,
+        currentStep: hadPrivateCover && !hasExplicitCatalogCover ? "card" : state.currentStep,
+      };
     }
 
     case "UPDATE_NOTE": {

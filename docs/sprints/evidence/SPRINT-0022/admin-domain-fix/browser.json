@@ -1,0 +1,14 @@
+{
+  "checkedAt": "2026-10-31T13:17:20.415Z",
+  "passed": true,
+  "url": "https://staging.sendmynotes.com/admin",
+  "googleSignInOpened": true,
+  "firebaseConfigResponses": [
+    {
+      "path": "/v1/projects",
+      "status": 200
+    }
+  ],
+  "referrerErrorAbsent": true,
+  "completedUserSignIn": false
+}

@@ -1,0 +1,113 @@
+{
+  "checkedAt": "2026-10-31T13:14:40.973Z",
+  "keyName": "projects/910796604705/locations/global/keys/de7ad0ec-0556-49b8-9938-9dad06e98540",
+  "displayName": "Browser key (auto created by Firebase)",
+  "restrictions": {
+    "browserKeyRestrictions": {
+      "allowedReferrers": [
+        "https://docketstamp.com/*",
+        "docketstamp.com/*",
+        "https://*.docketstamp.com/*",
+        "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/*",
+        "https://sendmynotes-staging.firebaseapp.com/*"
+      ]
+    },
+    "apiTargets": [
+      {
+        "service": "firebasedatabase.googleapis.com"
+      },
+      {
+        "service": "firebasehosting.googleapis.com"
+      },
+      {
+        "service": "firebaserules.googleapis.com"
+      },
+      {
+        "service": "sqladmin.googleapis.com"
+      },
+      {
+        "service": "datastore.googleapis.com"
+      },
+      {
+        "service": "fcmregistrations.googleapis.com"
+      },
+      {
+        "service": "firebase.googleapis.com"
+      },
+      {
+        "service": "firebaseappcheck.googleapis.com"
+      },
+      {
+        "service": "firebaseappdistribution.googleapis.com"
+      },
+      {
+        "service": "firebaseapphosting.googleapis.com"
+      },
+      {
+        "service": "firebaseapptesters.googleapis.com"
+      },
+      {
+        "service": "firebasedataconnect.googleapis.com"
+      },
+      {
+        "service": "firebaseinappmessaging.googleapis.com"
+      },
+      {
+        "service": "firebaseinstallations.googleapis.com"
+      },
+      {
+        "service": "firebaseml.googleapis.com"
+      },
+      {
+        "service": "firebaseremoteconfig.googleapis.com"
+      },
+      {
+        "service": "firebaseremoteconfigrealtime.googleapis.com"
+      },
+      {
+        "service": "firebasestorage.googleapis.com"
+      },
+      {
+        "service": "firebasevertexai.googleapis.com"
+      },
+      {
+        "service": "firestore.googleapis.com"
+      },
+      {
+        "service": "identitytoolkit.googleapis.com"
+      },
+      {
+        "service": "logging.googleapis.com"
+      },
+      {
+        "service": "mlkit.googleapis.com"
+      },
+      {
+        "service": "securetoken.googleapis.com"
+      },
+      {
+        "service": "fpnv.googleapis.com"
+      }
+    ]
+  },
+  "etag": "W/\"WMOo2RuNMPLwWBVXh1/heg==\"",
+  "authorizedDomains": [
+    "localhost",
+    "sendmynotes-staging.firebaseapp.com",
+    "sendmynotes-staging.web.app",
+    "sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+    "staging.sendmynotes.com"
+  ],
+  "probes": [
+    {
+      "referer": "https://staging.sendmynotes.com/",
+      "status": 403,
+      "error": "Requests from referer https://staging.sendmynotes.com/ are blocked."
+    },
+    {
+      "referer": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/",
+      "status": 200,
+      "error": null
+    }
+  ]
+}

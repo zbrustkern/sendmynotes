@@ -154,37 +154,141 @@ export function EntryPrototypeClient({
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState("");
   const [verifiedUploadDesignId, setVerifiedUploadDesignId] = useState("");
   const [verifiedUploadOwnerUid, setVerifiedUploadOwnerUid] = useState("");
+  const restoredUploadOwnerUidRef = useRef("");
+  const restoredUploadStepRef = useRef<FlowStep | null>(null);
+  const legacyDraftHydratedRef = useRef(false);
+  const lastResolvedUploadUidRef = useRef<string | null | undefined>(undefined);
+  const failedPrivateRecoveryKeyRef = useRef<string | null>(null);
+  const privateRequestEpochRef = useRef(0);
+  const cancelledUploadHandoffRef = useRef("");
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
   const [paymentInFlight, setPaymentInFlight] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded || authLoading) return;
+    const nextUid = user?.uid ?? null;
+    if (lastResolvedUploadUidRef.current === undefined) {
+      lastResolvedUploadUidRef.current = nextUid;
+      return;
+    }
+    if (lastResolvedUploadUidRef.current === nextUid) return;
+    const previousUid = lastResolvedUploadUidRef.current;
+    lastResolvedUploadUidRef.current = nextUid;
+    failedPrivateRecoveryKeyRef.current = null;
+    const hasPrivateCover = Boolean(draft.uploadSelection || draft.privateUploadRecovery || draft.coverChoiceRequired || searchParams?.get("uploadDesign"));
+    if (hasPrivateCover) {
+      privateRequestEpochRef.current += 1;
+      setUploadPreviewUrl("");
+      setVerifiedUploadDesignId("");
+      setVerifiedUploadOwnerUid("");
+      setUploadHandoffLoading(false);
+      if (["note", "address", "pay"].includes(step)) restoredUploadStepRef.current = step;
+      dispatch({ type: "UPLOAD_IDENTITY_CHANGED", payload: nextUid });
+      setStep("card");
+      dispatch({ type: "SET_STEP", payload: "card" });
+      // Checkout state belongs to the previous private-cover identity. Keep the
+      // sender's note and addresses, but discard any payment UI/order binding.
+      setOrderId("");
+      setViewToken(null);
+      setClientSecret(null);
+      setIsFreeOrder(false);
+      setIsOrderConfirmed(false);
+      setPaymentInFlight(false);
+      setIsInitializingCheckout(false);
+      setCheckoutInitError(null);
+      setUploadHandoffError("This private card front is hidden after an account change. Sign in to the account that saved it, or choose a catalog front; your note and addresses are still here.");
+    }
+    if (previousUid) {
+      const nextUrl = new URL(window.location.href);
+      cancelledUploadHandoffRef.current = nextUrl.searchParams.get("uploadDesign") || "";
+      nextUrl.searchParams.delete("uploadDesign");
+      window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    }
+  }, [isLoaded, authLoading, user?.uid, step, dispatch]);
+
+  // Private recovery references are inert until the matching UID is authenticated.
+  // Then both the accepted design and its private preview bytes are re-fetched.
+  useEffect(() => {
+    const recovery = draft.privateUploadRecovery;
+    if (!isLoaded || authLoading || !draft.coverChoiceRequired || !recovery) return;
+    const recoveryKey = `${recovery.ownerUid}:${recovery.selection.designId}:${recovery.selection.masterSha256}`;
+    if (failedPrivateRecoveryKeyRef.current === recoveryKey) return;
+    if (!user || !recovery.ownerUid || recovery.ownerUid !== user.uid) {
+      setUploadHandoffLoading(false);
+      setStep("card");
+      setUploadHandoffError("Sign in to the account that saved this private card front, or choose a catalog front. Your note and addresses are still here.");
+      return;
+    }
+    if (!restoredUploadStepRef.current && ["note", "address", "pay"].includes(draft.currentStep || "")) {
+      restoredUploadStepRef.current = draft.currentStep as FlowStep;
+    }
+    let active = true;
+    const requestEpoch = privateRequestEpochRef.current;
+    setUploadHandoffLoading(true);
+    setUploadHandoffError("Checking your private card front…");
+    void user.getIdToken().then(token => fetch(`/api/upload/designs/${encodeURIComponent(recovery.selection.designId)}`, {
+      headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
+    })).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      const selection = data.selection as UploadSelection | undefined;
+      if (!response.ok || !selection || selection.designId !== recovery.selection.designId ||
+          selection.revision !== recovery.selection.revision || selection.masterSha256 !== recovery.selection.masterSha256 ||
+          selection.accepted !== true) throw new Error("This private card front could not be revalidated. Choose a catalog front or try signing in again.");
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
+      dispatch({ type: "RESTORE_PRIVATE_UPLOAD", payload: { ownerUid: user.uid, selection } });
+      setUploadHandoffError("");
+    }).catch(error => {
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
+      setStep("card");
+      setUploadHandoffError(error instanceof Error ? error.message : "This private card front could not be revalidated. Choose a catalog front or try signing in again.");
+    }).finally(() => { if (active) setUploadHandoffLoading(false); });
+    return () => { active = false; };
+  }, [isLoaded, authLoading, user, draft.privateUploadRecovery?.ownerUid, draft.privateUploadRecovery?.selection.designId, draft.privateUploadRecovery?.selection.masterSha256, draft.coverChoiceRequired, dispatch]);
 
   // Revalidate upload-derived designs on URL handoff, refresh, and account changes.
   useEffect(() => {
     if (!isLoaded) return;
     if (authLoading) return;
-    const requestedId = searchParams?.get("uploadDesign") || draft.uploadSelection?.designId;
+    const queryDesignId = searchParams?.get("uploadDesign") || "";
+    const queryHandoff = Boolean(queryDesignId && queryDesignId !== cancelledUploadHandoffRef.current);
+    const requestedId = (queryHandoff ? queryDesignId : "") || draft.uploadSelection?.designId;
     if (!requestedId) { setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid(""); return; }
     setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid("");
-    if (!user) { setUploadHandoffError("Sign in to reopen this private card front."); setStep("card"); dispatch({ type: "SET_UPLOAD_SELECTION", payload: null }); return; }
+    if (!user) { setUploadHandoffError("Sign in to reopen this private card front."); setStep("card"); return; }
     if (draft.uploadSelection?.designId) setStep("card");
     let active = true;
+    const requestEpoch = privateRequestEpochRef.current;
     setUploadHandoffLoading(true); setUploadHandoffError("");
     void user.getIdToken().then(token => fetch(`/api/upload/designs/${encodeURIComponent(requestedId)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })).then(async response => {
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || !data.selection) throw new Error(data.error || "This private card front is no longer available. Choose another design to continue.");
-      if (!active) return;
+      if (!response.ok || !data.selection || data.selection.designId !== requestedId) throw new Error(data.error || "This private card front is no longer available. Choose another design to continue.");
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
       const selection = data.selection as UploadSelection;
-      if (draft.uploadSelection?.designId !== selection.designId || draft.uploadSelection.masterSha256 !== selection.masterSha256) dispatch({ type: "SET_UPLOAD_SELECTION", payload: selection });
+      if (draft.uploadSelection?.designId !== selection.designId || draft.uploadSelection.masterSha256 !== selection.masterSha256 || draft.uploadOwnerUid !== user.uid) {
+        dispatch({ type: "RESTORE_PRIVATE_UPLOAD", payload: { ownerUid: user.uid, selection, replaceRecovery: queryHandoff } });
+      }
       setVerifiedUploadDesignId(selection.designId); setVerifiedUploadOwnerUid(user.uid);
-      if (searchParams?.get("uploadDesign")) {
+      if (queryHandoff) {
         setStep("note");
         dispatch({ type: "SET_STEP", payload: "note" });
         const nextUrl = new URL(window.location.href); nextUrl.searchParams.delete("uploadDesign");
         window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
-      } else if (["note", "address", "pay"].includes(draft.currentStep || "")) setStep(draft.currentStep as FlowStep);
+      } else {
+        const restoredStep = restoredUploadStepRef.current ? null :
+          (["note", "address", "pay"].includes(draft.currentStep || "") ? draft.currentStep as FlowStep : null);
+        if (restoredStep) {
+          setStep(restoredStep);
+          dispatch({ type: "SET_STEP", payload: restoredStep });
+        }
+      }
     }).catch(error => {
-      if (!active) return;
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
       setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid("");
-      dispatch({ type: "SET_UPLOAD_SELECTION", payload: null });
+      if (draft.uploadSelection && draft.uploadOwnerUid) {
+        dispatch({ type: "SET_PRIVATE_UPLOAD_RECOVERY", payload: { ownerUid: draft.uploadOwnerUid, selection: draft.uploadSelection } });
+      } else if (draft.uploadSelection) {
+        dispatch({ type: "SET_PRIVATE_UPLOAD_RECOVERY", payload: { ownerUid: "", selection: draft.uploadSelection } });
+      }
       setUploadHandoffError(error instanceof Error ? error.message : "Could not verify the private card front.");
       setStep("card");
     }).finally(() => { if (active) setUploadHandoffLoading(false); });
@@ -198,20 +302,47 @@ export function EntryPrototypeClient({
     if (!id || !user) { setUploadPreviewUrl(""); return; }
     setUploadPreviewUrl("");
     let active = true; let localUrl = "";
+    const requestEpoch = privateRequestEpochRef.current;
     void user.getIdToken().then(token => fetch(`/api/upload/previews/design/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })).then(async response => {
-      if (!response.ok) return;
+      if (!response.ok) throw new Error("Private preview is no longer available.");
       const next = URL.createObjectURL(await response.blob());
-      if (!active) { URL.revokeObjectURL(next); return; }
+      if (!active || requestEpoch !== privateRequestEpochRef.current) { URL.revokeObjectURL(next); return; }
       localUrl = next; setUploadPreviewUrl(next);
-    }).catch(() => {});
+      // A retry may have been blocked while this private tuple was being
+      // revalidated. The verified preview makes that transient error stale.
+      setCheckoutInitError(null);
+      const desiredStep = restoredUploadStepRef.current;
+      if (desiredStep) {
+        setStep(desiredStep);
+        dispatch({ type: "SET_STEP", payload: desiredStep });
+        restoredUploadStepRef.current = null;
+      }
+    }).catch(() => {
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
+      failedPrivateRecoveryKeyRef.current = `${draft.uploadOwnerUid || ""}:${id}:${draft.uploadSelection?.masterSha256 || ""}`;
+      const recovery = draft.uploadSelection && draft.uploadOwnerUid
+        ? { ownerUid: draft.uploadOwnerUid, selection: draft.uploadSelection }
+        : null;
+      dispatch({ type: "SET_PRIVATE_UPLOAD_RECOVERY", payload: recovery });
+      setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid("");
+      setUploadHandoffError("Your private card preview could not be reopened. Sign in again or choose a catalog front; your note and addresses are still here.");
+      setStep("card");
+    });
     return () => { active = false; if (localUrl) URL.revokeObjectURL(localUrl); };
-  }, [draft.uploadSelection?.designId, user]);
+  }, [draft.uploadSelection?.designId, draft.uploadSelection?.masterSha256, draft.uploadOwnerUid, user, dispatch]);
 
   // Address deferral bypass & mobile keyboard/validation states
   const [isAddressDeferred, setIsAddressDeferred] = useState(false);
   const [addressValidationError, setAddressValidationError] = useState<string | null>(null);
   const [restoredToast, setRestoredToast] = useState(false);
+  const restoredToastShown = useRef(false);
   const [hasCustomUserEdits, setHasCustomUserEdits] = useState(false);
+
+  useEffect(() => {
+    if (!restoredToast) return;
+    const timer = window.setTimeout(() => setRestoredToast(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [restoredToast]);
 
   // Mark draft as containing real user edits (persisted to localStorage)
   const markUserCustomEdit = useCallback(() => {
@@ -388,7 +519,7 @@ export function EntryPrototypeClient({
       setStep("note");
     }
 
-    if (!draft.selectedDesign && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
+    if (!draft.selectedDesign && !draft.uploadSelection && !draft.privateUploadRecovery && !draft.coverChoiceRequired && !searchParams?.get("uploadDesign") && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
       dispatch({
         type: "SELECT_DESIGN",
         payload: {
@@ -469,6 +600,10 @@ export function EntryPrototypeClient({
     initialPreset,
     resolvedInitialPresetUrl,
     targetOccasionSlug,
+    draft.uploadSelection,
+    draft.privateUploadRecovery,
+    draft.coverChoiceRequired,
+    searchParams?.get("uploadDesign"),
     mappedInitialFont,
     resolvedInitialPresetTitle,
     resolvedInitialPresetId,
@@ -483,7 +618,8 @@ export function EntryPrototypeClient({
 
   // Hydrate draft from localStorage (scoped by occasion) for Meta in-app browser resilience
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || !isLoaded || legacyDraftHydratedRef.current) return;
+    legacyDraftHydratedRef.current = true;
 
     // 2. Once Per Browser Tab Session (sessionStorage Guard)
     const isAlreadyHydrated = sessionStorage.getItem("smn_draft_hydrated") === "1";
@@ -535,6 +671,24 @@ export function EntryPrototypeClient({
         return;
       }
 
+      // Restore only after the tab draft has hydrated and the occasion check passed.
+      // Persist the accepted tuple, never a private preview URL; the API revalidates
+      // its owner and acceptance before the preview or checkout can use it.
+      const storedUpload = parsed.uploadSelection as UploadSelection | undefined;
+      if (storedUpload?.source === "upload" && storedUpload.accepted === true &&
+          typeof storedUpload.designId === "string" && typeof storedUpload.masterSha256 === "string" &&
+          typeof storedUpload.revision === "number" && typeof storedUpload.title === "string") {
+        restoredUploadOwnerUidRef.current = typeof parsed.uploadOwnerUid === "string" ? parsed.uploadOwnerUid : "";
+        if (["note", "address", "pay"].includes(parsed.currentStep)) {
+          restoredUploadStepRef.current = parsed.currentStep as FlowStep;
+        }
+        dispatch({ type: "SET_PRIVATE_UPLOAD_RECOVERY", payload: {
+          ownerUid: typeof parsed.uploadOwnerUid === "string" ? parsed.uploadOwnerUid : "",
+          selection: storedUpload,
+        } });
+        setStep("card");
+      }
+
       // 1. Require Real User Edits (hasCustomUserEdits === true)
       const hasRealUserEdits = Boolean(
         parsed.hasCustomUserEdits === true ||
@@ -569,21 +723,26 @@ export function EntryPrototypeClient({
         if (parsed.senderAddress && !sender.fullName && !sender.street1) {
           setSender(parsed.senderAddress);
         }
-        if (parsed.currentStep && parsed.currentStep !== "confirmation") {
+        if (parsed.currentStep && parsed.currentStep !== "confirmation" && !restoredUploadStepRef.current) {
+          let restoredStep: FlowStep | null = null;
           if (isAutoSelectMode) {
             // Contextual deep links: open note editor unless user had already navigated deeper
             if (!parsed.insideNoteText?.trim()) {
-              setStep("note");
+              restoredStep = "note";
             } else if (parsed.currentStep !== "card") {
-              setStep(parsed.currentStep as FlowStep);
+              restoredStep = parsed.currentStep as FlowStep;
             } else {
-              setStep("note");
+              restoredStep = "note";
             }
           } else if (hasRealUserEdits && parsed.currentStep !== "card") {
             // Returning visitor with genuine edits: preserve saved work
-            setStep(parsed.currentStep as FlowStep);
+            restoredStep = parsed.currentStep as FlowStep;
           } else if (!initialStep) {
-            setStep(parsed.currentStep as FlowStep);
+            restoredStep = parsed.currentStep as FlowStep;
+          }
+          if (restoredStep) {
+            setStep(restoredStep);
+            dispatch({ type: "SET_STEP", payload: restoredStep });
           }
         }
 
@@ -599,10 +758,9 @@ export function EntryPrototypeClient({
         }
 
         // Only display "Welcome back" toast if draft has real user edits AND tab was not already hydrated
-        if (hasRealUserEdits && !isAlreadyHydrated) {
+        if (hasRealUserEdits && !isAlreadyHydrated && !restoredToastShown.current) {
+          restoredToastShown.current = true;
           setRestoredToast(true);
-          const t = setTimeout(() => setRestoredToast(false), 4500);
-          return () => clearTimeout(t);
         }
       }
     } catch {
@@ -610,6 +768,7 @@ export function EntryPrototypeClient({
     }
   }, [
     targetOccasionSlug,
+    isLoaded,
     isAutoSelectMode,
     initialStep,
     salutation,
@@ -670,9 +829,19 @@ export function EntryPrototypeClient({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [dispatch]);
 
+  const privatePreviewReady = Boolean(
+    draft.uploadSelection && user?.uid && draft.uploadOwnerUid === user.uid &&
+    verifiedUploadDesignId === draft.uploadSelection.designId &&
+    verifiedUploadOwnerUid === user.uid && uploadPreviewUrl,
+  );
+
   // Current selected card details
   const currentCard = useMemo(() => {
+    if (draft.coverChoiceRequired) {
+      return { imageUrl: "", title: "Choose a card front", presetId: undefined, occasion: occasionParam || CARD_PRESETS[0].occasion };
+    }
     if (draft.selectedDesign) {
+      const isHiddenUpload = draft.selectedDesign.source === "upload" && !privatePreviewReady;
       const presetMatch = CARD_PRESETS.find((p) => p.id === draft.selectedDesign?.presetId);
       const occasion =
         draft.selectedDesign.occasion ||
@@ -684,8 +853,8 @@ export function EntryPrototypeClient({
         CARD_PRESETS[0].occasion;
 
       return {
-        imageUrl: draft.selectedDesign.source === "upload" ? uploadPreviewUrl : draft.selectedDesign.imageUrl,
-        title: draft.selectedDesign.title,
+        imageUrl: draft.selectedDesign.source === "upload" ? (privatePreviewReady ? uploadPreviewUrl : "") : draft.selectedDesign.imageUrl,
+        title: isHiddenUpload ? "Private card front" : draft.selectedDesign.title,
         presetId: draft.selectedDesign.presetId,
         occasion,
       };
@@ -697,7 +866,7 @@ export function EntryPrototypeClient({
       presetId: defaultPreset.id,
       occasion: defaultPreset.occasion,
     };
-  }, [draft.selectedDesign, initialPreset, occasionParam, uploadPreviewUrl]);
+  }, [draft.selectedDesign, draft.coverChoiceRequired, initialPreset, occasionParam, uploadPreviewUrl, privatePreviewReady]);
 
   // Telemetry on initial load
   useEffect(() => {
@@ -788,6 +957,12 @@ export function EntryPrototypeClient({
         currentStep: step,
         addressDeferred: isAddressDeferred,
         hasCustomUserEdits,
+        uploadSelection: draft.uploadSelection?.accepted ? draft.uploadSelection : undefined,
+        uploadOwnerUid: draft.uploadSelection?.accepted
+          ? verifiedUploadOwnerUid || user?.uid || restoredUploadOwnerUidRef.current || undefined
+          : undefined,
+        privateUploadRecovery: draft.privateUploadRecovery || undefined,
+        coverChoiceRequired: draft.coverChoiceRequired || undefined,
         updatedAt: Date.now(),
       };
       localStorage.setItem(`smn_active_draft_v2_${targetOccasionSlug}`, JSON.stringify(draftData));
@@ -816,10 +991,34 @@ export function EntryPrototypeClient({
     step,
     isAddressDeferred,
     hasCustomUserEdits,
+    draft.uploadSelection,
+    verifiedUploadOwnerUid,
+    draft.uploadOwnerUid,
+    draft.privateUploadRecovery,
+    draft.coverChoiceRequired,
+    user?.uid,
   ]);
 
   // Handle card selection from grid
+  const clearPrivateCoverPrompt = () => {
+    privateRequestEpochRef.current += 1;
+    setUploadHandoffError("");
+    setUploadPreviewUrl("");
+    setVerifiedUploadDesignId("");
+    setVerifiedUploadOwnerUid("");
+    setCheckoutInitError(null);
+    restoredUploadStepRef.current = null;
+    failedPrivateRecoveryKeyRef.current = null;
+    if (searchParams?.get("uploadDesign")) {
+      const nextUrl = new URL(window.location.href);
+      cancelledUploadHandoffRef.current = nextUrl.searchParams.get("uploadDesign") || "";
+      nextUrl.searchParams.delete("uploadDesign");
+      window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    }
+  };
+
   const handleSelectPreset = (preset: CardPreset) => {
+    clearPrivateCoverPrompt();
     dispatch({
       type: "SELECT_DESIGN",
       payload: {
@@ -850,6 +1049,7 @@ export function EntryPrototypeClient({
     source?: "preset" | "custom";
     presetId?: string;
   }) => {
+    clearPrivateCoverPrompt();
     const isPreset = art.source === "preset";
     dispatch({
       type: "SELECT_DESIGN",
@@ -1084,8 +1284,10 @@ export function EntryPrototypeClient({
 
   // Navigation handlers
   const handleStepTransition = (nextStep: FlowStep) => {
-    if (draft.uploadSelection && (uploadHandoffLoading || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) {
-      setUploadHandoffError("Please wait while we verify your private card front.");
+    if (draft.coverChoiceRequired || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
+      setUploadHandoffError(draft.coverChoiceRequired
+        ? "Sign in to the account that saved this private card front, or choose a catalog front. Your note and addresses are still here."
+        : "Please wait while we verify your private card front.");
       setStep("card");
       return;
     }
@@ -1283,11 +1485,16 @@ export function EntryPrototypeClient({
     expectedAmountInCents?: number,
     allowDuringDiscountValidation = false
   ) => {
-    if (draft.uploadSelection && (uploadHandoffLoading || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) {
-      setCheckoutInitError("Please wait while we verify your private card front.");
+    if (draft.coverChoiceRequired || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
+      setCheckoutInitError(draft.coverChoiceRequired
+        ? "Sign in to the account that saved this private card front, or choose a catalog front. Your note and addresses are still here."
+        : "Please wait while we verify your private card front.");
       return false;
     }
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
+    const privateCheckout = Boolean(draft.uploadSelection);
+    const privateCheckoutEpoch = privateRequestEpochRef.current;
+    const privateCheckoutIsStale = () => privateCheckout && privateCheckoutEpoch !== privateRequestEpochRef.current;
     checkoutRequestInFlight.current = true;
     const requestedAddressRevision = addressRevision.current;
     setCheckoutInitError(null);
@@ -1339,6 +1546,10 @@ export function EntryPrototypeClient({
         }
         discountToApply = validation;
       }
+
+      // An account/cover transition during discount validation must not submit
+      // the old private design to checkout.
+      if (privateCheckoutIsStale()) return false;
 
       trackJourneyEvent("checkout_requested", {
         amountInCents: currentDisplayTotalCents,
@@ -1399,7 +1610,12 @@ export function EntryPrototypeClient({
         }),
       });
 
+      // The server may finish an already-submitted request after signout. Ignore
+      // its response so it cannot restore the previous account's payment UI.
+      if (privateCheckoutIsStale()) return false;
+
       const data = await res.json();
+      if (privateCheckoutIsStale()) return false;
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize payment gateway.");
       }
@@ -1491,6 +1707,7 @@ export function EntryPrototypeClient({
       }
       return true;
     } catch (err) {
+      if (privateCheckoutIsStale()) return false;
       const msg =
         err instanceof Error
           ? err.message
@@ -1734,6 +1951,13 @@ export function EntryPrototypeClient({
     if (
       isLoaded &&
       step === "pay" &&
+      !authLoading &&
+      !draft.coverChoiceRequired &&
+      (!draft.uploadSelection || (
+        privatePreviewReady && !uploadHandoffLoading &&
+        verifiedUploadDesignId === draft.uploadSelection.designId &&
+        verifiedUploadOwnerUid === user?.uid
+      )) &&
       !orderId &&
       !isFreeOrder &&
       !clientSecret &&
@@ -1743,7 +1967,7 @@ export function EntryPrototypeClient({
     ) {
       initializeCheckout();
     }
-  }, [isLoaded, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.appliedOffer]);
+  }, [isLoaded, authLoading, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.appliedOffer, draft.uploadSelection, draft.coverChoiceRequired, privatePreviewReady, uploadHandoffLoading, verifiedUploadDesignId, verifiedUploadOwnerUid, user?.uid]);
 
   // Check if address is valid for advancing
   const isAddressValid = isAddressDeferred
@@ -1806,25 +2030,38 @@ export function EntryPrototypeClient({
 
   return (
     <div className={`min-h-screen bg-white text-stone-900 flex flex-col antialiased relative ${embedded ? "rounded-3xl border border-stone-200/90 shadow-xs overflow-hidden" : ""}`}>
-      {/* RESTORED DRAFT HYDRATION TOAST */}
-      {restoredToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 text-white px-4 py-2.5 rounded-full shadow-lg text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-          <span>✨ Welcome back — your handwritten note was saved.</span>
-        </div>
-      )}
-
       {/* 1. COMPACT SENDMYNOTES FLOW HEADER (suppressed when embedded in an occasion/scenario landing page with its own navbar) */}
       {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} orderTotalCents={step === "pay" ? amountInCents : undefined} resetDisabled={paymentInFlight || isOrderConfirmed} />}
 
+      {/* RESTORED DRAFT HYDRATION TOAST */}
+      {restoredToast && (
+        <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6 lg:max-w-7xl lg:px-8">
+          <div role="status" aria-live="polite" className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+            <span>Welcome back — your note was saved.</span>
+            <button type="button" onClick={() => setRestoredToast(false)} aria-label="Dismiss saved note message" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-emerald-900 hover:bg-emerald-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700">×</button>
+          </div>
+        </div>
+      )}
+
       {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
+      {draft.coverChoiceRequired && (
+        <div className="mx-auto mt-3 flex w-full max-w-3xl flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between" role="status" aria-live="polite">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950">
+            {uploadHandoffError || "This private card front is hidden after an account change. Sign in to the account that saved it, or choose a catalog front. Your note and addresses are still here."}
+          </p>
+          <button type="button" onClick={() => { setStep("card"); dispatch({ type: "SET_STEP", payload: "card" }); }} className="min-h-11 shrink-0 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700">
+            Choose a catalog front
+          </button>
+        </div>
+      )}
       <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
-      {(uploadHandoffLoading || uploadHandoffError) && <div className="mx-auto mt-3 max-w-3xl px-4"><p role={uploadHandoffError ? "alert" : "status"} className={`rounded-xl px-4 py-3 text-sm ${uploadHandoffError ? "bg-amber-50 text-amber-900" : "bg-stone-50 text-stone-600"}`}>{uploadHandoffError || "Checking your private card front…"}</p></div>}
+      {!draft.coverChoiceRequired && (uploadHandoffLoading || uploadHandoffError) && <div className="mx-auto mt-3 max-w-3xl px-4"><p role={uploadHandoffError ? "alert" : "status"} className={`rounded-xl px-4 py-3 text-sm ${uploadHandoffError ? "bg-amber-50 text-amber-900" : "bg-stone-50 text-stone-600"}`}>{uploadHandoffError || "Checking your private card front…"}</p></div>}
 
       {/* 3. STEP CONTENT */}
       <main className="flex-1 w-full">
         {step === "card" && (
           <EntryCardStep
-            selectedDesign={draft.selectedDesign}
+            selectedDesign={draft.selectedDesign?.source === "upload" && !privatePreviewReady ? null : draft.selectedDesign}
             onSelectDesign={handleSelectPreset}
             onAcceptAndContinue={() => handleStepTransition("note")}
             initialOccasion={occasionParam}
@@ -1903,7 +2140,7 @@ export function EntryPrototypeClient({
           </div>
         )}
 
-        {step === "pay" && (
+        {step === "pay" && !draft.coverChoiceRequired && (!draft.uploadSelection || (privatePreviewReady && !uploadHandoffLoading && verifiedUploadDesignId === draft.uploadSelection.designId && verifiedUploadOwnerUid === user?.uid)) && (
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step4ReviewAndPayment
               isUpdatingCheckout={isInitializingCheckout}
@@ -1952,7 +2189,7 @@ export function EntryPrototypeClient({
           priceSubtext={isInternational ? "International mailing included" : "USPS mailing included"}
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
-          isDisabled={step === "card" ? !draft.selectedDesign || Boolean(draft.uploadSelection && (uploadHandoffLoading || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) : false}
+          isDisabled={step === "card" ? draft.coverChoiceRequired || !draft.selectedDesign || Boolean(draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) : false}
           onPrimaryClick={() => {
             if (step === "card") {
               handleStepTransition("note");

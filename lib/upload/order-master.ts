@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { NextRequest } from 'next/server';
 import { requireUploadActor, putPrivateOrderAsset, readPrivateAsset } from './access';
 import { UploadError, type UploadDesign, type UploadOrderMaster } from './contracts';
+import { isSameOrigin } from './http';
 import { validateUploadCheckoutSelection } from './generation';
 import type { Order } from '../types';
 
@@ -28,8 +29,7 @@ export async function pinUploadOrderMaster(req: NextRequest, body: Record<string
     throw new UploadError('mixed_cover', 'Choose one card front.', 400);
   }
   if (!/^order_[a-zA-Z0-9_-]{1,128}$/.test(orderId)) throw new UploadError('invalid_order_id', 'Invalid order identity.', 400);
-  const origin = req.headers.get('origin');
-  if (!origin || new URL(origin).origin !== new URL(process.env.NEXT_PUBLIC_APP_URL || req.url).origin) throw new UploadError('origin_forbidden', 'Request origin is not allowed.', 403);
+  if (!isSameOrigin(req)) throw new UploadError('origin_forbidden', 'Request origin is not allowed.', 403);
   const actor = await deps.actor(req);
   const design = await deps.validate(actor.uid, body.uploadDesign);
   const bytes = await deps.read(design.masterKey);

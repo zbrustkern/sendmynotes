@@ -87,6 +87,13 @@ async function main() {
   assert.equal(nonOwner.status,403,'verified admin session without upload-owner capability is denied');
   const nonOwnerWrite=await adminAccessPatch(new NextRequest('http://localhost/api/admin/upload-access',{method:'PATCH',headers:{cookie:`smn_admin_session=${nonOwnerToken}`,origin:'http://localhost',host:'localhost','content-type':'application/json'},body:JSON.stringify({uid,dailyLimit:99})}));
   assert.equal(nonOwnerWrite.status,403,'verified admin without owner capability cannot mutate grants');
+  const anonymousAdmin=await adminAccess(new NextRequest('http://localhost/api/admin/upload-access'));
+  assert.equal(anonymousAdmin.status,401,'signed-out admin is distinguished from insufficient permissions');
+  process.env.UPLOAD_ADMIN_EMAILS='zbrustkern@gmail.com,sentral@gmail.com';
+  const delegatedAdmin=await adminAccess(new NextRequest('http://localhost/api/admin/upload-access',{headers:{cookie:`smn_admin_session=${nonOwnerToken}`}}));
+  assert.equal(delegatedAdmin.status,200,'both configured founder admin accounts can manage uploads');
+  const {GET:adminStandards}=await import('../app/api/admin/upload-standards/route');
+  assert.equal((await adminStandards(new NextRequest('http://localhost/api/admin/upload-standards',{headers:{cookie:`smn_admin_session=${nonOwnerToken}`}}))).status,200,'standards and access share the same admin capability');
   const ownerToken=(await import('../lib/admin-auth')).generateAdminSessionToken('zbrustkern@gmail.com');
   const owner=await adminAccess(new NextRequest('http://localhost/api/admin/upload-access',{headers:{cookie:`smn_admin_session=${ownerToken}`}}));
   assert.equal(owner.status,200,'configured owner can inspect grants');

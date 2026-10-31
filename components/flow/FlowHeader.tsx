@@ -3,6 +3,9 @@
 import React, { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { MoreHorizontal, PenTool } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { AuthModal } from "@/components/AuthModal";
+import { useUploadStudioAccess } from "@/lib/upload/useUploadStudioAccess";
 
 interface FlowHeaderProps {
   showClearDraft?: boolean;
@@ -21,13 +24,21 @@ export function FlowHeader({
 }: FlowHeaderProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [showSignIn, setShowSignIn] = useState(false);
+  const [accountError, setAccountError] = useState("");
+  const { user, signOut, loading: authLoading } = useAuth();
+  const { state: studioAccess, refresh: refreshStudioAccess } = useUploadStudioAccess(user, authLoading);
   const optionsRef = useRef<HTMLButtonElement>(null);
   const menuItemRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (menuOpen) menuItemRef.current?.focus();
-  }, [menuOpen]);
+    if (menuOpen) {
+      void refreshStudioAccess();
+      const firstItem = optionsRef.current?.parentElement?.querySelector<HTMLElement>("[role='menuitem']");
+      firstItem?.focus();
+    }
+  }, [menuOpen, refreshStudioAccess]);
 
   useEffect(() => {
     if (showConfirm) cancelRef.current?.focus();
@@ -98,16 +109,21 @@ export function FlowHeader({
     if (event.key === "ArrowDown" || event.key === "ArrowUp" || event.key === "Enter" || event.key === " ") {
       event.preventDefault();
       if (!menuOpen) setMenuOpen(true);
-      else menuItemRef.current?.focus();
+      else {
+        const firstItem = optionsRef.current?.parentElement?.querySelector<HTMLElement>("[role='menuitem']");
+        firstItem?.focus();
+      }
     }
   };
 
-  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLButtonElement>) => {
-    if (event.key === "Tab") setMenuOpen(false);
+  const handleMenuKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
-      // The menu currently has one action; keep focus on that action.
-      menuItemRef.current?.focus();
+      const items = Array.from(event.currentTarget.closest("[role='menu']")?.querySelectorAll<HTMLElement>("[role='menuitem']") || []);
+      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+      const direction = event.key === "ArrowDown" ? 1 : -1;
+      const nextIndex = (currentIndex + direction + items.length) % items.length;
+      items[nextIndex]?.focus();
     }
   };
 
@@ -134,38 +150,55 @@ export function FlowHeader({
                 ${((orderTotalCents || 0) / 100).toFixed(2)} total
               </span>
             )}
-            {showClearDraft && onClearDraft && (
-              <div className="relative">
+            <div className="relative">
                 <button
                   ref={optionsRef}
                   type="button"
-                  disabled={resetDisabled}
-                  aria-label="Card options"
+                  aria-label="Account and card options"
                   aria-haspopup="menu"
                   aria-expanded={menuOpen}
                   onClick={() => setMenuOpen((open) => !open)}
                   onKeyDown={handleOptionsKeyDown}
-                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="flex h-11 w-11 items-center justify-center rounded-xl border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600"
                 >
                   <MoreHorizontal className="h-5 w-5" aria-hidden="true" />
                 </button>
                 {menuOpen && (
-                  <div role="menu" aria-label="Card options" className="absolute right-0 top-12 z-40 min-w-48 rounded-xl border border-stone-200 bg-white p-1.5 shadow-lg">
-                    <button
-                      ref={menuItemRef}
-                      type="button"
-                      role="menuitem"
-                      disabled={resetDisabled}
-                      onClick={() => { setMenuOpen(false); setShowConfirm(true); }}
-                      onKeyDown={handleMenuKeyDown}
-                      className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-rose-800 hover:bg-rose-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      Start a new card
-                    </button>
+                  <div role="menu" aria-label="Account and card options" className="absolute right-0 top-12 z-40 w-72 max-w-[calc(100vw-2rem)] rounded-xl border border-stone-200 bg-white p-1.5 shadow-lg">
+                    {accountError && <p role="alert" className="px-3 py-2 text-xs text-rose-800">{accountError}</p>}
+                    {authLoading ? <p role="status" className="px-3 py-2 text-sm text-stone-500">Checking account…</p> : user ? (
+                      <>
+                        {user.email && <div className="overflow-hidden px-3 py-2 text-xs text-stone-500" title={user.email}><span className="sr-only">Signed in as </span><span className="block truncate">{user.email}</span></div>}
+                        <Link href="/account" role="menuitem" onClick={() => setMenuOpen(false)} onKeyDown={handleMenuKeyDown} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-stone-800 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600">
+                          My account
+                        </Link>
+                        {studioAccess === "checking" || studioAccess === "resolving" ? <div role="status" className="px-3 py-2 text-sm text-stone-500">Checking studio access…</div> : null}
+                        {studioAccess === "active" && <Link href="/create/upload" role="menuitem" onClick={() => setMenuOpen(false)} onKeyDown={handleMenuKeyDown} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-stone-800 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600">Upload studio</Link>}
+                        {studioAccess === "error" && <div className="flex items-center justify-between gap-2 px-3 py-2"><span role="status" className="text-xs text-stone-600">Studio access unavailable</span><button type="button" role="menuitem" onKeyDown={handleMenuKeyDown} onClick={() => void refreshStudioAccess()} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50">Retry</button></div>}
+                        <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); void signOut().then(() => setAccountError("")).catch((error: unknown) => { setAccountError(error instanceof Error ? error.message : "Could not complete sign out. Your current account is still shown."); setMenuOpen(true); }); }} onKeyDown={handleMenuKeyDown} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-stone-600 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600">Sign out</button>
+                      </>
+                    ) : (
+                      <>
+                        <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setShowSignIn(true); }} onKeyDown={handleMenuKeyDown} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-stone-800 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600">Sign in</button>
+                      </>
+                    )}
+                    {showClearDraft && onClearDraft && <>
+                      <div role="separator" className="my-1 border-t border-stone-100" />
+                      <button
+                        ref={menuItemRef}
+                        type="button"
+                        role="menuitem"
+                        disabled={resetDisabled}
+                        onClick={() => { setMenuOpen(false); setShowConfirm(true); }}
+                        onKeyDown={handleMenuKeyDown}
+                        className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-rose-800 hover:bg-rose-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        Start a new card
+                      </button>
+                    </>}
                   </div>
                 )}
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </header>
@@ -195,6 +228,7 @@ export function FlowHeader({
           </section>
         </div>
       )}
+      <AuthModal isOpen={showSignIn} onClose={() => setShowSignIn(false)} title="Sign in to SendMyNotes" />
     </>
   );
 }

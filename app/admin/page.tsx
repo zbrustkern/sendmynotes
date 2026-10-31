@@ -152,12 +152,23 @@ export default function AdminDashboardPage() {
   };
 
   const handleLogout = async () => {
+    setAuthError("");
     try {
-      await fetch("/api/admin/auth", { method: "DELETE" });
       await authSignOut();
-    } finally {
       setIsAuthenticated(false);
+      setAdminUserEmail(null);
       setMetrics(null);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Could not complete sign out. Please try again.");
+      // The admin cookie may have cleared while sender sign-out failed.
+      try {
+        const response = await fetch("/api/admin/auth", { cache: "no-store" });
+        if (response.ok) {
+          const session = await response.json();
+          setIsAuthenticated(Boolean(session.authenticated));
+          if (!session.authenticated) { setAdminUserEmail(null); setMetrics(null); }
+        }
+      } catch { /* Keep the last confirmed session and visible error. */ }
     }
   };
 
@@ -703,7 +714,6 @@ export default function AdminDashboardPage() {
             >
               Storefront
             </Link>
-            <Link href="/admin/uploads" className="inline-flex h-8 items-center rounded-lg bg-emerald-50 px-2.5 text-xs font-semibold text-emerald-900 hover:bg-emerald-100">Upload studio</Link>
 
             <button
               type="button"
@@ -743,6 +753,11 @@ export default function AdminDashboardPage() {
               className="flex items-center gap-4 sm:gap-8 overflow-x-auto no-scrollbar"
               aria-label="Admin Tabs"
             >
+              <Link href="/admin/uploads" className="my-2 inline-flex min-h-9 flex-none items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-900 hover:bg-emerald-100">
+                <span className="sm:hidden">Upload admin</span>
+                <span className="hidden sm:inline">Upload administration</span>
+              </Link>
+              <span className="my-3 h-4 w-px flex-none bg-stone-200" aria-hidden="true" />
               <button
                 type="button"
                 onClick={() => handleTabChange("orders")}
@@ -830,6 +845,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </header>
+      {authError && <p role="alert" className="mx-auto max-w-7xl px-4 py-3 text-sm text-rose-800">{authError}</p>}
 
       {/* MAIN BODY */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
@@ -1349,7 +1365,7 @@ export default function AdminDashboardPage() {
                                         type="button"
                                         onClick={() => setSelectedProofOrderId(order.id)}
                                         className="px-2 py-0.5 text-[10px] font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded border border-stone-200 transition inline-flex items-center gap-1 cursor-pointer"
-                                        title="Inspect 1:1 card proof and live handwriting"
+                                        title="Inspect approximate card preview"
                                       >
                                         <Eye className="w-3 h-3 text-stone-500" />
                                         <span>Proof</span>
