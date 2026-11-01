@@ -17,6 +17,9 @@ All checks below used `NODE_ENV=test` and the external-network deny hook; no liv
 - `tests/account-history.test.ts` — passed (synthetic storage and trusted history checks).
 - `tests/account-library-drafts.test.ts` — passed (owner isolation, durable draft allowlist, grant enforcement).
 - `tests/account-routes-security.test.ts` — passed using an isolated mock Firestore directory (auth, CSRF, ownership, conflict, contact import retry/consent checks).
+- `tests/account-list-contract.test.ts` — passed (empty and populated history response shape, overview-sized result, cursor pagination, safe rejection of double-wrapped payloads, and an upcoming occasion beyond the first 50 creation-ordered rows).
+
+Follow-up route audit found the history GET route was double-wrapping the service pagination object, unlike people, occasions, images, and drafts list routes. It now returns the flat `{data,nextCursor}` envelope with private no-store headers. Both history consumers validate the runtime list shape and show their existing recoverable error UI for malformed payloads. The overview now loads all occasion pages and sorts computed upcoming dates before selecting the nearest three. The contract regression is registered in `scripts/account/run-tests.mjs`.
 
 The coordinator owns final typecheck/build. No build was run here. UI browser QA and production Firebase action-link configuration remain integration/release checks.
 

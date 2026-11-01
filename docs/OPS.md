@@ -35,7 +35,7 @@ The owner-only privacy preview endpoint returns bounded counts for account-scope
 5. Process only approved account-owned data categories. Record progress per category and preserve a retryable inventory for any partial failure. Do not mark the request completed until the verified action and remaining-retention explanation are recorded.
 6. Acknowledge the requester through an approved channel only after a real responder and service target have been assigned. Current UI receipt means only “recorded for review.”
 
-Primary/backup responder names, acknowledgment/escalation target, and a secure expiring export channel remain founder decisions. The dashboard is the internal alert surface; no email or external notification is sent by these changes. No legal deadline is assumed.
+Release decision (November 1, 2026): keep manual privacy requests. Zeke is the initial privacy-request operator. A backup is not assigned for this release. Acknowledgment/escalation targets and a secure expiring export channel still need to be documented before making service commitments. privacy@sendmynotes.com was suggested, but its mailbox/routing has not been configured or verified. The dashboard is the internal alert surface; no email or external notification is sent by these changes. No legal deadline is assumed.
 
 ## Local synthetic checks
 

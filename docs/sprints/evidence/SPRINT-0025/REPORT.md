@@ -1,6 +1,6 @@
 # Sprint 0025 — implementation and release evidence
 
-Status: implementation integrated; staging/release acceptance in progress. **Not approved for production.**
+Status: implementation integrated; initial staging rollout passed; signed-in feedback fix prepared; release acceptance remains open. **Not approved for production.**
 
 The founder authorized sprint planning and Luna execution of the approved readiness plan. Three Luna lanes completed account W1–W4, Studio W5, and integration/operations W0/W7/W8; the coordinator integrated shared builder/checkout code, prepared W6 resources and performed independent review. The original dirty checkout remains unchanged except requested planning/evidence documents.
 
@@ -27,7 +27,7 @@ No validation created a real payment, billable supplier order, physical mail or 
 
 Dedicated production private bucket created with uniform access/public-access prevention and bucket-scoped runtime permissions. Existing staging private bucket retained. Missing project-local secret containers and initial random keys were prepared; existing enabled versions were retained. Runtime and actual App Hosting service identities received scoped secret access. Secret values were never read or recorded during provisioning.
 
-The manifest now has 21 additive indexes (17 account indexes plus four operational queries, including the earlier environment-only health index retained for compatibility). Index creation was requested in both projects; READY must be verified from final preflight. Production running application/traffic was not changed by resource preparation.
+The manifest now has 21 additive indexes (17 account indexes plus four operational queries, including the earlier environment-only health index retained for compatibility). All 21 manifest indexes were verified READY in both projects. Production running application/traffic was not changed by resource preparation.
 
 Production and staging manifests bind separate bucket/key resources; reminder delivery is explicitly false. New cleanup/reminder schedules are planned, not activated. The existing staging upload cleanup job is retained. Production Scheduler API inventory returned 403 and is an unresolved enablement/access prerequisite. No sender address was invented.
 
@@ -43,8 +43,14 @@ Production and staging manifests bind separate bucket/key resources; reminder de
 | C2 generated history | Trusted resolution, exact bytes and immutable pins | Live signed-in four-front-type review |
 | C3 imports | Explicit opt-in and retry-safe partial results | Signed-in import review |
 | C4 draft resume | Resume inferred only after front acceptance | Signed-in cross-device and identity review |
-| C5 privacy | Restricted queue/status/evidence and runbook | Named operators; disposable export/deletion rehearsal |
+| C5 privacy | Restricted queue/status/evidence and runbook | Zeke owns manual requests; disposable export/deletion rehearsal |
 | U1–U6 Studio | Version tray, guidance, lettering, edit, HEIC and preview implemented | Signed-in responsive/keyboard and source-lifetime review |
 | A1–A4 account UX | Picker, gated CTA, thumbnails and occasion action implemented | Signed-in device review |
 
 All 19 findings are mapped. “Implemented” does not mean the external acceptance gate is closed. The sprint ledger remains active. See RELEASE-GATES.md for concrete production, reminder, migration and rollback requirements.
+
+## Signed-in feedback and release decision
+
+The founder signed in and reported a client exception opening an empty Card history. The history list route returned a double-wrapped pagination envelope; the page expected an array. The follow-up flattens that response, validates client list shape into recoverable errors, and adds an endpoint-to-consumer regression for empty/populated/paged history. It also fixes overview upcoming dates beyond the first 50 saved occasions. All 14 account suites, TypeScript and production build pass after the fix. Exact follow-up deployment is recorded in STAGING-REPORT.md.
+
+Founder decision: keep manual privacy requests for this release. Zeke is the initial operator; no backup is assigned. Settings already explains that requesting deletion does not immediately delete the account. The suggested privacy@sendmynotes.com mailbox has not been verified/configured; notifications are currently the restricted admin dashboard. No automated erasure is claimed.

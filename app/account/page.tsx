@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { accountFetch } from '@/lib/account/client';
+import { fetchAllAccountPages, requireAccountList, upcomingAccountOccasions } from '@/lib/account/list-contracts';
 import type { AccountContact, AccountDraft, AccountOccasion, AccountPreferences } from '@/lib/account/contracts';
 import type { AccountHistoryOrder } from '@/lib/account/history';
 
@@ -26,16 +27,16 @@ export default function AccountOverviewPage() {
     setLoading(true); setErrors([]); setPeople([]); setOccasions([]); setDrafts([]); setHistory([]);
     void Promise.allSettled([
       accountFetch<List<AccountContact>>(user, '/api/account/people?limit=20'),
-      accountFetch<List<AccountOccasion>>(user, '/api/account/occasions?limit=50'),
+      fetchAllAccountPages<AccountOccasion>(cursor => { if (!active) throw new Error('Account request cancelled.'); return accountFetch<unknown>(user, `/api/account/occasions?limit=50${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`); }),
       accountFetch<List<AccountDraft>>(user, '/api/account/drafts?limit=20'),
-      accountFetch<List<AccountHistoryOrder>>(user, '/api/account/history?limit=3'),
+      accountFetch<unknown>(user, '/api/account/history?limit=3').then(result => requireAccountList<AccountHistoryOrder>(result, 'Card history returned an unexpected response. Please retry.')),
       accountFetch<{data:AccountPreferences}>(user, '/api/account/preferences'),
     ]).then(untypedResults => {
-      const results = untypedResults as [PromiseSettledResult<List<AccountContact>>, PromiseSettledResult<List<AccountOccasion>>, PromiseSettledResult<List<AccountDraft>>, PromiseSettledResult<List<AccountHistoryOrder>>, PromiseSettledResult<{data:AccountPreferences}>];
+      const results = untypedResults as [PromiseSettledResult<List<AccountContact>>, PromiseSettledResult<AccountOccasion[]>, PromiseSettledResult<List<AccountDraft>>, PromiseSettledResult<{data:AccountHistoryOrder[];nextCursor:string|null}>, PromiseSettledResult<{data:AccountPreferences}>];
       if (!active || user.uid !== capturedUid) return;
       const errorsFound: string[] = [];
       if (results[0].status === 'fulfilled') setPeople(results[0].value.data || []); else errorsFound.push('Your address book could not be loaded.');
-      if (results[1].status === 'fulfilled') setOccasions(results[1].value.data || []); else errorsFound.push('Your dates could not be loaded.');
+      if (results[1].status === 'fulfilled') setOccasions(upcomingAccountOccasions(results[1].value)); else errorsFound.push('Your dates could not be loaded.');
       if (results[2].status === 'fulfilled') setDrafts(results[2].value.data || []); else errorsFound.push('Your drafts could not be loaded.');
       if (results[3].status === 'fulfilled') setHistory(results[3].value.data || []); else errorsFound.push('Your card history could not be loaded.');
       if (results[4].status === 'fulfilled') setPreferences(results[4].value.data); else errorsFound.push('Reminder settings could not be loaded.');

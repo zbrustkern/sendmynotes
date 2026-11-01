@@ -45,5 +45,20 @@
   "realSupplierOrders": 0,
   "realReminderEmails": 0,
   "signedInBrowserAcceptance": "pending",
-  "productionRollout": "not_authorized"
+  "productionRollout": "not_authorized",
+  "historyFollowup": {
+    "checkedAt": "2026-11-01T22:14:50.406248+00:00",
+    "accountSuites": 14,
+    "emptyHistoryContract": "passed",
+    "populatedAndPagedHistory": "passed",
+    "malformedEnvelopeRecovery": "passed",
+    "upcomingBeyondFirst50": "passed",
+    "typecheck": "passed",
+    "productionBuild": "passed",
+    "logs": {
+      "history-fix-account.log": "35c8e20c60fb63bc0f23d2e46e2fa3eb555a73587990d89b3feb58e2bf830f7b",
+      "history-fix-typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "history-fix-build.log": "521f3f0a2cc287e0d212b177499364360ce676ed1d58450c6822aa145742c8c0"
+    }
+  }
 }

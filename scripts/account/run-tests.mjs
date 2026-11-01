@@ -2,7 +2,7 @@ import {mkdtempSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
-const tests=['account-builder','account-order-association','account-routes-security','account-preferences','account-privacy-requests','account-history','legacy-reminder-retirement','account-library-drafts','sprint-0024-people-reminders','draft','upload-checkout','upload-routes-security','optional-account-menu'];
+const tests=['account-builder','account-order-association','account-routes-security','account-preferences','account-privacy-requests','account-history','account-list-contract','legacy-reminder-retirement','account-library-drafts','sprint-0024-people-reminders','draft','upload-checkout','upload-routes-security','optional-account-menu'];
 let failed=false;
 for(const name of tests){
   const dir=mkdtempSync(join(tmpdir(),'smn-s24-'));

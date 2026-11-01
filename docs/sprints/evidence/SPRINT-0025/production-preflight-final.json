@@ -1,0 +1,404 @@
+{
+  "checkedAt": "2026-11-01T22:05:21.636Z",
+  "target": "production",
+  "project": "sendmynotes-2a417",
+  "readOnly": true,
+  "secretValuesRead": false,
+  "revision": "projects/sendmynotes-2a417/locations/us-central1/services/sendmynotes/revisions/sendmynotes-build-2026-10-30-005",
+  "runtimeIdentity": "firebase-app-hosting-compute@sendmynotes-2a417.iam.gserviceaccount.com",
+  "environment": {
+    "config": [
+      {
+        "name": "UPLOAD_PRIVATE_BUCKET",
+        "present": false,
+        "source": "missing"
+      },
+      {
+        "name": "UPLOAD_IMAGE_MODEL",
+        "present": false,
+        "source": "missing"
+      },
+      {
+        "name": "UPLOAD_ADMIN_EMAILS",
+        "present": false,
+        "source": "missing"
+      },
+      {
+        "name": "ACCOUNT_REMINDER_DELIVERY_ACTIVE",
+        "present": false,
+        "source": "missing"
+      },
+      {
+        "name": "REMINDER_FROM_EMAIL",
+        "present": false,
+        "source": "missing"
+      },
+      {
+        "name": "UPLOAD_CLEANUP_SECRET",
+        "present": false,
+        "source": "missing"
+      },
+      {
+        "name": "ADMIN_SESSION_SIGNING_KEY",
+        "present": false,
+        "source": "missing"
+      },
+      {
+        "name": "REMINDER_WORKER_SECRET",
+        "present": false,
+        "source": "missing"
+      }
+    ],
+    "checks": {
+      "bucketMatchesTarget": false,
+      "remindersExplicitlyOff": false,
+      "stageSafety": true,
+      "originMatchesTarget": true,
+      "secretsAreReferences": false
+    }
+  },
+  "bucket": {
+    "name": "sendmynotes-2a417-upload-private",
+    "uniformAccess": true,
+    "publicAccessPrevention": true,
+    "noPublicMembers": true,
+    "runtimeObjectRole": true,
+    "runtimeMetadataPermission": "requires_runtime_fixture"
+  },
+  "indexes": [
+    {
+      "collectionGroup": "account_people",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_occasions",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_images",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_drafts",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_drafts",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_images",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleanupAttemptAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_images",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "objectDeletedAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleanupAttemptAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_privacy_requests",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_occasions",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contactId",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occasionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occurrenceDate",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nextCheckAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "leaseUntil",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dispatchStartedAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "orders",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "orders",
+      "fields": [
+        {
+          "fieldPath": "customerEmail",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "orders",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accountOccasionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occasionOccurrenceDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accountAcceptedAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "operational_job_runs",
+      "fields": [
+        {
+          "fieldPath": "environment",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "operational_job_runs",
+      "fields": [
+        {
+          "fieldPath": "environment",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "job",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_privacy_requests",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "READY"
+    }
+  ],
+  "secrets": [
+    {
+      "id": "upload-cleanup-secret",
+      "present": true
+    },
+    {
+      "id": "admin-session-signing-key",
+      "present": true
+    },
+    {
+      "id": "reminder-worker-secret",
+      "present": true
+    }
+  ],
+  "scheduler": {
+    "region": "us-central1",
+    "unavailable": true,
+    "status": 403
+  },
+  "readyForRelease": false
+}
