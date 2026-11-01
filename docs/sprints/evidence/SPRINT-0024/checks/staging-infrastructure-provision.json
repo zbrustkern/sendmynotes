@@ -1,0 +1,285 @@
+{
+  "checkedAt": "2026-11-01T20:38:29.845Z",
+  "project": "sendmynotes-staging",
+  "mode": "provision",
+  "bucket": {
+    "name": "sendmynotes-staging-upload-private",
+    "private": true,
+    "runtimeObjectAccess": true
+  },
+  "firestoreClientRules": "deny-all",
+  "indexes": [
+    {
+      "collectionGroup": "account_people",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_people/indexes/CICAgOjXh4EK"
+    },
+    {
+      "collectionGroup": "account_occasions",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contactId",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_occasions/indexes/CICAgJiUpoMK"
+    },
+    {
+      "collectionGroup": "account_images",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_images/indexes/CICAgJim14AK"
+    },
+    {
+      "collectionGroup": "account_images",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleanupAttemptAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_images/indexes/CICAgJjF9oIK"
+    },
+    {
+      "collectionGroup": "account_images",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "objectDeletedAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleanupAttemptAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_images/indexes/CICAgJj7z4EK"
+    },
+    {
+      "collectionGroup": "account_drafts",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_drafts/indexes/CICAgNi47oMK"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occasionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occurrenceDate",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_reminder_occurrences/indexes/CICAgNiav4AK"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_reminder_occurrences/indexes/CICAgNjpgYIK"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nextCheckAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_reminder_occurrences/indexes/CICAgJjmiJEK"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "leaseUntil",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_reminder_occurrences/indexes/CICAgNiroIEK"
+    },
+    {
+      "collectionGroup": "account_reminder_occurrences",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dispatchStartedAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/account_reminder_occurrences/indexes/CICAgJiUpoMJ"
+    },
+    {
+      "collectionGroup": "orders",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/orders/indexes/CICAgLiIkYMK"
+    },
+    {
+      "collectionGroup": "orders",
+      "fields": [
+        {
+          "fieldPath": "customerEmail",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/orders/indexes/CICAgLjy8IAK"
+    },
+    {
+      "collectionGroup": "orders",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accountOccasionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occasionOccurrenceDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accountAcceptedAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "CREATING",
+      "name": "projects/sendmynotes-staging/databases/(default)/collectionGroups/orders/indexes/CICAgJim14AJ"
+    }
+  ],
+  "created": [
+    {
+      "collectionGroup": "account_occasions",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "operation": "projects/sendmynotes-staging/databases/(default)/operations/S0FKdHJpTmdBQ0lDDCoDIGQ2ODcxNGUxNTgyYS1jYjk4LWMxYzQtZTM0Zi05OTQ2ZWMwZiQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "collectionGroup": "account_drafts",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "operation": "projects/sendmynotes-staging/databases/(default)/operations/S0lZeVJqTGdBQ0lDDCoDIGE0MzJlYzU1ZDQ2My0wZTE4LTM5MjQtMzI3MC1jODkwMWRlNSQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "collectionGroup": "account_privacy_requests",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "operation": "projects/sendmynotes-staging/databases/(default)/operations/TEE0MW1pSmdBQ0lDDCoDIDI0ZmIxNTUxNDhiNC1mYzk4LWNiYTQtNzMzYi00NTE2NzljMCQac2VuaWxlcGlwCQpBEg"
+    }
+  ],
+  "ready": false,
+  "productionMutations": 0
+}

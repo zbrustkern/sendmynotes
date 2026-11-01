@@ -1,6 +1,6 @@
 # Sprint 0024 — local implementation and activation boundaries
 
-This sprint changes local code only. It does not deploy account pages, create a scheduler, send email, create payment, or submit physical mail. Customer examples used in validation are synthetic.
+The initial implementation was local only. The founder subsequently authorized staging deployment. Staging retains review-only payment/mail controls and explicitly disables occasion reminder delivery; production is excluded. No reminder scheduler, real email, payment, or physical fulfillment is part of this release. Customer examples used in validation are synthetic.
 
 ## Before a hosted release
 

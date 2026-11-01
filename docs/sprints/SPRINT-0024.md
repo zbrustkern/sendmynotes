@@ -1,6 +1,6 @@
 # SPRINT-0024 — Your personal SendMyNotes account
 
-Status: active · November 1, 2026 · Implemented locally; tests and production build pass. Signed-in visual and hosted acceptance remain open. No deployment in this run.
+Status: active · November 1, 2026 · Implemented locally; tests and production build pass. Signed-in visual and hosted acceptance remain open. Staging deployment authorized in the follow-up; production remains excluded.
 
 ## Pyramid Index
 - L0: Build the approved account experience with card history, saved fronts/uploads, people and dates, opt-in reminders, settings and durable drafts.

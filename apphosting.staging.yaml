@@ -20,6 +20,9 @@ env:
   - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
     value: sendmynotes-staging
     availability: [BUILD, RUNTIME]
+  - variable: ACCOUNT_REMINDER_DELIVERY_ACTIVE
+    value: "false"
+    availability: [RUNTIME]
   - variable: STAGING_REVIEW_ONLY
     value: "true"
     availability: [RUNTIME]
