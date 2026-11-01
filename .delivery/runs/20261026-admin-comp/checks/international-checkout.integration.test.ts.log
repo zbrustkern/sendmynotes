@@ -1,0 +1,13 @@
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_8bf06620e8e299c6f10ad53bf504ba36 amount: 1400
+[Confirm Order] Mock mode verification active for order order_8bf06620e8e299c6f10ad53bf504ba36
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_014d18a581d3c85c08a3b6c95db49c1b amount: 1200
+[Confirm Order] Mock mode verification active for order order_014d18a581d3c85c08a3b6c95db49c1b
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_b27e14f16ae04632e91db10c8e1037c4 amount: 500
+[Confirm Order] Mock mode verification active for order order_b27e14f16ae04632e91db10c8e1037c4
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_11837142fb4598dcd767f3719928d151 amount: 1400
+[Confirm Order] Mock mode verification active for order order_11837142fb4598dcd767f3719928d151
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_1cb704be6569be585313e9adea84b127 amount: 1200
+[Webhook] Payment confirmed for Order order_1cb704be6569be585313e9adea84b127 (mode: stripe_test, livemode: false). Processing order...
+[Webhook] Duplicate Stripe webhook evt_intl_preview_1793048301860 (payment_intent.succeeded) received. Safely returning 200 OK.
+International checkout integration checks passed (fake adapters, no external effects).

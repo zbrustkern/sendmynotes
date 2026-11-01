@@ -1,0 +1,33 @@
+{
+  "checked_at": "2026-10-19T21:24:07.019192+00:00",
+  "base": "b831eb07c034e4bba7d68cedac6315c53f24064e",
+  "production_commit": "c7c127e3e184252d0c727df715dd18e8e30129f6",
+  "staging_commit": "2723ea1bc1291d801386124781442a7eeda74ada",
+  "changed_files": [
+    "app/preview/entry/client.tsx",
+    "components/CheckoutStep.tsx",
+    "components/VendingMachineBuilder.tsx",
+    "components/v3/Step4ReviewAndPayment.tsx",
+    "components/v3/TargetPurchaseExperience.tsx",
+    "tests/email-transactional.test.ts",
+    "tests/fixtures/payment-discount-entry.tsx",
+    "tests/founder-filter-and-real-edit.test.ts",
+    "tests/payment-checkout-parent.test.mjs",
+    "tests/payment-discount-browser.test.mjs",
+    "tests/render-auto-select.test.tsx",
+    "tests/security-review-remediation.test.ts"
+  ],
+  "runtime_scope_matches_allowlist": true,
+  "server_payment_and_provider_files_unchanged": [
+    "app/api/checkout/create-intent/route.ts",
+    "app/api/checkout/confirm-order/route.ts",
+    "app/api/checkout/complete-free-order/route.ts",
+    "app/api/webhooks/stripe/route.ts",
+    "lib/stripe.ts",
+    "lib/payment-mode.ts",
+    "lib/order-processor.ts",
+    "lib/handwrytten.ts",
+    "apphosting.yaml",
+    "package-lock.json"
+  ]
+}

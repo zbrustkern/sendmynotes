@@ -1,0 +1,6 @@
+Initial takeover tsc --noEmit --incremental false: exit 2, 12 test-only diagnostics.
+email-transactional.test.ts:116 readonly NODE_ENV
+founder-filter-and-real-edit.test.ts:102,103,104,114 vtExcluded possibly undefined; 126 vtIncluded; 223,224 vtStep3
+render-auto-select.test.tsx:118 boolean|undefined
+root-auto-select.test.tsx:296 boolean|undefined
+security-review-remediation.test.ts:54 readonly NODE_ENV; 336 missing DiscountCode createdAt/updatedAt

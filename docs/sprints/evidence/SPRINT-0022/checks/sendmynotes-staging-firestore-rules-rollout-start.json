@@ -1,0 +1,26 @@
+{
+  "checkedAt": "2026-10-31T02:31:21.556Z",
+  "release": {
+    "name": "projects/sendmynotes-staging/releases/cloud.firestore",
+    "rulesetName": "projects/sendmynotes-staging/rulesets/7454af34-b2f9-45a0-b048-cddfcfd260cb",
+    "createTime": "2026-10-31T01:19:06.575990Z",
+    "updateTime": "2026-10-31T01:19:06.575990Z"
+  },
+  "rules": {
+    "name": "projects/sendmynotes-staging/rulesets/7454af34-b2f9-45a0-b048-cddfcfd260cb",
+    "source": {
+      "files": [
+        {
+          "content": "rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if false; } } }",
+          "name": "firestore.rules"
+        }
+      ]
+    },
+    "createTime": "2026-10-31T01:19:06.454470Z",
+    "metadata": {
+      "services": [
+        "cloud.firestore"
+      ]
+    }
+  }
+}

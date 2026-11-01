@@ -1,3 +1,4 @@
+import { recordAcceptedAccountOrder } from "@/lib/account/order-association";
 import { NextRequest, NextResponse } from "next/server";
 import {
   firestoreDb,
@@ -12,13 +13,19 @@ import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { logIncident } from "@/lib/incident-logger";
 import { validatePersonalSender } from "@/lib/order-processor";
 import { sendAddressDeferredEmail } from "@/lib/email-alerts";
+import { redeemOfferForOrder } from "@/lib/offer-engine";
 import { Order, DiscountCode } from "@/lib/types";
+import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { normalizeCountryCode } from "@/lib/mailing-destinations";
 import { isFreeOrderEligible } from "@/lib/order-pricing";
 import { effectiveOrderEmail, savePaidOrderReminder } from "@/lib/checkout-contact";
+import { submitFreeOrderToSupplier } from "@/lib/free-order-dispatch";
 
 export async function POST(req: NextRequest) {
   try {
+    if (await isOperationalControlPaused("checkout")) {
+      return NextResponse.json({ error: "Checkout is temporarily unavailable.", code: "CHECKOUT_PAUSED" }, { status: 503 });
+    }
     const body = await req.json();
     const { orderId, discountCode, customerEmail } = body;
 
@@ -26,7 +33,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Missing order ID" }, { status: 400 });
     }
 
-    // 1. Atomically verify eligibility, claim DISPATCHING lock, and increment promo usage
+    // 1. Atomically verify free-order eligibility and claim its dispatch lock.
     let txResult: {
       alreadyProcessed: boolean;
       order: Order;
@@ -44,7 +51,6 @@ export async function POST(req: NextRequest) {
         }
 
         const existingOrder = orderDoc.data() as Order;
-
         if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {
           throw new Error("CONTACT_COMMIT_PENDING");
         }
@@ -60,28 +66,32 @@ export async function POST(req: NextRequest) {
           if (country !== "US") throw new Error("INTERNATIONAL_REQUIRES_PAYMENT");
           throw new Error("REQUIRES_PAYMENT");
         }
-
         if (existingOrder.amountInCents > 0) {
           throw new Error("REQUIRES_PAYMENT");
         }
 
-        // Check if already dispatched, processing, or actively being dispatched
-        const isStaleLock =
-          existingOrder.status === "DISPATCHING" &&
-          existingOrder.dispatchStartedAt &&
-          Date.now() - existingOrder.dispatchStartedAt > 5 * 60 * 1000;
-
-        if (
-          (existingOrder.status === "DISPATCHING" && !isStaleLock) ||
-          existingOrder.status === "PROCESSING_HANDWRYTTEN" ||
-          existingOrder.status === "MAILED"
-        ) {
+        // Supplier-submitted, deferred, and uncertain orders are terminal for
+        // this endpoint. In particular, an ambiguous outcome must never be
+        // treated as a retryable free checkout.
+        const supplierAccepted = existingOrder.fulfillmentStatus === "ADMIN_COMP_SUPPLIER_ACCEPTED";
+        if (["PROCESSING_HANDWRYTTEN", "MAILED", "AWAITING_RECIPIENT_ADDRESS", "DISPATCH_UNCERTAIN"].includes(existingOrder.status) || supplierAccepted) {
           return {
             alreadyProcessed: true,
             order: existingOrder,
             status: existingOrder.status,
             handwryttenOrderId: existingOrder.handwryttenOrderId,
           };
+        }
+
+        if (existingOrder.status === "DISPATCHING") {
+          const dispatchStartedAt = Number(existingOrder.dispatchStartedAt);
+          const stale = !Number.isFinite(dispatchStartedAt) || dispatchStartedAt <= 0 || Date.now() - dispatchStartedAt > 5 * 60 * 1000;
+          if (stale) {
+            const error = "Supplier submission outcome is uncertain; reconcile before retrying.";
+            transaction.update(orderRef, { status: "DISPATCH_UNCERTAIN", fulfillmentError: error, updatedAt: Date.now() });
+            return { alreadyProcessed: true, order: { ...existingOrder, status: "DISPATCH_UNCERTAIN", fulfillmentError: error }, status: "DISPATCH_UNCERTAIN", handwryttenOrderId: existingOrder.handwryttenOrderId };
+          }
+          return { alreadyProcessed: true, order: existingOrder, status: existingOrder.status, handwryttenOrderId: existingOrder.handwryttenOrderId };
         }
 
         // Verify discount code
@@ -110,14 +120,6 @@ export async function POST(req: NextRequest) {
         if (discountData.maxUses && (discountData.usedCount || 0) >= discountData.maxUses) {
           throw new Error("This discount code has reached its maximum usage limit.");
         }
-
-        // Atomically increment discount usage inside transaction
-        transaction.update(discountRef, {
-          usedCount: (discountData.usedCount || 0) + 1,
-          totalDiscountGivenCents:
-            (discountData.totalDiscountGivenCents || 0) + CARD_FLAT_RATE_CENTS,
-          updatedAt: Date.now(),
-        });
 
         const finalEmail = effectiveOrderEmail(existingOrder, customerEmail);
         if ((existingOrder.addressDeferred || existingOrder.address_deferred) && !finalEmail) {
@@ -175,6 +177,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (txResult.alreadyProcessed) {
+      if (txResult.status === "DISPATCH_UNCERTAIN") {
+        return NextResponse.json({ success: false, orderId, alreadyProcessed: true, status: txResult.status, error: "Supplier submission outcome is uncertain. We will not submit it again until it is reconciled." }, { status: 409 });
+      }
       return NextResponse.json({
         success: true,
         orderId,
@@ -185,10 +190,30 @@ export async function POST(req: NextRequest) {
     }
 
     const { order } = txResult;
-    try {
-      await savePaidOrderReminder(order, effectiveOrderEmail(order, customerEmail));
-    } catch (reminderErr) {
-      console.warn("[Free Order] Notice saving reminder:", reminderErr);
+    try { await recordAcceptedAccountOrder(order); } catch { console.warn("[Account] Accepted occurrence projection needs reconciliation."); }
+    try { await savePaidOrderReminder(order, effectiveOrderEmail(order, customerEmail)); }
+    catch (reminderErr) { console.warn("[Free Order] Notice saving opted-in occasion reminder:", reminderErr instanceof Error ? reminderErr.message : "unknown error"); }
+
+    // 2.5. Deterministic offer redemption
+    const redemptionResult = await redeemOfferForOrder({
+      code: (order.discountCode || "").trim().toUpperCase(),
+      orderId,
+      quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
+      discountAmountCents: CARD_FLAT_RATE_CENTS,
+      finalAmountCents: 0,
+      isFreePromo: true,
+      requireAuthoritativeBinding: true,
+    });
+
+    if (!redemptionResult.redeemed) {
+      await updateOrderStatus(orderId, {
+        status: "FAILED",
+        fulfillmentError: redemptionResult.error || "Promo redemption failed.",
+      });
+      return NextResponse.json(
+        { error: redemptionResult.error || "This discount code has reached its maximum redemptions limit." },
+        { status: 400 }
+      );
     }
 
     // 2. Sender validation
@@ -260,39 +285,15 @@ export async function POST(req: NextRequest) {
         order_id: `test_free_hw_${orderId}`,
       };
     } else {
-      fulfillment = await fulfillHandwryttenOrder({
-        orderId,
-        imageUrl: order.frontImageUrl,
-        printedGreeting: order.printedMessage,
-        handwrittenMessage: order.handwrittenNote,
-        fontId: order.fontStyleId || "1",
-        recipient: order.recipientAddress,
-        returnAddress: order.returnAddress,
-        scheduledSendDate: order.scheduledSendDate,
+      const dispatch = await submitFreeOrderToSupplier(order, {
+        isPaused: () => isOperationalControlPaused("fulfillment"),
+        fulfill: fulfillHandwryttenOrder,
+        updateStatus: updateOrderStatus,
+        logIncident,
       });
-    }
-
-    if (!fulfillment.success) {
-      console.error(`[Free Order] Handwrytten dispatch failed for ${orderId}:`, fulfillment.error);
-      await updateOrderStatus(orderId, {
-        status: "QUEUED_FOR_FULFILLMENT",
-        fulfillmentError: fulfillment.error || "Awaiting studio fulfillment queue",
-      });
-
-      await logIncident({
-        type: "HANDWRYTTEN",
-        severity: "error",
-        summary: `Handwrytten robotic pen dispatch failed for Free Order ${orderId}`,
-        technicalDetails: fulfillment.error || "Handwrytten singleStepOrder API error",
-        metadata: { orderId, discountCode: order.discountCode },
-      });
-
-      return NextResponse.json({
-        success: true,
-        orderId,
-        status: "QUEUED_FOR_FULFILLMENT",
-        warning: "Order placed, but fulfillment is queued for studio verification.",
-      });
+      if (dispatch.kind === "queued") return NextResponse.json({ success: true, orderId, status: "QUEUED_FOR_FULFILLMENT", warning: "Order accepted and queued while supplier submission is paused." });
+      if (dispatch.kind === "uncertain") return NextResponse.json({ success: false, orderId, status: "DISPATCH_UNCERTAIN", error: "Supplier submission outcome is uncertain. We will not submit it again until it is reconciled." }, { status: 409 });
+      fulfillment = { success: true, order_id: dispatch.orderId };
     }
 
     // 4. Update order status to PROCESSING_HANDWRYTTEN

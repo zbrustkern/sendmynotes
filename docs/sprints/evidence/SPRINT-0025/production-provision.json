@@ -1,0 +1,352 @@
+{
+  "checkedAt": "2026-11-01T21:51:33.415Z",
+  "mode": "apply",
+  "target": "production",
+  "project": "sendmynotes-2a417",
+  "actions": [
+    {
+      "resource": "sendmynotes-2a417-upload-private",
+      "action": "create_private_uniform_bucket",
+      "state": "created"
+    },
+    {
+      "resource": "sendmynotes-2a417-upload-private",
+      "action": "add_bucket_runtime_role",
+      "role": "roles/storage.objectAdmin",
+      "member": "serviceAccount:firebase-app-hosting-compute@sendmynotes-2a417.iam.gserviceaccount.com"
+    },
+    {
+      "resource": "sendmynotes-2a417-upload-private",
+      "action": "add_bucket_runtime_role",
+      "role": "roles/storage.legacyBucketReader",
+      "member": "serviceAccount:firebase-app-hosting-compute@sendmynotes-2a417.iam.gserviceaccount.com"
+    },
+    {
+      "resource": "upload-cleanup-secret",
+      "action": "create_empty_secret_container",
+      "state": "created"
+    },
+    {
+      "resource": "admin-session-signing-key",
+      "action": "create_empty_secret_container",
+      "state": "created"
+    },
+    {
+      "resource": "reminder-worker-secret",
+      "action": "create_empty_secret_container",
+      "state": "created"
+    },
+    {
+      "resource": "account_people",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0U0aFhqT2dBQ0lDDCoDIGIwMWI5M2FkMmFhZC0zN2I4LWM2MjQtOTA3ZS0yMmE4Zjg3MSQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_occasions",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S01vcFVpSmdBQ0lDDCoDIDhjMjVjMWQ2OTRjMi0yNmU5LTkxZTQtOTg3OC03OTdmN2VhNCQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_images",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0E0MW1pSmdBQ0lDDCoDIGUyNGI1MTliMDVjZS02YmJiLTc3OTQtMDM1Ni0xYjc2ODZkNyQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_drafts",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0lvOUZqSmdBQ0lDDCoDIGY5NDc2MzcxZDdjOC02ZGZhLWM2ZjQtYmRiZS02YjI3ZjM5MCQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_drafts",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0U0ejdqSmdBQ0lDDCoDIGE2Y2IyMWIxZGFhYi1jZmFhLWYxMDQtZmZhOC1lNzhhNzY2OCQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_images",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleanupAttemptAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S01acUZqSmdBQ0lDDCoDIGI1OGZkZWQxMDg2NS0xYzQ5LTk5NzQtMjI0NS00MjJmY2YxMiQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_images",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "objectDeletedAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleanupAttemptAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0FKazNpT2dBQ0lDDCoDIGUzZGYwNzBiOTRjYS03M2Y4LTQ0MzQtMDc0NS1lZGQxNTU3ZSQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_privacy_requests",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S01vNzRpTmdBQ0lDDCoDIGRkM2QxN2NhOTFkNS1iYTU4LTQwNjQtZjJjYS1mOWJlOTQ1ZCQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_occasions",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contactId",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0E0dmFpTmdBQ0lDDCoDIGViZjdhZjk2NGFjZC0zN2M4LTAwNDQtMTU4NC01ODZhYmE5YiQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occasionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occurrenceDate",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/Sk1vcFVpSmdBQ0lDDCoDIGVmNGYyMzJkNTM0ZC1lZjdiLWMyMDQtZmUxNC03NjFkNGE1ZSQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0lac1VpSmdBQ0lDDCoDIGRlYjI2ZjIxYzNlNy1hZDg5LWY0NTQtOTA0ZC0wNTdlNDhiNSQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nextCheckAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0lZZ3BqTmdBQ0lDDCoDIGI4Yjg1ODE3ZTgzMC0zODY5LTc1NzQtNjJiNi04YTA3YzUyNyQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "leaseUntil",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0VJb3JpTmdBQ0lDDCoDIDk1MDc2NjRhMTJjMS1iNmZhLWNhMTQtZjJlZi04Zjg5ZGMxZCQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dispatchStartedAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0VKeGFqTmdBQ0lDDCoDIGRhMTJmNmU0MzExYy0yNDhiLWY4YTQtMGYzMC00ZTljMzRkYiQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "orders",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S01Za0lpTGdBQ0lDDCoDIGQ4OWU0NDE1MjQwMC0yZDU4LWQ3NTQtYWU4Yy1iMGRiM2NjZCQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "orders",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "customerEmail",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/Sk1acUZqSmdBQ0lDDCoDIGYxMTM1MmRlNjFmYi1jZGJhLTljYTQtNTU0Ni03ZWYwNjUzMyQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "orders",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accountOccasionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occasionOccurrenceDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accountAcceptedAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0FJOHlqTGdBQ0lDDCoDIGYxNGI3ZWQ1Nzk3ZS0zMjViLWE4NDQtYTA2NC1kYWRiMGFjYSQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "operational_job_runs",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "environment",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S0lZeVJqTGdBQ0lDDCoDIDYzNTQ5OGIwNGJhYy03YmI5LWM3YzQtMDIwZi0wYTJiOWIyNCQac2VuaWxlcGlwCQpBEg"
+    }
+  ],
+  "codeOrTrafficChanged": false,
+  "remaining": [
+    "Review/seed target-specific secret versions and runtime accessor bindings",
+    "Verify index READY",
+    "Runtime private put/read/delete and anonymous denial fixture",
+    "Authenticated jobs after dry-run review",
+    "Signed-in acceptance and explicit production rollout approval"
+  ]
+}

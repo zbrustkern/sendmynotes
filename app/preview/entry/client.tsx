@@ -17,8 +17,9 @@ import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step
 import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
 import { evaluateCheckoutInitTransition } from "@/lib/payment-mode";
-import { trackEvent, trackEventV2, getSessionId } from "@/lib/telemetry";
+import { trackEventV2, getSessionId } from "@/lib/telemetry";
 import { bindJourneyToDraft } from "@/lib/journey-identity";
+import { emitMilestoneOnce } from "@/lib/telemetry-milestones";
 import {
   trackGA4ViewItem,
   trackGA4BeginCheckout,
@@ -38,6 +39,12 @@ import { AlertCircle } from "lucide-react";
 import { parseScenarioNote, mapScenarioFontId } from "@/lib/seo-scenarios";
 import { extractRecipientName, extractSenderName } from "@/components/v3/TargetPurchaseExperience";
 import { extractOfferCodeFromUrlParams } from "@/lib/discount";
+import { restoreAccountDraft, inferAccountDraftResumeStep } from "@/lib/account/builder-state";
+import { useBuilderAccount } from "@/lib/account/use-builder-account";
+import { AccountRecipientPicker } from "@/components/account/AccountRecipientPicker";
+import { AccountBuilderTools } from "@/components/account/AccountBuilderTools";
+import type { AccountDraftContent } from "@/lib/account/contracts";
+import type { UploadSelection } from "@/lib/upload/contracts";
 
 export interface EntryPrototypeClientProps {
   initialOccasion?: string;
@@ -72,7 +79,7 @@ export function EntryPrototypeClient({
   initialStep,
 }: EntryPrototypeClientProps = {}) {
   const searchParams = useSearchParams();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const occasionParam = initialOccasion || searchParams?.get("occasion") || undefined;
   const presetParam = initialPresetId || searchParams?.get("preset") || undefined;
@@ -147,17 +154,208 @@ export function EntryPrototypeClient({
   const effectiveInitialStep: FlowStep = initialStep || (isAutoSelectMode ? "note" : "card");
 
   const [step, setStep] = useState<FlowStep>(effectiveInitialStep);
+  const [uploadHandoffError, setUploadHandoffError] = useState("");
+  const [uploadHandoffLoading, setUploadHandoffLoading] = useState(false);
+  const [uploadPreviewUrl, setUploadPreviewUrl] = useState("");
+  const [verifiedUploadDesignId, setVerifiedUploadDesignId] = useState("");
+  const [verifiedUploadOwnerUid, setVerifiedUploadOwnerUid] = useState("");
+  const restoredUploadOwnerUidRef = useRef("");
+  const restoredUploadStepRef = useRef<FlowStep | null>(null);
+  const legacyDraftHydratedRef = useRef(false);
+  const lastResolvedUploadUidRef = useRef<string | null | undefined>(undefined);
+  const failedPrivateRecoveryKeyRef = useRef<string | null>(null);
+  const privateRequestEpochRef = useRef(0);
+  const checkoutIdentityRef = useRef(user?.uid || '');
+  if (checkoutIdentityRef.current !== (user?.uid || '')) {
+    privateRequestEpochRef.current += 1;
+    checkoutIdentityRef.current = user?.uid || '';
+  }
+  const cancelledUploadHandoffRef = useRef("");
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
   const [paymentInFlight, setPaymentInFlight] = useState(false);
+
+  useEffect(() => {
+    if (!isLoaded || authLoading) return;
+    const nextUid = user?.uid ?? null;
+    if (lastResolvedUploadUidRef.current === undefined) {
+      lastResolvedUploadUidRef.current = nextUid;
+      return;
+    }
+    if (lastResolvedUploadUidRef.current === nextUid) return;
+    const previousUid = lastResolvedUploadUidRef.current;
+    lastResolvedUploadUidRef.current = nextUid;
+    failedPrivateRecoveryKeyRef.current = null;
+    const hasPrivateCover = Boolean(draft.uploadSelection || draft.privateUploadRecovery || draft.coverChoiceRequired || searchParams?.get("uploadDesign"));
+    if (hasPrivateCover) {
+      privateRequestEpochRef.current += 1;
+      setUploadPreviewUrl("");
+      setVerifiedUploadDesignId("");
+      setVerifiedUploadOwnerUid("");
+      setUploadHandoffLoading(false);
+      if (["note", "address", "pay"].includes(step)) restoredUploadStepRef.current = step;
+      dispatch({ type: "UPLOAD_IDENTITY_CHANGED", payload: nextUid });
+      setStep("card");
+      dispatch({ type: "SET_STEP", payload: "card" });
+      // Checkout state belongs to the previous private-cover identity. Keep the
+      // sender's note and addresses, but discard any payment UI/order binding.
+      setOrderId("");
+      setViewToken(null);
+      setClientSecret(null);
+      setIsFreeOrder(false);
+      setIsOrderConfirmed(false);
+      setPaymentInFlight(false);
+      setIsInitializingCheckout(false);
+      setCheckoutInitError(null);
+      setUploadHandoffError("This private card front is hidden after an account change. Sign in to the account that saved it, or choose a catalog front; your note and addresses are still here.");
+    }
+    if (previousUid) {
+      const nextUrl = new URL(window.location.href);
+      cancelledUploadHandoffRef.current = nextUrl.searchParams.get("uploadDesign") || "";
+      nextUrl.searchParams.delete("uploadDesign");
+      window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    }
+  }, [isLoaded, authLoading, user?.uid, step, dispatch]);
+
+  // Private recovery references are inert until the matching UID is authenticated.
+  // Then both the accepted design and its private preview bytes are re-fetched.
+  useEffect(() => {
+    const recovery = draft.privateUploadRecovery;
+    if (!isLoaded || authLoading || !draft.coverChoiceRequired || !recovery) return;
+    const recoveryKey = `${recovery.ownerUid}:${recovery.selection.designId}:${recovery.selection.masterSha256}`;
+    if (failedPrivateRecoveryKeyRef.current === recoveryKey) return;
+    if (!user || !recovery.ownerUid || recovery.ownerUid !== user.uid) {
+      setUploadHandoffLoading(false);
+      setStep("card");
+      setUploadHandoffError("Sign in to the account that saved this private card front, or choose a catalog front. Your note and addresses are still here.");
+      return;
+    }
+    if (!restoredUploadStepRef.current && ["note", "address", "pay"].includes(draft.currentStep || "")) {
+      restoredUploadStepRef.current = draft.currentStep as FlowStep;
+    }
+    let active = true;
+    const requestEpoch = privateRequestEpochRef.current;
+    setUploadHandoffLoading(true);
+    setUploadHandoffError("Checking your private card front…");
+    void user.getIdToken().then(token => fetch(`/api/upload/designs/${encodeURIComponent(recovery.selection.designId)}`, {
+      headers: { Authorization: `Bearer ${token}` }, cache: "no-store",
+    })).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      const selection = data.selection as UploadSelection | undefined;
+      if (!response.ok || !selection || selection.designId !== recovery.selection.designId ||
+          selection.revision !== recovery.selection.revision || selection.masterSha256 !== recovery.selection.masterSha256 ||
+          selection.accepted !== true) throw new Error("This private card front could not be revalidated. Choose a catalog front or try signing in again.");
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
+      dispatch({ type: "RESTORE_PRIVATE_UPLOAD", payload: { ownerUid: user.uid, selection } });
+      setUploadHandoffError("");
+    }).catch(error => {
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
+      setStep("card");
+      setUploadHandoffError(error instanceof Error ? error.message : "This private card front could not be revalidated. Choose a catalog front or try signing in again.");
+    }).finally(() => { if (active) setUploadHandoffLoading(false); });
+    return () => { active = false; };
+  }, [isLoaded, authLoading, user, draft.privateUploadRecovery?.ownerUid, draft.privateUploadRecovery?.selection.designId, draft.privateUploadRecovery?.selection.masterSha256, draft.coverChoiceRequired, dispatch]);
+
+  // Revalidate upload-derived designs on URL handoff, refresh, and account changes.
+  useEffect(() => {
+    if (!isLoaded) return;
+    if (authLoading) return;
+    const queryDesignId = searchParams?.get("uploadDesign") || "";
+    const queryHandoff = Boolean(queryDesignId && queryDesignId !== cancelledUploadHandoffRef.current);
+    const requestedId = (queryHandoff ? queryDesignId : "") || draft.uploadSelection?.designId;
+    if (!requestedId) { setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid(""); return; }
+    setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid("");
+    if (!user) { setUploadHandoffError("Sign in to reopen this private card front."); setStep("card"); return; }
+    if (draft.uploadSelection?.designId) setStep("card");
+    let active = true;
+    const requestEpoch = privateRequestEpochRef.current;
+    setUploadHandoffLoading(true); setUploadHandoffError("");
+    void user.getIdToken().then(token => fetch(`/api/upload/designs/${encodeURIComponent(requestedId)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })).then(async response => {
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok || !data.selection || data.selection.designId !== requestedId) throw new Error(data.error || "This private card front is no longer available. Choose another design to continue.");
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
+      const selection = data.selection as UploadSelection;
+      if (draft.uploadSelection?.designId !== selection.designId || draft.uploadSelection.masterSha256 !== selection.masterSha256 || draft.uploadOwnerUid !== user.uid) {
+        dispatch({ type: "RESTORE_PRIVATE_UPLOAD", payload: { ownerUid: user.uid, selection, replaceRecovery: queryHandoff } });
+      }
+      setVerifiedUploadDesignId(selection.designId); setVerifiedUploadOwnerUid(user.uid);
+      if (queryHandoff) {
+        if (draft.uploadSelection?.masterSha256 !== selection.masterSha256) resetAccountCheckout();
+        setStep("note");
+        dispatch({ type: "SET_STEP", payload: "note" });
+        const nextUrl = new URL(window.location.href); nextUrl.searchParams.delete("uploadDesign"); nextUrl.searchParams.delete("uploadEdit");
+        window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+      } else {
+        const restoredStep = restoredUploadStepRef.current ? null :
+          (["note", "address", "pay"].includes(draft.currentStep || "") ? draft.currentStep as FlowStep : null);
+        if (restoredStep) {
+          setStep(restoredStep);
+          dispatch({ type: "SET_STEP", payload: restoredStep });
+        }
+      }
+    }).catch(error => {
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
+      setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid("");
+      if (draft.uploadSelection && draft.uploadOwnerUid) {
+        dispatch({ type: "SET_PRIVATE_UPLOAD_RECOVERY", payload: { ownerUid: draft.uploadOwnerUid, selection: draft.uploadSelection } });
+      } else if (draft.uploadSelection) {
+        dispatch({ type: "SET_PRIVATE_UPLOAD_RECOVERY", payload: { ownerUid: "", selection: draft.uploadSelection } });
+      }
+      setUploadHandoffError(error instanceof Error ? error.message : "Could not verify the private card front.");
+      setStep("card");
+    }).finally(() => { if (active) setUploadHandoffLoading(false); });
+    return () => { active = false; };
+  // Re-run when Firebase changes accounts so one account cannot reuse another's saved design.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, authLoading, user, searchParams?.get("uploadDesign"), draft.uploadSelection?.designId]);
+
+  useEffect(() => {
+    const id = draft.uploadSelection?.designId;
+    if (!id || !user) { setUploadPreviewUrl(""); return; }
+    setUploadPreviewUrl("");
+    let active = true; let localUrl = "";
+    const requestEpoch = privateRequestEpochRef.current;
+    void user.getIdToken().then(token => fetch(`/api/upload/previews/design/${encodeURIComponent(id)}`, { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" })).then(async response => {
+      if (!response.ok) throw new Error("Private preview is no longer available.");
+      const next = URL.createObjectURL(await response.blob());
+      if (!active || requestEpoch !== privateRequestEpochRef.current) { URL.revokeObjectURL(next); return; }
+      localUrl = next; setUploadPreviewUrl(next);
+      // A retry may have been blocked while this private tuple was being
+      // revalidated. The verified preview makes that transient error stale.
+      setCheckoutInitError(null);
+      const desiredStep = restoredUploadStepRef.current;
+      if (desiredStep) {
+        setStep(desiredStep);
+        dispatch({ type: "SET_STEP", payload: desiredStep });
+        restoredUploadStepRef.current = null;
+      }
+    }).catch(() => {
+      if (!active || requestEpoch !== privateRequestEpochRef.current) return;
+      failedPrivateRecoveryKeyRef.current = `${draft.uploadOwnerUid || ""}:${id}:${draft.uploadSelection?.masterSha256 || ""}`;
+      const recovery = draft.uploadSelection && draft.uploadOwnerUid
+        ? { ownerUid: draft.uploadOwnerUid, selection: draft.uploadSelection }
+        : null;
+      dispatch({ type: "SET_PRIVATE_UPLOAD_RECOVERY", payload: recovery });
+      setVerifiedUploadDesignId(""); setVerifiedUploadOwnerUid("");
+      setUploadHandoffError("Your private card preview could not be reopened. Sign in again or choose a catalog front; your note and addresses are still here.");
+      setStep("card");
+    });
+    return () => { active = false; if (localUrl) URL.revokeObjectURL(localUrl); };
+  }, [draft.uploadSelection?.designId, draft.uploadSelection?.masterSha256, draft.uploadOwnerUid, user, dispatch]);
 
   // Address deferral bypass & mobile keyboard/validation states
   const [isAddressDeferred, setIsAddressDeferred] = useState(false);
   const [addressValidationError, setAddressValidationError] = useState<string | null>(null);
   const [restoredToast, setRestoredToast] = useState(false);
-  const [recoveryStatus, setRecoveryStatus] = useState<string | null>(null);
+  const [recoveryStatus, setRecoveryStatus] = useState("");
   const recoveryStarted = useRef(false);
-  const legacyHydrated = useRef<string | null>(null);
+  const restoredToastShown = useRef(false);
   const [hasCustomUserEdits, setHasCustomUserEdits] = useState(false);
+
+  useEffect(() => {
+    if (!restoredToast) return;
+    const timer = window.setTimeout(() => setRestoredToast(false), 4000);
+    return () => window.clearTimeout(timer);
+  }, [restoredToast]);
 
   // Mark draft as containing real user edits (persisted to localStorage)
   const markUserCustomEdit = useCallback(() => {
@@ -207,6 +405,30 @@ export function EntryPrototypeClient({
 
   // Payment & checkout state
   const [customerEmail, setCustomerEmail] = useState("");
+  const telemetryDraftIdRef = useRef<string | null>(null);
+  const emittedMilestonesRef = useRef<Set<string>>(new Set());
+  const initialTelemetryEmittedRef = useRef(false);
+  const getTelemetryDraftId = () => {
+    if (!telemetryDraftIdRef.current) {
+      let storedId: string | null = null;
+      try {
+        const saved = localStorage.getItem(`smn_active_draft_v2_${targetOccasionSlug}`) || localStorage.getItem("smn_active_draft_v2");
+        const parsed = saved ? JSON.parse(saved) : null;
+        if (typeof parsed?.draftId === "string" && parsed.draftId !== `draft_${targetOccasionSlug}`) storedId = parsed.draftId;
+      } catch { /* use a fresh opaque identifier */ }
+      telemetryDraftIdRef.current = storedId || `draft_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return telemetryDraftIdRef.current;
+  };
+  const emitJourneyMilestone = (eventName: string, properties: Record<string, unknown>, options: { dedupeKey?: string; scopeSuffix?: string; orderId?: string; paymentAttemptId?: string } = {}) => {
+    const draftId = getTelemetryDraftId();
+    const scope = `${getSessionId()}:${draftId}:${options.scopeSuffix || "journey"}`;
+    emitMilestoneOnce(emittedMilestonesRef.current, trackEventV2, eventName, properties, {
+      scope, dedupeKey: options.dedupeKey, draftId, orderId: options.orderId, paymentAttemptId: options.paymentAttemptId,
+    });
+  };
+  const trackJourneyEvent = (eventName: string, properties: Record<string, unknown>, options: { orderId?: string; paymentAttemptId?: string } = {}) =>
+    trackEventV2(eventName, properties, { draftId: getTelemetryDraftId(), ...options });
   const customerEmailEdited = React.useRef(false);
   const [orderId, setOrderId] = useState("");
   const [viewToken, setViewToken] = useState<string | null>(null);
@@ -225,6 +447,65 @@ export function EntryPrototypeClient({
   const currentDisplayTotalCents = isInternational
     ? (appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900) + 500
     : amountInCents;
+
+  const accountResumeStep = useRef<{uid:string;step:"note"|"address"}|null>(null);
+  const [accountLinks, setAccountLinks] = useState<{contactId?:string;occasionId?:string}>({});
+  const toAddressDraft = (value: AddressData): AddressDraft => ({ name:value.fullName,addressLine1:value.street1,addressLine2:value.street2||"",city:value.city,state:value.state,zip:value.zip,country:value.country||"US" });
+  const toAddressData = (value: AddressDraft | null): AddressData => ({ fullName:value?.name||"",street1:value?.addressLine1||"",street2:value?.addressLine2||"",city:value?.city||"",state:value?.state||"",zip:value?.zip||"",country:value?.country||"US" });
+  const resetAccountCheckout = () => {
+    privateRequestEpochRef.current += 1;
+    addressRevision.current += 1;
+    setOrderId(""); setViewToken(null); setClientSecret(null); setIsFreeOrder(false);
+    setPublishableKey(null); setIsMockCheckout(false); setAmountInCents(900); setFulfillmentStatus(null);
+    dispatch({type:"SET_CHECKOUT_SNAPSHOT",payload:null});
+    dispatch({type:"SET_APPLIED_OFFER",payload:null});
+    setIsOrderConfirmed(false); setCheckoutInitError(null); setAppliedDiscount(null);
+    setIsInitializingCheckout(false); setIsAddressDeferred(false);
+    try { for (const key of ['smn_checkout_order_id','smn_checkout_view_token','smn_completed_order_id','smn_completed_view_token']) sessionStorage.removeItem(key); } catch { /* Browser storage is optional. */ }
+  };
+  const accountContent: AccountDraftContent = {
+    selectedDesign:draft.selectedDesign, accountImage:draft.accountImage,
+    note:{...draft.note,salutation,signOff}, recipient:toAddressDraft(recipient),sender:toAddressDraft(sender),
+    ...accountLinks,currentStep:step === "pay" ? "address" : step,
+  };
+  const accountTools = useBuilderAccount({
+    user,loaded:isLoaded,authLoading,disabled:paymentInFlight||isOrderConfirmed||isInitializingCheckout,
+    content:accountContent,ownerUid:draft.accountOwnerUid,
+    draftId:searchParams?.get("accountDraft")||"",contactId:searchParams?.get("accountContact")||"",occasionId:searchParams?.get("accountOccasion")||"",
+    onDraft: saved => {
+      const content=saved.content;
+      const restored=restoreAccountDraft(content,user!.uid,draft.experienceVersion);
+      resetAccountCheckout();
+      accountResumeStep.current = {uid:user!.uid,step:inferAccountDraftResumeStep(content) === "envelope" ? "address" : "note"};
+      dispatch({type:"HYDRATE_DRAFT",payload:restored});
+      setSalutation(content.note.salutation||""); setSignOff(content.note.signOff||"");
+      const nextRecipient=toAddressData(content.recipient);
+      setRecipient(nextRecipient);
+      if(isInternationalCountry(nextRecipient.country)) setInternationalRecipient(nextRecipient); else setDomesticRecipient(nextRecipient);
+      setSender(toAddressData(content.sender));
+      setAccountLinks({contactId:content.contactId,occasionId:content.occasionId});
+      setUserCustomizedNote(true);setUserCustomizedRecipientName(true);setUserCustomizedSenderName(true);
+      markUserCustomEdit();setStep("card");
+    },
+    onContact: (contact,occasion) => {
+      const address=contact.address;
+      const next:AddressData={fullName:address?[address.firstName,address.lastName].filter(Boolean).join(" "):contact.displayName,street1:address?.street1||"",street2:address?.street2||"",city:address?.city||"",state:address?.state||"",zip:address?.zip||"",country:address?.country||"US"};
+      resetAccountCheckout();setRecipient(next);
+      if(isInternationalCountry(next.country))setInternationalRecipient(next);else setDomesticRecipient(next);
+      dispatch({type:"UPDATE_RECIPIENT",payload:toAddressDraft(next)});
+      setAccountLinks({contactId:contact.id,occasionId:occasion?.id});setUserCustomizedRecipientName(true);markUserCustomEdit();
+      if(step==="pay")setStep("address");
+    },
+    onPrivateInvalidated:()=>{
+      resetAccountCheckout(); setAccountLinks({}); accountResumeStep.current=null;
+      if(draft.accountImage){dispatch({type:"CLEAR_ACCOUNT_IMAGE"});setStep("card");}
+    },
+    onDefaultReturn:preferences=>{
+      const address=preferences.defaultReturnAddress;
+      if(!address||Object.values(sender).some(value=>Boolean(value&&value!=="US"))||draft.sender?.name)return;
+      setSender({fullName:[address.firstName,address.lastName].filter(Boolean).join(" "),street1:address.street1,street2:address.street2||"",city:address.city,state:address.state,zip:address.zip,country:address.country||"US"});
+    },
+  });
 
   useEffect(() => {
     let alive = true;
@@ -250,10 +531,6 @@ export function EntryPrototypeClient({
     customerEmailEdited.current = true;
     setCustomerEmail(draft.checkoutContact.email);
   }, [isLoaded, draft.checkoutContact]);
-
-  useEffect(() => {
-    if (isLoaded) setIsAddressDeferred(Boolean(draft.addressDeferred) && !isInternationalCountry(draft.recipient?.country));
-  }, [isLoaded, draft.addressDeferred]);
 
   // Sync draft to local state once loaded and verify any completed order server-side
   useEffect(() => {
@@ -317,7 +594,7 @@ export function EntryPrototypeClient({
       setStep("note");
     }
 
-    if (!draft.selectedDesign && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
+    if (!draft.selectedDesign && !draft.uploadSelection && !draft.privateUploadRecovery && !draft.coverChoiceRequired && !searchParams?.get("uploadDesign") && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
       dispatch({
         type: "SELECT_DESIGN",
         payload: {
@@ -398,6 +675,10 @@ export function EntryPrototypeClient({
     initialPreset,
     resolvedInitialPresetUrl,
     targetOccasionSlug,
+    draft.uploadSelection,
+    draft.privateUploadRecovery,
+    draft.coverChoiceRequired,
+    searchParams?.get("uploadDesign"),
     mappedInitialFont,
     resolvedInitialPresetTitle,
     resolvedInitialPresetId,
@@ -446,10 +727,8 @@ export function EntryPrototypeClient({
 
   // Hydrate draft from localStorage (scoped by occasion) for Meta in-app browser resilience
   useEffect(() => {
-    if (typeof window === "undefined" || !isLoaded || legacyHydrated.current === targetOccasionSlug) return;
-    legacyHydrated.current = targetOccasionSlug;
-    // The full draft is authoritative. The older fallback lacks its artwork.
-    if (wasRestored) return;
+    if (typeof window === "undefined" || !isLoaded || legacyDraftHydratedRef.current) return;
+    legacyDraftHydratedRef.current = true;
 
     // 2. Once Per Browser Tab Session (sessionStorage Guard)
     try {
@@ -501,6 +780,24 @@ export function EntryPrototypeClient({
         return;
       }
 
+      // Restore only after the tab draft has hydrated and the occasion check passed.
+      // Persist the accepted tuple, never a private preview URL; the API revalidates
+      // its owner and acceptance before the preview or checkout can use it.
+      const storedUpload = parsed.uploadSelection as UploadSelection | undefined;
+      if (storedUpload?.source === "upload" && storedUpload.accepted === true &&
+          typeof storedUpload.designId === "string" && typeof storedUpload.masterSha256 === "string" &&
+          typeof storedUpload.revision === "number" && typeof storedUpload.title === "string") {
+        restoredUploadOwnerUidRef.current = typeof parsed.uploadOwnerUid === "string" ? parsed.uploadOwnerUid : "";
+        if (["note", "address", "pay"].includes(parsed.currentStep)) {
+          restoredUploadStepRef.current = parsed.currentStep as FlowStep;
+        }
+        dispatch({ type: "SET_PRIVATE_UPLOAD_RECOVERY", payload: {
+          ownerUid: typeof parsed.uploadOwnerUid === "string" ? parsed.uploadOwnerUid : "",
+          selection: storedUpload,
+        } });
+        setStep("card");
+      }
+
       // 1. Require Real User Edits (hasCustomUserEdits === true)
       const hasRealUserEdits = Boolean(
         parsed.hasCustomUserEdits === true ||
@@ -525,11 +822,9 @@ export function EntryPrototypeClient({
           const savedCountry = parsed.recipientAddress?.country;
           const savedInternational = isInternationalCountry(savedCountry);
           setIsAddressDeferred(savedInternational ? false : Boolean(parsed.addressDeferred));
-          dispatch({ type: "SET_ADDRESS_DEFERRED", payload: savedInternational ? false : Boolean(parsed.addressDeferred) });
         }
         if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
           setRecipient(parsed.recipientAddress);
-          dispatch({ type: "UPDATE_RECIPIENT", payload: { name: parsed.recipientAddress.fullName || "", addressLine1: parsed.recipientAddress.street1 || "", addressLine2: parsed.recipientAddress.street2 || "", city: parsed.recipientAddress.city || "", state: parsed.recipientAddress.state || "", zip: parsed.recipientAddress.zip || "", country: parsed.recipientAddress.country } });
           if (parsed.domesticRecipientAddress) setDomesticRecipient(parsed.domesticRecipientAddress);
           if (parsed.internationalRecipientAddress) setInternationalRecipient(parsed.internationalRecipientAddress);
           else if (isInternationalCountry(parsed.recipientAddress.country)) setInternationalRecipient(parsed.recipientAddress);
@@ -538,38 +833,34 @@ export function EntryPrototypeClient({
           setSender(parsed.senderAddress);
           dispatch({ type: "UPDATE_SENDER", payload: { name: parsed.senderAddress.fullName || "", addressLine1: parsed.senderAddress.street1 || "", city: parsed.senderAddress.city || "", state: parsed.senderAddress.state || "", zip: parsed.senderAddress.zip || "", country: parsed.senderAddress.country } });
         }
-        // Old local drafts did not store the cover. Restore words without pretending
-        // a default cover is the one the sender chose.
-        const savedPreset = CARD_PRESETS.find(preset => preset.id === parsed.coverId);
-        if (savedPreset) {
-          dispatch({ type: "SELECT_DESIGN", payload: { presetId: savedPreset.id, imageUrl: savedPreset.imageUrl, title: savedPreset.title, occasion: savedPreset.occasion, source: "preset", accepted: true } });
-        } else {
-          dispatch({ type: "SET_STEP", payload: "card" });
-          setStep("card");
-        }
-        if (savedPreset && parsed.currentStep && parsed.currentStep !== "confirmation") {
-          dispatch({ type: "SET_STEP", payload: parsed.currentStep });
+        if (parsed.currentStep && parsed.currentStep !== "confirmation" && !restoredUploadStepRef.current) {
+          let restoredStep: FlowStep | null = null;
           if (isAutoSelectMode) {
             // Contextual deep links: open note editor unless user had already navigated deeper
             if (!parsed.insideNoteText?.trim()) {
-              setStep("note");
+              restoredStep = "note";
             } else if (parsed.currentStep !== "card") {
-              setStep(parsed.currentStep as FlowStep);
+              restoredStep = parsed.currentStep as FlowStep;
             } else {
-              setStep("note");
+              restoredStep = "note";
             }
           } else if (hasRealUserEdits && parsed.currentStep !== "card") {
             // Returning visitor with genuine edits: preserve saved work
-            setStep(parsed.currentStep as FlowStep);
+            restoredStep = parsed.currentStep as FlowStep;
           } else if (!initialStep) {
-            setStep(parsed.currentStep as FlowStep);
+            restoredStep = parsed.currentStep as FlowStep;
+          }
+          if (restoredStep) {
+            setStep(restoredStep);
+            dispatch({ type: "SET_STEP", payload: restoredStep });
           }
         }
 
         if (!isAlreadyHydrated) {
-          const draftId = parsed.draftId || `draft_${targetOccasionSlug}`;
+          const draftId = parsed.draftId === `draft_${targetOccasionSlug}` ? getTelemetryDraftId() : parsed.draftId || getTelemetryDraftId();
+          telemetryDraftIdRef.current = draftId;
           bindJourneyToDraft(draftId);
-          trackEventV2("draft_resumed", {
+          emitJourneyMilestone("draft_resumed", {
             draftId,
             restoredStep: parsed.currentStep || "note",
             hasEdits: hasRealUserEdits,
@@ -577,7 +868,8 @@ export function EntryPrototypeClient({
         }
 
         // Only display "Welcome back" toast if draft has real user edits AND tab was not already hydrated
-        if (hasRealUserEdits && !isAlreadyHydrated) {
+        if (hasRealUserEdits && !isAlreadyHydrated && !restoredToastShown.current) {
+          restoredToastShown.current = true;
           setRestoredToast(true);
         }
       }
@@ -648,9 +940,20 @@ export function EntryPrototypeClient({
     return () => window.removeEventListener("popstate", handlePopState);
   }, [dispatch]);
 
+  const privatePreviewReady = Boolean(
+    draft.uploadSelection && user?.uid && draft.uploadOwnerUid === user.uid &&
+    verifiedUploadDesignId === draft.uploadSelection.designId &&
+    verifiedUploadOwnerUid === user.uid && uploadPreviewUrl,
+  );
+
   // Current selected card details
   const currentCard = useMemo(() => {
+    if (draft.coverChoiceRequired) {
+      return { imageUrl: "", title: "Choose a card front", presetId: undefined, occasion: occasionParam || CARD_PRESETS[0].occasion };
+    }
+    if (draft.selectedDesign?.source === "account") return {imageUrl:accountTools.previewUrl,title:accountTools.previewTitle||"Saved card front",presetId:undefined,occasion:draft.selectedDesign.occasion||"general"};
     if (draft.selectedDesign) {
+      const isHiddenUpload = draft.selectedDesign.source === "upload" && !privatePreviewReady;
       const presetMatch = CARD_PRESETS.find((p) => p.id === draft.selectedDesign?.presetId);
       const occasion =
         draft.selectedDesign.occasion ||
@@ -662,8 +965,8 @@ export function EntryPrototypeClient({
         CARD_PRESETS[0].occasion;
 
       return {
-        imageUrl: draft.selectedDesign.imageUrl,
-        title: draft.selectedDesign.title,
+        imageUrl: draft.selectedDesign.source === "upload" ? (privatePreviewReady ? uploadPreviewUrl : "") : draft.selectedDesign.imageUrl,
+        title: isHiddenUpload ? "Private card front" : draft.selectedDesign.title,
         presetId: draft.selectedDesign.presetId,
         occasion,
       };
@@ -675,22 +978,18 @@ export function EntryPrototypeClient({
       presetId: defaultPreset.id,
       occasion: defaultPreset.occasion,
     };
-  }, [draft.selectedDesign, initialPreset, occasionParam]);
+  }, [draft.selectedDesign, draft.coverChoiceRequired, initialPreset, occasionParam, uploadPreviewUrl, privatePreviewReady, accountTools.previewUrl, accountTools.previewTitle]);
 
   // Telemetry on initial load
   useEffect(() => {
-    trackEvent("session_start", 1, { experience: "candidate_v1" });
-    trackEvent("step_1_landed", 1, {
-      landingPath: typeof window !== "undefined" ? window.location.pathname : undefined,
-      auto_selected: isAutoSelectMode,
-      autoSelected: isAutoSelectMode,
-    });
-    trackEventV2("entry_viewed", {
+    if (!isLoaded || initialTelemetryEmittedRef.current) return;
+    initialTelemetryEmittedRef.current = true;
+    emitJourneyMilestone("entry_viewed", {
       entryRoute: typeof window !== "undefined" ? window.location.pathname : "/",
       occasion: occasionParam || currentCard.occasion,
       scenarioSlug,
     });
-    trackEventV2("cover_loaded", {
+    emitJourneyMilestone("cover_loaded", {
       presetId: resolvedInitialPresetId || currentCard.presetId,
       occasion: occasionParam || currentCard.occasion,
       autoSelected: isAutoSelectMode,
@@ -699,7 +998,7 @@ export function EntryPrototypeClient({
     });
 
     if (initialHandwrittenNote) {
-      trackEventV2("note_template_loaded", {
+      emitJourneyMilestone("note_template_loaded", {
         charCount: initialHandwrittenNote.length,
         occasion: occasionParam,
         scenarioSlug,
@@ -710,21 +1009,12 @@ export function EntryPrototypeClient({
 
     const promo = extractOfferCodeFromUrlParams(searchParams);
     if (promo) {
-      trackEventV2("offer_viewed", {
+      emitJourneyMilestone("offer_viewed", {
         promoCode: promo,
         source: "url_param",
       });
     }
 
-    if (isAutoSelectMode) {
-      trackEvent("step_2_cover_ready", 1, {
-        presetId: resolvedInitialPresetId || currentCard.presetId,
-        occasion: occasionParam || currentCard.occasion,
-        title: resolvedInitialPresetTitle || currentCard.title,
-        auto_selected: true,
-        autoSelected: true,
-      });
-    }
     trackGA4ViewItem({
       itemId: resolvedInitialPresetId || CARD_PRESETS[0].id,
       itemName: resolvedInitialPresetTitle || CARD_PRESETS[0].title,
@@ -738,6 +1028,7 @@ export function EntryPrototypeClient({
       value: 9.0,
     });
   }, [
+    isLoaded,
     isAutoSelectMode,
     resolvedInitialPresetId,
     resolvedInitialPresetTitle,
@@ -757,7 +1048,7 @@ export function EntryPrototypeClient({
   useEffect(() => {
     if (typeof window === "undefined" || !isLoaded || isOrderConfirmed) return;
     try {
-      const draftId = `draft_${targetOccasionSlug}`;
+      const draftId = getTelemetryDraftId();
       bindJourneyToDraft(draftId);
       const draftData = {
         draftId,
@@ -778,6 +1069,12 @@ export function EntryPrototypeClient({
         currentStep: step,
         addressDeferred: isAddressDeferred,
         hasCustomUserEdits,
+        uploadSelection: draft.uploadSelection?.accepted ? draft.uploadSelection : undefined,
+        uploadOwnerUid: draft.uploadSelection?.accepted
+          ? verifiedUploadOwnerUid || user?.uid || restoredUploadOwnerUidRef.current || undefined
+          : undefined,
+        privateUploadRecovery: draft.privateUploadRecovery || undefined,
+        coverChoiceRequired: draft.coverChoiceRequired || undefined,
         updatedAt: Date.now(),
       };
       localStorage.setItem(`smn_active_draft_v2_${targetOccasionSlug}`, JSON.stringify(draftData));
@@ -806,10 +1103,35 @@ export function EntryPrototypeClient({
     step,
     isAddressDeferred,
     hasCustomUserEdits,
+    draft.uploadSelection,
+    verifiedUploadOwnerUid,
+    draft.uploadOwnerUid,
+    draft.privateUploadRecovery,
+    draft.coverChoiceRequired,
+    user?.uid,
   ]);
 
   // Handle card selection from grid
+  const clearPrivateCoverPrompt = () => {
+    accountResumeStep.current=null;
+    privateRequestEpochRef.current += 1;
+    setUploadHandoffError("");
+    setUploadPreviewUrl("");
+    setVerifiedUploadDesignId("");
+    setVerifiedUploadOwnerUid("");
+    setCheckoutInitError(null);
+    restoredUploadStepRef.current = null;
+    failedPrivateRecoveryKeyRef.current = null;
+    if (searchParams?.get("uploadDesign")) {
+      const nextUrl = new URL(window.location.href);
+      cancelledUploadHandoffRef.current = nextUrl.searchParams.get("uploadDesign") || "";
+      nextUrl.searchParams.delete("uploadDesign");
+      window.history.replaceState(window.history.state, "", `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+    }
+  };
+
   const handleSelectPreset = (preset: CardPreset) => {
+    clearPrivateCoverPrompt();
     dispatch({
       type: "SELECT_DESIGN",
       payload: {
@@ -822,18 +1144,14 @@ export function EntryPrototypeClient({
       },
     });
 
-    trackEvent("cover_preset_selected", 1, {
-      presetId: preset.id,
-      title: preset.title,
-      occasion: preset.occasion,
-    });
-    trackEventV2("cover_selected", {
+    emitJourneyMilestone("cover_selected", {
       presetId: preset.id,
       occasion: preset.occasion,
       source: "preset_picker",
       autoSelected: false,
       auto_selected: false,
     });
+    emitJourneyMilestone("builder_engaged", { control: "cover_selection" });
   };
 
   // Handle Custom AI generation selection (Finding 8: never transmit customer prompt to Meta)
@@ -844,6 +1162,7 @@ export function EntryPrototypeClient({
     source?: "preset" | "custom";
     presetId?: string;
   }) => {
+    clearPrivateCoverPrompt();
     const isPreset = art.source === "preset";
     dispatch({
       type: "SELECT_DESIGN",
@@ -858,12 +1177,7 @@ export function EntryPrototypeClient({
     });
 
     if (isPreset) {
-      trackEvent("cover_preset_selected", 1, {
-        presetId: art.presetId,
-        title: art.prompt,
-        occasion: art.occasion,
-      });
-      trackEventV2("cover_selected", {
+      emitJourneyMilestone("cover_selected", {
         presetId: art.presetId,
         occasion: art.occasion,
         source: "drawer_preset_fallback",
@@ -871,18 +1185,13 @@ export function EntryPrototypeClient({
         auto_selected: false,
       });
     } else {
-      trackEvent("custom_generation_completed", 1, {
-        occasion: art.occasion,
-      });
-      trackEvent("card_completed", 1, {
-        cardType: "custom",
-      });
-      trackEventV2("cover_selected", {
+      emitJourneyMilestone("cover_selected", {
         occasion: art.occasion,
         source: "custom_ai",
         autoSelected: false,
         auto_selected: false,
       });
+      emitJourneyMilestone("builder_engaged", { control: "custom_cover_selection" });
 
       trackMetaCustomizeProduct({
         customizationType: "AI Art Generated",
@@ -926,7 +1235,7 @@ export function EntryPrototypeClient({
           accepted: true,
         },
       });
-      trackEventV2("cover_selected", {
+      emitJourneyMilestone("cover_selected", {
         occasion: draft.lastCustomArtwork.occasion,
         source: "custom_ai_restored",
         autoSelected: false,
@@ -940,10 +1249,7 @@ export function EntryPrototypeClient({
     markUserCustomEdit();
     if (!userCustomizedNote) {
       setUserCustomizedNote(true);
-      trackEventV2("note_edit_started", {
-        inputField: "salutation",
-        charCount: newSalutation.length,
-      });
+      emitJourneyMilestone("builder_engaged", { control: "salutation" });
     }
     setSalutation(newSalutation);
     dispatch({ type: "UPDATE_NOTE", payload: { salutation: newSalutation } });
@@ -969,10 +1275,7 @@ export function EntryPrototypeClient({
     markUserCustomEdit();
     if (!userCustomizedNote) {
       setUserCustomizedNote(true);
-      trackEventV2("note_edit_started", {
-        inputField: "signOff",
-        charCount: newSignOff.length,
-      });
+      emitJourneyMilestone("builder_engaged", { control: "sign_off" });
     }
     setSignOff(newSignOff);
     dispatch({ type: "UPDATE_NOTE", payload: { signOff: newSignOff } });
@@ -997,20 +1300,11 @@ export function EntryPrototypeClient({
     markUserCustomEdit();
     if (!userCustomizedNote) {
       setUserCustomizedNote(true);
-      trackEventV2("note_edit_started", {
-        inputField: "note",
-        charCount: newText.length,
-      });
+      emitJourneyMilestone("builder_engaged", { control: "note" });
     }
     dispatch({
       type: "UPDATE_NOTE",
       payload: { text: newText },
-    });
-    trackEvent("inside_note_edited", 2, {
-      charCount: newText.length,
-      hasContent: newText.trim().length > 0,
-      noteEdited: true,
-      isDirty: true,
     });
   };
 
@@ -1020,7 +1314,7 @@ export function EntryPrototypeClient({
       type: "UPDATE_NOTE",
       payload: { style: newFontId },
     });
-    trackEvent("font_style_selected", 2, { fontId: newFontId });
+    emitJourneyMilestone("builder_engaged", { control: "font_style" });
   };
 
   // Handle recipient address updates
@@ -1029,6 +1323,7 @@ export function EntryPrototypeClient({
     addressRevision.current += 1;
     markUserCustomEdit();
     if (field === "fullName") {
+      setAccountLinks({});
       setUserCustomizedRecipientName(true);
     }
     const updated = { ...recipient, [field]: value };
@@ -1103,20 +1398,19 @@ export function EntryPrototypeClient({
 
   // Navigation handlers
   const handleStepTransition = (nextStep: FlowStep) => {
+    if (draft.coverChoiceRequired || (draft.accountImage && !accountTools.ready) || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
+      setUploadHandoffError(draft.coverChoiceRequired
+        ? "Sign in to the account that saved this private card front, or choose a catalog front. Your note and addresses are still here."
+        : "Please wait while we verify your private card front.");
+      setStep("card");
+      return;
+    }
     if (nextStep === "note") {
       if (!draft.selectedDesign) {
         return;
       }
       dispatch({ type: "ACCEPT_DESIGN" });
 
-      trackEvent("card_completed", 1, {
-        presetId: draft.selectedDesign?.presetId,
-        cardType: draft.selectedDesign?.source || "preset",
-      });
-      trackEvent("step_2_cover_ready", 1, {
-        presetId: draft.selectedDesign?.presetId || currentCard.presetId,
-        occasion: currentCard.occasion,
-      });
       trackMetaAddToCart({
         contentId: currentCard.presetId || "card",
         contentName: currentCard.title,
@@ -1164,22 +1458,17 @@ export function EntryPrototypeClient({
         (!initialHandwrittenNote && draft.note.text.trim().length > 0)
       );
 
-      trackEventV2("note_confirmed", {
+      emitJourneyMilestone("note_confirmed", {
         charCount: draft.note.text.length,
         fontId: draft.note.style || "hwDavid",
         wasEdited: noteWasEdited,
         noteEdited: noteWasEdited,
         hasPrintedGreeting: Boolean(salutation || signOff),
       });
-      trackEventV2("address_viewed", {
+      emitJourneyMilestone("address_viewed", {
         deferred: isAddressDeferred,
       });
 
-      trackEvent("note_completed", 2, {
-        charCount: draft.note.text.length,
-        fontId: draft.note.style || "hwDavid",
-      });
-      trackEvent("step_4a_address_viewed", 4);
       trackGA4BeginCheckout({
         itemId: currentCard.presetId || "card",
         itemName: currentCard.title,
@@ -1191,6 +1480,10 @@ export function EntryPrototypeClient({
       });
     }
 
+    if (nextStep === "note" && accountResumeStep.current) {
+      if (accountResumeStep.current.uid === user?.uid) nextStep=accountResumeStep.current.step;
+      accountResumeStep.current=null;
+    }
     setStep(nextStep);
     dispatch({ type: "SET_STEP", payload: nextStep });
     if (typeof window !== "undefined") {
@@ -1241,12 +1534,10 @@ export function EntryPrototypeClient({
 
   // Validate address and transition to checkout (never disable button silently without explanation)
   const handleAddressSubmit = () => {
-    trackEvent("step_4a_address_viewed", 4);
     if (!recipient.fullName.trim()) {
       const err = "Please provide the recipient's full name.";
       setAddressValidationError(err);
-      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-      trackEventV2("address_validation_failed", {
+      trackJourneyEvent("address_validation_failed", {
         errorCategory: "missing_recipient_name",
         fieldName: "recipient.fullName",
       });
@@ -1256,8 +1547,7 @@ export function EntryPrototypeClient({
       if (!recipient.street1.trim()) {
         const err = "Please provide the recipient's street address.";
         setAddressValidationError(err);
-        trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-        trackEventV2("address_validation_failed", {
+        trackJourneyEvent("address_validation_failed", {
           errorCategory: "missing_recipient_street",
           fieldName: "recipient.street1",
         });
@@ -1269,8 +1559,7 @@ export function EntryPrototypeClient({
       if (!recipient.city.trim() || (needsRegion && !recipient.state.trim()) || (needsPostal && !recipient.zip.trim())) {
         const err = isInternational ? "Please complete the required locality, region, and postal details for this destination." : "Please complete the recipient's City, State, and ZIP code.";
         setAddressValidationError(err);
-        trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-        trackEventV2("address_validation_failed", {
+        trackJourneyEvent("address_validation_failed", {
           errorCategory: "missing_recipient_city_state_zip",
         });
         return;
@@ -1279,8 +1568,7 @@ export function EntryPrototypeClient({
     if (!sender.fullName.trim()) {
       const err = "Please provide your name for your return address.";
       setAddressValidationError(err);
-      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-      trackEventV2("address_validation_failed", {
+      trackJourneyEvent("address_validation_failed", {
         errorCategory: "missing_sender_name",
         fieldName: "sender.fullName",
       });
@@ -1289,26 +1577,22 @@ export function EntryPrototypeClient({
     if (!isAddressDeferred && (!sender.city.trim() || !sender.state.trim())) {
       const err = "Please provide your city and state for your return address.";
       setAddressValidationError(err);
-      trackEvent("step_4a_address_viewed", 4, { last_validation_error: err });
-      trackEventV2("address_validation_failed", {
+      trackJourneyEvent("address_validation_failed", {
         errorCategory: "missing_sender_city_state",
       });
       return;
     }
 
     setAddressValidationError(null);
-    trackEvent("step_4b_address_completed", 4, {
-      used_address_deferral: isAddressDeferred,
-    });
     if (isAddressDeferred) {
-      trackEventV2("address_deferred", {
+      emitJourneyMilestone("address_deferred", {
         reason: "sender_will_provide_later",
-      });
+      }, { dedupeKey: "address_path" });
     } else {
-      trackEventV2("address_confirmed", {
+      emitJourneyMilestone("address_confirmed", {
         hasReturnAddress: Boolean(sender.street1 && sender.city),
         hasRecipientStreet2: Boolean(recipient.street2),
-      });
+      }, { dedupeKey: "address_path" });
     }
     initializeCheckout();
   };
@@ -1319,7 +1603,15 @@ export function EntryPrototypeClient({
     expectedAmountInCents?: number,
     allowDuringDiscountValidation = false
   ) => {
+    if (draft.coverChoiceRequired || (draft.accountImage && !accountTools.ready) || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
+      setCheckoutInitError(draft.coverChoiceRequired
+        ? "Sign in to the account that saved this private card front, or choose a catalog front. Your note and addresses are still here."
+        : "Please wait while we verify your private card front.");
+      return false;
+    }
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
+    const privateCheckoutEpoch = privateRequestEpochRef.current;
+    const privateCheckoutIsStale = () => privateCheckoutEpoch !== privateRequestEpochRef.current;
     checkoutRequestInFlight.current = true;
     const requestedAddressRevision = addressRevision.current;
     setCheckoutInitError(null);
@@ -1373,7 +1665,11 @@ export function EntryPrototypeClient({
         discountToApply = validation;
       }
 
-      trackEventV2("checkout_requested", {
+      // An account/cover transition during discount validation must not submit
+      // the old private design to checkout.
+      if (privateCheckoutIsStale()) return false;
+
+      trackJourneyEvent("checkout_requested", {
         amountInCents: currentDisplayTotalCents,
         hasDiscount: Boolean(discountCodeToUse),
         isAddressDeferred,
@@ -1391,12 +1687,16 @@ export function EntryPrototypeClient({
       const senderFirstName = senderParts[0] || "Friend";
       const senderLastName = senderParts.slice(1).join(" ") || "";
 
+      const accountToken = user ? await user.getIdToken() : null;
+      if (privateCheckoutIsStale()) return false;
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(accountToken ? { Authorization: `Bearer ${accountToken}` } : {}) },
         body: JSON.stringify({
           occasion: currentCard.occasion,
-          frontImageUrl: currentCard.imageUrl,
+          ...((draft.uploadSelection || draft.accountImage) ? {} : { frontImageUrl: currentCard.imageUrl }),
+          ...(draft.uploadSelection ? { uploadDesign: draft.uploadSelection } : {}),
+          ...(draft.accountImage ? {accountImage:draft.accountImage} : {}),
           printedMessage: "",
           handwrittenNote: fullHandwrittenMessage,
           fontStyleId: draft.note.style || "hwDavid",
@@ -1423,7 +1723,7 @@ export function EntryPrototypeClient({
           },
           customerEmail,
           contactPolicyVersion: 1,
-          userId: user?.uid,
+          ...(accountLinks.occasionId ? {accountOccasionId:accountLinks.occasionId,accountContactId:accountLinks.contactId} : {}),
           discountCode: discountCodeToUse,
           attribution: getStoredAttribution() || undefined,
           sessionId: getSessionId(),
@@ -1431,8 +1731,12 @@ export function EntryPrototypeClient({
         }),
       });
 
-      checkoutHttpStatus = res.status;
+      // The server may finish an already-submitted request after signout. Ignore
+      // its response so it cannot restore the previous account's payment UI.
+      if (privateCheckoutIsStale()) return false;
+
       const data = await res.json();
+      if (privateCheckoutIsStale()) return false;
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize payment gateway.");
       }
@@ -1496,22 +1800,12 @@ export function EntryPrototypeClient({
       }
       setCheckoutInitError(null);
 
-      trackEventV2("checkout_created", {
+      emitJourneyMilestone("checkout_created", {
         orderId: data.orderId,
         isMock: Boolean(data.isMock),
         isFree: Boolean(data.isFree),
         amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
-      });
-
-      trackEvent("address_completed", 3, {
-        hasReturnAddress: Boolean(sender.street1 && sender.city),
-        usedAddressDeferral: isAddressDeferred,
-      });
-      trackEvent("step_5_checkout_initiated", 5, {
-        isMock: Boolean(data.isMock),
-        isFree: Boolean(data.isFree),
-        amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
-      });
+      }, { orderId: data.orderId, scopeSuffix: `order:${data.orderId}` });
       trackGA4AddShippingInfo({
         itemId: currentCard.presetId || "card",
         itemName: currentCard.title,
@@ -1534,6 +1828,7 @@ export function EntryPrototypeClient({
       }
       return true;
     } catch (err) {
+      if (privateCheckoutIsStale()) return false;
       const msg =
         err instanceof Error
           ? err.message
@@ -1553,7 +1848,7 @@ export function EntryPrototypeClient({
   const handleApplyDiscount = async (code: string) => {
     if (discountRequestInFlight.current || checkoutRequestInFlight.current) return { success: false, error: "Checkout is updating. Please try again." };
     discountRequestInFlight.current = true;
-    trackEventV2("discount_apply_requested", {
+    trackJourneyEvent("discount_apply_requested", {
       promoCode: code.trim(),
     });
     try {
@@ -1564,7 +1859,7 @@ export function EntryPrototypeClient({
       });
       const data = await res.json();
       if (!res.ok || !data.valid) {
-        trackEventV2("discount_rejected", {
+        trackJourneyEvent("discount_rejected", {
           promoCode: code.trim(),
           rejectionReason: data.error || "invalid_code",
         });
@@ -1591,7 +1886,7 @@ export function EntryPrototypeClient({
         setAmountInCents(data.finalAmountInCents ?? 900);
       }
       dispatch({ type: "SET_DISCOUNT_CODE", payload: data.code });
-      trackEventV2("discount_applied", {
+      trackJourneyEvent("discount_applied", {
         promoCode: data.code,
         discountType: data.discountType || (data.isFree ? "free_order" : "percent_or_fixed"),
         amountSavedInCents: 900 - (data.finalAmountInCents ?? 900),
@@ -1615,7 +1910,7 @@ export function EntryPrototypeClient({
       });
       return { success: true };
     } catch {
-      trackEventV2("discount_rejected", {
+      trackJourneyEvent("discount_rejected", {
         promoCode: code.trim(),
         rejectionReason: "network_error",
       });
@@ -1646,7 +1941,7 @@ export function EntryPrototypeClient({
       dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
       dispatch({ type: "SET_APPLIED_OFFER", payload: null });
       if (appliedDiscount) {
-        trackEventV2("discount_removed", {
+        trackJourneyEvent("discount_removed", {
           promoCode: appliedDiscount.code,
         });
       }
@@ -1681,9 +1976,6 @@ export function EntryPrototypeClient({
     setIsOrderConfirmed(true);
     dispatch({ type: "MARK_COMPLETED" });
 
-    trackEvent("step_6_paid_order", 6, {
-      orderId: completedOrderId,
-    });
 
     setHasCustomUserEdits(false);
     setRestoredToast(false);
@@ -1708,6 +2000,8 @@ export function EntryPrototypeClient({
 
   // Reset entire flow handler for "Clear draft" and "Send another card"
   const resetEntireFlow = () => {
+    telemetryDraftIdRef.current = null;
+    emittedMilestonesRef.current.clear();
     customerEmailEdited.current = false;
     setCustomerEmail(user?.email || "");
     setPaymentInFlight(false);
@@ -1718,6 +2012,7 @@ export function EntryPrototypeClient({
     setAddressValidationError(null);
     setSalutation("");
     setSignOff("");
+    setAccountLinks({});
     setRecipient({
       fullName: "",
       street1: "",
@@ -1779,6 +2074,14 @@ export function EntryPrototypeClient({
     if (
       isLoaded &&
       step === "pay" &&
+      !authLoading &&
+      !draft.coverChoiceRequired &&
+      (!draft.accountImage || accountTools.ready) &&
+      (!draft.uploadSelection || (
+        privatePreviewReady && !uploadHandoffLoading &&
+        verifiedUploadDesignId === draft.uploadSelection.designId &&
+        verifiedUploadOwnerUid === user?.uid
+      )) &&
       !orderId &&
       !isFreeOrder &&
       !clientSecret &&
@@ -1788,7 +2091,7 @@ export function EntryPrototypeClient({
     ) {
       initializeCheckout();
     }
-  }, [isLoaded, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.appliedOffer]);
+  }, [isLoaded, authLoading, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.appliedOffer, draft.uploadSelection, draft.coverChoiceRequired, draft.accountImage, accountTools.ready, privatePreviewReady, uploadHandoffLoading, verifiedUploadDesignId, verifiedUploadOwnerUid, user?.uid]);
 
   // Check if address is valid for advancing
   const isAddressValid = isAddressDeferred
@@ -1851,41 +2154,47 @@ export function EntryPrototypeClient({
 
   return (
     <div className={`min-h-screen bg-white text-stone-900 flex flex-col antialiased relative ${embedded ? "rounded-3xl border border-stone-200/90 shadow-xs overflow-hidden" : ""}`}>
-      {/* RESTORED DRAFT HYDRATION TOAST */}
-      {restoredToast && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-stone-900/95 text-white px-4 py-2.5 rounded-full shadow-lg text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-top-2">
-          <span>{draft.selectedDesign?.imageUrl ? "Welcome back — your card and words are restored." : "Your saved words are restored. Choose a cover to continue."}</span>
-        </div>
-      )}
-
       {/* 1. COMPACT SENDMYNOTES FLOW HEADER (suppressed when embedded in an occasion/scenario landing page with its own navbar) */}
       {!embedded && <FlowHeader showClearDraft={true} onClearDraft={resetEntireFlow} orderTotalCents={step === "pay" ? amountInCents : undefined} resetDisabled={paymentInFlight || isOrderConfirmed} />}
 
-      {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
-      <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
-
-      {recoveryStatus && <div role="status" className="mx-auto w-full max-w-6xl px-4 py-3 text-sm text-emerald-900">{recoveryStatus}</div>}
-      {(draft.selectedDesign || draft.customGeneration.resultImageUrl || draft.note.text) && !draft.completed && (
-        <div role="status" className="mx-auto w-full max-w-6xl px-4 py-2 text-xs text-stone-600">
-          {saveLocation === "device" ? "Draft saved on this device for 24 hours." : saveLocation === "tab" ? "Draft saved in this tab. Keep it open to continue later." : "Your browser could not save this draft. Keep this page open to continue."}
-          {step === "card" && draft.selectedDesign && <button type="button" className="ml-2 font-semibold text-emerald-800 underline" onClick={() => handleStepTransition("note")}>Continue saved card</button>}
-          {step === "card" && !draft.selectedDesign && draft.customGeneration.resultImageUrl && <button type="button" className="ml-2 font-semibold text-emerald-800 underline" onClick={() => setIsCustomAiOpen(true)}>View saved artwork</button>}
+      {recoveryStatus && <p role="status" className="mx-auto w-full max-w-6xl px-4 pt-3 text-sm text-emerald-950">{recoveryStatus}</p>}
+      {/* RESTORED DRAFT HYDRATION TOAST */}
+      {restoredToast && (
+        <div className="mx-auto w-full max-w-6xl px-4 pt-3 sm:px-6 lg:max-w-7xl lg:px-8">
+          <div role="status" aria-live="polite" className="flex items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-950">
+            <span>Welcome back — your card was restored. {saveLocation === "device" ? "Changes are saved on this device." : saveLocation === "tab" ? "Keep this tab open to retain your work." : "Device saving is unavailable; keep this page open."}</span>
+            <button type="button" onClick={() => setRestoredToast(false)} aria-label="Dismiss saved note message" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-emerald-900 hover:bg-emerald-100 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700">×</button>
+          </div>
         </div>
       )}
+
+      {/* 2. PROGRESS INDICATOR: CARD / NOTE / ADDRESS / PAY */}
+      {draft.coverChoiceRequired && (
+        <div className="mx-auto mt-3 flex w-full max-w-3xl flex-col gap-3 px-4 sm:flex-row sm:items-center sm:justify-between" role="status" aria-live="polite">
+          <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-relaxed text-amber-950">
+            {uploadHandoffError || "This private card front is hidden after an account change. Sign in to the account that saved it, or choose a catalog front. Your note and addresses are still here."}
+          </p>
+          <button type="button" onClick={() => { setStep("card"); dispatch({ type: "SET_STEP", payload: "card" }); }} className="min-h-11 shrink-0 rounded-xl border border-stone-300 bg-white px-4 text-sm font-semibold text-stone-800 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700">
+            Choose a catalog front
+          </button>
+        </div>
+      )}
+      <AccountBuilderTools tools={accountTools} signedIn={Boolean(user)} disabled={paymentInFlight||isOrderConfirmed||isInitializingCheckout} addressStep={step==="address"} />
+      <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
+      {!draft.coverChoiceRequired && (uploadHandoffLoading || uploadHandoffError) && <div className="mx-auto mt-3 max-w-3xl px-4"><p role={uploadHandoffError ? "alert" : "status"} className={`rounded-xl px-4 py-3 text-sm ${uploadHandoffError ? "bg-amber-50 text-amber-900" : "bg-stone-50 text-stone-600"}`}>{uploadHandoffError || "Checking your private card front…"}</p></div>}
 
       {/* 3. STEP CONTENT */}
       <main className="flex-1 w-full">
         {step === "card" && (
           <EntryCardStep
-            amountInCents={currentDisplayTotalCents}
-            discountApplied={Boolean(appliedDiscount)}
-            selectedDesign={draft.selectedDesign}
+            selectedDesign={draft.selectedDesign?.source === "account" ? (accountTools.ready ? {...draft.selectedDesign,imageUrl:accountTools.previewUrl,title:accountTools.previewTitle} : null) : draft.selectedDesign?.source === "upload" && !privatePreviewReady ? null : draft.selectedDesign}
             onSelectDesign={handleSelectPreset}
             onAcceptAndContinue={() => handleStepTransition("note")}
             initialOccasion={occasionParam}
             onOpenCustomArt={() => setIsCustomAiOpen(true)}
             lastCustomArtwork={draft.lastCustomArtwork}
             onRestoreCustomArt={handleRestoreCustomArt}
+            onEditPrivateArt={draft.uploadSelection && privatePreviewReady && verifiedUploadOwnerUid === user?.uid && !paymentInFlight ? () => { window.location.assign(`/create/upload?editDesign=${encodeURIComponent(draft.uploadSelection!.designId)}&returnTo=builder`); } : undefined}
           />
         )}
 
@@ -1938,6 +2247,7 @@ export function EntryPrototypeClient({
               </div>
             )}
             <Step3EnvelopeAddressing
+              recipientTools={<AccountRecipientPicker user={user} currentRecipient={accountContent.recipient||null} onChoose={(_address,contact)=>accountTools.chooseContact(contact)} disabled={paymentInFlight||isInitializingCheckout||isOrderConfirmed} />}
               hideFixedActionBar={true}
               recipient={recipient}
               onChangeRecipient={handleUpdateRecipient}
@@ -1952,7 +2262,7 @@ export function EntryPrototypeClient({
               savedInternationalRecipient={internationalRecipient}
               onUseUSAddress={handleUseUSRecipient}
               displayTotalCents={currentDisplayTotalCents}
-              onChangeAddressDeferred={value => { setIsAddressDeferred(value); dispatch({ type: "SET_ADDRESS_DEFERRED", payload: value }); }}
+              onChangeAddressDeferred={setIsAddressDeferred}
               onValidationError={(err) => setAddressValidationError(err)}
               onBack={handleProgressBack}
               onContinue={handleAddressSubmit}
@@ -1960,7 +2270,7 @@ export function EntryPrototypeClient({
           </div>
         )}
 
-        {step === "pay" && (
+        {step === "pay" && !draft.coverChoiceRequired && (!draft.accountImage || accountTools.ready) && (!draft.uploadSelection || (privatePreviewReady && !uploadHandoffLoading && verifiedUploadDesignId === draft.uploadSelection.designId && verifiedUploadOwnerUid === user?.uid)) && (
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step4ReviewAndPayment
               isUpdatingCheckout={isInitializingCheckout}
@@ -1983,6 +2293,7 @@ export function EntryPrototypeClient({
                 dispatch({ type: "SET_CHECKOUT_CONTACT", payload: { email, choice: email.trim() ? "provided" : "omitted" } });
               }}
               orderId={orderId}
+              draftId={getTelemetryDraftId()}
               viewToken={viewToken}
               clientSecret={clientSecret}
               publishableKey={publishableKey}
@@ -2005,10 +2316,10 @@ export function EntryPrototypeClient({
       {step !== "pay" && step !== "note" && (
         <ActionBar
           priceDisplay={isInternational || currentDisplayTotalCents !== 900 ? `$${(currentDisplayTotalCents / 100).toFixed(2)} total` : "$9 total"}
-          priceSubtext={`${appliedDiscount ? "Discount applied · " : ""}${isInternational ? "International mailing included" : "USPS mailing included"}`}
+          priceSubtext={isInternational ? "International mailing included" : "USPS mailing included"}
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
-          isDisabled={step === "card" ? !draft.selectedDesign : false}
+          isDisabled={step === "card" ? draft.coverChoiceRequired || !draft.selectedDesign || Boolean(draft.accountImage && !accountTools.ready) || Boolean(draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) : false}
           onPrimaryClick={() => {
             if (step === "card") {
               handleStepTransition("note");

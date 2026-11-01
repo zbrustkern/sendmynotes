@@ -1,0 +1,40 @@
+{
+  "environment": "staging",
+  "uri": "sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "serviceAccount": "firebase-app-hosting-compute@sendmynotes-staging.iam.gserviceaccount.com",
+  "signingKeyBackendAccess": true,
+  "rolloutPolicy": {
+    "codebaseBranch": "staging"
+  },
+  "latestRollout": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/build-2026-10-19-003",
+    "createTime": "2026-10-19T19:23:57.223071552Z",
+    "updateTime": "2026-10-19T19:28:25.873905Z",
+    "state": "SUCCEEDED",
+    "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-19-003",
+    "labels": {
+      "deployment-tool": "cli-firebase"
+    },
+    "uid": "5c69cfce-d0ca-43d1-a0c0-83fc82868864",
+    "etag": "H2EMvjh7b1mxcoMPnUxc1qjmCRJ123z3XgLbBvxSd7M",
+    "reconciling": false
+  },
+  "build": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-19-003",
+    "state": "READY",
+    "source": {
+      "codebase": {
+        "commit": "a73debd90949700d33fff9659defd72611f26f3d",
+        "displayName": "a73debd90949700d33fff9659defd72611f26f3d",
+        "hash": "a73debd90949700d33fff9659defd72611f26f3d",
+        "commitMessage": "fix(staging): use review guards without empty environment overrides",
+        "uri": "https://github.com/zbrustkern/sendmynotes/commit/a73debd90949700d33fff9659defd72611f26f3d",
+        "author": {
+          "displayName": "User Name",
+          "email": "zbrustkern@gmail.com"
+        },
+        "commitTime": "2026-10-19T19:22:33Z"
+      }
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "passed": true,
+  "checks": [
+    "guest optional modal preserves draft at 320/390/768/1024",
+    "guest sign-in preserves current note and step",
+    "menu opening refreshes inactive grant",
+    "failed entitlement distinct and retry succeeds",
+    "visibility return refreshes access",
+    "failed admin logout retains sender identity",
+    "successful logout removes account and studio while retaining catalog note and step"
+  ],
+  "errors": [],
+  "apiResponses": "mocked; no payment or supplier requests"
+}

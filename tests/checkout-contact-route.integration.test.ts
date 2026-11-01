@@ -7,6 +7,7 @@ import { POST as confirmOrderPost } from "../app/api/checkout/confirm-order/rout
 import { processPaidOrder } from "../lib/order-processor";
 import { getOrderById, saveOrder } from "../lib/firebase-admin";
 import { withSafeTestHarness } from "../lib/testing/safe-harness";
+import { calculateOrderQuote } from "../lib/order-pricing";
 const testRequire = createRequire(import.meta.url);
 const { PaymentIntents } = testRequire(path.join(process.cwd(), "node_modules/stripe/cjs/resources/PaymentIntents.js"));
 
@@ -27,9 +28,6 @@ async function run() {
     delete env.ALLOW_LOCAL_MOCK_PAYMENTS;
     const stripeIntents = new Map<string, any>();
     let updateCalls = 0;
-    let updateFailure: Error | null = null;
-    let updateStarted: (() => void) | null = null;
-    let updateGate: Promise<void> | null = null;
     const methods = PaymentIntents.prototype as any;
     const originalRetrieve = methods.retrieve;
     const originalUpdate = methods.update;
@@ -40,9 +38,6 @@ async function run() {
     };
     methods.update = async (id: string, params: Record<string, unknown>) => {
       updateCalls += 1;
-      if (updateStarted) updateStarted();
-      if (updateGate) await updateGate;
-      if (updateFailure) throw updateFailure;
       const pi = stripeIntents.get(id);
       if (!pi) throw new Error("unexpected test PaymentIntent update");
       const receiptEmail = params.receipt_email || null;
@@ -81,48 +76,26 @@ async function run() {
 
     const provided = await saveContactPost(request({ orderId: id, viewToken: "capability-token", customerEmail: "sender@example.com" }));
     assert.equal(provided.status, 200);
-    assert.equal(stripeIntents.get(paymentIntentId).receipt_email, "sender@example.com", "provided preference is written and verified at Stripe");
+    assert.equal((await getOrderById(id))?.customerEmail, "sender@example.com", "contact preference is stored on the order for the single SendMyNotes receipt");
+    assert.equal(updateCalls, 0, "saving contact must not enable duplicate Stripe receipts");
     const omitted = await saveContactPost(request({ orderId: id, viewToken: "capability-token", customerEmail: "   " }));
     assert.equal(omitted.status, 200);
     const saved = await getOrderById(id) as any;
     assert.equal(saved.customerEmail, "", "explicit clearing overwrites an account-prefilled legacy value");
     assert.equal(saved.contactEmailChoice, "omitted");
     assert.equal(saved.contactEmailSyncStatus, "synced");
-    assert.equal(stripeIntents.get(paymentIntentId).receipt_email, null, "omission clears a pre-existing Stripe receipt_email and verifies it");
-    assert.equal(updateCalls, 2);
+    assert.equal(updateCalls, 0, "omission uses the authoritative order preference without mutating Stripe");
 
-    const failureId = `${id}_failed`;
-    const failurePi = `pi_contact_${failureId}`;
-    stripeIntents.set(failurePi, { id: failurePi, status: "requires_payment_method", metadata: { orderId: failureId }, receipt_email: null, livemode: false });
-    await saveOrder({ id: failureId, stripePaymentId: failurePi, customerEmail: "", status: "PENDING_PAYMENT", amountInCents: 900, viewToken: "failure-token", frontImageUrl: "https://assets.example.invalid/card.png", printedMessage: "", handwrittenNote: "", fontStyleId: "1", contactPolicyVersion: 1, createdAt: Date.now(), updatedAt: Date.now() } as any);
-    updateFailure = new Error("provider update unavailable");
-    const failed = await saveContactPost(request({ orderId: failureId, viewToken: "failure-token", customerEmail: "sender@example.com" }));
-    updateFailure = null;
-    assert.equal(failed.status, 503);
-    assert.equal((await getOrderById(failureId) as any).contactEmailSyncStatus, "pending", "failed provider synchronization stays fail-closed");
-    const blockedConfirm = await confirmOrderPost(request({ orderId: failureId, paymentIntentId: failurePi }));
-    assert.equal(blockedConfirm.status, 409, "confirmation cannot proceed while the explicit contact choice is pending");
-
-    const concurrentId = `${id}_concurrent`;
-    const concurrentPi = `pi_contact_${concurrentId}`;
-    stripeIntents.set(concurrentPi, { id: concurrentPi, status: "requires_payment_method", metadata: { orderId: concurrentId }, receipt_email: null, livemode: false });
-    await saveOrder({ id: concurrentId, stripePaymentId: concurrentPi, customerEmail: "", status: "PENDING_PAYMENT", amountInCents: 900, viewToken: "concurrent-token", frontImageUrl: "https://assets.example.invalid/card.png", printedMessage: "", handwrittenNote: "", fontStyleId: "1", contactPolicyVersion: 1, createdAt: Date.now(), updatedAt: Date.now() } as any);
-    let releaseUpdate!: () => void;
-    updateGate = new Promise<void>((resolve) => { releaseUpdate = resolve; });
-    const firstStarted = new Promise<void>((resolve) => { updateStarted = resolve; });
-    const firstUpdate = saveContactPost(request({ orderId: concurrentId, viewToken: "concurrent-token", customerEmail: "one@example.com" }));
-    await firstStarted;
-    const secondUpdate = await saveContactPost(request({ orderId: concurrentId, viewToken: "concurrent-token", customerEmail: "two@example.com" }));
-    assert.equal(secondUpdate.status, 409, "a second tab cannot replace an in-flight contact update");
-    releaseUpdate();
-    assert.equal((await firstUpdate).status, 200);
-    updateGate = null;
-    updateStarted = null;
+    const closedId = `${id}_closed`;
+    await saveOrder({ ...(await getOrderById(id)), id:closedId, status:"PROCESSING", viewToken:"closed-token" } as any);
+    const closed = await saveContactPost(request({orderId:closedId,viewToken:"closed-token",customerEmail:"late@example.com"}));
+    assert.equal(closed.status,409,"contact cannot change after processing starts");
+    assert.equal((await getOrderById(closedId))?.customerEmail,"","rejected update preserves committed preference");
 
     const paidId = `${id}_paid_recovery`;
     const paidPi = `pi_contact_${paidId}`;
     stripeIntents.set(paidPi, { id: paidPi, status: "succeeded", metadata: { orderId: paidId }, receipt_email: null, livemode: false, amount: 1400, amount_received: 1400, currency: "usd" });
-    await saveOrder({ id: paidId, stripePaymentId: paidPi, customerEmail: "", status: "PAYMENT_RECEIVED", fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED", amountInCents: 1400, finalAmountInCents: 1400, viewToken: "paid-token", frontImageUrl: "https://assets.example.invalid/card.png", printedMessage: "", handwrittenNote: "", fontStyleId: "1", contactPolicyVersion: 1, isInternationalPreview: true, supplierCountryId: 75, supplierCountryName: "France", recipientAddress: { firstName: "Alex", lastName: "Example", street1: "1 Rue Test", city: "Paris", state: "", zip: "75001", country: "FR" }, returnAddress: { firstName: "Sender", lastName: "Example", street1: "2 Test St", city: "Chicago", state: "IL", zip: "60601", country: "US" }, createdAt: Date.now(), updatedAt: Date.now() } as any);
+    await saveOrder({ id: paidId, stripePaymentId: paidPi, customerEmail: "", status: "PAYMENT_RECEIVED", fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED", amountInCents: 1400, finalAmountInCents: 1400, quote: calculateOrderQuote({ countryCode: "FR" }), viewToken: "paid-token", frontImageUrl: "https://assets.example.invalid/card.png", printedMessage: "", handwrittenNote: "", fontStyleId: "1", contactPolicyVersion: 1, isInternationalPreview: true, supplierCountryId: 75, supplierCountryName: "France", recipientAddress: { firstName: "Alex", lastName: "Example", street1: "1 Rue Test", city: "Paris", state: "", zip: "75001", country: "FR" }, returnAddress: { firstName: "Sender", lastName: "Example", street1: "2 Test St", city: "Chicago", state: "IL", zip: "60601", country: "US" }, createdAt: Date.now(), updatedAt: Date.now() } as any);
     const updatesBeforePaidRecovery = updateCalls;
     const paidRecovery = await saveContactPost(request({ orderId: paidId, viewToken: "paid-token", customerEmail: "" }));
     assert.equal(paidRecovery.status, 200, "a capture before contact claim can be reconciled through the order capability");
@@ -146,8 +119,9 @@ async function run() {
     stripeIntents.set(conflictingPi, { id: conflictingPi, status: "succeeded", metadata: { orderId: conflictingId }, receipt_email: "stale@example.com", livemode: false, amount: 900, amount_received: 900, currency: "usd" });
     await saveOrder({ id: conflictingId, stripePaymentId: conflictingPi, customerEmail: "", status: "PAYMENT_RECEIVED", fulfillmentStatus: "CONTACT_RECOVERY_REQUIRED", amountInCents: 900, viewToken: "conflict-token", frontImageUrl: "https://assets.example.invalid/card.png", printedMessage: "", handwrittenNote: "", fontStyleId: "1", contactPolicyVersion: 1, createdAt: Date.now(), updatedAt: Date.now() } as any);
     const conflict = await saveContactPost(request({ orderId: conflictingId, viewToken: "conflict-token", customerEmail: "" }));
-    assert.equal(conflict.status, 409, "paid recovery remains held if Stripe already has a conflicting non-empty receipt address");
-    assert.equal((await getOrderById(conflictingId) as any).contactEmailChoice, undefined);
+    assert.equal(conflict.status, 200, "paid recovery uses the order preference independently of legacy Stripe receipt fields");
+    assert.equal((await getOrderById(conflictingId) as any).contactEmailChoice, "omitted");
+    assert.equal(updateCalls, 0, "contact recovery never modifies Stripe receipt configuration");
 
     const deferredId = `${id}_deferred`;
     await saveOrder({

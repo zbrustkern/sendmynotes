@@ -1,6 +1,6 @@
-export type AdminEnvironment = "production" | "staging" | "development" | "test";
+import type { AdminGlobalScope } from "./admin-scope";
 
-export function configuredAdminEnvironment(): AdminEnvironment {
+export function configuredAdminEnvironment(): AdminGlobalScope["environment"] {
   const runtime = `${process.env.K_SERVICE || ""} ${process.env.FIREBASE_CONFIG || ""}`.toLowerCase();
   if (runtime.includes("staging")) return "staging";
   const project = (
@@ -18,6 +18,6 @@ export function configuredAdminEnvironment(): AdminEnvironment {
   return "production";
 }
 
-export function adminEnvironmentMatches(requested: AdminEnvironment): boolean {
+export function adminEnvironmentMatches(requested: AdminGlobalScope["environment"]): boolean {
   return requested === configuredAdminEnvironment();
 }

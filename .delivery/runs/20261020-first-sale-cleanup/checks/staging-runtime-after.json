@@ -1,0 +1,39 @@
+{
+  "project": "sendmynotes-staging",
+  "service": "sendmynotes-staging",
+  "latestReadyRevision": "projects/sendmynotes-staging/locations/us-central1/services/sendmynotes-staging/revisions/sendmynotes-staging-build-2026-10-21-001",
+  "trafficStatuses": [
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-21-001",
+      "percent": 100,
+      "tag": "t-2403084704",
+      "uri": "https://t-2403084704---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    }
+  ],
+  "uri": "https://sendmynotes-staging-eisg3r4teq-uc.a.run.app",
+  "flags": [
+    {
+      "name": "NEXT_PUBLIC_STAGING_REVIEW_ONLY",
+      "value": "true"
+    },
+    {
+      "name": "NEXT_PUBLIC_APP_URL",
+      "value": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app"
+    },
+    {
+      "name": "FIREBASE_PROJECT_ID",
+      "value": "sendmynotes-staging"
+    },
+    {
+      "name": "STAGING_REVIEW_ONLY",
+      "value": "true"
+    },
+    {
+      "name": "HANDWRYTTEN_TEST_MODE",
+      "value": "true"
+    }
+  ],
+  "paymentConfigurationHash": "fb09fc7ffc35bb0bc2251339f3698c50e9c2fbcc78766d01a2bc8bcc0feb53a5",
+  "secretValuesLogged": false
+}

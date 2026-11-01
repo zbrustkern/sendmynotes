@@ -1,0 +1,75 @@
+{
+  "checkedAt": "2026-10-27T15:21:45.570Z",
+  "serving": {
+    "project": "sendmynotes-staging",
+    "service": "sendmynotes-staging",
+    "latestReadyRevision": "projects/sendmynotes-staging/locations/us-central1/services/sendmynotes-staging/revisions/sendmynotes-staging-build-2026-10-27-003",
+    "serviceUri": "https://sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+  },
+  "stripeSecretProvenance": {
+    "environmentVariable": "STRIPE_SECRET_KEY",
+    "secretResource": "projects/sendmynotes-staging/secrets/stripe-secret-key/versions/1",
+    "configuredVersion": "1",
+    "keyClass": "standard_test",
+    "valueSha256": "324b025518ee9fe43738507a0a70fb0bb939bec938304c68b2a5ed5b0ce345eb",
+    "accountIdSha256": "46abfd764e7a35b4f2b9a3704bb9d1c853baec94b44053b2f23bca851b274ada",
+    "accountCountry": "US",
+    "accountDefaultCurrency": "usd",
+    "accountBusinessType": "individual",
+    "livemode": false
+  },
+  "publishableKeyProvenance": {
+    "runtimeCandidates": [
+      {
+        "name": "NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY",
+        "configured": false,
+        "source": "absent",
+        "valueClass": null,
+        "valueSha256": null
+      },
+      {
+        "name": "STRIPE_PUBLISHABLE_KEY",
+        "configured": false,
+        "source": "absent",
+        "valueClass": null,
+        "valueSha256": null
+      },
+      {
+        "name": "stripe-publishable-key",
+        "configured": false,
+        "source": "absent",
+        "valueClass": null,
+        "valueSha256": null
+      }
+    ],
+    "firstConfiguredRuntimeCandidate": null,
+    "testFallbackDeclaredInServingSource": true,
+    "fallbackWouldBeSelectedIfAllRuntimeCandidatesAbsent": true,
+    "effectiveBrowserKeyVerifiableFromRuntimeService": false,
+    "limitation": "Cloud Run runtime inspection cannot prove a NEXT_PUBLIC key inlined at build time; browser key/account pairing remains unverified when runtime candidates are absent."
+  },
+  "paymentMethodDomains": [
+    {
+      "domain": "sendmynotes--sendmynotes-2a417.us-central1.hosted.app",
+      "applePay": "active",
+      "googlePay": "active",
+      "link": "active"
+    },
+    {
+      "domain": "www.sendmynotes.com",
+      "applePay": "active",
+      "googlePay": "active",
+      "link": "active"
+    },
+    {
+      "domain": "sendmynotes.com",
+      "applePay": "active",
+      "googlePay": "active",
+      "link": "active"
+    }
+  ],
+  "intent": null,
+  "secretsLogged": false,
+  "customerRecordsQueried": false,
+  "writesPerformed": false
+}

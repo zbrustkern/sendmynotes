@@ -1,0 +1,49 @@
+{
+  "checkedAt": "2026-11-01T22:04:15.607957+00:00",
+  "checks": [
+    {
+      "log": "account-regression-final.log",
+      "passed": true,
+      "suiteCount": 13,
+      "sha256": "070b781b69cbd4ddc9449fa8ef41813c1f840bde5ac8a0777241e93d85a5638f"
+    },
+    {
+      "log": "merge-regression-final.log",
+      "passed": true,
+      "suiteCount": 9,
+      "sha256": "b1e85d9184324abd2411f071965fe2a91c3e910328ad9ca375b826dedd52c1b7"
+    },
+    {
+      "log": "targeted-final.log",
+      "passed": true,
+      "suiteCount": 11,
+      "sha256": "56f7419ad33b6212f316e0e942f1ec57f258f5fb46dbe4958bb972b0b48b4bfe"
+    },
+    {
+      "log": "security-final.log",
+      "passed": true,
+      "suiteCount": 1,
+      "sha256": "ff500429ca0dda2d3d76f333562a83cd35e1fec32715d01bc6d360639e6075e8"
+    },
+    {
+      "log": "typecheck-final.log",
+      "passed": true,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "log": "build-final.log",
+      "passed": true,
+      "sha256": "8878741544e7f13f5833cd3412e9443f702c0a534f1ad58cc1ec8c2e0db28b79"
+    }
+  ],
+  "supplemental": [
+    "ordinary-quote-dispatch-safety passed (Luna and coordinator)",
+    "staging-review-safety passed (coordinator)",
+    "readiness-infrastructure passed (coordinator)"
+  ],
+  "realPayments": 0,
+  "realSupplierOrders": 0,
+  "realReminderEmails": 0,
+  "signedInBrowserAcceptance": "pending",
+  "productionRollout": "not_authorized"
+}

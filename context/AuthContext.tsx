@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from "react";
 import {
   User,
   onAuthStateChanged,
@@ -9,6 +9,8 @@ import {
   signOut as firebaseSignOut,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
+  reload,
 } from "firebase/auth";
 import { getFirebaseAuth } from "@/lib/firebase-client";
 import { UserAccount, SavedAddress, MailingAddress } from "@/lib/types";
@@ -20,6 +22,8 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string) => Promise<void>;
+  sendVerificationEmail: (returnTo?: string) => Promise<void>;
+  reloadUserAndRefreshToken: () => Promise<User>;
   signOut: () => Promise<void>;
   refreshAccount: () => Promise<void>;
   saveAddress: (address: Omit<SavedAddress, "id"> & { id?: string }) => Promise<void>;
@@ -34,8 +38,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [account, setAccount] = useState<UserAccount | null>(null);
   const [loading, setLoading] = useState(true);
+  const [, setAuthRevision] = useState(0);
+  const accountRequestSequence = useRef(0);
 
-  const fetchAccount = async (currentUser: User) => {
+  const fetchAccount = useCallback(async (currentUser: User, sequence: number) => {
+    const isCurrent = () => {
+      try { return sequence === accountRequestSequence.current && getFirebaseAuth().currentUser?.uid === currentUser.uid; }
+      catch { return false; }
+    };
     try {
       const idToken = await currentUser.getIdToken();
       const res = await fetch(
@@ -46,8 +56,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           },
         }
       );
+      if (!isCurrent()) return;
       if (res.ok) {
         const data = await res.json();
+        if (!isCurrent()) return;
         if (data.user) {
           setAccount(data.user);
         } else {
@@ -62,31 +74,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               uid: currentUser.uid,
               email: currentUser.email || "",
               displayName: currentUser.displayName || "",
-              savedAddresses: [],
             }),
           });
+          if (!isCurrent()) return;
           if (initRes.ok) {
             const initData = await initRes.json();
-            setAccount(initData.user);
+            if (isCurrent()) setAccount(initData.user);
           }
         }
       }
     } catch (err) {
       console.warn("[Auth] Failed to load user account:", err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     try {
       const auth = getFirebaseAuth();
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        const sequence = ++accountRequestSequence.current;
         setUser(currentUser);
+        setAccount(null);
         if (currentUser) {
-          await fetchAccount(currentUser);
-        } else {
-          setAccount(null);
+          await fetchAccount(currentUser, sequence);
         }
-        setLoading(false);
+        if (sequence === accountRequestSequence.current) setLoading(false);
       });
       return () => unsubscribe();
     } catch (err) {
@@ -111,152 +123,115 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await createUserWithEmailAndPassword(auth, email, pass);
   };
 
-  const signOut = async () => {
+  const sendVerificationEmail = useCallback(async (returnTo?: string) => {
+    const current = getFirebaseAuth().currentUser;
+    if (!current) throw new Error("Sign in before requesting a verification email.");
+    if (current.emailVerified) return;
+    const { safeVerificationReturnTo } = await import("@/lib/account/verification");
+    const destination = safeVerificationReturnTo(returnTo, window.location.origin);
+    const actionUrl = new URL("/account/verify", window.location.origin);
+    actionUrl.searchParams.set("returnTo", destination);
+    try {
+      await sendEmailVerification(current, { url: actionUrl.toString(), handleCodeInApp: true });
+    } catch (error) {
+      const code = (error as { code?: string })?.code;
+      if (code === "auth/too-many-requests") throw new Error("Too many requests. Wait a little before trying again.");
+      if (code === "auth/invalid-continue-uri" || code === "auth/unauthorized-continue-uri") throw new Error("Verification return link is not available on this domain.");
+      throw new Error("The verification email could not be sent. Your account is still saved; try again shortly.");
+    }
+  }, []);
+
+  const reloadUserAndRefreshToken = useCallback(async (): Promise<User> => {
     const auth = getFirebaseAuth();
-    await firebaseSignOut(auth);
+    const current = auth.currentUser;
+    if (!current) throw new Error("Sign in again to refresh your account.");
+    const uid = current.uid;
+    await reload(current);
+    if (auth.currentUser?.uid !== uid) throw new Error("Your signed-in account changed. Sign in again to continue.");
+    const refreshed = auth.currentUser;
+    if (!refreshed) throw new Error("Sign in again to refresh your account.");
+    await refreshed.getIdToken(true);
+    // Firebase mutates UserImpl in place. Bump context identity so consumers
+    // observe the refreshed emailVerified flag even when the UID is unchanged.
+    setUser(refreshed);
+    setAuthRevision((value) => value + 1);
+    await fetchAccount(refreshed, ++accountRequestSequence.current);
+    return refreshed;
+  }, [fetchAccount]);
+
+  const signOut = async () => {
+    let response: Response;
+    try {
+      response = await fetch("/api/admin/auth", { method: "DELETE", cache: "no-store" });
+    } catch {
+      throw new Error("Could not clear the administrator session. Your current sender account is still signed in.");
+    }
+    if (!response.ok) throw new Error("Could not clear the administrator session. Your current sender account is still signed in.");
+    const auth = getFirebaseAuth();
+    try {
+      await firebaseSignOut(auth);
+    } catch {
+      throw new Error("The administrator session ended, but your sender account is still signed in. Please retry sign out.");
+    }
+    accountRequestSequence.current += 1;
     setUser(null);
     setAccount(null);
   };
 
-  const refreshAccount = async () => {
-    if (user) {
-      await fetchAccount(user);
+  const refreshAccount = useCallback(async () => {
+    const current = getFirebaseAuth().currentUser;
+    if (current) {
+      await fetchAccount(current, ++accountRequestSequence.current);
     }
+  }, [fetchAccount]);
+
+  const accountApi = async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
+    if (!user) throw new Error("Sign in to update your account.");
+    const token = await user.getIdToken();
+    const response = await fetch(path, { method, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...(method === "POST" ? { "Idempotency-Key": crypto.randomUUID() } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Your account could not be updated.");
+    return payload as T;
   };
+
+  const contactPayload = (address: Omit<SavedAddress, "id"> & { id?: string }) => ({
+    displayName: address.label || `${address.firstName} ${address.lastName}`.trim(), relationship: "", notes: "",
+    address: { firstName: address.firstName, lastName: address.lastName, street1: address.street1, street2: address.street2 || "", city: address.city, state: address.state, zip: address.zip, country: address.country || "US" },
+  });
 
   const saveAddress = async (address: Omit<SavedAddress, "id"> & { id?: string }) => {
     if (!user) return;
-
-    const addressId = address.id || `addr_${Date.now()}`;
-    const newAddress: SavedAddress = {
-      ...address,
-      id: addressId,
-    };
-
-    const currentAddresses = account?.savedAddresses || [];
-    const existingIndex = currentAddresses.findIndex((a) => a.id === addressId);
-    let updatedAddresses: SavedAddress[];
-
-    if (existingIndex >= 0) {
-      updatedAddresses = [...currentAddresses];
-      updatedAddresses[existingIndex] = newAddress;
+    const payload = contactPayload(address);
+    let contactId = address.id;
+    if (contactId && account?.savedAddresses?.some((saved) => saved.id === contactId)) {
+      const current = await accountApi<{ data: { version: number } }>(`/api/account/people/${encodeURIComponent(contactId)}`);
+      await accountApi(`/api/account/people/${encodeURIComponent(contactId)}`, "PATCH", { ...payload, expectedVersion: current.data.version });
     } else {
-      updatedAddresses = [...currentAddresses, newAddress];
+      const created = await accountApi<{ data: { id: string } }>("/api/account/people", "POST", payload);
+      contactId = created.data.id;
     }
-
-    const res = await fetch("/api/account", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email || account?.email || "",
-        displayName: account?.displayName || user.displayName || "",
-        addressToAdd: newAddress,
-        savedAddresses: updatedAddresses,
-        defaultReturnAddress: account?.defaultReturnAddress,
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.user) {
-        setAccount(data.user);
-      }
+    if (address.occasionMonth && address.occasionDay && contactId) {
+      const list = await accountApi<{ data: Array<{ id: string; contactId: string; version: number }> }>("/api/account/occasions?limit=50");
+      const current = list.data.find((event) => event.contactId === contactId);
+      const event = { contactId, title: address.occasionTitle || `${address.firstName}'s ${address.occasionType || "date"}`, type: address.occasionType || "other", month: Number(address.occasionMonth), day: Number(address.occasionDay), ...(address.occasionYear ? { year: Number(address.occasionYear) } : {}), recurrence: "annual", reminderEnabled: false };
+      if (current) await accountApi(`/api/account/occasions/${encodeURIComponent(current.id)}`, "PATCH", { ...event, expectedVersion: current.version });
+      else await accountApi("/api/account/occasions", "POST", event);
     }
+    await refreshAccount();
   };
 
   const saveAddressesBulk = async (addressesToImport: (Omit<SavedAddress, "id"> & { id?: string })[]) => {
     if (!user) return;
-    const currentAddresses = account?.savedAddresses || [];
-    const merged = [...currentAddresses];
-
-    for (const item of addressesToImport) {
-      const addrId = item.id || `addr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const cleanAddress: SavedAddress = {
-        id: addrId,
-        firstName: item.firstName.trim(),
-        lastName: item.lastName.trim(),
-        street1: item.street1.trim(),
-        street2: (item.street2 || "").trim(),
-        city: item.city.trim(),
-        state: item.state.trim().toUpperCase(),
-        zip: item.zip.trim(),
-        country: item.country?.trim() || "USA",
-        label: item.label || `${item.firstName}'s Address`,
-        ...(item.occasionType ? { occasionType: item.occasionType } : {}),
-        ...(item.occasionTitle ? { occasionTitle: item.occasionTitle } : {}),
-        ...(item.occasionMonth ? { occasionMonth: Number(item.occasionMonth) } : {}),
-        ...(item.occasionDay ? { occasionDay: Number(item.occasionDay) } : {}),
-        ...(item.occasionYear ? { occasionYear: Number(item.occasionYear) } : {}),
-        ...(item.remindMe !== undefined ? { remindMe: Boolean(item.remindMe) } : {}),
-        ...(item.remindDaysBefore ? { remindDaysBefore: Number(item.remindDaysBefore) } : {}),
-      };
-
-      const existingIndex = merged.findIndex(
-        (a) =>
-          a.street1.toLowerCase() === cleanAddress.street1.toLowerCase() &&
-          a.zip.toLowerCase() === cleanAddress.zip.toLowerCase() &&
-          a.firstName.toLowerCase() === cleanAddress.firstName.toLowerCase()
-      );
-
-      if (existingIndex >= 0) {
-        merged[existingIndex] = { ...merged[existingIndex], ...cleanAddress, id: merged[existingIndex].id };
-      } else {
-        merged.push(cleanAddress);
-      }
-    }
-
-    const idToken = await user.getIdToken();
-    const res = await fetch("/api/account", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email || account?.email || "",
-        displayName: account?.displayName || user.displayName || "",
-        savedAddresses: merged,
-        defaultReturnAddress: account?.defaultReturnAddress,
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.user) {
-        setAccount(data.user);
-      }
-    }
+    const rows = addressesToImport.map((item) => ({ ...contactPayload(item), ...(item.occasionMonth && item.occasionDay ? { occasion: { title: item.occasionTitle || `${item.firstName}'s ${item.occasionType || "date"}`, type: item.occasionType || "other", month: Number(item.occasionMonth), day: Number(item.occasionDay), ...(item.occasionYear ? { year: Number(item.occasionYear) } : {}) } } : {}) }));
+    await accountApi("/api/account/people/import", "POST", { rows });
+    await refreshAccount();
   };
 
   const deleteAddress = async (addressId: string) => {
     if (!user) return;
-
-    const idToken = await user.getIdToken();
-    const currentAddresses = account?.savedAddresses || [];
-    const updatedAddresses = currentAddresses.filter((a) => a.id !== addressId);
-    const res = await fetch("/api/account", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email || account?.email || "",
-        displayName: account?.displayName || user.displayName || "",
-        savedAddresses: updatedAddresses,
-        defaultReturnAddress: account?.defaultReturnAddress,
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.user) {
-        setAccount(data.user);
-      }
-    }
+    const current = await accountApi<{ data: { version: number } }>(`/api/account/people/${encodeURIComponent(addressId)}`);
+    await accountApi(`/api/account/people/${encodeURIComponent(addressId)}`, "DELETE", { expectedVersion: current.data.version });
+    await refreshAccount();
   };
 
   const updateDefaultReturnAddress = async (address: MailingAddress) => {
@@ -273,7 +248,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uid: user.uid,
         email: user.email || account?.email || "",
         displayName: account?.displayName || user.displayName || "",
-        savedAddresses: account?.savedAddresses || [],
         defaultReturnAddress: address,
       }),
     });
@@ -295,6 +269,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signInWithGoogle,
         signInWithEmail,
         signUpWithEmail,
+        sendVerificationEmail,
+        reloadUserAndRefreshToken,
         signOut,
         refreshAccount,
         saveAddress,

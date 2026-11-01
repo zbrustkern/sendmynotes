@@ -1,0 +1,52 @@
+=================================================
+💳 RUNNING SPRINT-0002 FINANCIAL TRUTH VERIFICATION
+=================================================
+
+--- 1. Testing AC01: Capture Dedupe, Distinct Refunds & Out-of-Order ---
+✅ AC01 PASSED: Captures deduplicate, distinct refunds stay distinct, out-of-order tolerance verified.
+
+--- 2. Testing AC02: Revenue Visibility across Outages, Failures & Cohorts ---
+[MOCK] Simulating Handwrytten Order Submission with real ink pen: {
+  recipient: 'Jane Doe, Austin, TX',
+  returnAddress: 'Personal Sender, Austin, TX',
+  fontId: '1',
+  hasPrintedGreeting: true,
+  handwrittenLength: 4
+}
+[OrderProcessor] Order ord_outage_1792437103974 successfully dispatched! HW ID: mock_hw_1792437103979_265
+✅ AC02 PASSED: Captured revenue visible across failures/outages, non-customer cohorts strictly isolated.
+
+--- 3. Testing AC03: Outbox Worker Concurrency & Replay Safety ---
+✅ AC03 PASSED: Worker concurrency safe, dead-letter transitions verified, replay isolation enforced.
+
+--- 4. Testing AC04: Read-Only Reconciliation Dry-Run ---
+Exceptions identified: [
+  'telemetry_projection_drift',
+  'paid_fulfillment_failed',
+  'amount_currency_mismatch',
+  'historical_unresolved',
+  'unmatched_provider_capture'
+]
+✅ AC04 PASSED: Read-only reconciliation detected all categories without PII leakage.
+
+--- 5. Testing Stripe Webhook Route & Admin Reconcile Endpoint ---
+[Webhook] Duplicate Stripe webhook evt_webhook_unmatched_1792437104022 (payment_intent.succeeded) received. Safely returning 200 OK.
+[Webhook] Duplicate Stripe webhook evt_webhook_refund_1792437104027 (charge.refunded) received. Safely returning 200 OK.
+✅ Webhook routes and admin reconcile endpoints verified.
+
+=================================================
+🎉 ALL SPRINT-0002 ACCEPTANCE CRITERIA VERIFIED!
+=================================================
+[AdminAuth] ERROR: ADMIN_SECRET_KEY is not configured in production environment.
+[OrderProcessor] Notice recording purchase_verified telemetry: Error: Simulated analytics telemetry outage
+    at processPaidOrder (/private/tmp/sendmynotes-takeover-qa/lib/order-processor.ts:381:13)
+    at <anonymous> (/private/tmp/sendmynotes-takeover-qa/tests/sprint-0002-financial-truth.test.ts:253:26)
+    at withSafeTestHarness (/private/tmp/sendmynotes-takeover-qa/lib/testing/safe-harness.ts:261:12)
+    at runSprint0002Tests (/private/tmp/sendmynotes-takeover-qa/tests/sprint-0002-financial-truth.test.ts:64:3)
+[Meta CAPI Notice] META_CONVERSIONS_API_ACCESS_TOKEN is not configured. Server-side event skipped safely.
+[Incident Logged] [STRIPE] Captured payment requires reconciliation (pi_webhook_unmatched_1792437104022) (ID: inc_group_8079671922cb2f218e9472fbf263684f_1792437104025_xqckyc)
+[Incident Logged] [STRIPE] Captured payment requires reconciliation (pi_webhook_unmatched_1792437104022) (ID: inc_group_8079671922cb2f218e9472fbf263684f_1792437104025_xqckyc)
+[Webhook Exception]: Itemized refund IDs are unavailable; reconcile provider refunds before accepting this event.
+[Incident Logged] [WEBHOOK] Stripe Webhook Processing Exception (ID: inc_group_ded997de1e929fc1f1c1ffa2e49a2668_1792437104030_pjopz5)
+[Webhook Exception]: Itemized refund IDs are unavailable; reconcile provider refunds before accepting this event.
+[Incident Logged] [WEBHOOK] Stripe Webhook Processing Exception (ID: inc_group_ded997de1e929fc1f1c1ffa2e49a2668_1792437104030_pjopz5)

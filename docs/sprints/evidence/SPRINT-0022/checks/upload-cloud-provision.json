@@ -1,0 +1,43 @@
+{
+  "checkedAt": "2026-10-31T01:20:50.785Z",
+  "mode": "provision",
+  "project": "sendmynotes-staging",
+  "serviceAccount": "firebase-app-hosting-compute@sendmynotes-staging.iam.gserviceaccount.com",
+  "databases": [
+    {
+      "name": "projects/sendmynotes-staging/databases/(default)",
+      "type": "FIRESTORE_NATIVE"
+    }
+  ],
+  "privateBucket": {
+    "name": "sendmynotes-staging-upload-private",
+    "iamConfiguration": {
+      "bucketPolicyOnly": {
+        "enabled": true,
+        "lockedTime": "2027-01-29T01:19:05.482Z"
+      },
+      "uniformBucketLevelAccess": {
+        "enabled": true,
+        "lockedTime": "2027-01-29T01:19:05.482Z"
+      },
+      "publicAccessPrevention": "enforced"
+    }
+  },
+  "buckets": [
+    {
+      "name": "sendmynotes-staging-upload-private",
+      "iamConfiguration": {
+        "bucketPolicyOnly": {
+          "enabled": true,
+          "lockedTime": "2027-01-29T01:19:05.482Z"
+        },
+        "uniformBucketLevelAccess": {
+          "enabled": true,
+          "lockedTime": "2027-01-29T01:19:05.482Z"
+        },
+        "publicAccessPrevention": "enforced"
+      }
+    }
+  ],
+  "secretValuesLogged": false
+}

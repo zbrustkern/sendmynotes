@@ -1,3 +1,4 @@
+import type { UploadOrderMaster } from "./upload/contracts";
 export interface MailingAddress {
   firstName: string;
   lastName: string;
@@ -23,6 +24,7 @@ export type OrderStatus =
 
 export type OrderOrigin = "CUSTOMER_CHECKOUT" | "ADMIN_COMP";
 export type ContactEmailChoice = "provided" | "omitted";
+export type AdminCompLifecycle = "review_only_held" | "payment_pending" | "paid_ready" | "dispatching" | "supplier_accepted" | "failed";
 
 export type OccasionType = "birthday" | "anniversary" | "holiday" | "milestone" | "custom";
 
@@ -111,8 +113,13 @@ export interface Order {
   contactEmailUpdateId?: string;
   contactEmailUpdateStartedAt?: number;
   userId?: string;
+  accountOccasionId?: string;
+  occasionOccurrenceDate?: string;
+  accountAcceptedAt?: number;
   occasion?: string;
   frontImageUrl: string;
+  /** Server-only pinned upload master; omit from every client response. */
+  uploadMaster?: UploadOrderMaster;
   printedMessage: string;
   handwrittenNote: string;
   fontStyleId: string;
@@ -156,7 +163,13 @@ export interface Order {
   purchaseMeasurement?: PurchaseMeasurementSnapshot;
   experienceVersion?: string;
   sessionId?: string;
+  /** Commerce classification for exclusion of admin-created orders from customer acquisition metrics. */
   origin?: OrderOrigin;
+  adminCompQuoteId?: string;
+  adminCompQuote?: import("./admin-comp-types").AdminCompQuoteSnapshot;
+  adminCompLifecycle?: AdminCompLifecycle;
+  adminCompPaymentRequestId?: string;
+  adminCompPaymentRequestStatus?: import("./admin-comp-types").AdminCompPaymentRequestStatus;
   createdAt: number;
   updatedAt: number;
 }
@@ -229,6 +242,8 @@ export interface HandwryttenAddress {
 }
 
 export interface HandwryttenOrderParams {
+  /** Only a server-resolved, immutable order reference may populate this field. */
+  uploadMaster?: UploadOrderMaster;
   orderId?: string; // Internal order ID for idempotency & deduplication
   imageUrl: string;
   printedGreeting?: string;
@@ -419,6 +434,9 @@ export interface FinancialMargins {
   averageFulfillmentCogsCents: number;
   averageNetContributionCents: number; // break-even target CPA
   targetBreakevenCpaDollars: number;
+  costStatus?: "verified" | "estimated" | "unconfirmed";
+  marginStatus?: "verified" | "estimated" | "unavailable";
+  spendStatus?: "verified" | "unverified_scalar" | "missing";
 }
 
 export interface CampaignAttributionMetric {
@@ -564,6 +582,10 @@ export interface AdminMetrics {
   filterChannel?: string;
   excludeFounder?: boolean;
   highIntentAbandoners?: VisitorSessionRecord[];
+  funnelMode?: "legacy_inferred" | "observed_v2";
+  unresolvedOrderCount?: number;
+  unresolvedRevenueCents?: number;
+  reportingNotes?: string[];
 }
 
 export interface FeatureFlagsMap {

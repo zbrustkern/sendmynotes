@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   Upload,
   FileText,
@@ -20,8 +20,10 @@ import { formatOccasionDate, getOccasionTypeDisplay } from "@/lib/reminder-utils
 interface ContactImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (contacts: ParsedContact[]) => Promise<void>;
+  onImport: (contacts: Array<ParsedContact & { importIndex: number; allowDuplicate?: boolean }>, requestKey: string) => Promise<ImportOutcome | void>;
 }
+
+type ImportOutcome = { results?: Array<{index:number;contactStatus:string;occasionStatus:string;error?:string;occasionError?:string;contactId?:string}>; errors?:number; occasionErrors?:number; possibleDuplicates?:number };
 
 export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportModalProps) {
   const [activeTab, setActiveTab] = useState<"file" | "paste">("file");
@@ -29,10 +31,18 @@ export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportM
   const [pasteText, setPasteText] = useState("");
   const [parsedContacts, setParsedContacts] = useState<ParsedContact[]>([]);
   const [selectedIndices, setSelectedIndices] = useState<Set<number>>(new Set());
-  const [optInReminders, setOptInReminders] = useState(true);
+  const [optInReminders, setOptInReminders] = useState(false);
+  const [batchKey, setBatchKey] = useState("");
+  const [importOutcome, setImportOutcome] = useState<ImportOutcome | null>(null);
+  const [approvedDuplicates, setApprovedDuplicates] = useState<Set<number>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setParsedContacts([]); setSelectedIndices(new Set()); setOptInReminders(false); setBatchKey(""); setImportOutcome(null); setApprovedDuplicates(new Set()); setErrorMessage(null);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -45,6 +55,8 @@ export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportM
         return;
       }
       setParsedContacts(results);
+      setBatchKey(globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`);
+      setImportOutcome(null); setApprovedDuplicates(new Set());
       // Select all valid contacts by default
       const validIndices = new Set<number>();
       results.forEach((c, idx) => {
@@ -125,9 +137,12 @@ export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportM
 
   const handleConfirmImport = async () => {
     const selected = parsedContacts
-      .filter((_, idx) => selectedIndices.has(idx))
-      .map((c) => ({
+      .map((c, idx) => ({ c, idx }))
+      .filter(({ idx }) => selectedIndices.has(idx))
+      .map(({ c, idx }) => ({
         ...c,
+        importIndex: idx,
+        ...(approvedDuplicates.has(idx) ? { allowDuplicate: true } : {}),
         remindMe: optInReminders && Boolean(c.occasionMonth && c.occasionDay),
       }));
 
@@ -135,8 +150,12 @@ export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportM
 
     setIsProcessing(true);
     try {
-      await onImport(selected);
-      onClose();
+      const outcome = await onImport(selected, batchKey || (globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`));
+      setImportOutcome(outcome || null);
+      const hasFollowUp = Boolean(outcome && ((outcome.errors || 0) > 0 || (outcome.occasionErrors || 0) > 0 || (outcome.possibleDuplicates || 0) > 0));
+      if (!hasFollowUp) onClose();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "The import could not be completed. Retry this same selection to continue safely.");
     } finally {
       setIsProcessing(false);
     }
@@ -318,6 +337,7 @@ export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportM
                   onClick={() => {
                     setParsedContacts([]);
                     setSelectedIndices(new Set());
+                    setBatchKey(""); setImportOutcome(null); setApprovedDuplicates(new Set());
                   }}
                   className="text-stone-400 hover:text-rose-600 font-medium cursor-pointer"
                 >
@@ -337,10 +357,10 @@ export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportM
                 />
                 <div className="text-xs">
                   <span className="font-bold text-amber-950">
-                    Opt-in to 14-day email reminders for detected birthdays &amp; anniversaries
+                    Email me 14 days before detected birthdays &amp; anniversaries
                   </span>
                   <span className="text-[11px] text-amber-900/80 block">
-                    We&apos;ll notify you two weeks ahead of each date with a 1-click link to pen their physical card.
+                    This is optional and only applies to these dates. Reminders go to your verified account email; they are currently not active.
                   </span>
                 </div>
               </label>
@@ -354,6 +374,7 @@ export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportM
                 const occasionDisplay = hasOccasion
                   ? getOccasionTypeDisplay(contact.occasionType || "birthday")
                   : null;
+                const rowResult = importOutcome?.results?.find(row => row.index === idx);
 
                 return (
                   <div
@@ -414,6 +435,9 @@ export function ContactImportModal({ isOpen, onClose, onImport }: ContactImportM
                           </span>
                         </div>
                       )}
+                      {rowResult && <div className={`mt-2 text-[11px] ${rowResult.contactStatus === 'error' || rowResult.occasionStatus === 'error' ? 'text-rose-700' : rowResult.contactStatus === 'possible_duplicate' ? 'text-amber-800' : 'text-emerald-800'}`}>
+                        {rowResult.contactStatus === 'possible_duplicate' ? <><span>Possible match found; this row was not imported. </span><button type="button" className="font-semibold underline" onClick={(event) => { event.stopPropagation(); setApprovedDuplicates(current => new Set(current).add(idx)); setImportOutcome(null); }}>Import this row anyway</button></> : rowResult.error || rowResult.occasionError || (rowResult.occasionStatus === 'created' ? 'Person and date saved.' : rowResult.occasionStatus === 'already_imported' ? 'Person and date already saved.' : 'Person saved.')}
+                      </div>}
                     </div>
                   </div>
                 );

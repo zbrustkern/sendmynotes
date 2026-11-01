@@ -1,0 +1,105 @@
+{
+  "schema_version": 1,
+  "run_id": "20261019-discount-payment-fix",
+  "workflow": "df-sprint-plan then df-sprint-execute",
+  "project_root": "/Users/zeke/code/sendmynotes",
+  "stage": "complete: staging and scoped production rollout verified",
+  "status": "complete",
+  "owner": "Codex",
+  "participants": [
+    "Codex release coordinator",
+    "Luna implementation reviewer/integrator and parent regression author",
+    "Luna mounted payment regression author",
+    "Luna hosted staging/production verifier"
+  ],
+  "source_revision": "7f6e3e5c0aba98b47cbde08e76b0dadf2012481e",
+  "inputs": [
+    "docs/sprints/SPRINT-0011.md",
+    "intent.md"
+  ],
+  "artifacts": [
+    "docs/sprints/SPRINT-0011.md",
+    "REPORT.md",
+    "ROLLBACK.md",
+    "luna-implementation-review.md",
+    "checks/release-scope.json",
+    "checks/luna-staging-pricing-report.json",
+    "checks/luna-production-hosted-report.json",
+    "checks/luna-production-log-summary.json"
+  ],
+  "acceptance_criteria": [
+    "AC01",
+    "AC02",
+    "AC03",
+    "AC04",
+    "AC05",
+    "AC06",
+    "AC07",
+    "AC08"
+  ],
+  "checks": [
+    {
+      "check": "six existing production payment/security/draft suites",
+      "result": "passed",
+      "evidence": "checks/production-regressions.json"
+    },
+    {
+      "check": "hosting baselines and staging test-key mode",
+      "result": "verified",
+      "evidence": "checks/production-before.json and staging-before.json"
+    },
+    {
+      "check": "mounted Stripe-faithful browser forms and baseline reproduction",
+      "result": "passed",
+      "evidence": "checks/payment-discount-browser.log"
+    },
+    {
+      "check": "production and staging optimized builds with type checking",
+      "result": "passed",
+      "evidence": "checks/production-build.json and staging-build.json"
+    },
+    {
+      "check": "five staging discount/security/review-safety suites",
+      "result": "passed",
+      "evidence": "checks/staging-regressions.json"
+    },
+    {
+      "check": "actual checkout parent regressions independently rerun by coordinator on staging source",
+      "result": "passed",
+      "evidence": "checks/payment-checkout-parent.log"
+    },
+    {
+      "check": "hosted staging /new browser with provider/writes blocked",
+      "result": "passed",
+      "evidence": "checks/luna-staging-hosted-report.json"
+    },
+    {
+      "check": "actual hosted server/Stripe TEST prices 900,700,720,0",
+      "result": "passed",
+      "evidence": "checks/luna-staging-pricing-report.json",
+      "limits": "three test intents canceled; zero captures"
+    },
+    {
+      "check": "production exact source/config100% traffic and read-only browser",
+      "result": "passed",
+      "evidence": "checks/luna-production-hosted-report.json"
+    },
+    {
+      "check": "brief count-only production error observation",
+      "result": "passed",
+      "evidence": "checks/luna-production-log-summary.json",
+      "limits": "45-second observation; zero live charge attempts"
+    }
+  ],
+  "open_issues": [
+    "No live production capture or real-device wallet/Safari/Meta test was performed; independent admin overhaul acceptance is outside this hotfix."
+  ],
+  "iteration": 3,
+  "iteration_limit": 3,
+  "next_action": "No required hotfix work remains; retain previous READY build and evidence for rollback.",
+  "updated_at": "2026-10-19T21:34:42.249696+00:00",
+  "production_hotfix_commit": "c7c127e3e184252d0c727df715dd18e8e30129f6",
+  "staging_integration_commit": "2723ea1bc1291d801386124781442a7eeda74ada",
+  "deployment_status": "production_succeeded",
+  "deployed_revision": "sendmynotes-build-2026-10-19-001"
+}

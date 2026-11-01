@@ -1,0 +1,49 @@
+{
+  "project": "sendmynotes-2a417",
+  "backend": "sendmynotes",
+  "uri": "sendmynotes--sendmynotes-2a417.us-central1.hosted.app",
+  "environment": null,
+  "latestRollout": {
+    "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-10-16-001",
+    "state": "SUCCEEDED"
+  },
+  "successfulRollout": {
+    "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-10-16-001",
+    "state": "SUCCEEDED",
+    "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-10-16-001"
+  },
+  "source": {
+    "codebase": {
+      "branch": "main",
+      "displayName": "b831eb07c034e4bba7d68cedac6315c53f24064e",
+      "hash": "b831eb07c034e4bba7d68cedac6315c53f24064e",
+      "commitMessage": "fix(staging): unblock test checkout confirmation, update share button to 'Copy to Share' & add email resend action",
+      "uri": "https://github.com/zbrustkern/sendmynotes/commit/b831eb07c034e4bba7d68cedac6315c53f24064e",
+      "author": {
+        "displayName": "User Name",
+        "email": "zbrustkern@gmail.com",
+        "imageUri": "https://github.com/zbrustkern.png"
+      },
+      "commitTime": "2026-10-16T17:08:07Z"
+    }
+  },
+  "traffic": {
+    "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/traffic",
+    "rolloutPolicy": {
+      "codebaseBranch": "main"
+    },
+    "reconciling": false,
+    "createTime": "2026-09-22T16:17:50.468258513Z",
+    "updateTime": "2026-09-22T16:17:49.524419Z",
+    "etag": "7akd5hknbWsv4Aax2ju0q96ymb4DxkKKDnfIsht7qw4",
+    "uid": "fce05bcc-555a-4037-b93f-76fa3baf29ed",
+    "current": {
+      "splits": [
+        {
+          "build": "projects/486379422282/locations/us-central1/backends/sendmynotes/builds/build-2026-10-16-001",
+          "percent": 100
+        }
+      ]
+    }
+  }
+}

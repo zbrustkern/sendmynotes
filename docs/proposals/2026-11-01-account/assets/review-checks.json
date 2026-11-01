@@ -1,0 +1,1096 @@
+{
+  "checkedAt": "2026-11-01T19:22:10.003Z",
+  "scope": "Local design mockup only; no product implementation or live service verification",
+  "measurements": [
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "overview",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1659,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "history",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1253,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "card",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1201,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "images",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 871,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "asset",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1218,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "upload",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 974,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "source",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1248,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "people",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1280,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "person",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1337,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "personedit",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1586,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "dates",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1273,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "event",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1300,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "email",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 970,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "drafts",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 835,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 320,
+      "screen": "settings",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1326,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "overview",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1495,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "history",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1218,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "card",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1183,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "images",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 875,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "asset",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1150,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "upload",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 853,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "source",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1180,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "people",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 999,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "person",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1280,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "personedit",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1535,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "dates",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1140,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "event",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1188,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "email",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 931,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "drafts",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 390,
+      "screen": "settings",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1287,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "overview",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 1309,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "history",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 847,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "card",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 828,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "images",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "asset",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 805,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "upload",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 784,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "source",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 796,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "people",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 791,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "person",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 957,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "personedit",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 1200,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "dates",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 903,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "event",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 955,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "email",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 889,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "drafts",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 768,
+      "screen": "settings",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 1191,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "overview",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 1407,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "history",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 946,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "card",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 842,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "images",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 859,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "asset",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "upload",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "source",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 781,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "people",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 805,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "person",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 866,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "personedit",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 1214,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "dates",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 917,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "event",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 969,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "email",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 903,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "drafts",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "light",
+      "targetWidth": 1024,
+      "screen": "settings",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 1205,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "overview",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1659,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "history",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1253,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "card",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1201,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "images",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 871,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "asset",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1218,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "upload",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 974,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "source",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1248,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "people",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1280,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "person",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1337,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "personedit",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1586,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "dates",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1273,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "event",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1300,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "email",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 970,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "drafts",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 835,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 320,
+      "screen": "settings",
+      "width": 320,
+      "scrollWidth": 320,
+      "height": 1326,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "overview",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1495,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "history",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1218,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "card",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1183,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "images",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 875,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "asset",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1150,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "upload",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 853,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "source",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1180,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "people",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 999,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "person",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1280,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "personedit",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1535,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "dates",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1140,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "event",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1188,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "email",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 931,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "drafts",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 390,
+      "screen": "settings",
+      "width": 390,
+      "scrollWidth": 390,
+      "height": 1287,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "overview",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 1309,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "history",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 847,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "card",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 828,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "images",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "asset",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 805,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "upload",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 784,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "source",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 796,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "people",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 791,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "person",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 957,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "personedit",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 1200,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "dates",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 903,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "event",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 955,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "email",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 889,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "drafts",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 768,
+      "screen": "settings",
+      "width": 768,
+      "scrollWidth": 768,
+      "height": 1191,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "overview",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 1407,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "history",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 946,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "card",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 842,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "images",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 859,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "asset",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "upload",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "source",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 781,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "people",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 805,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "person",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 866,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "personedit",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 1214,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "dates",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 917,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "event",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 969,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "email",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 903,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "drafts",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 780,
+      "badImages": 0
+    },
+    {
+      "theme": "dark",
+      "targetWidth": 1024,
+      "screen": "settings",
+      "width": 1024,
+      "scrollWidth": 1024,
+      "height": 1205,
+      "badImages": 0
+    }
+  ],
+  "interactions": [
+    "main menu and direct address book",
+    "recipient search",
+    "historical inside preview",
+    "reminder toggle and saved date",
+    "global pause reflected on dates",
+    "sample upload and library entry",
+    "mobile navigation"
+  ],
+  "pageErrors": []
+}

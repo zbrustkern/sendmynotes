@@ -1,30 +1,33 @@
+import { resolveAccountOrderAssociation } from "@/lib/account/order-association";
+import { AccountError, accountError } from "@/lib/account/http";
+import { pinGeneratedOrderMaster } from "@/lib/account/order-front";
+import { pinUploadOrderMaster } from "@/lib/upload/order-master";
+import { UploadError } from "@/lib/upload/contracts";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { saveOrder, getDiscountCode, getSystemConfig } from "@/lib/firebase-admin";
+import { saveOrder, getSystemConfig } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { PaymentModeConfigError, normalizeStripeSecretKey, resolvePaymentMode } from "@/lib/payment-mode";
 import { validatePersonalSender } from "@/lib/order-processor";
-import { validateDiscount } from "@/lib/discount";
+import { issueOfferPriceQuote, reserveOfferForCheckout } from "@/lib/offer-engine";
 import { Order, MailingAddress, RecipientOccasion } from "@/lib/types";
 import { logIncident } from "@/lib/incident-logger";
-import { saveOccasionReminder } from "@/lib/reminders";
-import { sanitizeOrderAttribution } from "@/lib/order-attribution";
-import {
-  normalizeCountryCode,
-  validateMailingAddress,
-  getEnabledDestination,
-  authorizeInternationalCheckout,
-  isStagingInternationalPreview,
-  isProductionInternationalEnabled,
-} from "@/lib/mailing-destinations";
+import { isOperationalControlPaused } from "@/lib/operational-controls";
+import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
+import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout, isStagingInternationalPreview, isProductionInternationalEnabled } from "@/lib/mailing-destinations";
 import { calculateOrderQuote } from "@/lib/order-pricing";
+import { sanitizeOrderAttribution } from "@/lib/order-attribution";
 
 export async function POST(req: NextRequest) {
+  const operationId = resolveOperationId(req, "checkout");
   try {
+    if (await isOperationalControlPaused("checkout")) {
+      return withOperationId(NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again shortly.", code: "CHECKOUT_PAUSED", operationId }, { status: 503 }), operationId);
+    }
     const body = await req.json();
 
     const {
-      frontImageUrl,
+      frontImageUrl: requestedFrontImageUrl,
       printedMessage,
       handwrittenNote,
       fontStyleId = "1",
@@ -50,10 +53,9 @@ export async function POST(req: NextRequest) {
         const founderRegistry = await getSystemConfig<{ sessionIds?: string[] }>("founder_device_registry");
         isFounderTest = Boolean(founderRegistry?.sessionIds?.includes(sessionId));
       } catch {
-        // Attribution classification is best effort; do not make checkout depend on the admin registry.
+        // Classification is best effort; checkout must not depend on the admin registry.
       }
     }
-
     const normalizedCountry = recipientAddress?.country === undefined ? "US" : normalizeCountryCode(recipientAddress.country);
     if (!normalizedCountry) return NextResponse.json({ error: "A valid recipient country is required." }, { status: 400 });
     const supplierDestination = normalizedCountry === "US" ? null : getEnabledDestination(normalizedCountry);
@@ -76,7 +78,7 @@ export async function POST(req: NextRequest) {
     }
     const canonicalReturnAddress = returnAddress ? { ...returnAddress, country: "US" } : returnAddress;
 
-    if (!frontImageUrl) {
+    if (!requestedFrontImageUrl && !body.uploadDesign && !body.accountImage) {
       return NextResponse.json({ error: "Card cover image is required." }, { status: 400 });
     }
 
@@ -106,73 +108,75 @@ export async function POST(req: NextRequest) {
     const orderId = `order_${crypto.randomBytes(16).toString("hex")}`;
     const viewToken = `tok_${crypto.randomBytes(16).toString("hex")}`;
 
+    // Resolve private artwork before reserving a discount or creating payment.
+    const accountAssociation = await resolveAccountOrderAssociation(req, body);
+    const uploadMaster = await pinUploadOrderMaster(req, body, orderId)
+      || (accountAssociation.userId ? await pinGeneratedOrderMaster(accountAssociation.userId, orderId, requestedFrontImageUrl) : undefined);
+    const frontImageUrl = uploadMaster ? "" : requestedFrontImageUrl;
+    const verifiedUserId = uploadMaster?.uid || accountAssociation.userId;
+
     // Evaluate discount code if provided
     let discountAmountInCents = 0;
+    let finalAmountInCents = CARD_FLAT_RATE_CENTS;
     let appliedCode: string | undefined = undefined;
+    let quoteId: string | undefined = undefined;
+    let appliedOfferId: string | undefined = undefined;
+    let appliedOfferVersion: number | undefined = undefined;
 
     if (rawDiscountCode && typeof rawDiscountCode === "string" && rawDiscountCode.trim()) {
       const codeToLookup = rawDiscountCode.trim().toUpperCase();
-      const discountDoc = await getDiscountCode(codeToLookup);
-      const validation = validateDiscount(discountDoc, CARD_FLAT_RATE_CENTS);
+      const quoteResult = await issueOfferPriceQuote({
+        code: codeToLookup,
+        listPriceCents: CARD_FLAT_RATE_CENTS,
+        sessionId,
+        nowMs: Date.now(),
+      });
 
-      if (!validation.valid) {
+      if (!quoteResult.valid) {
         return NextResponse.json(
-          { error: validation.error || "Invalid discount code." },
+          { error: quoteResult.error || "Invalid discount code." },
           { status: 400 }
         );
       }
 
-      appliedCode = validation.code;
-      discountAmountInCents = validation.discountAmountInCents;
+      // Reserve slot transactionally
+      const reservation = await reserveOfferForCheckout({
+        code: codeToLookup,
+        orderId,
+        sessionId: sessionId || "sess_checkout",
+        quoteId: quoteResult.quote?.quoteId,
+      });
+
+      if (!reservation.reserved) {
+        return NextResponse.json(
+          { error: reservation.error || "This discount code has reached its maximum redemptions limit." },
+          { status: 400 }
+        );
+      }
+
+      appliedCode = quoteResult.offer?.code || codeToLookup;
+      discountAmountInCents = quoteResult.discountAmountInCents ?? 0;
+      finalAmountInCents = quoteResult.finalAmountInCents ?? CARD_FLAT_RATE_CENTS;
+      quoteId = quoteResult.quote?.quoteId;
+      appliedOfferId = quoteResult.offer?.offerId;
+      appliedOfferVersion = quoteResult.offer?.version;
     }
 
-    const orderQuote = calculateOrderQuote({
-      countryCode: normalizedCountry,
-      discountCents: discountAmountInCents,
-    });
-    const finalAmountInCents = orderQuote.totalCents;
-
-    const maybeSaveReminder = async () => {
-      if (
-        requestedContactPolicyVersion !== 1 &&
-        recipientOccasion &&
-        recipientOccasion.remindMe &&
-        customerEmail &&
-        recipientOccasion.month &&
-        recipientOccasion.day
-      ) {
-        const recName =
-          `${canonicalRecipientAddress.firstName || ""} ${canonicalRecipientAddress.lastName || ""}`.trim() ||
-          "Recipient";
-        await saveOccasionReminder({
-          recipientName: recName,
-          recipientAddress: canonicalRecipientAddress as MailingAddress,
-          userEmail: customerEmail,
-          ...(userId ? { userId } : {}),
-          occasionType: recipientOccasion.occasionType || "birthday",
-          occasionTitle:
-            recipientOccasion.occasionTitle ||
-            `${recipientOccasion.occasionType ? recipientOccasion.occasionType.charAt(0).toUpperCase() + recipientOccasion.occasionType.slice(1) : "Occasion"} Reminder`,
-          month: recipientOccasion.month,
-          day: recipientOccasion.day,
-          year: recipientOccasion.year,
-          remindDaysBefore: recipientOccasion.remindDaysBefore || 14,
-          optIn: true,
-        });
-      }
-    };
+    const orderQuote = calculateOrderQuote({ countryCode: normalizedCountry, discountCents: discountAmountInCents });
+    // Existing offer engine remains the authority for eligible base discounts. The
+    // destination upgrade is added server-side and is never discounted.
+    finalAmountInCents = orderQuote.totalCents;
 
     // If order total is completely free, complete without Stripe
     if (finalAmountInCents === 0) {
-      if (normalizedCountry !== "US") {
-        return NextResponse.json({ error: "International mailing requires payment for the delivery surcharge." }, { status: 400 });
-      }
-
-      const orderRecord: Order = {
-        id: orderId,
+      const orderRecord: Order & Record<string, unknown> = {
+      id: orderId,
+      operationId,
         customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
         ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
-        ...(userId ? { userId } : {}),
+        ...accountAssociation,
+        ...(verifiedUserId ? { userId: verifiedUserId } : {}),
+        ...(uploadMaster ? { uploadMaster } : {}),
         frontImageUrl,
         printedMessage: printedMessage || "",
         handwrittenNote: handwrittenNote || "",
@@ -187,10 +191,19 @@ export async function POST(req: NextRequest) {
         originalAmountInCents: CARD_FLAT_RATE_CENTS,
         finalAmountInCents: 0,
         quote: orderQuote,
+        ...(supplierDestination ? {
+          supplierCountryId: supplierDestination.supplierCountryId,
+          supplierCountryName: supplierDestination.supplierCountryName,
+          ...(isInternationalPreview ? { isInternationalPreview: true } : {}),
+        } : {}),
         ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
         discountCode: appliedCode,
         discountAmountInCents,
         paymentMethod: "PROMO_CODE",
+        ...(quoteId ? { quoteId } : {}),
+        ...(appliedOfferId ? { appliedOfferId } : {}),
+        ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
+        listPriceCents: CARD_FLAT_RATE_CENTS,
         isFounderTest,
         ...(attribution ? { attribution } : {}),
         ...(sessionId ? { sessionId } : {}),
@@ -201,10 +214,10 @@ export async function POST(req: NextRequest) {
       };
 
       await saveOrder(orderRecord);
-      await maybeSaveReminder();
 
-      return NextResponse.json({
+      return withOperationId(NextResponse.json({
         orderId,
+        operationId,
         viewToken,
         isFree: true,
         amountInCents: 0,
@@ -213,40 +226,61 @@ export async function POST(req: NextRequest) {
         quote: orderQuote,
         discountCode: appliedCode,
         discountAmountInCents,
+        quoteId,
+        appliedOfferId,
+        appliedOfferVersion,
         clientSecret: null,
         paymentIntentId: null,
         publishableKey: null,
-      });
+      }), operationId);
     }
 
-    // Create Stripe PaymentIntent for the discounted or standard amount
+    const resolvedMode = resolvePaymentMode();
+    const publishableKey =
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+      process.env["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] ||
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env["stripe-publishable-key"] ||
+      null;
+    if (resolvedMode !== "local_mock") {
+      const expectedPrefix = resolvedMode === "stripe_test" ? "pk_test_" : "pk_live_";
+      if (!publishableKey || !publishableKey.startsWith(expectedPrefix)) {
+        throw new PaymentModeConfigError(`A matching ${resolvedMode === "stripe_test" ? "test" : "live"} Stripe publishable key is not configured.`, 503, "STRIPE_PUBLISHABLE_KEY_MISMATCH");
+      }
+    }
+
+    // Create Stripe PaymentIntent for the discounted or standard amount. Receipt
+    // email is committed later, after the sender's explicit choice is saved.
     const paymentIntentResult = await createCardPaymentIntent({
       orderId,
-      customerEmail: requestedContactPolicyVersion === 1 ? undefined : (customerEmail || undefined),
       amountInCents: finalAmountInCents,
       metadata: {
-        ...(appliedCode
-          ? {
-              discountCode: appliedCode,
-              discountAmountCents: String(discountAmountInCents),
-              originalAmountCents: String(CARD_FLAT_RATE_CENTS),
-            }
-          : {}),
-        orderQuoteVersion: orderQuote.version,
+        operationId,
+        recipientCountryCode: normalizedCountry,
         quoteVersion: orderQuote.version,
         quotedTotalCents: String(orderQuote.totalCents),
         surchargeCents: String(orderQuote.internationalSurchargeCents),
-        recipientCountryCode: normalizedCountry,
+        ...(appliedCode
+        ? {
+            discountCode: appliedCode,
+            discountAmountCents: String(discountAmountInCents),
+            originalAmountCents: String(CARD_FLAT_RATE_CENTS),
+            ...(quoteId ? { quoteId } : {}),
+          }
+        : {}),
       },
     });
 
     // Construct and persist draft Order to Firestore
-    const orderRecord: Order = {
+    const orderRecord: Order & Record<string, unknown> = {
       id: orderId,
+      operationId,
       stripePaymentId: paymentIntentResult.paymentIntentId,
       customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
       ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
-      ...(userId ? { userId } : {}),
+      ...accountAssociation,
+        ...(verifiedUserId ? { userId: verifiedUserId } : {}),
+        ...(uploadMaster ? { uploadMaster } : {}),
       frontImageUrl,
       printedMessage: printedMessage || "",
       handwrittenNote: handwrittenNote || "",
@@ -270,6 +304,10 @@ export async function POST(req: NextRequest) {
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
       paymentMethod: "STRIPE",
+      ...(quoteId ? { quoteId } : {}),
+      ...(appliedOfferId ? { appliedOfferId } : {}),
+      ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
+      listPriceCents: CARD_FLAT_RATE_CENTS,
       isFounderTest,
       ...(attribution ? { attribution } : {}),
       ...(sessionId ? { sessionId } : {}),
@@ -280,20 +318,10 @@ export async function POST(req: NextRequest) {
     };
 
     await saveOrder(orderRecord);
-    await maybeSaveReminder();
 
-    const resolvedMode = resolvePaymentMode();
-    const publishableKey =
-      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
-      process.env["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] ||
-      process.env.STRIPE_PUBLISHABLE_KEY ||
-      process.env["stripe-publishable-key"] ||
-      (resolvedMode === "stripe_test"
-        ? "pk_test_51UIUjfQRpUiJEWIAEBVsU9gEPGjYg84rOZRarlTUfW057pYo1YcbkHv00h288Bth0582JDovGyvz1ZfSPen6VSYP00u7h8Ve2Y"
-        : null);
-
-    return NextResponse.json({
+    return withOperationId(NextResponse.json({
       orderId,
+      operationId,
       viewToken,
       clientSecret: paymentIntentResult.clientSecret,
       paymentIntentId: paymentIntentResult.paymentIntentId,
@@ -305,9 +333,14 @@ export async function POST(req: NextRequest) {
       quote: orderQuote,
       discountCode: appliedCode,
       discountAmountInCents,
+      quoteId,
+      appliedOfferId,
+      appliedOfferVersion,
       isFree: false,
-    });
+    }), operationId);
   } catch (error: unknown) {
+    if (error instanceof AccountError) return accountError(error);
+    if (error instanceof UploadError) return NextResponse.json({error: error.message, code: error.code}, {status: error.status, headers: {"Cache-Control":"private, no-store"}});
     if (error instanceof PaymentModeConfigError) {
       const keyInfo = normalizeStripeSecretKey();
       console.error("[Checkout Intent Config Error]", {
@@ -320,9 +353,10 @@ export async function POST(req: NextRequest) {
         severity: "error",
         summary: "Stripe Payment Mode Configuration Error",
         technicalDetails: `Code: ${error.code}, Type: ${keyInfo.keyType}, Source: ${keyInfo.source}`,
+        metadata: operationMetadata(operationId),
       });
 
-      return NextResponse.json(
+      return withOperationId(NextResponse.json(
         {
           error:
             "Payment is temporarily unavailable. Your card and message are saved. Please try again shortly.",
@@ -330,7 +364,7 @@ export async function POST(req: NextRequest) {
           incidentId,
         },
         { status: error.statusCode }
-      );
+      ), operationId);
     }
 
     const rawMsg = error instanceof Error ? error.message : "Error creating checkout intent";
@@ -342,15 +376,16 @@ export async function POST(req: NextRequest) {
       severity: "error",
       summary: "Stripe PaymentIntent Initialization Error",
       technicalDetails: rawMsg,
+      metadata: operationMetadata(operationId),
     });
 
-    return NextResponse.json(
+    return withOperationId(NextResponse.json(
       {
         error:
           "We are temporarily experiencing difficulty connecting to our secure payment gateway. Our studio team has been notified. Please try again in a moment.",
         incidentId,
       },
       { status: 500 }
-    );
+    ), operationId);
   }
 }

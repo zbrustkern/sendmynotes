@@ -1,0 +1,11 @@
+{
+  "account_suites": 13,
+  "account_tests_exit_code": 0,
+  "typescript_exit_code": 0,
+  "production_build_exit_code": 0,
+  "diff_check_exit_code": 0,
+  "external_network": "denied_by_test_preload",
+  "signed_in_visual_acceptance": "pending_policy_blocked",
+  "deployment": "not_performed",
+  "live_reminder_delivery": "inactive"
+}

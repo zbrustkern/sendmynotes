@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { X, Mail, Lock, Feather, AlertCircle, ArrowRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -21,13 +21,40 @@ export function AuthModal({
   title = "Sign In to sendmynotes",
   subtitle = "Save cards, access your address book, and track your card delivery.",
 }: AuthModalProps) {
-  const { signInWithGoogle, signInWithEmail, signUpWithEmail } = useAuth();
+  const { signInWithGoogle, signInWithEmail, signUpWithEmail, sendVerificationEmail } = useAuth();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
 
   const [mode, setMode] = useState<"signin" | "signup">("signin");
   const [email, setEmail] = useState(defaultEmail);
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [verificationNotice, setVerificationNotice] = useState("");
+  const [verificationFailed, setVerificationFailed] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) {
+      previousFocusRef.current?.focus();
+      return;
+    }
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    dialogRef.current?.querySelector<HTMLElement>("button:not(:disabled), input:not(:disabled)")?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") { event.preventDefault(); onClose(); }
+      if (event.key !== "Tab") return;
+      const controls = Array.from(dialogRef.current?.querySelectorAll<HTMLElement>("button:not(:disabled), input:not(:disabled), [href]") || []);
+      if (!controls.length) return;
+      const first = controls[0]; const last = controls[controls.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  // The close callback is intentionally captured only when the modal opens;
+  // parent render churn must not replace the element whose focus we restore.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -59,11 +86,20 @@ export function AuthModal({
     try {
       if (mode === "signin") {
         await signInWithEmail(email, password);
+        onSuccess?.();
+        onClose();
       } else {
         await signUpWithEmail(email, password);
+        setVerificationNotice("");
+        setVerificationFailed(false);
+        try {
+          await sendVerificationEmail(`${window.location.pathname}${window.location.search}`);
+          setVerificationNotice("Your account is ready. Check your inbox for the verification link. You can keep this page open while you verify.");
+        } catch (verificationError) {
+          setVerificationFailed(true);
+          setVerificationNotice(verificationError instanceof Error ? verificationError.message : "Your account is saved, but the verification email could not be sent.");
+        }
       }
-      onSuccess?.();
-      onClose();
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Authentication error";
       setError(msg);
@@ -73,11 +109,13 @@ export function AuthModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-2xl space-y-6">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="auth-modal-title" aria-describedby="auth-modal-subtitle" className="relative w-full max-w-md bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-2xl space-y-6">
         {/* Close Button */}
         <button
+          type="button"
           onClick={onClose}
+          aria-label="Close sign in"
           className="absolute right-5 top-5 p-1.5 rounded-full text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition"
         >
           <X className="w-5 h-5" />
@@ -88,16 +126,23 @@ export function AuthModal({
           <div className="w-12 h-12 mx-auto rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-700 flex items-center justify-center shadow-inner">
             <Feather className="w-6 h-6" />
           </div>
-          <h2 className="text-2xl font-serif font-bold text-stone-900">{title}</h2>
-          <p className="text-xs text-stone-500 max-w-xs mx-auto leading-relaxed">{subtitle}</p>
+          <h2 id="auth-modal-title" className="text-2xl font-serif font-bold text-stone-900">{title}</h2>
+          <p id="auth-modal-subtitle" className="text-xs text-stone-500 max-w-xs mx-auto leading-relaxed">{subtitle}</p>
+          <p className="pt-1 text-xs font-medium text-stone-600">You can send a card without an account.</p>
         </div>
 
         {error && (
-          <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
+          <div role="alert" className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
             <p className="flex-1">{error}</p>
           </div>
         )}
+
+        {verificationNotice && <div role={verificationFailed ? "alert" : "status"} className={`rounded-xl border p-3 text-sm ${verificationFailed ? "border-amber-200 bg-amber-50 text-amber-900" : "border-emerald-200 bg-emerald-50 text-emerald-900"}`}>
+          <p>{verificationNotice}</p>
+          {verificationFailed && <button type="button" disabled={loading} onClick={async () => { setLoading(true); setVerificationNotice(""); try { await sendVerificationEmail(`${window.location.pathname}${window.location.search}`); setVerificationFailed(false); setVerificationNotice("Verification email sent. Check your inbox."); } catch (err) { setVerificationNotice(err instanceof Error ? err.message : "The verification email could not be sent."); } finally { setLoading(false); } }} className="mt-3 min-h-11 rounded-full border border-amber-700/30 px-4 font-semibold">Try sending again</button>}
+          <button type="button" onClick={() => { onSuccess?.(); onClose(); }} className="ml-2 mt-3 min-h-11 rounded-full bg-emerald-900 px-4 font-semibold text-white">Continue to account</button>
+        </div>}
 
         {/* 1-Click Google Sign In */}
         <button

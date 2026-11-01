@@ -1,0 +1,55 @@
+{
+  "project": "sendmynotes-staging",
+  "backend": "sendmynotes-staging",
+  "uri": "sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "environment": "staging",
+  "latestRollout": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-10-21-001",
+    "state": "SUCCEEDED"
+  },
+  "successfulRollout": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-10-21-001",
+    "state": "SUCCEEDED",
+    "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-21-001"
+  },
+  "source": {
+    "codebase": {
+      "branch": "staging",
+      "displayName": "f97f98f62d0fee461c236c597e33e9f54a7275d3",
+      "hash": "f97f98f62d0fee461c236c597e33e9f54a7275d3",
+      "commitMessage": "fix(copy): clarify custom artwork and verified card details",
+      "uri": "https://github.com/zbrustkern/sendmynotes/commit/f97f98f62d0fee461c236c597e33e9f54a7275d3",
+      "commitTime": "2026-10-21T03:12:42Z"
+    }
+  },
+  "latestBuildState": "READY",
+  "latestSource": {
+    "codebase": {
+      "branch": "staging",
+      "displayName": "f97f98f62d0fee461c236c597e33e9f54a7275d3",
+      "hash": "f97f98f62d0fee461c236c597e33e9f54a7275d3",
+      "commitMessage": "fix(copy): clarify custom artwork and verified card details",
+      "uri": "https://github.com/zbrustkern/sendmynotes/commit/f97f98f62d0fee461c236c597e33e9f54a7275d3",
+      "commitTime": "2026-10-21T03:12:42Z"
+    }
+  },
+  "traffic": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/traffic",
+    "rolloutPolicy": {
+      "codebaseBranch": "staging"
+    },
+    "reconciling": false,
+    "createTime": "2026-10-13T18:53:22.819965138Z",
+    "updateTime": "2026-10-13T18:53:22.021251Z",
+    "etag": "ZYjcvvlitQHMLk4-qEky1kLbiabHb-ul1S2TwdIOdyQ",
+    "uid": "94a33098-95ef-4dea-aff3-01ae91ba5e98",
+    "current": {
+      "splits": [
+        {
+          "build": "projects/910796604705/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-21-001",
+          "percent": 100
+        }
+      ]
+    }
+  }
+}

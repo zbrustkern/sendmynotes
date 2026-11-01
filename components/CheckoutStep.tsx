@@ -312,7 +312,7 @@ function InnerPaymentForm({
               <button
                 type="button"
                 onClick={handleRemovePromo}
-                  disabled={isProcessing || promoLoading}
+                disabled={isProcessing || promoLoading}
                 className="text-stone-400 hover:text-rose-600 p-1 rounded transition cursor-pointer"
                 title="Remove discount code"
               >
@@ -592,7 +592,7 @@ export function CheckoutStep(props: CheckoutStepProps) {
       <div className="bg-white rounded-2xl p-6 border border-stone-200/80 shadow-sm">
         {!props.isFree && props.clientSecret && stripePromise ? (
           <Elements
-        key={props.clientSecret}
+            key={props.clientSecret}
             stripe={stripePromise}
             options={{
               clientSecret: props.clientSecret,

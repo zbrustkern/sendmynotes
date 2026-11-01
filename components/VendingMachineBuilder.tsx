@@ -415,14 +415,11 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       if (!res.ok || !data.valid) {
         return { success: false, error: data.error || "Invalid discount code." };
       }
-      if (currentStep === 4) {
-        const updated = await proceedToCheckout(data.code, data.finalAmountInCents, true);
-        if (!updated) return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
+      if (currentStep === 4 && !await proceedToCheckout(data.code, data.finalAmountInCents, true)) {
+        return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
       }
-
       setAppliedDiscount(data);
       setIsFreeOrder(Boolean(data.isFree));
-
 
       return { success: true };
     } catch {
@@ -489,6 +486,12 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         throw new Error(data.error || "Failed to initialize checkout.");
       }
 
+      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? appliedDiscount?.finalAmountInCents : 900);
+      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
+      if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
+        throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
+      }
+
       // If user is logged in and opted to save recipient address to their address book
       if (user && saveRecipientToAddressBook) {
         await saveAddress({
@@ -509,12 +512,6 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
           remindMe: recipientOccasion?.remindMe,
           remindDaysBefore: recipientOccasion?.remindDaysBefore,
         }).catch((err) => console.warn("Notice saving recipient:", err));
-      }
-
-      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? appliedDiscount?.finalAmountInCents : 900);
-      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
-      if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
-        throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
       }
 
       setOrderId(data.orderId);

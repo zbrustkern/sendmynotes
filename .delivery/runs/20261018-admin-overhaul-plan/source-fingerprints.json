@@ -1,0 +1,11 @@
+{
+  "source_revision": "f9f187e0498ffb6b586c9970aeda8aa3fcf92f96",
+  "files": {
+    "AGENTS.md": "0b1b0090b885762446dfb5cfa9461c097d37e97c21fe6af40fd2818dbfec8e7d",
+    "docs/CANONICAL_PROJECT_BRIEF.md": "6d2105b9edc6ad0a881d63f905cd552fa53645fb6c7de56d044c242b88ee354d",
+    "docs/CANONICAL_PRODUCT_SPECS.md": "989d9ffa6f8380bc246cdca2873f16b65f6362672a1595a57eefa20c503dfc9c",
+    "docs/ADMIN_PORTAL_OVERHAUL_SPEC_2026-10-18.md": "785d37178d9340fcb840b86206a24386ac2f4175ac3022a91c2ae1d59fcd0674",
+    "docs/CODEBASE_CLEANUP_AUDIT_2026-10-16.md": "cf602fbc724ad9ab833cbc946c9edcfed84e089c5012ee0bff7bf25ff005b81e",
+    "package.json": "dec3c404b84f2b0ec541a802a0aee36e077814da4ade21eeb2a09890e01eb318"
+  }
+}

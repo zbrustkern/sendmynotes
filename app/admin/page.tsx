@@ -31,15 +31,18 @@ import {
   Filter,
   ChevronDown,
   ChevronUp,
+  Activity,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType } from "@/lib/types";
 import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWidget";
 import { AdminMeasurementPanel } from "@/components/admin/AdminMeasurementPanel";
+import { AdminWaterfallConsole } from "@/components/admin/AdminWaterfallConsole";
 import { ProofInspectorModal } from "@/components/admin/ProofInspectorModal";
 import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
 import { StudioCompModal } from "@/components/admin/StudioCompModal";
 import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
+import { PrivacyOperationsPanel } from "@/components/admin/PrivacyOperationsPanel";
 
 export default function AdminDashboardPage() {
   const { user, signInWithGoogle, signOut: authSignOut } = useAuth();
@@ -50,7 +53,7 @@ export default function AdminDashboardPage() {
   const [authError, setAuthError] = useState("");
 
   // Navigation tab state: 4 focused views
-  const [activeTab, setActiveTab] = useState<"orders" | "measurement" | "discounts" | "incidents">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "measurement" | "telemetry" | "discounts" | "incidents">("orders");
 
   // Orders State
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
@@ -102,7 +105,7 @@ export default function AdminDashboardPage() {
   const [discountFormError, setDiscountFormError] = useState("");
   const [discountFormSuccess, setDiscountFormSuccess] = useState("");
 
-  const handleTabChange = (tab: "orders" | "measurement" | "discounts" | "incidents") => {
+  const handleTabChange = (tab: "orders" | "measurement" | "telemetry" | "discounts" | "incidents") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -150,12 +153,25 @@ export default function AdminDashboardPage() {
   };
 
   const handleLogout = async () => {
+    setAuthError("");
     try {
-      await fetch("/api/admin/auth", { method: "DELETE" });
+      const response = await fetch("/api/admin/auth", { method: "DELETE", cache: "no-store" });
+      if (!response.ok) throw new Error("Could not clear the administrator session. Please retry.");
       await authSignOut();
-    } finally {
       setIsAuthenticated(false);
+      setAdminUserEmail(null);
       setMetrics(null);
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Could not complete sign out. Please try again.");
+      // The admin cookie may have cleared while sender sign-out failed.
+      try {
+        const response = await fetch("/api/admin/auth", { cache: "no-store" });
+        if (response.ok) {
+          const session = await response.json();
+          setIsAuthenticated(Boolean(session.authenticated));
+          if (!session.authenticated) { setAdminUserEmail(null); setMetrics(null); }
+        }
+      } catch { /* Keep the last confirmed session and visible error. */ }
     }
   };
 
@@ -535,6 +551,8 @@ export default function AdminDashboardPage() {
       const tabParam = params.get("tab") || params.get("workspace");
       if (tabParam === "measurement") {
         setActiveTab("measurement");
+      } else if (tabParam === "telemetry") {
+        setActiveTab("telemetry");
       } else if (tabParam === "discounts" || tabParam === "promotions") {
         setActiveTab("discounts");
       } else if (tabParam === "incidents" || tabParam === "reliability") {
@@ -738,6 +756,11 @@ export default function AdminDashboardPage() {
               className="flex items-center gap-4 sm:gap-8 overflow-x-auto no-scrollbar"
               aria-label="Admin Tabs"
             >
+              <Link href="/admin/uploads" className="my-2 inline-flex min-h-9 flex-none items-center rounded-lg border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-900 hover:bg-emerald-100">
+                <span className="sm:hidden">Upload admin</span>
+                <span className="hidden sm:inline">Upload administration</span>
+              </Link>
+              <span className="my-3 h-4 w-px flex-none bg-stone-200" aria-hidden="true" />
               <button
                 type="button"
                 onClick={() => handleTabChange("orders")}
@@ -767,6 +790,19 @@ export default function AdminDashboardPage() {
               >
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>Measurement</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange("telemetry")}
+                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                  activeTab === "telemetry"
+                    ? "border-stone-900 text-stone-900 font-semibold"
+                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                <span>Experiment</span>
               </button>
 
               <button
@@ -812,6 +848,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </header>
+      {authError && <p role="alert" className="mx-auto max-w-7xl px-4 py-3 text-sm text-rose-800">{authError}</p>}
 
       {/* MAIN BODY */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
@@ -1331,7 +1368,7 @@ export default function AdminDashboardPage() {
                                         type="button"
                                         onClick={() => setSelectedProofOrderId(order.id)}
                                         className="px-2 py-0.5 text-[10px] font-semibold text-stone-700 bg-stone-100 hover:bg-stone-200 rounded border border-stone-200 transition inline-flex items-center gap-1 cursor-pointer"
-                                        title="Inspect 1:1 card proof and live handwriting"
+                                        title="Inspect approximate card preview"
                                       >
                                         <Eye className="w-3 h-3 text-stone-500" />
                                         <span>Proof</span>
@@ -1469,6 +1506,19 @@ export default function AdminDashboardPage() {
                 setExpandedJourneyOrderId(orderId);
               }}
             />
+          </div>
+        )}
+
+        {/* ===================== TELEMETRY EXPERIMENT OVERVIEW ===================== */}
+        {activeTab === "telemetry" && (
+          <div className="space-y-6">
+            <div className="pb-2 border-b border-stone-200">
+              <h2 className="text-lg font-serif font-bold text-stone-900">Experiment overview &amp; journey</h2>
+              <p className="mt-1 text-xs text-stone-500">
+                Observed session milestones, exact order links, attribution coverage, and source freshness. Verified payment evidence remains in Measurement.
+              </p>
+            </div>
+            <AdminWaterfallConsole initialWindow="last7" initialChannel="all" initialAudience="customers" />
           </div>
         )}
 
@@ -1929,6 +1979,7 @@ export default function AdminDashboardPage() {
         {/* ===================== TAB 4: TROUBLESHOOTING & INCIDENTS ===================== */}
         {activeTab === "incidents" && (
           <div className="space-y-6">
+            <PrivacyOperationsPanel />
             <HandwryttenStatusWidget />
 
             {/* SYSTEM HEALTH, INCIDENTS & ALERT SUBSCRIPTION */}

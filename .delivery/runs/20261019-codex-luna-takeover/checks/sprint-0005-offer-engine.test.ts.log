@@ -1,0 +1,80 @@
+======================================================================
+🎟️ RUNNING SPRINT-0005 OFFER ENGINE & PRICING INTEGRITY TEST SUITE
+======================================================================
+
+--- SUITE 1: AC01 — URL Parameter Extraction, Priority & Routing ---
+  ✅ PASS: Extracts code from ?discount=
+  ✅ PASS: Extracts code from ?code=
+  ✅ PASS: Extracts code from ?promo=
+  ✅ PASS: Priority order: discount takes precedence over code and promo
+  ✅ PASS: Priority order: code takes precedence over promo
+  ✅ PASS: Priority order: promo resolves when discount and code are absent
+  ✅ PASS: Normalizes code: trims whitespace and converts to uppercase
+  ✅ PASS: Normalizes lowercase code to uppercase
+  ✅ PASS: Extracts from URLSearchParams instance
+  ✅ PASS: Extracts from Next.js searchParams Record object
+  ✅ PASS: Extracts from full absolute URL string
+  ✅ PASS: Returns null when input is null
+  ✅ PASS: Returns null when input is empty string
+  ✅ PASS: Returns null when no promo parameter is present
+  ✅ PASS: Extracted offer code from complex deep link
+  ✅ PASS: Destination path preserved without alteration
+  ✅ PASS: UTM source preserved alongside offer code
+  ✅ PASS: UTM campaign preserved alongside offer code
+
+--- SUITE 2: AC02 — Concurrency, Inventory Caps & Reservations ---
+  ✅ PASS: Bridged legacy discount into offer_versions with maxUses: 1
+  ✅ PASS: Under concurrent reservation requests for final slot (maxUses: 1), strictly 1 succeeds
+  ✅ PASS: Rejected contender receives status: 'exhausted'
+  ✅ PASS: Rejected contender receives explicit error message
+  ✅ PASS: Released active reservation on order cancellation
+  ✅ PASS: Released hold allowed contending checkout to successfully claim the slot
+  ✅ PASS: Expired reservation hold automatically pruned; fresh buyer successfully claims slot
+  ✅ PASS: First redemption succeeds
+  ✅ PASS: Second redemption is recognized as duplicate
+  ✅ PASS: Counter usedCount is strictly 1 after duplicate redemption attempts
+  ✅ PASS: Cumulative savings totalDiscountGivenCents is strictly 300¢ (not double-counted)
+
+--- SUITE 3: AC03 — Authoritative Quotes, Tamper Immunity & Non-Restoring Refunds ---
+  ✅ PASS: Issued quote successfully
+  ✅ PASS: Server ignored client price and enforced canonical base price (900¢)
+  ✅ PASS: Discount amount computed correctly server-side (180¢)
+  ✅ PASS: Payable finalAmountInCents computed correctly server-side (720¢)
+  ✅ PASS: Quote validity set to exactly 30 minutes
+  ✅ PASS: Fresh quote (<30 min) passes integrity verification
+  ✅ PASS: Stale quote (>30 min) fails integrity verification
+  ✅ PASS: Stale quote signals requiresPriceReconfirmation: true
+  ✅ PASS: Mismatched payment intent amount fails integrity verification
+  ✅ PASS: Price mismatch signals requiresPriceReconfirmation: true
+  ✅ PASS: Server redemption accepts exact persisted quote, order, reservation, and capture binding
+  ✅ PASS: Idempotency replay with changed commercial terms is rejected
+  ✅ PASS: Used count incremented to 1 on redemption
+  ✅ PASS: Recorded refund outcome on offer redemption document
+  ✅ PASS: Redemption doc marked as refunded
+  ✅ PASS: refundRestoredUsage is strictly false
+  ✅ PASS: REFUND_RESTORES_OFFER_USAGE constant is strictly false per Contract 4
+  ✅ PASS: usedCount is preserved at 1 after refund (usage is NOT restored)
+
+--- SUITE 4: AC04 — Free/Comp Redemptions & Cost-Audit Preservation ---
+  ✅ PASS: 100% free voucher quote is valid
+  ✅ PASS: isFree is true for 100% discount
+  ✅ PASS: finalAmountInCents is 0
+  ✅ PASS: discountAmountInCents is 900¢
+  ✅ PASS: Free promo order redeemed successfully without payment intent
+  ✅ PASS: Commercial kind classified as 'free_promo'
+  ✅ PASS: Studio comp redeemed successfully
+  ✅ PASS: Commercial kind classified as 'studio_comp'
+  ✅ PASS: Paid discounted order redeemed successfully
+  ✅ PASS: Commercial kind classified as 'discounted_paid'
+  ✅ PASS: Analytics generated for correct promo code
+  ✅ PASS: Total redemptions count is 3
+  ✅ PASS: freePromoCount correctly separated (1)
+  ✅ PASS: studioCompCount correctly separated (1)
+  ✅ PASS: paidDiscountedCount correctly separated (1)
+  ✅ PASS: Supplier cost status reported as 'unconfirmed'
+  ✅ PASS: netMarginCents reported as null (never fabricated)
+  ✅ PASS: Net captured revenue accurately aggregated (450¢)
+
+======================================================================
+📊 SPRINT-0005 TEST RESULTS: 65/65 PASSED (0 FAILED)
+======================================================================

@@ -124,16 +124,17 @@ assert(sanitized.sanitized.presetId === sympathyPreset.id, "presetId is preserve
 // --- 5. Test Hydration Precedence Logic ---
 console.log("\n--- 5. Testing Hydration Precedence Rules ---");
 
-// Rule A: When isAutoSelectMode is true and visitor has no insideNoteText in localStorage,
-// step must be 'note' (never 'card').
+// Specific scenario deep links activate isAutoSelectMode and start on 'note'.
+// Generic entries (including generic ?auto_select=1 and paid UTMs) do NOT activate auto-select,
+// starting on 'card' (step one) unless the user has genuine saved edits.
 function determineActiveStep(
   isAutoSelect: boolean,
   draftStep: string | null,
-  localDraft: { insideNoteText?: string; currentStep?: string } | null,
+  localDraft: { insideNoteText?: string; currentStep?: string; hasCustomUserEdits?: boolean } | null,
   initialStep?: string
 ): string {
   // 1. Initial State
-  let activeStep = isAutoSelect ? "note" : (initialStep || "card");
+  let activeStep = initialStep || (isAutoSelect ? "note" : "card");
 
   // 2. Draft Model Sync Effect
   if (isAutoSelect) {
@@ -147,6 +148,11 @@ function determineActiveStep(
   }
 
   // 3. LocalStorage Hydration Effect
+  const hasRealUserEdits = Boolean(
+    localDraft?.hasCustomUserEdits ||
+    (localDraft?.insideNoteText && localDraft.insideNoteText.trim().length > 0)
+  );
+
   if (localDraft && localDraft.currentStep && localDraft.currentStep !== "confirmation") {
     if (isAutoSelect) {
       if (!localDraft.insideNoteText?.trim()) {
@@ -156,6 +162,8 @@ function determineActiveStep(
       } else {
         activeStep = "note";
       }
+    } else if (hasRealUserEdits && localDraft.currentStep !== "card") {
+      activeStep = localDraft.currentStep;
     } else if (!initialStep) {
       activeStep = localDraft.currentStep;
     }
@@ -164,27 +172,31 @@ function determineActiveStep(
   return activeStep;
 }
 
-// Case A: Fresh visitor with ?auto_select=1, initial createInitialDraft has currentStep: "card", no localStorage
-const freshVisitorStep = determineActiveStep(true, "card", null);
-assert(freshVisitorStep === "note", `Fresh visitor with ?auto_select=1 remains on 'note' step (got '${freshVisitorStep}')`);
+// Case A: Fresh visitor on generic entry (?auto_select=1 without specific context) starts on 'card' selector
+const freshGenericStep = determineActiveStep(false, "card", null, "card");
+assert(freshGenericStep === "card", `Fresh generic visitor (?auto_select=1) starts on 'card' step (got '${freshGenericStep}')`);
 
-// Case B: Returning visitor with ?auto_select=1 who had old empty draft with currentStep: "card"
-const oldCardDraftVisitorStep = determineActiveStep(true, "card", { currentStep: "card", insideNoteText: "" });
+// Case B: Returning visitor with old empty draft on generic entry starts on 'card' selector
+const oldEmptyDraftStep = determineActiveStep(false, "card", { currentStep: "card", insideNoteText: "", hasCustomUserEdits: false }, "card");
 assert(
-  oldCardDraftVisitorStep === "note",
-  `Visitor with empty note in localStorage with ?auto_select=1 prioritizes 'note' step (got '${oldCardDraftVisitorStep}')`
+  oldEmptyDraftStep === "card",
+  `Visitor with empty note in localStorage on generic entry starts on 'card' step (got '${oldEmptyDraftStep}')`
 );
 
-// Case C: Returning visitor who had already written note and reached "address"
-const returningAddressVisitorStep = determineActiveStep(true, "address", { currentStep: "address", insideNoteText: "Hello there!" });
+// Case C: Specific deep link (e.g. /send/sympathy/loss-of-pet, isAutoSelect = true) starts on 'note'
+const specificDeepLinkStep = determineActiveStep(true, "card", null, "note");
+assert(specificDeepLinkStep === "note", `Specific deep link starts directly on 'note' step (got '${specificDeepLinkStep}')`);
+
+// Case D: Returning visitor who typed note and reached "address" preserves 'address' step
+const returningAddressVisitorStep = determineActiveStep(false, "address", { currentStep: "address", insideNoteText: "Hello there!", hasCustomUserEdits: true }, "card");
 assert(
   returningAddressVisitorStep === "address",
   `Returning visitor who typed note and reached address preserves 'address' step (got '${returningAddressVisitorStep}')`
 );
 
-// Case D: Organic visitor without auto_select (normal flow)
-const organicVisitorStep = determineActiveStep(false, "card", null);
-assert(organicVisitorStep === "card", `Normal visitor without auto_select starts on 'card' step (got '${organicVisitorStep}')`);
+// Case E: Organic visitor without auto_select (normal flow)
+const organicVisitorStep = determineActiveStep(false, "card", null, "card");
+assert(organicVisitorStep === "card", `Normal visitor starts on 'card' step (got '${organicVisitorStep}')`);
 
 // --- 6. Testing Thank-You Warm Personal Default (No Job Interview) ---
 console.log("\n--- 6. Testing Warm Personal Thank-You Defaults ---");

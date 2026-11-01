@@ -8,7 +8,9 @@ import {
   AppliedOfferDraft,
   AttributionDraft,
   CustomGenerationState,
+  PrivateUploadRecovery,
 } from "./types";
+import type { UploadSelection } from "@/lib/upload/contracts";
 
 export type DraftAction =
   | { type: "SET_ADDRESS_DEFERRED"; payload: boolean }
@@ -19,12 +21,17 @@ export type DraftAction =
         customId?: string;
         imageUrl: string;
         title: string;
-        source: "preset" | "custom";
+        source: "preset" | "custom" | "upload" | "account";
         occasion?: string;
         accepted?: boolean;
+        uploadSelection?: UploadSelection;
       };
     }
   | { type: "ACCEPT_DESIGN" }
+  | { type: "CLEAR_ACCOUNT_IMAGE" }
+  | { type: "RESTORE_PRIVATE_UPLOAD"; payload: PrivateUploadRecovery & { replaceRecovery?: boolean } }
+  | { type: "SET_PRIVATE_UPLOAD_RECOVERY"; payload: PrivateUploadRecovery | null }
+  | { type: "UPLOAD_IDENTITY_CHANGED"; payload: string | null }
   | { type: "UPDATE_NOTE"; payload: Partial<NoteDraft> }
   | { type: "UPDATE_RECIPIENT"; payload: AddressDraft | null }
   | { type: "UPDATE_SENDER"; payload: AddressDraft | null }
@@ -77,6 +84,10 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
 
   switch (action.type) {
     case "SET_ADDRESS_DEFERRED": return { ...state, addressDeferred: action.payload, updatedAt: now };
+    case "CLEAR_ACCOUNT_IMAGE": return { ...state, accountImage: null, accountOwnerUid: null,
+      selectedDesign: state.selectedDesign?.source === 'account' ? null : state.selectedDesign,
+      coverChoiceRequired: state.selectedDesign?.source === 'account' || state.coverChoiceRequired,
+      checkoutSnapshotId: null, appliedOffer: null, updatedAt: now, draftRevision: state.draftRevision + 1 };
     case "SELECT_DESIGN": {
       const isSameSelection =
         state.selectedDesign !== null &&
@@ -101,7 +112,8 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       if (
         isSameSelection &&
         state.selectedDesign &&
-        (action.payload.accepted ?? false) === state.selectedDesign.accepted
+        (action.payload.accepted ?? false) === state.selectedDesign.accepted &&
+        !state.privateUploadRecovery && !state.coverChoiceRequired && !state.uploadSelection
       ) {
         return state;
       }
@@ -111,6 +123,8 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         updatedAt: now,
         draftRevision: state.draftRevision + 1,
         lastCustomArtwork: nextCustomArtwork,
+        accountImage: action.payload.source === 'account' ? state.accountImage : null,
+        accountOwnerUid: action.payload.source === 'account' ? state.accountOwnerUid : null,
         selectedDesign: {
           presetId: action.payload.presetId,
           customId: action.payload.customId,
@@ -119,7 +133,12 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
           source: action.payload.source,
           occasion: action.payload.occasion,
           accepted: action.payload.accepted ?? false,
+          uploadSelection: action.payload.uploadSelection,
         },
+        uploadSelection: action.payload.uploadSelection ?? (action.payload.source === "upload" ? state.uploadSelection : null),
+        uploadOwnerUid: action.payload.source === "upload" ? state.uploadOwnerUid : null,
+        privateUploadRecovery: null,
+        coverChoiceRequired: false,
       };
     }
 
@@ -135,6 +154,60 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
           ...state.selectedDesign,
           accepted: true,
         },
+      };
+    }
+
+    case "RESTORE_PRIVATE_UPLOAD": {
+      if (state.privateUploadRecovery && !action.payload.replaceRecovery && (
+        state.privateUploadRecovery.ownerUid !== action.payload.ownerUid ||
+        state.privateUploadRecovery.selection.designId !== action.payload.selection.designId ||
+        state.privateUploadRecovery.selection.masterSha256 !== action.payload.selection.masterSha256 ||
+        state.privateUploadRecovery.selection.revision !== action.payload.selection.revision
+      )) return state;
+      return {
+        ...state,
+        updatedAt: now,
+        draftRevision: state.draftRevision + 1,
+        uploadSelection: action.payload.selection,
+        accountImage: null,
+        accountOwnerUid: null,
+        uploadOwnerUid: action.payload.ownerUid,
+        privateUploadRecovery: null,
+        coverChoiceRequired: false,
+        selectedDesign: { imageUrl: "", title: action.payload.selection.title, source: "upload", accepted: true, uploadSelection: action.payload.selection },
+      };
+    }
+
+    case "SET_PRIVATE_UPLOAD_RECOVERY": {
+      return {
+        ...state,
+        updatedAt: now,
+        draftRevision: state.draftRevision + 1,
+        uploadSelection: null,
+        uploadOwnerUid: null,
+        privateUploadRecovery: action.payload,
+        coverChoiceRequired: Boolean(action.payload),
+        selectedDesign: state.selectedDesign?.source === "upload" || action.payload ? null : state.selectedDesign,
+      };
+    }
+
+    case "UPLOAD_IDENTITY_CHANGED": {
+      if (state.uploadSelection && state.uploadOwnerUid === action.payload) return state;
+      const recovery = state.uploadSelection && state.uploadOwnerUid
+        ? { ownerUid: state.uploadOwnerUid, selection: state.uploadSelection }
+        : state.privateUploadRecovery ?? null;
+      const hadPrivateCover = Boolean(state.uploadSelection || state.privateUploadRecovery || state.coverChoiceRequired);
+      const hasExplicitCatalogCover = Boolean(state.selectedDesign && state.selectedDesign.source !== "upload");
+      return {
+        ...state,
+        updatedAt: now,
+        draftRevision: state.draftRevision + 1,
+        uploadSelection: null,
+        uploadOwnerUid: null,
+        privateUploadRecovery: recovery,
+        coverChoiceRequired: hadPrivateCover && !hasExplicitCatalogCover,
+        selectedDesign: state.selectedDesign?.source === "upload" ? null : state.selectedDesign,
+        currentStep: hadPrivateCover && !hasExplicitCatalogCover ? "card" : state.currentStep,
       };
     }
 

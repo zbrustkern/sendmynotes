@@ -202,8 +202,60 @@ assert(!("card" in parsedPoisoned), "Poisoned card data was stripped on save");
 assert(!("viewToken" in parsedPoisoned), "Poisoned viewToken was stripped on save");
 assert(!("stripeKey" in parsedPoisoned), "Poisoned stripeKey was stripped on save");
 
-// 7. clearDraft verification
-console.log("\n--- 7. Testing clearDraft ---");
+// 7. Private upload state is owner-bound and hidden during storage hydration.
+console.log("\n--- 7. Testing Private Upload Account Boundaries ---");
+const privateSelection = {
+  source: "upload" as const,
+  designId: "private-design-a",
+  revision: 1,
+  masterSha256: "a".repeat(64),
+  title: "Personal garden cover",
+  accepted: true as const,
+};
+let privateDraft = draftReducer(createInitialDraft("candidate_v1"), {
+  type: "UPDATE_NOTE", payload: { text: "Please keep this note safe." },
+});
+privateDraft = draftReducer(privateDraft, {
+  type: "UPDATE_RECIPIENT", payload: { name: "Recipient", addressLine1: "1 Main St", city: "Austin", state: "TX", zip: "78701" },
+});
+privateDraft = draftReducer(privateDraft, {
+  type: "RESTORE_PRIVATE_UPLOAD", payload: { ownerUid: "uid-a", selection: privateSelection },
+});
+assert(privateDraft.uploadSelection?.designId === privateSelection.designId, "Validated owner can restore the private selection in memory");
+
+const privateStorage = new MemoryDraftStorage();
+saveDraft(privateDraft, privateStorage);
+const storedPrivate = JSON.parse(privateStorage.getItem(DRAFT_STORAGE_KEY) || "{}");
+assert(storedPrivate.uploadSelection === null, "Session persistence does not hydrate a private upload as visible selection");
+assert(storedPrivate.selectedDesign === null, "Session persistence omits the private title and selected cover");
+assert(storedPrivate.privateUploadRecovery?.ownerUid === "uid-a", "Session persistence retains only a hidden owner-bound recovery reference");
+const reloadedPrivate = loadDraft(privateStorage);
+assert(reloadedPrivate?.coverChoiceRequired === true, "Reload requires cover choice until private access is revalidated");
+assert(reloadedPrivate?.note.text === "Please keep this note safe.", "Private cover hiding preserves the sender's note");
+assert(reloadedPrivate?.recipient?.name === "Recipient", "Private cover hiding preserves the recipient address");
+
+const switchedPrivate = draftReducer(privateDraft, { type: "UPLOAD_IDENTITY_CHANGED", payload: "uid-b" });
+assert(switchedPrivate.uploadSelection === null && switchedPrivate.selectedDesign === null, "Changing UID removes the prior private selection from visible state");
+assert(switchedPrivate.privateUploadRecovery?.ownerUid === "uid-a", "UID change retains recovery under the original owner only");
+assert(switchedPrivate.coverChoiceRequired === true, "UID change blocks checkout until an explicit safe cover choice");
+assert(switchedPrivate.note.text === privateDraft.note.text && switchedPrivate.recipient?.name === "Recipient", "UID change preserves safe note and address fields");
+const wrongOwnerRestore = draftReducer(switchedPrivate, {
+  type: "RESTORE_PRIVATE_UPLOAD", payload: { ownerUid: "uid-b", selection: privateSelection },
+});
+assert(wrongOwnerRestore.uploadSelection === null, "A different UID cannot restore the hidden private selection");
+
+const catalogChoice = draftReducer(switchedPrivate, {
+  type: "SELECT_DESIGN", payload: { presetId: "catalog-cover", imageUrl: "/catalog.jpg", title: "Catalog cover", source: "preset", accepted: true },
+});
+assert(catalogChoice.coverChoiceRequired === false && catalogChoice.selectedDesign?.title === "Catalog cover", "Explicit catalog choice safely unblocks the retained guest draft");
+assert(catalogChoice.privateUploadRecovery === null, "Explicit catalog choice discards recovery so later identity changes cannot override the chosen front");
+const ownerRestore = draftReducer(switchedPrivate, {
+  type: "RESTORE_PRIVATE_UPLOAD", payload: { ownerUid: "uid-a", selection: privateSelection },
+});
+assert(ownerRestore.uploadSelection?.designId === privateSelection.designId && ownerRestore.uploadOwnerUid === "uid-a", "Original owner can restore only after the caller supplies the validated same-owner selection");
+
+// 8. clearDraft verification
+console.log("\n--- 8. Testing clearDraft ---");
 clearDraft(mockStorage);
 assert(mockStorage.getItem(DRAFT_STORAGE_KEY) === null, "clearDraft removes item from storage");
 const afterClear = loadDraft(mockStorage);

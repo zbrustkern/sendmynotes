@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  firestoreDb,
   getSystemIncidentsCollection,
   getSystemConfig,
   setSystemConfig,
 } from "@/lib/firebase-admin";
 import { verifyAdminAuth } from "@/lib/admin-auth";
 import { SystemIncident } from "@/lib/types";
+import { getAdminSessionEmail, ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,10 +24,15 @@ export async function GET(req: NextRequest) {
       .limit(50)
       .get();
 
-    const incidents: SystemIncident[] = [];
+    const incidentsById = new Map<string, SystemIncident>();
     snapshot.forEach((doc) => {
-      incidents.push(doc.data() as SystemIncident);
+      incidentsById.set(doc.id, doc.data() as SystemIncident);
     });
+    // Open incidents are queried independently so an old unresolved item cannot be
+    // hidden behind the recent-history window.
+    const openSnapshot = await getSystemIncidentsCollection().where("resolved", "==", false).get();
+    openSnapshot.forEach((doc) => incidentsById.set(doc.id, doc.data() as SystemIncident));
+    const incidents = [...incidentsById.values()].sort((a, b) => b.createdAt - a.createdAt);
 
     // 2. Fetch alert subscription config
     const alertConfig = await getSystemConfig<{ alertEmail?: string; updatedAt?: number }>(
@@ -55,6 +62,44 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { action } = body;
+
+    if (action === "update_incident") {
+      const incidentId = typeof body.incidentId === "string" ? body.incidentId : "";
+      const status = body.status;
+      const reason = typeof body.reason === "string" ? body.reason.trim().slice(0, 500) : "";
+      if (!incidentId || !["acknowledged", "investigating", "resolved", "verified"].includes(status) || !reason) {
+        return NextResponse.json({ error: "incidentId, a supported status, and reason are required" }, { status: 400 });
+      }
+      const collection = getSystemIncidentsCollection();
+      const reference = collection.doc(incidentId);
+      const actor = getAdminSessionEmail(req.cookies.get(ADMIN_COOKIE_NAME)?.value || "") || "admin-session-operator";
+      const updatedAt = Date.now();
+      const auditId = `incident_audit_${updatedAt}_${Math.random().toString(36).slice(2, 8)}`;
+      const auditRef = firestoreDb.collection("operational_incident_audit").doc(auditId);
+      const transition = await firestoreDb.runTransaction(async (tx: any) => {
+        const before = await tx.get(reference);
+        if (!before.exists) return { missing: true };
+        const current = before.data() as any;
+        const previous = current.lifecycleStatus || (current.resolved ? "resolved" : "open");
+        if (status === "verified" && previous !== "resolved") return { invalid: "Only a resolved incident can be verified." };
+        if (current.resolved && previous === "verified" && status !== "verified") return { invalid: "Verified incidents are closed and cannot move backward." };
+        const resolved = status === "resolved" || status === "verified";
+        tx.set(reference, {
+          ...current,
+          lifecycleStatus: status,
+          ...(status === "acknowledged" && !current.acknowledgedAt ? { acknowledgedAt: updatedAt } : {}),
+          owner: typeof body.owner === "string" && body.owner.trim() ? body.owner.trim().slice(0, 120) : current.owner,
+          resolved,
+          ...(resolved ? { resolvedAt: updatedAt, resolutionNote: reason } : {}),
+          ...(status === "verified" ? { verifiedAt: updatedAt } : {}),
+        });
+        tx.set(auditRef, { id: auditId, incidentId, from: previous, to: status, actor, reason, createdAt: updatedAt });
+        return { missing: false };
+      });
+      if (transition.missing) return NextResponse.json({ error: "Incident not found" }, { status: 404 });
+      if (transition.invalid) return NextResponse.json({ error: transition.invalid }, { status: 409 });
+      return NextResponse.json({ success: true, incidentId, status, updatedAt });
+    }
 
     // Action A: Update Alert Subscription Email
     if (action === "save_alert_email") {

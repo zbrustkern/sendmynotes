@@ -1,3 +1,4 @@
+import { issueOfferPriceQuote, reserveOfferForCheckout } from "../lib/offer-engine";
 import { NextRequest } from "next/server";
 import {
   getAdminSecret,
@@ -51,7 +52,7 @@ async function runSecurityRemediationTests() {
   console.log("--- 1. Testing Admin Auth Fail-Closed & Expiry ---");
 
   // In production, when secret is missing, it must fail closed (return null)
-  (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+  Object.assign(process.env, { NODE_ENV: "production" });
   delete process.env.ADMIN_SECRET_KEY;
   delete process.env["admin-secret-key"];
 
@@ -323,7 +324,7 @@ async function runSecurityRemediationTests() {
   );
 
   // /api/reminders DELETE without auth rejected
-  const unauthDeleteRemReq = new NextRequest("http://localhost:3000/api/reminders?id=rem_123");
+  const unauthDeleteRemReq = new NextRequest("http://localhost:3000/api/reminders?id=rem_123", { method: "DELETE", headers: { origin: "http://localhost:3000", host: "localhost:3000" } });
   const unauthDeleteRemRes = await remindersDelete(unauthDeleteRemReq);
   assert(
     unauthDeleteRemRes.status === 401,
@@ -337,6 +338,8 @@ async function runSecurityRemediationTests() {
 
   const promoCode: DiscountCode = {
     id: "FREE100TEST",
+    createdAt: Date.now(),
+    updatedAt: Date.now(),
     code: "FREE100TEST",
     type: "PERCENTAGE",
     value: 100,
@@ -344,8 +347,6 @@ async function runSecurityRemediationTests() {
     maxUses: 1,
     usedCount: 0,
     totalDiscountGivenCents: 0,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
   };
   await saveDiscountCode(promoCode);
 
@@ -380,7 +381,13 @@ async function runSecurityRemediationTests() {
     createdAt: Date.now(),
     updatedAt: Date.now(),
   };
+  // A free-order fixture must carry the same accepted quote/reservation as checkout.
+  const quoteResult = await issueOfferPriceQuote({ code: "FREE100TEST", sessionId: "security_fixture" });
+  if (!quoteResult.quote) throw new Error("Fixture quote could not be issued");
+  Object.assign(freeOrder, { quoteId: quoteResult.quote.quoteId, finalAmountInCents: 0, discountAmountInCents: 900 });
   await saveOrder(freeOrder);
+  const reserved = await reserveOfferForCheckout({ code: "FREE100TEST", orderId: freeOrderId, sessionId: "security_fixture", quoteId: quoteResult.quote.quoteId });
+  if (!reserved.reserved) throw new Error("Fixture reservation could not be created");
 
   // First completion succeeds
   const completeReq1 = new NextRequest("http://localhost:3000/api/checkout/complete-free-order", {

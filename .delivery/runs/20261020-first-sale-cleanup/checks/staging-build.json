@@ -1,0 +1,10 @@
+{
+  "variant": "staging",
+  "exit_code": 0,
+  "seconds": 18.49,
+  "typecheck": "included in Next build",
+  "local_only_env": {
+    "NEXT_PUBLIC_STAGING_REVIEW_ONLY": "true"
+  },
+  "external_network": "denied"
+}

@@ -9,5 +9,9 @@
       "firebase-debug.*.log",
       "tests"
     ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
   }
 }

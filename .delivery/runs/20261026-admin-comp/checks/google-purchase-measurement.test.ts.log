@@ -1,0 +1,5 @@
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[Incident Logged] [STRIPE] Captured payment requires reconciliation (pi_fixture_webhook_mismatch) (ID: inc_group_8079671922cb2f218e9472fbf263684f_1793048369088_wmnq4u)
+[Webhook] Payment confirmed for Order order_fixture_webhook_processed (mode: live, livemode: true). Processing order...
+[Confirm Order] Mock mode verification active for order order_fixture_refund_confirmation
+google-purchase-measurement: all fixture assertions passed

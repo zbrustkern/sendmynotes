@@ -1,0 +1,224 @@
+{
+  "checkedAt": "2026-10-26T06:45:04.117Z",
+  "project": "sendmynotes-staging",
+  "backend": "sendmynotes-staging",
+  "rollout": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-10-21-001",
+    "state": "SUCCEEDED",
+    "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-21-001"
+  },
+  "build": {
+    "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-21-001",
+    "state": "READY",
+    "source": {
+      "codebase": {
+        "branch": "staging",
+        "displayName": "f97f98f62d0fee461c236c597e33e9f54a7275d3",
+        "hash": "f97f98f62d0fee461c236c597e33e9f54a7275d3",
+        "commitMessage": "fix(copy): clarify custom artwork and verified card details",
+        "uri": "https://github.com/zbrustkern/sendmynotes/commit/f97f98f62d0fee461c236c597e33e9f54a7275d3",
+        "author": {
+          "displayName": "User Name",
+          "email": "zbrustkern@gmail.com",
+          "imageUri": "https://github.com/zbrustkern.png"
+        },
+        "commitTime": "2026-10-21T03:12:42Z"
+      }
+    }
+  },
+  "uri": "https://sendmynotes-staging-eisg3r4teq-uc.a.run.app",
+  "trafficStatuses": [
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-003",
+      "tag": "t-2791258749",
+      "uri": "https://t-2791258749---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-004",
+      "tag": "t-2791258746",
+      "uri": "https://t-2791258746---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-005",
+      "tag": "t-2791258747",
+      "uri": "https://t-2791258747---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-006",
+      "tag": "t-2791258744",
+      "uri": "https://t-2791258744---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-007",
+      "tag": "t-2791258745",
+      "uri": "https://t-2791258745---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-008",
+      "tag": "t-2791258742",
+      "uri": "https://t-2791258742---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-009",
+      "tag": "t-2791258743",
+      "uri": "https://t-2791258743---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-010",
+      "tag": "t-2808036305",
+      "uri": "https://t-2808036305---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-13-011",
+      "tag": "t-2808036304",
+      "uri": "https://t-2808036304---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-001",
+      "tag": "t-3621183093",
+      "uri": "https://t-3621183093---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-002",
+      "tag": "t-3621183094",
+      "uri": "https://t-3621183094---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-003",
+      "tag": "t-3621183095",
+      "uri": "https://t-3621183095---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-004",
+      "tag": "t-3621183088",
+      "uri": "https://t-3621183088---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-005",
+      "tag": "t-3621183089",
+      "uri": "https://t-3621183089---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-006",
+      "tag": "t-3621183090",
+      "uri": "https://t-3621183090---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-007",
+      "tag": "t-3621183091",
+      "uri": "https://t-3621183091---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-008",
+      "tag": "t-3621183100",
+      "uri": "https://t-3621183100---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-15-009",
+      "tag": "t-3621183101",
+      "uri": "https://t-3621183101---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-16-003",
+      "tag": "t-902196132",
+      "uri": "https://t-902196132---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-16-004",
+      "tag": "t-902196131",
+      "uri": "https://t-902196131---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-16-006",
+      "tag": "t-902196129",
+      "uri": "https://t-902196129---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-16-007",
+      "tag": "t-902196128",
+      "uri": "https://t-902196128---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-16-008",
+      "tag": "t-902196143",
+      "uri": "https://t-902196143---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-16-009",
+      "tag": "t-902196142",
+      "uri": "https://t-902196142---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-19-003",
+      "tag": "t-3326296763",
+      "uri": "https://t-3326296763---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-19-004",
+      "tag": "t-3326296764",
+      "uri": "https://t-3326296764---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-19-005",
+      "tag": "t-3326296765",
+      "uri": "https://t-3326296765---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    },
+    {
+      "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+      "revision": "sendmynotes-staging-build-2026-10-21-001",
+      "percent": 100,
+      "tag": "t-2403084704",
+      "uri": "https://t-2403084704---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+    }
+  ],
+  "guards": [
+    {
+      "name": "NEXT_PUBLIC_STAGING_REVIEW_ONLY",
+      "value": "true"
+    },
+    {
+      "name": "FIREBASE_PROJECT_ID",
+      "value": "sendmynotes-staging"
+    },
+    {
+      "name": "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+      "value": "sendmynotes-staging"
+    },
+    {
+      "name": "STAGING_REVIEW_ONLY",
+      "value": "true"
+    },
+    {
+      "name": "HANDWRYTTEN_TEST_MODE",
+      "value": "true"
+    }
+  ],
+  "secretValuesLogged": false
+}

@@ -52,6 +52,15 @@ class MockDocRef<T = unknown> {
     const data = this._collection.store.get(this._id);
     return new MockDocumentSnapshot<T>(this._id, data, this);
   }
+  async create(data: T): Promise<void> {
+    if (this._collection.store.has(this._id)) {
+      const error = new Error(`Document ${this._id} already exists.`) as Error & { code: number };
+      error.code = 6;
+      throw error;
+    }
+    this._collection.store.set(this._id, JSON.parse(JSON.stringify(data)));
+    this._collection.notifyChanged();
+  }
   async set(data: T, options?: { merge?: boolean }): Promise<void> {
     if (options?.merge && this._collection.store.has(this._id)) {
       const existing = this._collection.store.get(this._id);
@@ -92,6 +101,9 @@ class MockQuery<T = Record<string, unknown>> {
     return this;
   }
   limit(n: number) { this.maxResults = Math.max(0, Math.floor(n)); return this; }
+  count() {
+    return { get: async () => { const snapshot = await this.get(); return { data: () => ({ count: snapshot.size }) }; } };
+  }
 
   async get(): Promise<MockQuerySnapshot<T>> {
     const getVal = (item: Record<string, unknown>, path: string): any => path.split(".").reduce((value: any, key) => value == null ? undefined : value[key], item);
@@ -121,7 +133,10 @@ class MockQuery<T = Record<string, unknown>> {
           const cmp = av < bv ? -1 : 1;
           return direction === "desc" ? -cmp : cmp;
         }
-        return a[0].localeCompare(b[0]);
+        // Firestore uses the document name as the final ordering component,
+        // following the direction of the last explicit orderBy clause.
+        const lastDirection = this.orders[this.orders.length - 1]?.direction || "asc";
+        return lastDirection === "desc" ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0]);
       });
     }
     if (this.cursor) {
@@ -135,7 +150,8 @@ class MockQuery<T = Record<string, unknown>> {
             if (value === cursorValue) continue;
             return direction === "desc" ? value < cursorValue : value > cursorValue;
           }
-          return id > (this.cursor?.id || "");
+          const lastDirection = this.orders[this.orders.length - 1]?.direction || "asc";
+          return lastDirection === "desc" ? id < (this.cursor?.id || "") : id > (this.cursor?.id || "");
         });
       } else if (this.cursor.id) rows = rows.filter(([id]) => id > this.cursor!.id!);
     }
@@ -155,7 +171,9 @@ export class MockCollection<T = Record<string, unknown>> {
   }
   where(field: string, op: string, value: unknown) { return new MockQuery<T>(this).where(field, op, value); }
   orderBy(field: string, direction: "asc" | "desc" = "asc") { return new MockQuery<T>(this).orderBy(field, direction); }
+  startAfter(cursor: string | MockDocumentSnapshot<T> | { id?: string; data?: () => T | undefined }) { return new MockQuery<T>(this).startAfter(cursor); }
   limit(n: number) { return new MockQuery<T>(this).limit(n); }
+  count() { return new MockQuery<T>(this).count(); }
   async get(): Promise<MockQuerySnapshot<T>> { return new MockQuery<T>(this).get(); }
 }
 

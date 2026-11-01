@@ -1,0 +1,112 @@
+{
+  "layout": [
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": "builder",
+      "scrollWidth": 320
+    },
+    {
+      "theme": "light",
+      "width": 320,
+      "screen": "admin",
+      "scrollWidth": 320
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "screen": "builder",
+      "scrollWidth": 390
+    },
+    {
+      "theme": "light",
+      "width": 390,
+      "screen": "admin",
+      "scrollWidth": 390
+    },
+    {
+      "theme": "light",
+      "width": 768,
+      "screen": "builder",
+      "scrollWidth": 768
+    },
+    {
+      "theme": "light",
+      "width": 768,
+      "screen": "admin",
+      "scrollWidth": 768
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "screen": "builder",
+      "scrollWidth": 1024
+    },
+    {
+      "theme": "light",
+      "width": 1024,
+      "screen": "admin",
+      "scrollWidth": 1024
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": "builder",
+      "scrollWidth": 320
+    },
+    {
+      "theme": "dark",
+      "width": 320,
+      "screen": "admin",
+      "scrollWidth": 320
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "screen": "builder",
+      "scrollWidth": 390
+    },
+    {
+      "theme": "dark",
+      "width": 390,
+      "screen": "admin",
+      "scrollWidth": 390
+    },
+    {
+      "theme": "dark",
+      "width": 768,
+      "screen": "builder",
+      "scrollWidth": 768
+    },
+    {
+      "theme": "dark",
+      "width": 768,
+      "screen": "admin",
+      "scrollWidth": 768
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "screen": "builder",
+      "scrollWidth": 1024
+    },
+    {
+      "theme": "dark",
+      "width": 1024,
+      "screen": "admin",
+      "scrollWidth": 1024
+    }
+  ],
+  "interactions": [
+    "edit exact lettering",
+    "lettering does not consume image allowance",
+    "block overflowing lettering",
+    "edit and regenerate",
+    "accept into note",
+    "preserve note after changing front",
+    "grant account",
+    "revoke account",
+    "review and publish standards"
+  ],
+  "pageErrors": []
+}
