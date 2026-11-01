@@ -1,7 +1,7 @@
 {
-  "verifiedAt": "2026-11-01T22:09:41.892Z",
-  "candidate": "cc81dd1095eb1d277650cbd15d22660e9dcd0e45",
-  "stagingBuild": "build-2026-11-01-002",
+  "verifiedAt": "2026-11-01T22:19:39.279Z",
+  "candidate": "8373cb3c529ae726ca8c22ee5976364d311e4b35",
+  "stagingBuild": "build-2026-11-01-003",
   "passed": true,
   "productionApplicationAndTrafficUnchanged": true,
   "productionResourcesPreparedSeparately": true,

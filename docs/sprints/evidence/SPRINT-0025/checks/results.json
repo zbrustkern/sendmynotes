@@ -58,7 +58,10 @@
     "logs": {
       "history-fix-account.log": "35c8e20c60fb63bc0f23d2e46e2fa3eb555a73587990d89b3feb58e2bf830f7b",
       "history-fix-typecheck.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "history-fix-build.log": "521f3f0a2cc287e0d212b177499364360ce676ed1d58450c6822aa145742c8c0"
-    }
-  }
+      "history-fix-build.log": "521f3f0a2cc287e0d212b177499364360ce676ed1d58450c6822aa145742c8c0",
+      "history-fix-payment-regression.log": "384f9276126d48aeb3c36293cdf79880d8eb66d6be5c66e76ac1d126ce6cb0a6"
+    },
+    "paymentRecoverySuites": 9
+  },
+  "applicationCandidate": "8373cb3c529ae726ca8c22ee5976364d311e4b35"
 }

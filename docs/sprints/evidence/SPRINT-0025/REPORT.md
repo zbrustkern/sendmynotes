@@ -1,6 +1,6 @@
 # Sprint 0025 — implementation and release evidence
 
-Status: implementation integrated; initial staging rollout passed; signed-in feedback fix prepared; release acceptance remains open. **Not approved for production.**
+Status: deployed to staging at `8373cb3` / build `build-2026-11-01-003`; release acceptance remains open. **Not approved for production.**
 
 The founder authorized sprint planning and Luna execution of the approved readiness plan. Three Luna lanes completed account W1–W4, Studio W5, and integration/operations W0/W7/W8; the coordinator integrated shared builder/checkout code, prepared W6 resources and performed independent review. The original dirty checkout remains unchanged except requested planning/evidence documents.
 
@@ -51,6 +51,6 @@ All 19 findings are mapped. “Implemented” does not mean the external accepta
 
 ## Signed-in feedback and release decision
 
-The founder signed in and reported a client exception opening an empty Card history. The history list route returned a double-wrapped pagination envelope; the page expected an array. The follow-up flattens that response, validates client list shape into recoverable errors, and adds an endpoint-to-consumer regression for empty/populated/paged history. It also fixes overview upcoming dates beyond the first 50 saved occasions. All 14 account suites, TypeScript and production build pass after the fix. Exact follow-up deployment is recorded in STAGING-REPORT.md.
+The founder signed in and reported a client exception opening an empty Card history. The history list route returned a double-wrapped pagination envelope; the page expected an array. The follow-up flattens that response, validates client list shape into recoverable errors, and adds an endpoint-to-consumer regression for empty/populated/paged history. It also fixes overview upcoming dates beyond the first 50 saved occasions. All 14 account suites, TypeScript and production build pass after the fix. The fix is deployed; exact evidence is in STAGING-REPORT.md. Founder retest after refreshing remains pending.
 
 Founder decision: keep manual privacy requests for this release. Zeke is the initial operator; no backup is assigned. Settings already explains that requesting deletion does not immediately delete the account. The suggested privacy@sendmynotes.com mailbox has not been verified/configured; notifications are currently the restricted admin dashboard. No automated erasure is claimed.

@@ -266,12 +266,15 @@
       "run_id": "20261101-production-readiness",
       "execution_model": "gpt-6-luna",
       "planning_method": "two_native_luna_drafts_and_cross_critiques",
-      "implementation_status": "integrated_local_checks_passed",
-      "acceptance_status": "staging_candidate_pending_signed_in_and_operational_review",
-      "release_environment": "staging_then_production_gate",
-      "updated_at": "2026-11-01T22:04:15.607957+00:00",
+      "implementation_status": "integrated_and_deployed_to_staging",
+      "acceptance_status": "founder_signed_in_feedback_fixed_retest_and_release_gates_open",
+      "release_environment": "staging_only",
+      "updated_at": "2026-11-01T22:20:09.127562+00:00",
       "authorization": "Founder requested sprint plan and Luna execution of reviewed readiness plan; production rollout and real optional emails remain separate gates.",
-      "evidence": "docs/sprints/evidence/SPRINT-0025/REPORT.md"
+      "evidence": "docs/sprints/evidence/SPRINT-0025/REPORT.md",
+      "application_candidate": "8373cb3c529ae726ca8c22ee5976364d311e4b35",
+      "staging_build": "build-2026-11-01-003",
+      "privacy_decision": "manual_requests_for_this_release; initial_operator_Zeke"
     }
   ]
 }
