@@ -170,8 +170,9 @@ export function FlowHeader({
                       <>
                         {user.email && <div className="overflow-hidden px-3 py-2 text-xs text-stone-500" title={user.email}><span className="sr-only">Signed in as </span><span className="block truncate">{user.email}</span></div>}
                         <Link href="/account" role="menuitem" onClick={() => setMenuOpen(false)} onKeyDown={handleMenuKeyDown} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-stone-800 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600">
-                          My account
+                          Account
                         </Link>
+                        <Link href="/account/people" role="menuitem" onClick={() => setMenuOpen(false)} onKeyDown={handleMenuKeyDown} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-stone-800 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600">Address book</Link>
                         {studioAccess === "checking" || studioAccess === "resolving" ? <div role="status" className="px-3 py-2 text-sm text-stone-500">Checking studio access…</div> : null}
                         {studioAccess === "active" && <Link href="/create/upload" role="menuitem" onClick={() => setMenuOpen(false)} onKeyDown={handleMenuKeyDown} className="flex min-h-11 w-full items-center rounded-lg px-3 text-left text-sm font-medium text-stone-800 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600">Upload studio</Link>}
                         {studioAccess === "error" && <div className="flex items-center justify-between gap-2 px-3 py-2"><span role="status" className="text-xs text-stone-600">Studio access unavailable</span><button type="button" role="menuitem" onKeyDown={handleMenuKeyDown} onClick={() => void refreshStudioAccess()} className="min-h-9 rounded-lg px-2 text-xs font-semibold text-emerald-900 hover:bg-emerald-50">Retry</button></div>}

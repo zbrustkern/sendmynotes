@@ -141,19 +141,27 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
   sanitized.coverChoiceRequired = activeUpload ? true : record.coverChoiceRequired === true;
 
   const selected = record.selectedDesign as Record<string, unknown> | null | undefined;
+  const library = record.accountImage as Record<string, unknown> | undefined;
+  const validLibrary = library && typeof library.imageId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(library.imageId)
+    && Number.isSafeInteger(library.version) && Number(library.version) > 0
+    && typeof library.masterSha256 === 'string' && /^[a-f0-9]{64}$/.test(library.masterSha256);
+  sanitized.accountImage = validLibrary ? { imageId: library.imageId as string, version: library.version as number, masterSha256: library.masterSha256 as string } : null;
+  sanitized.accountOwnerUid = typeof record.accountOwnerUid === 'string' && record.accountOwnerUid.length <= 128 ? record.accountOwnerUid : null;
   if (selected && typeof selected === "object") {
     const isUpload = selected.source === "upload";
+    const isLibrary = selected.source === 'account';
     sanitized.selectedDesign = {
       presetId: typeof selected.presetId === "string" ? selected.presetId : undefined,
       customId: typeof selected.customId === "string" ? selected.customId : undefined,
-      imageUrl: isUpload ? "" : typeof selected.imageUrl === "string" ? selected.imageUrl : "",
-      title: isUpload ? "" : typeof selected.title === "string" ? selected.title : "",
-      source: isUpload ? "upload" : selected.source === "custom" ? "custom" : "preset",
+      imageUrl: isUpload || isLibrary ? "" : typeof selected.imageUrl === "string" ? selected.imageUrl : "",
+      title: isUpload || isLibrary ? "" : typeof selected.title === "string" ? selected.title : "",
+      source: isUpload ? "upload" : isLibrary ? "account" : selected.source === "custom" ? "custom" : "preset",
       occasion: typeof selected.occasion === "string" ? selected.occasion : undefined,
       accepted: isUpload ? false : typeof selected.accepted === "boolean" ? selected.accepted : false,
       uploadSelection: undefined,
     };
     if (isUpload) sanitized.selectedDesign = null;
+    if (isLibrary && (!validLibrary || !sanitized.accountOwnerUid)) { sanitized.selectedDesign = null; sanitized.coverChoiceRequired = true; }
   }
 
   // Ensure lastCustomArtwork is well-formed if present

@@ -48,7 +48,8 @@
     "test:international": "tsx tests/international-pricing.test.ts",
     "test:upload-creative": "node --import tsx tests/upload-creative.test.ts",
     "test:international-rates": "tsx tests/international-pricing.test.ts",
-    "test:address-intake": "tsx tests/sender-validation.test.ts"
+    "test:address-intake": "tsx tests/sender-validation.test.ts",
+    "test:account": "node scripts/account/run-tests.mjs"
   },
   "dependencies": {
     "@google-cloud/secret-manager": "^7.2.0",

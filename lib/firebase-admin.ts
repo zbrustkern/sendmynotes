@@ -52,6 +52,15 @@ class MockDocRef<T = unknown> {
     const data = this._collection.store.get(this._id);
     return new MockDocumentSnapshot<T>(this._id, data, this);
   }
+  async create(data: T): Promise<void> {
+    if (this._collection.store.has(this._id)) {
+      const error = new Error(`Document ${this._id} already exists.`) as Error & { code: number };
+      error.code = 6;
+      throw error;
+    }
+    this._collection.store.set(this._id, JSON.parse(JSON.stringify(data)));
+    this._collection.notifyChanged();
+  }
   async set(data: T, options?: { merge?: boolean }): Promise<void> {
     if (options?.merge && this._collection.store.has(this._id)) {
       const existing = this._collection.store.get(this._id);
@@ -121,7 +130,10 @@ class MockQuery<T = Record<string, unknown>> {
           const cmp = av < bv ? -1 : 1;
           return direction === "desc" ? -cmp : cmp;
         }
-        return a[0].localeCompare(b[0]);
+        // Firestore uses the document name as the final ordering component,
+        // following the direction of the last explicit orderBy clause.
+        const lastDirection = this.orders[this.orders.length - 1]?.direction || "asc";
+        return lastDirection === "desc" ? b[0].localeCompare(a[0]) : a[0].localeCompare(b[0]);
       });
     }
     if (this.cursor) {
@@ -135,7 +147,8 @@ class MockQuery<T = Record<string, unknown>> {
             if (value === cursorValue) continue;
             return direction === "desc" ? value < cursorValue : value > cursorValue;
           }
-          return id > (this.cursor?.id || "");
+          const lastDirection = this.orders[this.orders.length - 1]?.direction || "asc";
+          return lastDirection === "desc" ? id < (this.cursor?.id || "") : id > (this.cursor?.id || "");
         });
       } else if (this.cursor.id) rows = rows.filter(([id]) => id > this.cursor!.id!);
     }

@@ -1,3 +1,4 @@
+import { recordAcceptedAccountOrder } from "@/lib/account/order-association";
 import { NextRequest, NextResponse } from "next/server";
 import {
   firestoreDb,
@@ -184,6 +185,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { order } = txResult;
+    try { await recordAcceptedAccountOrder(order); } catch { console.warn("[Account] Accepted occurrence projection needs reconciliation."); }
     try { await savePaidOrderReminder(order, effectiveOrderEmail(order, customerEmail)); }
     catch (reminderErr) { console.warn("[Free Order] Notice saving opted-in occasion reminder:", reminderErr instanceof Error ? reminderErr.message : "unknown error"); }
 

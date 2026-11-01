@@ -39,6 +39,10 @@ import { AlertCircle } from "lucide-react";
 import { parseScenarioNote, mapScenarioFontId } from "@/lib/seo-scenarios";
 import { extractRecipientName, extractSenderName } from "@/components/v3/TargetPurchaseExperience";
 import { extractOfferCodeFromUrlParams } from "@/lib/discount";
+import { restoreAccountDraft } from "@/lib/account/builder-state";
+import { useBuilderAccount } from "@/lib/account/use-builder-account";
+import { AccountBuilderTools } from "@/components/account/AccountBuilderTools";
+import type { AccountDraftContent } from "@/lib/account/contracts";
 import type { UploadSelection } from "@/lib/upload/contracts";
 
 export interface EntryPrototypeClientProps {
@@ -160,6 +164,11 @@ export function EntryPrototypeClient({
   const lastResolvedUploadUidRef = useRef<string | null | undefined>(undefined);
   const failedPrivateRecoveryKeyRef = useRef<string | null>(null);
   const privateRequestEpochRef = useRef(0);
+  const checkoutIdentityRef = useRef(user?.uid || '');
+  if (checkoutIdentityRef.current !== (user?.uid || '')) {
+    privateRequestEpochRef.current += 1;
+    checkoutIdentityRef.current = user?.uid || '';
+  }
   const cancelledUploadHandoffRef = useRef("");
   const [isOrderConfirmed, setIsOrderConfirmed] = useState(false);
   const [paymentInFlight, setPaymentInFlight] = useState(false);
@@ -434,6 +443,60 @@ export function EntryPrototypeClient({
   const currentDisplayTotalCents = isInternational
     ? (appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900) + 500
     : amountInCents;
+
+  const [accountLinks, setAccountLinks] = useState<{contactId?:string;occasionId?:string}>({});
+  const toAddressDraft = (value: AddressData): AddressDraft => ({ name:value.fullName,addressLine1:value.street1,addressLine2:value.street2||"",city:value.city,state:value.state,zip:value.zip,country:value.country||"US" });
+  const toAddressData = (value: AddressDraft | null): AddressData => ({ fullName:value?.name||"",street1:value?.addressLine1||"",street2:value?.addressLine2||"",city:value?.city||"",state:value?.state||"",zip:value?.zip||"",country:value?.country||"US" });
+  const resetAccountCheckout = () => {
+    privateRequestEpochRef.current += 1;
+    addressRevision.current += 1;
+    setOrderId(""); setViewToken(null); setClientSecret(null); setIsFreeOrder(false);
+    setIsOrderConfirmed(false); setCheckoutInitError(null); setAppliedDiscount(null);
+    setIsInitializingCheckout(false); setIsAddressDeferred(false);
+    try { for (const key of ['smn_checkout_order_id','smn_checkout_view_token','smn_completed_order_id','smn_completed_view_token']) sessionStorage.removeItem(key); } catch { /* Browser storage is optional. */ }
+  };
+  const accountContent: AccountDraftContent = {
+    selectedDesign:draft.selectedDesign, accountImage:draft.accountImage,
+    note:{...draft.note,salutation,signOff}, recipient:toAddressDraft(recipient),sender:toAddressDraft(sender),
+    ...accountLinks,currentStep:step === "pay" ? "address" : step,
+  };
+  const accountTools = useBuilderAccount({
+    user,loaded:isLoaded,authLoading,disabled:paymentInFlight||isOrderConfirmed||isInitializingCheckout,
+    content:accountContent,ownerUid:draft.accountOwnerUid,
+    draftId:searchParams?.get("accountDraft")||"",contactId:searchParams?.get("accountContact")||"",occasionId:searchParams?.get("accountOccasion")||"",
+    onDraft: saved => {
+      const content=saved.content;
+      const restored=restoreAccountDraft(content,user!.uid,draft.experienceVersion);
+      resetAccountCheckout();
+      dispatch({type:"HYDRATE_DRAFT",payload:restored});
+      setSalutation(content.note.salutation||""); setSignOff(content.note.signOff||"");
+      const nextRecipient=toAddressData(content.recipient);
+      setRecipient(nextRecipient);
+      if(isInternationalCountry(nextRecipient.country)) setInternationalRecipient(nextRecipient); else setDomesticRecipient(nextRecipient);
+      setSender(toAddressData(content.sender));
+      setAccountLinks({contactId:content.contactId,occasionId:content.occasionId});
+      setUserCustomizedNote(true);setUserCustomizedRecipientName(true);setUserCustomizedSenderName(true);
+      markUserCustomEdit();setStep("card");
+    },
+    onContact: (contact,occasion) => {
+      const address=contact.address;
+      const next:AddressData={fullName:address?[address.firstName,address.lastName].filter(Boolean).join(" "):contact.displayName,street1:address?.street1||"",street2:address?.street2||"",city:address?.city||"",state:address?.state||"",zip:address?.zip||"",country:address?.country||"US"};
+      resetAccountCheckout();setRecipient(next);
+      if(isInternationalCountry(next.country))setInternationalRecipient(next);else setDomesticRecipient(next);
+      dispatch({type:"UPDATE_RECIPIENT",payload:toAddressDraft(next)});
+      setAccountLinks({contactId:contact.id,occasionId:occasion?.id});setUserCustomizedRecipientName(true);markUserCustomEdit();
+      if(step==="pay")setStep("address");
+    },
+    onPrivateInvalidated:()=>{
+      resetAccountCheckout(); setAccountLinks({});
+      if(draft.accountImage){dispatch({type:"CLEAR_ACCOUNT_IMAGE"});setStep("card");}
+    },
+    onDefaultReturn:preferences=>{
+      const address=preferences.defaultReturnAddress;
+      if(!address||Object.values(sender).some(value=>Boolean(value&&value!=="US"))||draft.sender?.name)return;
+      setSender({fullName:[address.firstName,address.lastName].filter(Boolean).join(" "),street1:address.street1,street2:address.street2||"",city:address.city,state:address.state,zip:address.zip,country:address.country||"US"});
+    },
+  });
 
   useEffect(() => {
     let alive = true;
@@ -840,6 +903,7 @@ export function EntryPrototypeClient({
     if (draft.coverChoiceRequired) {
       return { imageUrl: "", title: "Choose a card front", presetId: undefined, occasion: occasionParam || CARD_PRESETS[0].occasion };
     }
+    if (draft.selectedDesign?.source === "account") return {imageUrl:accountTools.previewUrl,title:accountTools.previewTitle||"Saved card front",presetId:undefined,occasion:draft.selectedDesign.occasion||"general"};
     if (draft.selectedDesign) {
       const isHiddenUpload = draft.selectedDesign.source === "upload" && !privatePreviewReady;
       const presetMatch = CARD_PRESETS.find((p) => p.id === draft.selectedDesign?.presetId);
@@ -866,7 +930,7 @@ export function EntryPrototypeClient({
       presetId: defaultPreset.id,
       occasion: defaultPreset.occasion,
     };
-  }, [draft.selectedDesign, draft.coverChoiceRequired, initialPreset, occasionParam, uploadPreviewUrl, privatePreviewReady]);
+  }, [draft.selectedDesign, draft.coverChoiceRequired, initialPreset, occasionParam, uploadPreviewUrl, privatePreviewReady, accountTools.previewUrl, accountTools.previewTitle]);
 
   // Telemetry on initial load
   useEffect(() => {
@@ -1210,6 +1274,7 @@ export function EntryPrototypeClient({
     addressRevision.current += 1;
     markUserCustomEdit();
     if (field === "fullName") {
+      setAccountLinks({});
       setUserCustomizedRecipientName(true);
     }
     const updated = { ...recipient, [field]: value };
@@ -1284,7 +1349,7 @@ export function EntryPrototypeClient({
 
   // Navigation handlers
   const handleStepTransition = (nextStep: FlowStep) => {
-    if (draft.coverChoiceRequired || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
+    if (draft.coverChoiceRequired || (draft.accountImage && !accountTools.ready) || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
       setUploadHandoffError(draft.coverChoiceRequired
         ? "Sign in to the account that saved this private card front, or choose a catalog front. Your note and addresses are still here."
         : "Please wait while we verify your private card front.");
@@ -1485,16 +1550,15 @@ export function EntryPrototypeClient({
     expectedAmountInCents?: number,
     allowDuringDiscountValidation = false
   ) => {
-    if (draft.coverChoiceRequired || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
+    if (draft.coverChoiceRequired || (draft.accountImage && !accountTools.ready) || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
       setCheckoutInitError(draft.coverChoiceRequired
         ? "Sign in to the account that saved this private card front, or choose a catalog front. Your note and addresses are still here."
         : "Please wait while we verify your private card front.");
       return false;
     }
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
-    const privateCheckout = Boolean(draft.uploadSelection);
     const privateCheckoutEpoch = privateRequestEpochRef.current;
-    const privateCheckoutIsStale = () => privateCheckout && privateCheckoutEpoch !== privateRequestEpochRef.current;
+    const privateCheckoutIsStale = () => privateCheckoutEpoch !== privateRequestEpochRef.current;
     checkoutRequestInFlight.current = true;
     const requestedAddressRevision = addressRevision.current;
     setCheckoutInitError(null);
@@ -1569,13 +1633,16 @@ export function EntryPrototypeClient({
       const senderFirstName = senderParts[0] || "Friend";
       const senderLastName = senderParts.slice(1).join(" ") || "";
 
+      const accountToken = user ? await user.getIdToken() : null;
+      if (privateCheckoutIsStale()) return false;
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
-        headers: { "Content-Type": "application/json", ...(draft.uploadSelection && user ? { Authorization: `Bearer ${await user.getIdToken()}` } : {}) },
+        headers: { "Content-Type": "application/json", ...(accountToken ? { Authorization: `Bearer ${accountToken}` } : {}) },
         body: JSON.stringify({
           occasion: currentCard.occasion,
-          ...(draft.uploadSelection ? {} : { frontImageUrl: currentCard.imageUrl }),
+          ...((draft.uploadSelection || draft.accountImage) ? {} : { frontImageUrl: currentCard.imageUrl }),
           ...(draft.uploadSelection ? { uploadDesign: draft.uploadSelection } : {}),
+          ...(draft.accountImage ? {accountImage:draft.accountImage} : {}),
           printedMessage: "",
           handwrittenNote: fullHandwrittenMessage,
           fontStyleId: draft.note.style || "hwDavid",
@@ -1602,7 +1669,7 @@ export function EntryPrototypeClient({
           },
           customerEmail,
           contactPolicyVersion: 1,
-          userId: user?.uid,
+          ...(accountLinks.occasionId ? {accountOccasionId:accountLinks.occasionId,accountContactId:accountLinks.contactId} : {}),
           discountCode: discountCodeToUse,
           attribution: getStoredAttribution() || undefined,
           sessionId: getSessionId(),
@@ -1890,6 +1957,7 @@ export function EntryPrototypeClient({
     setAddressValidationError(null);
     setSalutation("");
     setSignOff("");
+    setAccountLinks({});
     setRecipient({
       fullName: "",
       street1: "",
@@ -1953,6 +2021,7 @@ export function EntryPrototypeClient({
       step === "pay" &&
       !authLoading &&
       !draft.coverChoiceRequired &&
+      (!draft.accountImage || accountTools.ready) &&
       (!draft.uploadSelection || (
         privatePreviewReady && !uploadHandoffLoading &&
         verifiedUploadDesignId === draft.uploadSelection.designId &&
@@ -1967,7 +2036,7 @@ export function EntryPrototypeClient({
     ) {
       initializeCheckout();
     }
-  }, [isLoaded, authLoading, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.appliedOffer, draft.uploadSelection, draft.coverChoiceRequired, privatePreviewReady, uploadHandoffLoading, verifiedUploadDesignId, verifiedUploadOwnerUid, user?.uid]);
+  }, [isLoaded, authLoading, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.appliedOffer, draft.uploadSelection, draft.coverChoiceRequired, draft.accountImage, accountTools.ready, privatePreviewReady, uploadHandoffLoading, verifiedUploadDesignId, verifiedUploadOwnerUid, user?.uid]);
 
   // Check if address is valid for advancing
   const isAddressValid = isAddressDeferred
@@ -2054,6 +2123,7 @@ export function EntryPrototypeClient({
           </button>
         </div>
       )}
+      <AccountBuilderTools tools={accountTools} signedIn={Boolean(user)} disabled={paymentInFlight||isOrderConfirmed||isInitializingCheckout} addressStep={step==="address"} />
       <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
       {!draft.coverChoiceRequired && (uploadHandoffLoading || uploadHandoffError) && <div className="mx-auto mt-3 max-w-3xl px-4"><p role={uploadHandoffError ? "alert" : "status"} className={`rounded-xl px-4 py-3 text-sm ${uploadHandoffError ? "bg-amber-50 text-amber-900" : "bg-stone-50 text-stone-600"}`}>{uploadHandoffError || "Checking your private card front…"}</p></div>}
 
@@ -2061,7 +2131,7 @@ export function EntryPrototypeClient({
       <main className="flex-1 w-full">
         {step === "card" && (
           <EntryCardStep
-            selectedDesign={draft.selectedDesign?.source === "upload" && !privatePreviewReady ? null : draft.selectedDesign}
+            selectedDesign={draft.selectedDesign?.source === "account" ? (accountTools.ready ? {...draft.selectedDesign,imageUrl:accountTools.previewUrl,title:accountTools.previewTitle} : null) : draft.selectedDesign?.source === "upload" && !privatePreviewReady ? null : draft.selectedDesign}
             onSelectDesign={handleSelectPreset}
             onAcceptAndContinue={() => handleStepTransition("note")}
             initialOccasion={occasionParam}
@@ -2140,7 +2210,7 @@ export function EntryPrototypeClient({
           </div>
         )}
 
-        {step === "pay" && !draft.coverChoiceRequired && (!draft.uploadSelection || (privatePreviewReady && !uploadHandoffLoading && verifiedUploadDesignId === draft.uploadSelection.designId && verifiedUploadOwnerUid === user?.uid)) && (
+        {step === "pay" && !draft.coverChoiceRequired && (!draft.accountImage || accountTools.ready) && (!draft.uploadSelection || (privatePreviewReady && !uploadHandoffLoading && verifiedUploadDesignId === draft.uploadSelection.designId && verifiedUploadOwnerUid === user?.uid)) && (
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step4ReviewAndPayment
               isUpdatingCheckout={isInitializingCheckout}
@@ -2189,7 +2259,7 @@ export function EntryPrototypeClient({
           priceSubtext={isInternational ? "International mailing included" : "USPS mailing included"}
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
-          isDisabled={step === "card" ? draft.coverChoiceRequired || !draft.selectedDesign || Boolean(draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) : false}
+          isDisabled={step === "card" ? draft.coverChoiceRequired || !draft.selectedDesign || Boolean(draft.accountImage && !accountTools.ready) || Boolean(draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) : false}
           onPrimaryClick={() => {
             if (step === "card") {
               handleStepTransition("note");

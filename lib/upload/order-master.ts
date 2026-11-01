@@ -5,6 +5,8 @@ import { UploadError, type UploadDesign, type UploadOrderMaster } from './contra
 import { isSameOrigin } from './http';
 import { validateUploadCheckoutSelection } from './generation';
 import type { Order } from '../types';
+import { requireAccountActor } from '@/lib/account/http';
+import { readAccountImageForOrder } from '@/lib/account/images';
 
 type PinDependencies = {
   actor: typeof requireUploadActor;
@@ -19,8 +21,22 @@ const defaultPinDependencies: PinDependencies = {
 /** Copy the verified accepted master before payment/offer side effects. The order
  * copy lives outside draft cleanup and cannot change with grants or recomposition. */
 export async function pinUploadOrderMaster(req: NextRequest, body: Record<string, unknown>, orderId: string, deps: PinDependencies = defaultPinDependencies): Promise<UploadOrderMaster | undefined> {
+  const hasAccountImage = body.accountImage !== undefined && body.accountImage !== null;
+  const hasUploadDesign = body.uploadDesign !== undefined && body.uploadDesign !== null;
+  const hasFrontUrl = typeof body.frontImageUrl === 'string' && body.frontImageUrl.length > 0;
+  if ((hasAccountImage && (hasUploadDesign || hasFrontUrl)) || (hasUploadDesign && hasFrontUrl)) {
+    throw new UploadError('mixed_cover', 'Choose one card front.', 400);
+  }
+  if (hasAccountImage) {
+    if (!/^order_[a-zA-Z0-9_-]{1,128}$/.test(orderId)) throw new UploadError('invalid_order_id', 'Invalid order identity.', 400);
+    if (!isSameOrigin(req)) throw new UploadError('origin_forbidden', 'Request origin is not allowed.', 403);
+    const actor = await requireAccountActor(req, true);
+    const pinned = await readAccountImageForOrder(actor, body.accountImage);
+    const masterKey = await putPrivateOrderAsset(actor.uid, orderId, pinned.bytes);
+    return { designId: `account_${pinned.image.id}`, revision: pinned.image.version, masterSha256: pinned.masterSha256, masterKey, uid: actor.uid, requiresUploadGrant: pinned.image.requiresUploadGrant };
+  }
   if (body.uploadDesign === undefined) {
-    if (typeof body.frontImageUrl === 'string' && (/^(blob:|upload:)/.test(body.frontImageUrl) || body.frontImageUrl.includes('/api/upload/'))) {
+    if (typeof body.frontImageUrl === 'string' && (/^(blob:|upload:)/.test(body.frontImageUrl) || body.frontImageUrl.includes('/api/upload/') || body.frontImageUrl.includes('/api/account/images/'))) {
       throw new UploadError('upload_selection_required', 'Select your accepted upload cover again.', 400);
     }
     return undefined;
@@ -36,7 +52,7 @@ export async function pinUploadOrderMaster(req: NextRequest, body: Record<string
   const hash = createHash('sha256').update(bytes).digest('hex');
   if (hash !== design.masterSha256) throw new UploadError('master_mismatch', 'Your card front could not be verified. Please preview it again.', 409);
   const masterKey = await deps.write(actor.uid, orderId, bytes);
-  return { designId: design.id, revision: design.revision, masterSha256: hash, masterKey, uid: actor.uid };
+  return { designId: design.id, revision: design.revision, masterSha256: hash, masterKey, uid: actor.uid, requiresUploadGrant: true };
 }
 
 export async function readOrderUploadMaster(master: UploadOrderMaster): Promise<Buffer> {

@@ -1,5 +1,6 @@
 
 import type { UploadSelection } from "@/lib/upload/contracts";
+import type { AccountImageSelection } from "@/lib/account/contracts";
 
 /**
  * Versioned Draft State & Content Model for SendMyNotes.
@@ -19,7 +20,7 @@ export interface SelectedDesign {
   customId?: string;
   imageUrl: string;
   title: string;
-  source: "preset" | "custom" | "upload";
+  source: "preset" | "custom" | "upload" | "account";
   occasion?: string;
   accepted: boolean;
   uploadSelection?: UploadSelection;
@@ -116,6 +117,8 @@ export interface DraftOptionalPreferences {
  * Complete draft state object.
  */
 export interface DraftState {
+  accountImage?: AccountImageSelection | null;
+  accountOwnerUid?: string | null;
   schemaVersion: number;
   createdAt: number;
   updatedAt: number;
@@ -159,6 +162,8 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "draftRevision",
   "experienceVersion",
   "selectedDesign",
+  "accountImage",
+  "accountOwnerUid",
   "uploadSelection",
   "uploadOwnerUid",
   "privateUploadRecovery",

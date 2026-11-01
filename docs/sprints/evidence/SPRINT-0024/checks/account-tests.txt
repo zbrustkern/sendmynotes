@@ -1,0 +1,170 @@
+> sendmynotes@0.1.0 test:account
+> node scripts/account/run-tests.mjs
+
+
+Running account-builder
+Account builder: resume authority, private persistence, identity reset and catalog recovery passed.
+
+Running account-order-association
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Account order association: UID authority, CSRF, exact occurrence, foreign owner and trusted acceptance checks passed.
+
+Running account-routes-security
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Account API security: private caching, authentication, CSRF, owner spoofing, cross-account reads and optimistic conflict passed.
+
+Running account-preferences
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+account preferences synthetic-storage checks passed
+
+Running account-privacy-requests
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+privacy requests route synthetic-storage checks passed
+
+Running account-history
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+account history synthetic-storage checks passed
+
+Running legacy-reminder-retirement
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+legacy reminder retirement synthetic-storage checks passed
+
+Running account-library-drafts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+account library isolation and durable draft allowlist checks passed
+
+Running sprint-0024-people-reminders
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+SPRINT-0024 people/reminders checks passed
+
+Running draft
+=================================================
+🧪 RUNNING DRAFT MODEL & STORE TESTS (S1-01)
+=================================================
+
+--- 1. Testing Initial Draft Structure ---
+✅ PASS: Schema version is 1
+✅ PASS: Initial draftRevision is 0
+✅ PASS: Initial selectedDesign is null
+✅ PASS: Experience version initialized
+✅ PASS: Initial note text is empty
+✅ PASS: Initial recipient is null
+✅ PASS: Initial sender is null
+
+--- 2. Testing draftRevision Increments ---
+✅ PASS: draftRevision increments to 1 on SELECT_DESIGN
+✅ PASS: selectedDesign is set
+✅ PASS: Selection is not yet accepted (displaying != acceptance)
+✅ PASS: draftRevision increments to 2 on ACCEPT_DESIGN
+✅ PASS: selectedDesign is marked accepted
+✅ PASS: draftRevision increments to 3 on UPDATE_NOTE
+✅ PASS: Note text updated
+✅ PASS: draftRevision increments to 4 on UPDATE_RECIPIENT
+✅ PASS: draftRevision increments to 5 on UPDATE_SENDER
+
+--- 3. Testing Storage Survival (Page Refresh) ---
+✅ PASS: Draft saved successfully to storage
+✅ PASS: Raw JSON exists in storage
+✅ PASS: Draft successfully loaded from storage
+✅ PASS: Loaded draft preserved draftRevision
+✅ PASS: Loaded draft preserved card selection
+✅ PASS: Loaded draft preserved accepted state
+✅ PASS: Loaded draft preserved note text
+✅ PASS: Loaded draft preserved recipient
+✅ PASS: Loaded draft preserved the international destination country
+✅ PASS: Loaded draft preserved an alphanumeric international postal code
+✅ PASS: Loaded draft preserved sender
+
+--- 4. Testing 24-Hour Expiry ---
+✅ PASS: Draft older than 24h is discarded
+✅ PASS: Storage item removed on expiry
+✅ PASS: Draft updated 2h ago is accepted
+
+--- 5. Testing Schema Version Mismatch ---
+✅ PASS: Mismatched schema version is safely discarded
+✅ PASS: Mismatched storage item cleared
+
+--- 6. Testing Forbidden Sensitive Keys Exclusion ---
+✅ PASS: Stored draft does not contain forbidden key 'clientSecret'
+✅ PASS: Stored draft does not contain forbidden key 'client_secret'
+✅ PASS: Stored draft does not contain forbidden key 'card'
+✅ PASS: Stored draft does not contain forbidden key 'cardNumber'
+✅ PASS: Stored draft does not contain forbidden key 'card_number'
+✅ PASS: Stored draft does not contain forbidden key 'cvc'
+✅ PASS: Stored draft does not contain forbidden key 'cvv'
+✅ PASS: Stored draft does not contain forbidden key 'paymentMethod'
+✅ PASS: Stored draft does not contain forbidden key 'payment_method'
+✅ PASS: Stored draft does not contain forbidden key 'stripeKey'
+✅ PASS: Stored draft does not contain forbidden key 'stripe_key'
+✅ PASS: Stored draft does not contain forbidden key 'viewToken'
+✅ PASS: Stored draft does not contain forbidden key 'view_token'
+✅ PASS: Stored draft does not contain forbidden key 'receiptToken'
+✅ PASS: Stored draft does not contain forbidden key 'receipt_token'
+✅ PASS: Stored draft does not contain forbidden key 'secret'
+✅ PASS: Stored key 'schemaVersion' is on the allowed keys list
+✅ PASS: Stored key 'createdAt' is on the allowed keys list
+✅ PASS: Stored key 'updatedAt' is on the allowed keys list
+✅ PASS: Stored key 'draftRevision' is on the allowed keys list
+✅ PASS: Stored key 'experienceVersion' is on the allowed keys list
+✅ PASS: Stored key 'selectedDesign' is on the allowed keys list
+✅ PASS: Stored key 'accountImage' is on the allowed keys list
+✅ PASS: Stored key 'accountOwnerUid' is on the allowed keys list
+✅ PASS: Stored key 'uploadSelection' is on the allowed keys list
+✅ PASS: Stored key 'uploadOwnerUid' is on the allowed keys list
+✅ PASS: Stored key 'privateUploadRecovery' is on the allowed keys list
+✅ PASS: Stored key 'coverChoiceRequired' is on the allowed keys list
+✅ PASS: Stored key 'note' is on the allowed keys list
+✅ PASS: Stored key 'recipient' is on the allowed keys list
+✅ PASS: Stored key 'sender' is on the allowed keys list
+✅ PASS: Stored key 'schedule' is on the allowed keys list
+✅ PASS: Stored key 'discountCode' is on the allowed keys list
+✅ PASS: Stored key 'appliedOffer' is on the allowed keys list
+✅ PASS: Stored key 'attribution' is on the allowed keys list
+✅ PASS: Stored key 'customGeneration' is on the allowed keys list
+✅ PASS: Stored key 'checkoutSnapshotId' is on the allowed keys list
+✅ PASS: Stored key 'checkoutContact' is on the allowed keys list
+✅ PASS: Stored key 'currentStep' is on the allowed keys list
+✅ PASS: Stored key 'completed' is on the allowed keys list
+✅ PASS: Stored key 'lastCustomArtwork' is on the allowed keys list
+✅ PASS: Poisoned clientSecret was stripped on save
+✅ PASS: Poisoned card data was stripped on save
+✅ PASS: Poisoned viewToken was stripped on save
+✅ PASS: Poisoned stripeKey was stripped on save
+
+--- 7. Testing Private Upload Account Boundaries ---
+✅ PASS: Validated owner can restore the private selection in memory
+✅ PASS: Session persistence does not hydrate a private upload as visible selection
+✅ PASS: Session persistence omits the private title and selected cover
+✅ PASS: Session persistence retains only a hidden owner-bound recovery reference
+✅ PASS: Reload requires cover choice until private access is revalidated
+✅ PASS: Private cover hiding preserves the sender's note
+✅ PASS: Private cover hiding preserves the recipient address
+✅ PASS: Changing UID removes the prior private selection from visible state
+✅ PASS: UID change retains recovery under the original owner only
+✅ PASS: UID change blocks checkout until an explicit safe cover choice
+✅ PASS: UID change preserves safe note and address fields
+✅ PASS: A different UID cannot restore the hidden private selection
+✅ PASS: Explicit catalog choice safely unblocks the retained guest draft
+✅ PASS: Explicit catalog choice discards recovery so later identity changes cannot override the chosen front
+✅ PASS: Original owner can restore only after the caller supplies the validated same-owner selection
+
+--- 8. Testing clearDraft ---
+✅ PASS: clearDraft removes item from storage
+✅ PASS: loadDraft returns null after clearDraft
+
+=================================================
+🎉 ALL DRAFT MODEL TESTS PASSED (94/94)
+=================================================
+
+Running upload-checkout
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+upload checkout: byte identity, verified UID, mixed/stale/revoked rejection, private serialization and pre-payment auth passed
+
+Running upload-routes-security
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+upload route security tests passed
+
+Running optional-account-menu
+optional account menu access-state tests passed
+
+Account sprint and related regression suites passed.

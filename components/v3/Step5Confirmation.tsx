@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   CheckCircle2,
   Clock,
@@ -12,15 +13,11 @@ import {
   ArrowRight,
   ShieldCheck,
   Feather,
-  Bell,
   Check,
-  Loader2,
-  Calendar,
   Copy,
   Share2,
 } from "lucide-react";
 import confetti from "canvas-confetti";
-import { detectCardIntent } from "@/lib/card-intent";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { cancelGoogleAdsPurchaseRetries, trackGoogleAdsPurchase } from "@/lib/google-ads";
@@ -124,24 +121,6 @@ export function Step5Confirmation({
     };
   }, [orderId, viewToken, fulfillmentStatus, amountInCents, customerEmail, cardTitle, sender.fullName, recipient.city, recipient.state, recipient.zip, isPreviewHoldActive]);
 
-  // Occasion intent classification
-  const intentConfig = useMemo(() => {
-    return detectCardIntent({
-      occasion,
-      printedMessage: "",
-      handwrittenNote: [salutation, bodyNote, signOff].filter(Boolean).join("\n\n"),
-      recipientAddress: {
-        firstName: recipient.fullName.split(" ")[0] || "Recipient",
-        lastName: recipient.fullName.split(" ").slice(1).join(" ") || "",
-        street1: recipient.street1,
-        city: recipient.city,
-        state: recipient.state,
-        zip: recipient.zip,
-        country: recipient.country || "US",
-      },
-    });
-  }, [occasion, salutation, bodyNote, signOff, recipient]);
-
   // Deferred Address State & Magic Link Helpers
   const isDeferred = Boolean(isAddressDeferred || !recipient.street1?.trim());
 
@@ -183,50 +162,6 @@ export function Step5Confirmation({
       } catch {
         // fallback
       }
-    }
-  };
-
-  // Retention Reminder State
-  const [reminderSaved, setReminderSaved] = useState(false);
-  const [reminderLoading, setReminderLoading] = useState(false);
-
-  const handleSaveReminder = async () => {
-    if (!customerEmail) return;
-    setReminderLoading(true);
-
-    try {
-      const res = await fetch("/api/reminders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipientName: recipient.fullName,
-          userEmail: customerEmail,
-          occasionType: intentConfig.defaultOccasionType,
-          occasionTitle: intentConfig.defaultOccasionTitle,
-          month: intentConfig.suggestedMonth,
-          day: intentConfig.suggestedDay,
-          remindDaysBefore: intentConfig.interactionMode === "care_checkin" ? 0 : 14,
-          orderId,
-          recipientAddress: {
-            firstName: recipient.fullName.split(" ")[0] || "Recipient",
-            lastName: recipient.fullName.split(" ").slice(1).join(" ") || "",
-            street1: recipient.street1,
-            street2: recipient.street2,
-            city: recipient.city,
-            state: recipient.state,
-            zip: recipient.zip,
-            country: recipient.country || "US",
-          },
-        }),
-      });
-
-      if (res.ok) {
-        setReminderSaved(true);
-      }
-    } catch (err) {
-      console.warn("Notice saving reminder:", err);
-    } finally {
-      setReminderLoading(false);
     }
   };
 
@@ -438,43 +373,10 @@ export function Step5Confirmation({
         </div>
       </div>
 
-      {/* OCCASION-TAILORED RETENTION PROMPT (1-CLICK ANNUAL REMINDER) */}
-      {!isPreviewHoldActive && Boolean(customerEmail) && <div className="bg-amber-50/70 rounded-3xl p-6 sm:p-7 border border-amber-200/90 shadow-xs space-y-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xl">{intentConfig.badgeEmoji}</span>
-          <span className="text-xs font-semibold uppercase tracking-wider text-amber-900">
-            {intentConfig.badgeLabel}
-          </span>
-        </div>
-
-        <h3 className="font-serif font-bold text-base sm:text-lg text-stone-900">
-          {intentConfig.headline}
-        </h3>
-
-        <p className="text-xs text-stone-600 leading-relaxed">
-          {intentConfig.description}
-        </p>
-
-        {reminderSaved ? (
-          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2 text-xs font-semibold text-emerald-800">
-            <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-            <span>{intentConfig.successTitle} — {intentConfig.successDescription}</span>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleSaveReminder}
-            disabled={reminderLoading}
-            className="w-full sm:w-auto px-5 py-2.5 bg-amber-800 hover:bg-amber-900 text-white rounded-xl text-xs font-semibold shadow-xs transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            {reminderLoading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Bell className="w-3.5 h-3.5" />
-            )}
-            <span>{intentConfig.primaryButtonLabel} (1-Click Opt-In)</span>
-          </button>
-        )}
+      {!isPreviewHoldActive && <div className="bg-amber-50/70 rounded-3xl p-6 sm:p-7 border border-amber-200/90 shadow-xs space-y-3">
+        <h3 className="font-serif font-bold text-base sm:text-lg text-stone-900">Remember a date for next time</h3>
+        <p className="text-xs text-stone-600 leading-relaxed">No occasion reminder was set from this order. If you’d like to keep a date in your account, add it to Dates &amp; reminders. You can choose whether to opt in there.</p>
+        <Link href="/account/dates" className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-800 px-5 py-2.5 text-xs font-semibold text-white shadow-xs transition hover:bg-amber-900">Manage dates &amp; reminders</Link>
       </div>}
 
       {/* SUMMARY RECAP CARD */}

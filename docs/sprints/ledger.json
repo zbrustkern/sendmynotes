@@ -242,6 +242,20 @@
       "implementation_status": "implemented_local_checks_passed",
       "acceptance_status": "staging_verification_pending",
       "evidence": "docs/sprints/evidence/SPRINT-0023/REPORT.md"
+    },
+    {
+      "id": "SPRINT-0024",
+      "title": "Your personal SendMyNotes account",
+      "path": "docs/sprints/SPRINT-0024.md",
+      "status": "active",
+      "execution_model": "gpt-6-luna",
+      "planning_method": "two_native_luna_drafts_and_cross_critiques",
+      "implementation_status": "implemented_local_checks_passed",
+      "release_environment": "local_review_only",
+      "baseline_commit": "027e75a",
+      "updated_at": "2026-11-01T20:32:02.494457+00:00",
+      "evidence": "docs/sprints/evidence/SPRINT-0024/REPORT.md",
+      "acceptance_status": "signed_in_visual_and_hosted_verification_pending"
     }
   ]
 }

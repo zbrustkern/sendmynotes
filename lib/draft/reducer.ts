@@ -20,13 +20,14 @@ export type DraftAction =
         customId?: string;
         imageUrl: string;
         title: string;
-        source: "preset" | "custom" | "upload";
+        source: "preset" | "custom" | "upload" | "account";
         occasion?: string;
         accepted?: boolean;
         uploadSelection?: UploadSelection;
       };
     }
   | { type: "ACCEPT_DESIGN" }
+  | { type: "CLEAR_ACCOUNT_IMAGE" }
   | { type: "RESTORE_PRIVATE_UPLOAD"; payload: PrivateUploadRecovery & { replaceRecovery?: boolean } }
   | { type: "SET_PRIVATE_UPLOAD_RECOVERY"; payload: PrivateUploadRecovery | null }
   | { type: "UPLOAD_IDENTITY_CHANGED"; payload: string | null }
@@ -81,6 +82,10 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
   const now = Date.now();
 
   switch (action.type) {
+    case "CLEAR_ACCOUNT_IMAGE": return { ...state, accountImage: null, accountOwnerUid: null,
+      selectedDesign: state.selectedDesign?.source === 'account' ? null : state.selectedDesign,
+      coverChoiceRequired: state.selectedDesign?.source === 'account' || state.coverChoiceRequired,
+      checkoutSnapshotId: null, appliedOffer: null, updatedAt: now, draftRevision: state.draftRevision + 1 };
     case "SELECT_DESIGN": {
       const isSameSelection =
         state.selectedDesign !== null &&
@@ -116,6 +121,8 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         updatedAt: now,
         draftRevision: state.draftRevision + 1,
         lastCustomArtwork: nextCustomArtwork,
+        accountImage: action.payload.source === 'account' ? state.accountImage : null,
+        accountOwnerUid: action.payload.source === 'account' ? state.accountOwnerUid : null,
         selectedDesign: {
           presetId: action.payload.presetId,
           customId: action.payload.customId,
@@ -160,6 +167,8 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         updatedAt: now,
         draftRevision: state.draftRevision + 1,
         uploadSelection: action.payload.selection,
+        accountImage: null,
+        accountOwnerUid: null,
         uploadOwnerUid: action.payload.ownerUid,
         privateUploadRecovery: null,
         coverChoiceRequired: false,

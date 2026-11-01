@@ -1,3 +1,4 @@
+import { recordAcceptedAccountOrder } from "@/lib/account/order-association";
 import {
   firestoreDb,
   getOrdersCollection,
@@ -255,6 +256,9 @@ export async function processPaidOrder(
     if (!alreadySubmitted) await updateOrderStatus(orderId, { status: "PAYMENT_VERIFICATION_FAILED", fulfillmentError: paymentCheck.reason } as any);
     return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: paymentCheck.reason || "Payment verification failed." };
   }
+  // A failed reminder projection must not change payment or fulfillment authority.
+  try { await recordAcceptedAccountOrder({...authorityOrder,paymentMode:localMockAllowed?"local_mock":isLivePayment?"live":"stripe_test"}); }
+  catch { console.warn("[Account] Accepted occurrence projection needs reconciliation."); }
   if ((authorityOrder.contactPolicyVersion === 1 || authorityOrder.contactEmailChoice) && (!authorityOrder.contactEmailChoice || authorityOrder.contactEmailSyncStatus !== "synced")) {
     await updateOrderStatus(orderId, {
       status: "PAYMENT_RECEIVED",

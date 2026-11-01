@@ -6,6 +6,7 @@ import { checkRateLimit, refundRateLimit } from "@/lib/rate-limiter";
 import { logIncident } from "@/lib/incident-logger";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { resolveOperationId, withOperationId } from "@/lib/operation-diagnostics";
+import { issueGeneratedSaveCapability } from '@/lib/account/images';
 
 export async function POST(req: NextRequest) {
   const correlationId = resolveOperationId(req, "generation");
@@ -233,6 +234,7 @@ export async function POST(req: NextRequest) {
 
     // Cache ONLY real generated artwork in Firestore image_cache_pool
     const cacheId = `cache_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    let saveCapability: string | null = null;
     try {
       await saveImageCacheItem({
         id: cacheId,
@@ -245,6 +247,7 @@ export async function POST(req: NextRequest) {
         model: art.model,
         isGenerated: true,
       });
+      saveCapability = await issueGeneratedSaveCapability(cacheId);
     } catch (cacheErr) {
       // Do not let a cache-write failure erase or fail the generated image returned to user!
       console.warn("[GenerateCover] Cache-write notice:", cacheErr);
@@ -253,6 +256,7 @@ export async function POST(req: NextRequest) {
     return withOperationId(NextResponse.json({
       success: true,
       cacheId,
+      ...(saveCapability ? { saveCapability } : {}),
       imageUrl: art.imageUrl,
       prompt: art.prompt,
       occasion: art.occasion,

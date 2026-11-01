@@ -69,7 +69,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               uid: currentUser.uid,
               email: currentUser.email || "",
               displayName: currentUser.displayName || "",
-              savedAddresses: [],
             }),
           });
           if (!isCurrent()) return;
@@ -144,139 +143,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const accountApi = async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
+    if (!user) throw new Error("Sign in to update your account.");
+    const token = await user.getIdToken();
+    const response = await fetch(path, { method, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...(method === "POST" ? { "Idempotency-Key": crypto.randomUUID() } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(payload.error || "Your account could not be updated.");
+    return payload as T;
+  };
+
+  const contactPayload = (address: Omit<SavedAddress, "id"> & { id?: string }) => ({
+    displayName: address.label || `${address.firstName} ${address.lastName}`.trim(), relationship: "", notes: "",
+    address: { firstName: address.firstName, lastName: address.lastName, street1: address.street1, street2: address.street2 || "", city: address.city, state: address.state, zip: address.zip, country: address.country || "US" },
+  });
+
   const saveAddress = async (address: Omit<SavedAddress, "id"> & { id?: string }) => {
     if (!user) return;
-
-    const addressId = address.id || `addr_${Date.now()}`;
-    const newAddress: SavedAddress = {
-      ...address,
-      id: addressId,
-    };
-
-    const currentAddresses = account?.savedAddresses || [];
-    const existingIndex = currentAddresses.findIndex((a) => a.id === addressId);
-    let updatedAddresses: SavedAddress[];
-
-    if (existingIndex >= 0) {
-      updatedAddresses = [...currentAddresses];
-      updatedAddresses[existingIndex] = newAddress;
+    const payload = contactPayload(address);
+    let contactId = address.id;
+    if (contactId && account?.savedAddresses?.some((saved) => saved.id === contactId)) {
+      const current = await accountApi<{ data: { version: number } }>(`/api/account/people/${encodeURIComponent(contactId)}`);
+      await accountApi(`/api/account/people/${encodeURIComponent(contactId)}`, "PATCH", { ...payload, expectedVersion: current.data.version });
     } else {
-      updatedAddresses = [...currentAddresses, newAddress];
+      const created = await accountApi<{ data: { id: string } }>("/api/account/people", "POST", payload);
+      contactId = created.data.id;
     }
-
-    const res = await fetch("/api/account", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email || account?.email || "",
-        displayName: account?.displayName || user.displayName || "",
-        addressToAdd: newAddress,
-        savedAddresses: updatedAddresses,
-        defaultReturnAddress: account?.defaultReturnAddress,
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.user) {
-        setAccount(data.user);
-      }
+    if (address.occasionMonth && address.occasionDay && contactId) {
+      const list = await accountApi<{ data: Array<{ id: string; contactId: string; version: number }> }>("/api/account/occasions?limit=50");
+      const current = list.data.find((event) => event.contactId === contactId);
+      const event = { contactId, title: address.occasionTitle || `${address.firstName}'s ${address.occasionType || "date"}`, type: address.occasionType || "other", month: Number(address.occasionMonth), day: Number(address.occasionDay), ...(address.occasionYear ? { year: Number(address.occasionYear) } : {}), recurrence: "annual", reminderEnabled: false };
+      if (current) await accountApi(`/api/account/occasions/${encodeURIComponent(current.id)}`, "PATCH", { ...event, expectedVersion: current.version });
+      else await accountApi("/api/account/occasions", "POST", event);
     }
+    await refreshAccount();
   };
 
   const saveAddressesBulk = async (addressesToImport: (Omit<SavedAddress, "id"> & { id?: string })[]) => {
     if (!user) return;
-    const currentAddresses = account?.savedAddresses || [];
-    const merged = [...currentAddresses];
-
-    for (const item of addressesToImport) {
-      const addrId = item.id || `addr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-      const cleanAddress: SavedAddress = {
-        id: addrId,
-        firstName: item.firstName.trim(),
-        lastName: item.lastName.trim(),
-        street1: item.street1.trim(),
-        street2: (item.street2 || "").trim(),
-        city: item.city.trim(),
-        state: item.state.trim().toUpperCase(),
-        zip: item.zip.trim(),
-        country: item.country?.trim() || "USA",
-        label: item.label || `${item.firstName}'s Address`,
-        ...(item.occasionType ? { occasionType: item.occasionType } : {}),
-        ...(item.occasionTitle ? { occasionTitle: item.occasionTitle } : {}),
-        ...(item.occasionMonth ? { occasionMonth: Number(item.occasionMonth) } : {}),
-        ...(item.occasionDay ? { occasionDay: Number(item.occasionDay) } : {}),
-        ...(item.occasionYear ? { occasionYear: Number(item.occasionYear) } : {}),
-        ...(item.remindMe !== undefined ? { remindMe: Boolean(item.remindMe) } : {}),
-        ...(item.remindDaysBefore ? { remindDaysBefore: Number(item.remindDaysBefore) } : {}),
-      };
-
-      const existingIndex = merged.findIndex(
-        (a) =>
-          a.street1.toLowerCase() === cleanAddress.street1.toLowerCase() &&
-          a.zip.toLowerCase() === cleanAddress.zip.toLowerCase() &&
-          a.firstName.toLowerCase() === cleanAddress.firstName.toLowerCase()
-      );
-
-      if (existingIndex >= 0) {
-        merged[existingIndex] = { ...merged[existingIndex], ...cleanAddress, id: merged[existingIndex].id };
-      } else {
-        merged.push(cleanAddress);
-      }
-    }
-
-    const idToken = await user.getIdToken();
-    const res = await fetch("/api/account", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email || account?.email || "",
-        displayName: account?.displayName || user.displayName || "",
-        savedAddresses: merged,
-        defaultReturnAddress: account?.defaultReturnAddress,
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.user) {
-        setAccount(data.user);
-      }
-    }
+    const rows = addressesToImport.map((item) => ({ ...contactPayload(item), ...(item.occasionMonth && item.occasionDay ? { occasion: { title: item.occasionTitle || `${item.firstName}'s ${item.occasionType || "date"}`, type: item.occasionType || "other", month: Number(item.occasionMonth), day: Number(item.occasionDay), ...(item.occasionYear ? { year: Number(item.occasionYear) } : {}) } } : {}) }));
+    await accountApi("/api/account/people/import", "POST", { rows });
+    await refreshAccount();
   };
 
   const deleteAddress = async (addressId: string) => {
     if (!user) return;
-
-    const idToken = await user.getIdToken();
-    const currentAddresses = account?.savedAddresses || [];
-    const updatedAddresses = currentAddresses.filter((a) => a.id !== addressId);
-    const res = await fetch("/api/account", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({
-        uid: user.uid,
-        email: user.email || account?.email || "",
-        displayName: account?.displayName || user.displayName || "",
-        savedAddresses: updatedAddresses,
-        defaultReturnAddress: account?.defaultReturnAddress,
-      }),
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      if (data.user) {
-        setAccount(data.user);
-      }
-    }
+    const current = await accountApi<{ data: { version: number } }>(`/api/account/people/${encodeURIComponent(addressId)}`);
+    await accountApi(`/api/account/people/${encodeURIComponent(addressId)}`, "DELETE", { expectedVersion: current.data.version });
+    await refreshAccount();
   };
 
   const updateDefaultReturnAddress = async (address: MailingAddress) => {
@@ -293,7 +206,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         uid: user.uid,
         email: user.email || account?.email || "",
         displayName: account?.displayName || user.displayName || "",
-        savedAddresses: account?.savedAddresses || [],
         defaultReturnAddress: address,
       }),
     });

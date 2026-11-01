@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { UploadAccess, UploadSelection, UploadTreatment } from "@/lib/upload/contracts";
@@ -15,6 +15,7 @@ const treatments: { id: UploadTreatment; label: string; sample: string }[] = [
 export function UploadStudio() {
   const { user, signInWithGoogle, loading: authLoading } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [access, setAccess] = useState<UploadAccess | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -29,6 +30,8 @@ export function UploadStudio() {
   const [designRevision, setDesignRevision] = useState(1);
   const [designHash, setDesignHash] = useState("");
   const [selection, setSelection] = useState<UploadSelection | null>(null);
+  const [librarySaveMessage, setLibrarySaveMessage] = useState('');
+  const [librarySaveKey, setLibrarySaveKey] = useState('');
   const [preview, setPreview] = useState("");
   const exactTextGraphemes = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(exactText)].length;
   const exactTextLineCount = exactText.split(/\r?\n/).length;
@@ -69,9 +72,9 @@ export function UploadStudio() {
     setAssetId(""); setGenerationId(""); setStatus(""); setDesignId(""); setSelection(null); setFile(null); setPreview(""); setError("");
     if (!user) { setAccess(null); return; }
     let active = true;
-    void api("/api/upload/access").then((data) => { if (active) { setAccess(data); try { const saved = sessionStorage.getItem(`smn_upload_pending_${user.uid}`); if (saved) { const pending = JSON.parse(saved); if (pending.uid === user.uid) { setAssetId(pending.assetId); setPrompt(pending.prompt); setGenerationId(pending.generationId || ""); setStatus(pending.status === "pending" && !pending.generationId ? "retryable" : pending.status || ""); if (pending.generationId && pending.status === "ready") void refreshPreview("generation", pending.generationId); else void refreshPreview("asset", pending.assetId); } } } catch { setError("This browser could not restore the private studio session. Please upload your image again."); } } }).catch((e) => { if (active) setError(e.message); });
+    void api("/api/upload/access").then((data) => { if (active) { setAccess(data); const libraryAsset = searchParams.get('asset'); if (libraryAsset) { setAssetId(libraryAsset); setStatus('ready'); setLibrarySaveMessage('Saved source reopened in the studio.'); void refreshPreview('asset', libraryAsset); return; } try { const saved = sessionStorage.getItem(`smn_upload_pending_${user.uid}`); if (saved) { const pending = JSON.parse(saved); if (pending.uid === user.uid) { setAssetId(pending.assetId); setPrompt(pending.prompt); setGenerationId(pending.generationId || ""); setStatus(pending.status === "pending" && !pending.generationId ? "retryable" : pending.status || ""); if (pending.generationId && pending.status === "ready") void refreshPreview("generation", pending.generationId); else void refreshPreview("asset", pending.assetId); } } } catch { setError("This browser could not restore the private studio session. Please upload your image again."); } } }).catch((e) => { if (active) setError(e.message); });
     return () => { active = false; if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); };
-  }, [api, userUid]);
+  }, [api, userUid, searchParams, refreshPreview]);
 
   const act = async (work: () => Promise<void>) => {
     setBusy(true); setError("");
@@ -130,6 +133,17 @@ export function UploadStudio() {
     setSelection(data.selection);
   });
 
+  const saveToLibrary = (kind: 'source' | 'front') => act(async () => {
+    if (!user || !assetId) throw new Error('Sign in and choose an image before saving it.');
+    if (kind === 'front' && !selection) throw new Error('Accept this front before saving it.');
+    const key = librarySaveKey || crypto.randomUUID(); if (!librarySaveKey) setLibrarySaveKey(key);
+    setLibrarySaveMessage('');
+    const result = await api('/api/account/images', { method: 'POST', headers: { 'Idempotency-Key': key }, body: JSON.stringify(kind === 'source' ? { sourceAssetId: assetId, title: file?.name?.replace(/\.[^.]+$/, '') || 'Saved source image' } : { uploadSelection: selection, title: 'Saved card front' }) });
+    setLibrarySaveMessage(kind === 'source' ? 'Source saved for later. It stays in your account until you remove it.' : 'Card front saved. It is ready to reuse from Saved images.');
+    setLibrarySaveKey('');
+    return result;
+  });
+
   const continueToNote = () => {
     if (!selection) return;
     try { sessionStorage.setItem("smn_upload_selection_v1", JSON.stringify(selection)); } catch { /* authenticated handoff remains in URL */ }
@@ -147,11 +161,12 @@ export function UploadStudio() {
           <label className="block"><span className="text-sm font-semibold">2. Describe the illustration</span><textarea disabled={busy} value={prompt} maxLength={1000} onChange={e => { setPrompt(e.target.value); clearDesign(); }} placeholder="Keep the little garden and warm evening colors; make it feel like a loose watercolor illustration." className="mt-2 min-h-28 w-full rounded-2xl border border-stone-200 bg-stone-50 p-4 text-sm outline-none focus:border-emerald-800" /><span className="mt-1 block text-xs text-stone-500">The image is used as a visual reference. Don’t include private details you don’t want transformed.</span></label>
           <button onClick={() => void generate()} disabled={busy || status === "pending" || status === "unresolved" || !assetId || !access.allowed || access.paused || access.used >= access.dailyLimit} className="w-full rounded-full bg-emerald-900 px-6 py-3 text-sm font-semibold text-white disabled:opacity-40">{status === "pending" ? "Creating your illustration…" : status === "retryable" ? "Retry saved request" : "Create illustration"}</button>
           <div className="text-xs text-stone-500">{Math.max(0, access.dailyLimit - access.used)} generations remaining today · access expires {access.expiresAt ? new Date(access.expiresAt).toLocaleDateString() : "as scheduled"}</div>
-          {assetId && <button type="button" onClick={() => void act(async () => { await api(`/api/upload/assets/${encodeURIComponent(assetId)}`, { method: "DELETE" }); setAssetId(""); setGenerationId(""); setStatus(""); clearDesign(); if (user) sessionStorage.removeItem(`smn_upload_pending_${user.uid}`); if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); objectUrl.current = ""; setPreview(""); setFile(null); })} className="text-xs text-stone-500 underline">Delete image and unused artwork</button>}
+          {assetId && <div className="flex flex-wrap gap-3"><button type="button" disabled={busy} onClick={() => void saveToLibrary('source')} className="text-xs font-medium text-emerald-900 underline">Save source image for later</button><button type="button" onClick={() => void act(async () => { await api(`/api/upload/assets/${encodeURIComponent(assetId)}`, { method: "DELETE" }); setAssetId(""); setGenerationId(""); setStatus(""); clearDesign(); if (user) sessionStorage.removeItem(`smn_upload_pending_${user.uid}`); if (objectUrl.current) URL.revokeObjectURL(objectUrl.current); objectUrl.current = ""; setPreview(""); setFile(null); })} className="text-xs text-stone-500 underline">Delete image and unused artwork</button></div>}
+          {librarySaveMessage && <p role="status" className="text-xs text-emerald-800">{librarySaveMessage}</p>}
           {status === "failed" && <p role="alert" className="text-sm text-rose-700">We couldn’t create artwork from this image and request. Edit the prompt or try another image.</p>}
           {status === "unresolved" && <p role="alert" className="text-sm text-amber-800">This request needs to be resolved before it can be retried. Your image and prompt are still here.</p>}
           {generationId && status === "ready" && <div className="space-y-4 border-t border-stone-100 pt-5"><h2 className="text-sm font-semibold">3. Add your exact cover words <span className="font-normal text-stone-500">(optional)</span></h2><label htmlFor="upload-exact-cover-words" className="sr-only">Exact cover words</label><textarea id="upload-exact-cover-words" aria-describedby="upload-cover-words-help" disabled={busy} value={exactText} onChange={e => { setExactText(e.target.value); clearDesign(); }} maxLength={160} rows={2} placeholder="Thank You" className="w-full resize-y rounded-xl border border-stone-200 px-4 py-3 text-sm" /><p id="upload-cover-words-help" className={`text-xs ${letteringValid ? "text-stone-500" : "text-rose-700"}`}>Optional · up to 40 characters across 3 lines · {exactTextGraphemes}/40</p><div className="grid grid-cols-3 gap-2">{treatments.filter(t => access.standards.enabledTreatments.includes(t.id)).map(t => <button type="button" disabled={busy} key={t.id} onClick={() => { setTreatment(t.id); clearDesign(); }} aria-pressed={treatment === t.id} className={`rounded-xl border p-3 text-left ${treatment === t.id ? "border-emerald-800 bg-emerald-50" : "border-stone-200"}`}><span className="block whitespace-pre-line font-serif text-lg">{t.sample}</span><span className="mt-2 block text-xs">{t.label}</span></button>)}</div><button onClick={() => void compose()} disabled={busy || !letteringValid} className="w-full rounded-full border border-stone-300 px-5 py-3 text-sm font-semibold">{busy ? "Composing…" : "Preview this cover"}</button></div>}
-          {designId && <div className="space-y-3 border-t border-stone-100 pt-5"><p className="text-sm font-semibold">Review the complete front</p>{selection ? <button onClick={continueToNote} className="w-full rounded-full bg-emerald-900 px-6 py-3 text-sm font-semibold text-white">Accept & write my note</button> : <button onClick={() => void accept()} disabled={busy} className="w-full rounded-full bg-stone-900 px-6 py-3 text-sm font-semibold text-white">Accept this cover</button>}</div>}
+          {designId && <div className="space-y-3 border-t border-stone-100 pt-5"><p className="text-sm font-semibold">Review the complete front</p>{selection ? <><button onClick={continueToNote} className="w-full rounded-full bg-emerald-900 px-6 py-3 text-sm font-semibold text-white">Accept & write my note</button><button type="button" onClick={() => void saveToLibrary('front')} disabled={busy} className="w-full rounded-full border border-stone-300 px-6 py-3 text-sm font-medium">Save this card front to my images</button></> : <button onClick={() => void accept()} disabled={busy} className="w-full rounded-full bg-stone-900 px-6 py-3 text-sm font-semibold text-white">Accept this cover</button>}</div>}
           {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-800">{error}</p>}
         </section>
         <section className="flex min-h-[460px] items-center justify-center rounded-[2rem] bg-[#e9e6dd] p-6 sm:p-10"><div className="w-full max-w-[365px] overflow-hidden rounded-2xl bg-white shadow-[0_22px_55px_rgba(40,35,25,.16)]"><div className="relative aspect-[17/22] bg-[#f5f0e5]">{preview ? <img src={preview} alt={designId ? "Private card front preview" : "Private image or illustration preview"} className="h-full w-full object-cover" /> : <div className="flex h-full flex-col items-center justify-center p-8 text-center text-stone-400"><span className="font-serif text-5xl">✳</span><span className="mt-4 text-sm">Your card front appears here</span><span className="mt-1 text-xs">A 17:22 portrait preview</span></div>}</div><div className="flex items-center justify-between px-4 py-3 text-xs text-stone-500"><span>{designId ? "Complete cover" : "Private preview"}</span><span>A2 folded · portrait</span></div></div></section>

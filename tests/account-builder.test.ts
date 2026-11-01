@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import { restoreAccountDraft } from '../lib/account/builder-state';
+import { draftReducer } from '../lib/draft/reducer';
+import { MemoryDraftStorage, saveDraft, loadDraft } from '../lib/draft/store';
+import { DRAFT_STORAGE_KEY } from '../lib/draft/types';
+const content={selectedDesign:{source:'account' as const,imageUrl:'blob:private',title:'Private title',accepted:true},accountImage:{imageId:'img_a',version:2,masterSha256:'a'.repeat(64)},note:{text:'A personal thought',style:'hwDavid'},recipient:{name:'Example Person',addressLine1:'1 Example Lane',city:'Town',state:'IL',zip:'60000'},sender:null,currentStep:'address' as const};
+const resumed=restoreAccountDraft({...content,clientSecret:'secret',viewToken:'token',schedule:{isScheduled:true},appliedOffer:{code:'old'}} as any,'owner','test');
+assert.equal(resumed.currentStep,'card');assert.equal(resumed.selectedDesign?.accepted,false);assert.equal(resumed.selectedDesign?.imageUrl,'');assert.equal(resumed.accountOwnerUid,'owner');assert.equal(resumed.schedule,null);assert.equal(resumed.appliedOffer,null);assert.equal(resumed.checkoutSnapshotId,null);assert.ok(!('clientSecret' in resumed));assert.ok(!('viewToken' in resumed));
+const storage=new MemoryDraftStorage();assert.equal(saveDraft(resumed,storage),true);const bytes=storage.getItem(DRAFT_STORAGE_KEY)!;assert.ok(!bytes.includes('blob:private'));assert.ok(!bytes.includes('Private title'));assert.equal(loadDraft(storage)?.accountImage?.imageId,'img_a');
+const cleared=draftReducer(resumed,{type:'CLEAR_ACCOUNT_IMAGE'});assert.equal(cleared.selectedDesign,null);assert.equal(cleared.accountImage,null);assert.equal(cleared.coverChoiceRequired,true);assert.equal(cleared.note.text,content.note.text);assert.deepEqual(cleared.recipient,content.recipient);
+const catalog=draftReducer(resumed,{type:'SELECT_DESIGN',payload:{source:'preset',imageUrl:'/card.png',title:'Catalog'}});assert.equal(catalog.accountImage,null);assert.equal(catalog.accountOwnerUid,null);assert.equal(catalog.coverChoiceRequired,false);
+const corrupt={...resumed,accountOwnerUid:null};saveDraft(corrupt,storage);assert.equal(loadDraft(storage)?.selectedDesign,null);assert.equal(loadDraft(storage)?.coverChoiceRequired,true);
+console.log('Account builder: resume authority, private persistence, identity reset and catalog recovery passed.');

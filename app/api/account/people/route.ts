@@ -1,0 +1,5 @@
+import { NextRequest } from 'next/server';
+import { AccountError, accountError, accountJson, requireAccountActor, readAccountBody } from '@/lib/account/http';
+import { createContact, listContacts } from '@/lib/account/people';
+export async function GET(req: NextRequest) { try { const actor=await requireAccountActor(req); const {migrateLegacyPeople}=await import('@/lib/account/migration'); await migrateLegacyPeople(actor); const q=new URL(req.url).searchParams; const result=await listContacts(actor,q.get('cursor')||undefined,Math.min(50,Number(q.get('limit')||20))); return Response.json(result,{headers:{'Cache-Control':'private, no-store, max-age=0','Vary':'Authorization'}}); } catch(e) { return accountError(e); } }
+export async function POST(req: NextRequest) { try { const actor=await requireAccountActor(req,true); const body=await readAccountBody(req); const key=req.headers.get('Idempotency-Key')||'';if(!/^[A-Za-z0-9_-]{8,128}$/.test(key))throw new AccountError('invalid_idempotency_key','Retry this save with a valid request key.'); const data=await createContact(actor,body,key); return accountJson(data,201); } catch(e) { return accountError(e); } }

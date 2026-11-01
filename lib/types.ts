@@ -113,6 +113,9 @@ export interface Order {
   contactEmailUpdateId?: string;
   contactEmailUpdateStartedAt?: number;
   userId?: string;
+  accountOccasionId?: string;
+  occasionOccurrenceDate?: string;
+  accountAcceptedAt?: number;
   occasion?: string;
   frontImageUrl: string;
   /** Server-only pinned upload master; omit from every client response. */
