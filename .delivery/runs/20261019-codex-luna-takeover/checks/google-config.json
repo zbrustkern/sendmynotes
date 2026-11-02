@@ -1,0 +1,27 @@
+{
+  "googleProviderEnabled": true,
+  "allowedReferrers": [
+    "https://docketstamp.com/*",
+    "docketstamp.com/*",
+    "https://*.docketstamp.com/*",
+    "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/*",
+    "https://sendmynotes-staging.firebaseapp.com/*"
+  ],
+  "checks": [
+    {
+      "origin": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/",
+      "status": 200,
+      "projectId": "910796604705"
+    },
+    {
+      "origin": "https://sendmynotes-staging.firebaseapp.com/",
+      "status": 200,
+      "projectId": "910796604705"
+    },
+    {
+      "origin": "https://unapproved.invalid/",
+      "status": 403,
+      "errorReason": "API_KEY_HTTP_REFERRER_BLOCKED"
+    }
+  ]
+}

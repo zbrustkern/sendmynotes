@@ -1,0 +1,36 @@
+{
+  "checkedAt": "2026-10-27T15:19:33.688Z",
+  "credentialSource": "Secret Manager: sendmynotes-staging/stripe-secret-key (value not logged)",
+  "keyClass": "standard_test",
+  "stripeAccount": {
+    "idSha256": "46abfd764e7a35b4f2b9a3704bb9d1c853baec94b44053b2f23bca851b274ada",
+    "livemode": false,
+    "country": "US",
+    "defaultCurrency": "usd",
+    "businessType": "individual"
+  },
+  "paymentMethodDomains": [
+    {
+      "domain": "sendmynotes--sendmynotes-2a417.us-central1.hosted.app",
+      "applePay": "active",
+      "googlePay": "active",
+      "link": "active"
+    },
+    {
+      "domain": "www.sendmynotes.com",
+      "applePay": "active",
+      "googlePay": "active",
+      "link": "active"
+    },
+    {
+      "domain": "sendmynotes.com",
+      "applePay": "active",
+      "googlePay": "active",
+      "link": "active"
+    }
+  ],
+  "intent": null,
+  "secretsLogged": false,
+  "customerRecordsQueried": false,
+  "writesPerformed": false
+}

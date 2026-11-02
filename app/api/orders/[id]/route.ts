@@ -1,6 +1,9 @@
+import { stripPrivateOrderMedia } from "@/lib/upload/order-master";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderById } from "@/lib/firebase-admin";
+import { verifyAdminAuth } from "@/lib/admin-auth";
 import { Order } from "@/lib/types";
+import { projectPurchaseMeasurementForOrder } from "@/lib/purchase-measurement";
 
 function maskEmail(email?: string): string {
   if (!email || !email.includes("@")) return "Customer";
@@ -15,8 +18,10 @@ function maskZip(zip?: string): string {
 }
 
 function sanitizeOrderForPublicView(order: Order): Order {
+  const { adminCompQuoteId: _quoteId, adminCompQuote: _quote, adminCompLifecycle: _lifecycle,
+    adminCompPaymentRequestId: _requestId, adminCompPaymentRequestStatus: _requestStatus, ...publicOrder } = order;
   return {
-    ...order,
+    ...stripPrivateOrderMedia(publicOrder),
     customerEmail: maskEmail(order.customerEmail),
     recipientAddress: {
       ...order.recipientAddress,
@@ -64,16 +69,17 @@ export async function GET(
       url.searchParams.get("token") ||
       url.searchParams.get("viewToken") ||
       req.headers.get("x-view-token");
-    const adminKey = req.headers.get("x-admin-key");
 
     const isAuthorized =
       Boolean(order.viewToken && token && token === order.viewToken) ||
-      Boolean(adminKey && adminKey === process.env.ADMIN_SECRET_KEY);
+      verifyAdminAuth(req);
 
     if (isAuthorized) {
+      const purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, order.purchaseMeasurement);
       return NextResponse.json({
         order: {
-          ...order,
+          ...stripPrivateOrderMedia(order),
+          purchaseMeasurement,
           isRedacted: false,
         },
       });
@@ -178,7 +184,7 @@ export async function POST(
       verified: true,
       viewToken: order.viewToken,
       order: {
-        ...order,
+        ...stripPrivateOrderMedia(order),
         isRedacted: false,
       },
     });

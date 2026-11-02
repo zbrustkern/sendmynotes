@@ -1,0 +1,8 @@
+=== SPRINT-0007: Order, Journey, and Economics Investigations Test Suite ===
+-> Testing AC01: Scoped Evidence Lists, Invariant Totals, and Warning Banners
+-> Testing AC02: Unified Evidence Timeline & State Pillars
+-> Testing AC03: Safe Actions, PII Masking/Audit, and Pre-Retry Gate
+-> Testing AC04: Economics Investigation & Exact Parity
+-> Testing UI Components: Drawer & Workspaces Markup Rendering
+=== All SPRINT-0007 tests passed successfully! ===
+[Admin Retry Blocked] Gate rejected retry for order smn_ord_cust_2: already_has_supplier_order_id - Order smn_ord_cust_2 already has Handwrytten ID #hw_order_9988. Submitting again would duplicate physical card manufacturing and billable supplier charges.

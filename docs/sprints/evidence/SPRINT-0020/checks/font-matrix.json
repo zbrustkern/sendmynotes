@@ -1,0 +1,32 @@
+[
+  {
+    "fontLabel": "Casual David (default)",
+    "clientWidth": 203,
+    "font": "HandwryttenDavid, cursive",
+    "scrollWidth": 203
+  },
+  {
+    "fontLabel": "Charming Chase",
+    "clientWidth": 203,
+    "font": "HandwryttenChase, cursive",
+    "scrollWidth": 203
+  },
+  {
+    "fontLabel": "Carefree Kate",
+    "clientWidth": 203,
+    "font": "HandwryttenKate, cursive",
+    "scrollWidth": 203
+  },
+  {
+    "fontLabel": "Executive Adam",
+    "clientWidth": 203,
+    "font": "HandwryttenAdam, cursive",
+    "scrollWidth": 203
+  },
+  {
+    "fontLabel": "Dapper Will",
+    "clientWidth": 203,
+    "font": "HandwryttenWill, monospace",
+    "scrollWidth": 203
+  }
+]

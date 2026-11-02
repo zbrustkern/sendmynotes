@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "targets": {
+    "staging": {
+      "project": "sendmynotes-staging",
+      "backend": "sendmynotes-staging",
+      "region": "us-central1",
+      "origin": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+      "bucket": "sendmynotes-staging-upload-private",
+      "reviewOnly": true
+    },
+    "production": {
+      "project": "sendmynotes-2a417",
+      "backend": "sendmynotes",
+      "region": "us-central1",
+      "origin": "https://sendmynotes.com",
+      "bucket": "sendmynotes-2a417-upload-private",
+      "reviewOnly": false
+    }
+  },
+  "plainEnvironment": ["UPLOAD_PRIVATE_BUCKET", "UPLOAD_IMAGE_MODEL", "UPLOAD_ADMIN_EMAILS", "ACCOUNT_REMINDER_DELIVERY_ACTIVE", "REMINDER_FROM_EMAIL"],
+  "secretEnvironment": {
+    "UPLOAD_CLEANUP_SECRET": "upload-cleanup-secret",
+    "ADMIN_SESSION_SIGNING_KEY": "admin-session-signing-key",
+    "REMINDER_WORKER_SECRET": "reminder-worker-secret"
+  },
+  "jobs": [
+    {"id":"upload-cleanup","path":"/api/cron/upload-cleanup","schedule":"17 3 * * *","secret":"upload-cleanup-secret","activation":"after_fixture_review"},
+    {"id":"account-library-cleanup","path":"/api/cron/account-library-cleanup","schedule":"47 3 * * *","secret":"upload-cleanup-secret","activation":"after_fixture_review"},
+    {"id":"account-reminders","path":"/api/cron/reminder-dispatch","schedule":"*/5 * * * *","secret":"reminder-worker-secret","activation":"separate_approval_and_inbox_proof"}
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "passed": true,
+  "checks": [
+    "mounted authenticated studio",
+    "upload/generate/compose/accept interactions",
+    "1275x1650 preview",
+    "mobile no overflow",
+    "mounted /new handoff note editor",
+    "refresh retains upload",
+    "note/address/review preserve cover",
+    "checkout sends reference + bearer, no URL",
+    "no durable blob URL",
+    "admin desktop/mobile",
+    "401/403 admin states hide controls",
+    "granted-only studio menu with account identity",
+    "focus refreshes grant",
+    "saved reminder dismisses without overlay",
+    "new-tab recovery revalidates accepted upload",
+    "signout hides private selection and pixels while retaining note and addresses",
+    "different UID cannot view or checkout private front",
+    "same owner revalidates recovery",
+    "late preview after signout ignored",
+    "payment UI clears on signout; late checkout response ignored"
+  ],
+  "apiResponses": "mocked for deterministic UI test; server security tested separately",
+  "pageErrors": [],
+  "callCount": 186
+}

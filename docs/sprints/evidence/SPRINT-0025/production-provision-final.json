@@ -1,0 +1,158 @@
+{
+  "checkedAt": "2026-11-01T21:58:21.291Z",
+  "mode": "apply",
+  "target": "production",
+  "project": "sendmynotes-2a417",
+  "actions": [
+    {
+      "resource": "account_people",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_occasions",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_images",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_drafts",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_drafts",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_images",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_images",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_privacy_requests",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_occasions",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "orders",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "orders",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "orders",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "operational_job_runs",
+      "action": "retain_index",
+      "state": "READY"
+    },
+    {
+      "resource": "operational_job_runs",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "environment",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "job",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/S01ablJqTGdBQ0lDDCoDIDI3Yzk4YzY2ZWMwZC1iZTNhLTU4MDQtODQzOS00MjE1NTQ2OCQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_privacy_requests",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "status",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/SkFKazNpT2dBQ0lDDCoDIGEwZWI4MzYyYTc4Ny0yNDliLTVlZTQtNWYxMy1iZWZkYWNiMSQac2VuaWxlcGlwCQpBEg"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "requested",
+      "operation": "projects/sendmynotes-2a417/databases/(default)/operations/SkVKeGFqTmdBQ0lDDCoDIDY2ZGExZWEwMjNkOS01N2ViLTZiNDQtMDMwYi1jZjhkY2NkZSQac2VuaWxlcGlwCQpBEg"
+    }
+  ],
+  "codeOrTrafficChanged": false,
+  "remaining": [
+    "Review/seed target-specific secret versions and runtime accessor bindings",
+    "Verify index READY",
+    "Runtime private put/read/delete and anonymous denial fixture",
+    "Authenticated jobs after dry-run review",
+    "Signed-in acceptance and explicit production rollout approval"
+  ]
+}

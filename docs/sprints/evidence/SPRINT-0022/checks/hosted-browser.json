@@ -1,0 +1,15 @@
+{
+  "passed": true,
+  "checkedAt": "2026-10-31T02:56:39.423Z",
+  "apiMocks": false,
+  "checks": [
+    "entitled hosted studio",
+    "authenticated accepted cover handoff",
+    "refresh revalidates private preview",
+    "durable draft has ID but no blob URL",
+    "owner admin grants visible"
+  ],
+  "paymentCalls": 0,
+  "supplierCalls": 0,
+  "pageErrors": []
+}

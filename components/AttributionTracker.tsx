@@ -7,12 +7,11 @@ import { getGoogleClientId } from "@/lib/telemetry";
 import { GA4_MEASUREMENT_ID } from "@/lib/google-ads";
 import { mayStoreGoogleClientId } from "@/lib/order-attribution";
 import { trackMetaPageView, getMetaBrowserCookie, buildMetaFbcString } from "@/lib/meta-ads";
+import { sanitizeUrlOrPath, sanitizeAttribution } from "@/lib/telemetry-schema";
 
 export const SMN_ATTRIBUTION_KEY = "smn_attribution";
-let memoryAttribution: OrderAttribution | null = null;
-
 function persistAttribution(attribution: OrderAttribution): void {
-  memoryAttribution = attribution;
+  inMemoryAttribution = attribution;
   try { sessionStorage.setItem(SMN_ATTRIBUTION_KEY, JSON.stringify(attribution)); } catch { /* in-memory fallback */ }
   try { localStorage.setItem(SMN_ATTRIBUTION_KEY, JSON.stringify(attribution)); } catch { /* in-memory fallback */ }
 }
@@ -35,13 +34,51 @@ function normalizedClientIdFromCookie(): string | undefined {
   return match?.[1];
 }
 
+// In-memory fallback if sessionStorage/localStorage is blocked or throws (e.g. Safari private quota)
+let inMemoryAttribution: OrderAttribution | null = null;
+
 /**
  * Retrieve first-party cookie by name safely.
  */
 function getDocumentCookie(name: string): string | undefined {
   if (typeof document === "undefined") return undefined;
-  const match = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
-  return match ? decodeURIComponent(match[2]) : undefined;
+  try {
+    const match = document.cookie.match(new RegExp("(^|;\\s*)" + name + "=([^;]*)"));
+    return match ? decodeURIComponent(match[2]) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function safeGetStorage(key: string): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const fromSession = window.sessionStorage?.getItem(key);
+    if (fromSession) return fromSession;
+  } catch {
+    // sessionStorage blocked/denied
+  }
+  try {
+    const fromLocal = window.localStorage?.getItem(key);
+    if (fromLocal) return fromLocal;
+  } catch {
+    // localStorage blocked/denied
+  }
+  return null;
+}
+
+function safeSetStorage(key: string, value: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.sessionStorage?.setItem(key, value);
+  } catch {
+    // sessionStorage blocked/denied
+  }
+  try {
+    window.localStorage?.setItem(key, value);
+  } catch {
+    // localStorage blocked/denied
+  }
 }
 
 /**
@@ -52,16 +89,15 @@ function getDocumentCookie(name: string): string | undefined {
 export function getStoredAttribution(): OrderAttribution | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = (() => { try { return sessionStorage.getItem(SMN_ATTRIBUTION_KEY); } catch { return null; } })() ||
-      (() => { try { return localStorage.getItem(SMN_ATTRIBUTION_KEY); } catch { return null; } })();
-    if (!raw) return memoryAttribution;
+    const raw = safeGetStorage(SMN_ATTRIBUTION_KEY);
+    if (!raw) return inMemoryAttribution;
 
     const parsed = JSON.parse(raw) as OrderAttribution;
     const expiresAt = parsed.expiresAt || (parsed.capturedAt ? parsed.capturedAt + 90 * 24 * 60 * 60 * 1000 : 0);
     if (!expiresAt || expiresAt <= Date.now()) {
       try { sessionStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
       try { localStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
-      memoryAttribution = null;
+      inMemoryAttribution = null;
       return null;
     }
 
@@ -92,27 +128,30 @@ export function getStoredAttribution(): OrderAttribution | null {
 
     return parsed;
   } catch {
-    return memoryAttribution;
+    return inMemoryAttribution;
   }
 }
 
 function AttributionTrackerInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const isPrivatePaymentPath = Boolean(pathname?.startsWith("/comp-payment/"));
   const isFirstRender = useRef(true);
 
   // Track Meta Pixel PageView on client-side route transitions (SPA navigation)
   useEffect(() => {
+    if (isPrivatePaymentPath) return;
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
     // Subsequent client-side route transitions
     trackMetaPageView();
-  }, [pathname]);
+  }, [isPrivatePaymentPath, pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (isPrivatePaymentPath) return;
 
     try {
       const isGpcActive =
@@ -148,6 +187,9 @@ function AttributionTrackerInner() {
         fbc = buildMetaFbcString(fbclid) || undefined;
       }
 
+      const cleanReferrer = sanitizeUrlOrPath(document.referrer) || undefined;
+      const cleanLandingPath = sanitizeUrlOrPath(pathname || window.location.pathname) || "/";
+
       // If user landed with campaign parameters, overwrite or set attribution
       if (hasCampaignParams) {
         const googleClick = gclid || wbraid || gbraid;
@@ -167,8 +209,8 @@ function AttributionTrackerInner() {
           fbclid,
           fbp: fbp || undefined,
           fbc: fbc || undefined,
-          referrer: document.referrer || undefined,
-          landingPath: pathname || window.location.pathname,
+          referrer: cleanReferrer,
+          landingPath: cleanLandingPath,
           googleClientId: isGpcActive ? undefined : getGoogleClientId(),
           googleClientIdNormalized: isGpcActive ? undefined : normalizedClientIdFromCookie(),
           gpc: isGpcActive || undefined,
@@ -181,19 +223,15 @@ function AttributionTrackerInner() {
       }
 
       // If no campaign params, check if we already have an attribution stored in this session
-      const existing =
-        (() => { try { return sessionStorage.getItem(SMN_ATTRIBUTION_KEY); } catch { return null; } })() ||
-        (() => { try { return localStorage.getItem(SMN_ATTRIBUTION_KEY); } catch { return null; } })() ||
-        (memoryAttribution ? JSON.stringify(memoryAttribution) : null);
+      const existing = safeGetStorage(SMN_ATTRIBUTION_KEY);
       if (existing) {
-        // Just make sure fbp/fbc are augmented if they were populated after script init
         try {
           const parsed = JSON.parse(existing) as OrderAttribution;
           const expiresAt = parsed.expiresAt || (parsed.capturedAt ? parsed.capturedAt + 90 * 24 * 60 * 60 * 1000 : 0);
           if (!expiresAt || expiresAt <= Date.now()) {
             try { sessionStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
             try { localStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
-            memoryAttribution = null;
+            inMemoryAttribution = null;
           } else {
           let updated = false;
           if (!parsed.fbp && fbp) {
@@ -266,8 +304,8 @@ function AttributionTrackerInner() {
         utmSource: detectedSource,
         utmMedium: detectedMedium,
         utmCampaign: "(direct/organic)",
-        referrer: ref || undefined,
-        landingPath: pathname || window.location.pathname,
+        referrer: cleanReferrer,
+        landingPath: cleanLandingPath,
         fbp: fbp || undefined,
         fbc: fbc || undefined,
         gpc: isGpcActive || undefined,
@@ -279,7 +317,39 @@ function AttributionTrackerInner() {
     } catch (e) {
       console.warn("[Attribution Tracker] Non-fatal capture notice:", e);
     }
-  }, [searchParams, pathname]);
+  }, [isPrivatePaymentPath, searchParams, pathname]);
+
+  // Keep the historical raw _ga value intact; store Google's normalized client ID separately.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (isPrivatePaymentPath) return;
+    let active = true;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const attemptBackfill = () => {
+      const gpcActive = typeof navigator !== "undefined" && (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+      if (!active || !mayStoreGoogleClientId(gpcActive, getStoredAttribution())) return;
+      attempts++;
+      const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+      if (typeof win.gtag !== "function") {
+        if (attempts < 6) timer = setTimeout(attemptBackfill, 500);
+        return;
+      }
+      try {
+        win.gtag("get", GA4_MEASUREMENT_ID, "client_id", (clientId: unknown) => {
+          if (!active) return;
+          const callbackGpcActive = typeof navigator !== "undefined" && (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
+          const attr = getStoredAttribution();
+          if (!mayStoreGoogleClientId(callbackGpcActive, attr)) return;
+          if (typeof clientId !== "string" || clientId.length > 100) return;
+          if (!attr || attr.googleClientIdNormalized) return;
+          persistAttribution({ ...attr, googleClientIdNormalized: clientId });
+        });
+      } catch { /* tag client ID is optional */ }
+    };
+    attemptBackfill();
+    return () => { active = false; if (timer) clearTimeout(timer); };
+  }, [isPrivatePaymentPath, pathname]);
 
   // Keep the historical raw _ga value intact; store Google's normalized client ID separately.
   useEffect(() => {

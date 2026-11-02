@@ -1,0 +1,16 @@
+{
+  "checkedAt": "2026-10-27T15:26:06.779Z",
+  "testOnly": true,
+  "syntheticIntentId": "pi_3UVCGIQRpUiJEWIA1wRL8qAa",
+  "status": "requires_payment_method",
+  "amount": 900,
+  "paymentMethodTypes": [
+    "card",
+    "link"
+  ],
+  "publishableKeyClass": "test",
+  "publishableKeyHash": "708610fb42c030ea93ced11e5f211fab1d5fe39d2c3d8f2f05f22bf003390e62",
+  "publishableSecretPairVerified": true,
+  "chargeAttempted": false,
+  "mailAttempted": false
+}

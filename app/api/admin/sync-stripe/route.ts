@@ -35,7 +35,7 @@ export async function POST(req: NextRequest) {
     const secret = getStripeSecretKey();
     if (!secret || secret.startsWith("sk_test_placeholder")) {
       // In dev mock mode, allow admin to simulate payment verification
-      const result = await processPaidOrder(orderId, order.stripePaymentId || `pi_mock_${orderId}`);
+      const result = await processPaidOrder(orderId, order.stripePaymentId || `pi_mock_${orderId}`, order.customerEmail, { paymentMode: "local_mock" });
       return NextResponse.json({
         success: result.success,
         status: result.status,
@@ -67,7 +67,8 @@ export async function POST(req: NextRequest) {
     const result = await processPaidOrder(
       orderId,
       pi.id,
-      pi.receipt_email || order.customerEmail
+      pi.receipt_email || order.customerEmail,
+      { verifiedPaymentIntent: pi, paymentMode: pi.livemode ? "live" : "stripe_test", isTest: !pi.livemode }
     );
 
     return NextResponse.json({

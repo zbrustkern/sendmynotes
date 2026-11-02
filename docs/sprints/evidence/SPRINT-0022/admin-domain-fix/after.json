@@ -1,0 +1,31 @@
+{
+  "checkedAt": "2026-10-31T13:16:48.705Z",
+  "keyName": "projects/910796604705/locations/global/keys/de7ad0ec-0556-49b8-9938-9dad06e98540",
+  "allowedReferrers": [
+    "https://docketstamp.com/*",
+    "docketstamp.com/*",
+    "https://*.docketstamp.com/*",
+    "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/*",
+    "https://sendmynotes-staging.firebaseapp.com/*",
+    "https://staging.sendmynotes.com/*"
+  ],
+  "apiRestrictionsPreserved": true,
+  "authorizedDomainsAlreadyCorrect": true,
+  "probes": [
+    {
+      "referer": "https://staging.sendmynotes.com/",
+      "status": 200,
+      "error": null
+    },
+    {
+      "referer": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/",
+      "status": 200,
+      "error": null
+    },
+    {
+      "referer": "https://not-authorized.example/",
+      "status": 403,
+      "error": "Requests from referer https://not-authorized.example/ are blocked."
+    }
+  ]
+}

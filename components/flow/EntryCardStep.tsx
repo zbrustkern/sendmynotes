@@ -34,6 +34,7 @@ interface EntryCardStepProps {
   onOpenCustomArt?: () => void;
   lastCustomArtwork?: SelectedDesign | null;
   onRestoreCustomArt?: () => void;
+  onEditPrivateArt?: () => void;
 }
 
 export function EntryCardStep({
@@ -46,6 +47,7 @@ export function EntryCardStep({
   onOpenCustomArt,
   lastCustomArtwork,
   onRestoreCustomArt,
+  onEditPrivateArt,
 }: EntryCardStepProps) {
   // Normalize initial occasion if provided
   const normalizedInitial = useMemo<PersonalOccasion>(() => {
@@ -168,7 +170,9 @@ export function EntryCardStep({
                 <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-800">
                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                   <span>
-                    {selectedDesign.source === "custom"
+                    {selectedDesign.source === "upload"
+                      ? "Your private cover (Active)"
+                      : selectedDesign.source === "custom"
                       ? "Your Custom Artwork (Active)"
                       : "Curated Scenario Design (Active)"}
                   </span>
@@ -181,6 +185,7 @@ export function EntryCardStep({
                 </p>
               </div>
             </div>
+            {selectedDesign.source === "upload" && onEditPrivateArt && <button type="button" onClick={onEditPrivateArt} className="min-h-11 shrink-0 rounded-lg border border-stone-300 bg-white px-3 text-xs font-semibold text-emerald-900">Edit in Studio</button>}
             {selectedDesign.source === "custom" ? (
               <button
                 type="button"

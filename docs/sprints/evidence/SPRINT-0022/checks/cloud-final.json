@@ -1,0 +1,250 @@
+{
+  "checkedAt": "2026-10-31T02:56:34.420Z",
+  "surfaces": [
+    {
+      "project": "sendmynotes-2a417",
+      "backend": "sendmynotes",
+      "pendingBuild": null,
+      "uri": "sendmynotes--sendmynotes-2a417.us-central1.hosted.app",
+      "rolloutPolicy": {
+        "codebaseBranch": "main"
+      },
+      "currentTraffic": {
+        "splits": [
+          {
+            "build": "projects/486379422282/locations/us-central1/backends/sendmynotes/builds/build-2026-10-30-005",
+            "percent": 100
+          }
+        ]
+      },
+      "reconciling": false,
+      "builds": [
+        {
+          "name": "build-2026-10-30-005",
+          "state": "READY",
+          "source": "a298a1935e9560f5c53df5bcad02ecfc63e9bf44",
+          "createTime": "2026-10-30T15:56:58.072726870Z",
+          "configAvailable": true,
+          "image": "us-central1-docker.pkg.dev/sendmynotes-2a417/firebaseapphosting-images/sendmynotes:build-2026-10-30-005",
+          "keys": [
+            "name",
+            "state",
+            "image",
+            "config",
+            "source",
+            "buildLogsUri",
+            "createTime",
+            "updateTime",
+            "displayName",
+            "uid",
+            "etag",
+            "reconciling"
+          ],
+          "traffic": 100
+        }
+      ],
+      "latestRollouts": [
+        {
+          "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-10-30-003",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-10-30-005",
+          "createTime": "2026-10-30T15:56:58.129368125Z"
+        },
+        {
+          "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/build-2026-10-30-004",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-10-30-004",
+          "createTime": "2026-10-30T15:36:55.202813200Z"
+        },
+        {
+          "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-10-30-002",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-10-30-003",
+          "createTime": "2026-10-30T15:36:51.320999874Z"
+        }
+      ],
+      "revision": "projects/sendmynotes-2a417/locations/us-central1/services/sendmynotes/revisions/sendmynotes-build-2026-10-30-005",
+      "conditions": [
+        {
+          "type": "RoutesReady",
+          "state": "CONDITION_SUCCEEDED"
+        },
+        {
+          "type": "BaseImageValidated",
+          "state": "CONDITION_SUCCEEDED"
+        },
+        {
+          "type": "ConfigurationsReady",
+          "state": "CONDITION_SUCCEEDED"
+        }
+      ],
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+          "revision": "sendmynotes-build-2026-10-30-005",
+          "percent": 100,
+          "tag": "t-461536578",
+          "uri": "https://t-461536578---sendmynotes-j357xgslpa-uc.a.run.app"
+        }
+      ],
+      "flags": [
+        {
+          "name": "NEXT_PUBLIC_APP_URL",
+          "value": "https://sendmynotes.com",
+          "secret": null
+        }
+      ],
+      "configSha256": "997c56ce042bb90014cb1f58d38bb6a354f58d6462aab35ccc0e198349529647",
+      "paymentSha256": "9cdd2a7a05ecc74a58a50c761b3eb04e65d0271926da930e770a9aa0c57f7655",
+      "adsSha256": "12c5f3476497d7b4eabf008eb0191b858ea960a8112e79efc7b7ae9706616cb8",
+      "secretValuesLogged": false,
+      "firestoreRules": {
+        "name": "projects/sendmynotes-2a417/rulesets/1093195a-506b-4b2f-92ab-9cfac862237c",
+        "files": [
+          {
+            "name": "firestore.rules",
+            "content": "rules_version = '2';\n\nservice cloud.firestore {\n  match /databases/{database}/documents {\n    match /{document=**} {\n      allow read, write: if false;\n    }\n  }\n}"
+          }
+        ]
+      }
+    },
+    {
+      "project": "sendmynotes-staging",
+      "backend": "sendmynotes-staging",
+      "pendingBuild": null,
+      "uri": "sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+      "environment": "staging",
+      "rolloutPolicy": {
+        "codebaseBranch": "staging"
+      },
+      "currentTraffic": {
+        "splits": [
+          {
+            "build": "projects/910796604705/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-31-002",
+            "percent": 100
+          }
+        ]
+      },
+      "reconciling": false,
+      "builds": [
+        {
+          "name": "build-2026-10-31-002",
+          "state": "READY",
+          "source": "04c85179012913c174eec367d76a9f7509e069a8",
+          "createTime": "2026-10-31T02:31:37.061910730Z",
+          "configAvailable": true,
+          "image": "us-central1-docker.pkg.dev/sendmynotes-staging/firebaseapphosting-images/sendmynotes-staging:build-2026-10-31-002",
+          "keys": [
+            "name",
+            "state",
+            "image",
+            "config",
+            "source",
+            "buildLogsUri",
+            "createTime",
+            "updateTime",
+            "labels",
+            "uid",
+            "etag",
+            "reconciling"
+          ],
+          "traffic": 100
+        }
+      ],
+      "latestRollouts": [
+        {
+          "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/build-2026-10-31-002",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-31-002",
+          "createTime": "2026-10-31T02:31:38.265034369Z"
+        },
+        {
+          "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-10-31-001",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-31-001",
+          "createTime": "2026-10-31T02:31:30.972889536Z"
+        },
+        {
+          "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-10-29-002",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-10-29-002",
+          "createTime": "2026-10-29T22:37:34.346762792Z"
+        }
+      ],
+      "revision": "projects/sendmynotes-staging/locations/us-central1/services/sendmynotes-staging/revisions/sendmynotes-staging-build-2026-10-31-002",
+      "conditions": [
+        {
+          "type": "RoutesReady",
+          "state": "CONDITION_SUCCEEDED"
+        },
+        {
+          "type": "BaseImageValidated",
+          "state": "CONDITION_SUCCEEDED"
+        },
+        {
+          "type": "ConfigurationsReady",
+          "state": "CONDITION_SUCCEEDED"
+        }
+      ],
+      "traffic": [
+        {
+          "type": "TRAFFIC_TARGET_ALLOCATION_TYPE_REVISION",
+          "revision": "sendmynotes-staging-build-2026-10-31-002",
+          "percent": 100,
+          "tag": "t-1838312864",
+          "uri": "https://t-1838312864---sendmynotes-staging-eisg3r4teq-uc.a.run.app"
+        }
+      ],
+      "flags": [
+        {
+          "name": "FIREBASE_PROJECT_ID",
+          "value": "sendmynotes-staging",
+          "secret": null
+        },
+        {
+          "name": "HANDWRYTTEN_TEST_MODE",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "INTERNATIONAL_MAILING_PREVIEW",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_URL",
+          "value": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+          "value": "sendmynotes-staging",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_STAGING_REVIEW_ONLY",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "STAGING_REVIEW_ONLY",
+          "value": "true",
+          "secret": null
+        }
+      ],
+      "configSha256": "29b7c6a71128cfb5bd9ca9d968fa24454f742d6bb445c5682e43bb7131324b5c",
+      "paymentSha256": "71a3c7031ca7470170d402e77103c319941db475831db39d3148ccab802bdc32",
+      "adsSha256": "12c5f3476497d7b4eabf008eb0191b858ea960a8112e79efc7b7ae9706616cb8",
+      "secretValuesLogged": false,
+      "firestoreRules": {
+        "name": "projects/sendmynotes-staging/rulesets/7454af34-b2f9-45a0-b048-cddfcfd260cb",
+        "files": [
+          {
+            "name": "firestore.rules",
+            "content": "rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if false; } } }"
+          }
+        ]
+      }
+    }
+  ]
+}

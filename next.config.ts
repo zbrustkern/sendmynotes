@@ -2,6 +2,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   serverExternalPackages: ["@google-cloud/secret-manager"],
+  outputFileTracingIncludes: {
+    "/api/upload/**": ["./lib/upload/*.woff"],
+  },
   images: {
     remotePatterns: [
       {

@@ -17,11 +17,13 @@ async function main() {
   delete process.env.K_SERVICE;
 
   try {
-    const [{ saveOrder, getOrderById, firestoreDb }, { POST: confirmPost }, { POST: webhookPost }, { POST: queuePost }, measurement] = await Promise.all([
+    const [{ saveOrder, getOrderById, firestoreDb }, { POST: confirmPost }, { POST: webhookPost }, { POST: queuePost }, { GET: orderGet }, { recordPaymentRefundFact }, measurement] = await Promise.all([
       import("@/lib/firebase-admin"),
       import("@/app/api/checkout/confirm-order/route"),
       import("@/app/api/webhooks/stripe/route"),
       import("@/app/api/telemetry/conversion-queue/route"),
+      import("@/app/api/orders/[id]/route"),
+      import("@/lib/financial-ledger"),
       import("@/lib/purchase-measurement"),
     ]);
 
@@ -130,10 +132,13 @@ async function main() {
     assert.equal(measurement.buildPurchaseMeasurement({ ...order, amountInCents: 0 }, {
       paymentIntentId: order.stripePaymentId, amount: 0, amountReceived: 0, currency: "usd", livemode: true,
     }).eligible, false, "zero-total/free orders are excluded");
-    const refunded = measurement.buildPurchaseMeasurement({ ...order, fullyRefunded: true } as any, {
+    const refunded = measurement.buildPurchaseMeasurement(order, {
       paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
     });
-    assert.equal(refunded.reason, "known_refund", "an explicitly trusted full-refund marker suppresses conversion");
+    assert.equal(refunded.reason, "eligible", "capture snapshot records verified purchase facts before refund evidence is projected");
+    assert.equal(measurement.buildPurchaseMeasurement({ ...order, isInternationalPreview: true }, {
+      paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
+    }).reason, "non_customer", "staging international preview orders are never eligible for customer conversion");
     assert.equal(measurement.buildPurchaseMeasurement(order, {
       paymentIntentId: order.stripePaymentId, amount: 765, amountReceived: 0, currency: "usd", livemode: true,
     }).reason, "invalid_capture", "uncaptured or zero-captured payments are excluded");
@@ -203,6 +208,155 @@ async function main() {
     const saved = await getOrderById(webhookOrder.id);
     assert.equal(saved?.status, "PROCESSING_HANDWRYTTEN", "early fulfillment return preserves the existing order state");
     assert.equal(saved?.purchaseMeasurement?.eligible, true, "webhook persists the verified capture snapshot before the idempotent fulfillment return");
+
+    const refundOrder = {
+      ...order,
+      id: "order_fixture_refund_projection",
+      stripePaymentId: "pi_fixture_refund_projection",
+      status: "PROCESSING_HANDWRYTTEN" as const,
+      viewToken: "fixture-view-token",
+    };
+    await saveOrder(refundOrder as any);
+    const immutableCapture = await measurement.persistPurchaseMeasurement(refundOrder.id, measurement.buildPurchaseMeasurement(refundOrder, {
+      paymentIntentId: refundOrder.stripePaymentId, amount: 765, amountReceived: 765, currency: "usd", livemode: true,
+    }));
+    const legacyRefundInput = {
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      chargeId: "ch_fixture_refund_projection",
+      amountCents: 123,
+      currency: "usd",
+      livemode: true,
+      providerEventId: "evt_fixture_statusless_refund_replay",
+    };
+    const legacyRefundFirst = await recordPaymentRefundFact(legacyRefundInput);
+    const legacyRefundDuplicate = await recordPaymentRefundFact(legacyRefundInput);
+    assert.equal(legacyRefundFirst.duplicate, false, "legacy/manual status-less refund facts remain recordable");
+    assert.equal(legacyRefundDuplicate.duplicate, true, "status-less refund replay preserves prior idempotent no-op behavior");
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_pending",
+      chargeId: "ch_fixture_refund_projection",
+      amountCents: 265,
+      currency: "usd",
+      providerRefundStatus: "pending",
+      livemode: true,
+    });
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_failed",
+      amountCents: 765,
+      currency: "usd",
+      providerRefundStatus: "failed",
+      livemode: true,
+    });
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_legacy_statusless",
+      amountCents: 765,
+      currency: "usd",
+      livemode: true,
+    });
+    await recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_partial_succeeded",
+      amountCents: 500,
+      currency: "usd",
+      providerRefundStatus: "succeeded",
+      livemode: true,
+    });
+    const partialRefundRead = await orderGet(new NextRequest(`https://sendmynotes.com/api/orders/${refundOrder.id}?token=${refundOrder.viewToken}`), { params: Promise.resolve({ id: refundOrder.id }) });
+    const partialRefundBody = await partialRefundRead.json();
+    assert.equal(partialRefundBody.order.purchaseMeasurement.eligible, true, "pending, failed, status-less and partial succeeded facts cannot suppress a purchase as fully refunded");
+    assert.equal(partialRefundBody.order.purchaseMeasurement.refundStatus, "unknown", "legacy status-less refund records remain unknown for conversion suppression");
+
+    const refundUpdateEvent = {
+      id: "evt_fixture_refund_updated_success",
+      object: "event",
+      api_version: "2025-01-27.acacia",
+      created: Math.floor(Date.now() / 1000),
+      livemode: true,
+      pending_webhooks: 0,
+      request: null,
+      type: "refund.updated",
+      data: { object: {
+        id: "re_fixture_refund_pending", object: "refund", amount: 265, currency: "usd", status: "succeeded",
+        created: Math.floor(Date.now() / 1000), charge: "ch_fixture_refund_projection", payment_intent: refundOrder.stripePaymentId,
+      } },
+    };
+    const refundUpdateResponse = await webhookPost(new NextRequest("https://sendmynotes.com/api/webhooks/stripe", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(refundUpdateEvent),
+    }));
+    assert.equal(refundUpdateResponse.status, 200, "signed refund.updated event advances the same durable refund fact");
+    const updatedRefundFact = (await firestoreDb.collection("financial_facts").doc("fact_ref_re_fixture_refund_pending").get()).data();
+    assert.equal(updatedRefundFact?.providerRefundStatus, "succeeded", "trusted status update records success without creating another refund fact");
+    assert.equal(updatedRefundFact?.amountCents, 265, "status update preserves original refund amount");
+
+    const stalePendingEvent = { ...refundUpdateEvent, id: "evt_fixture_refund_updated_stale", created: refundUpdateEvent.created - 10, data: { object: { ...refundUpdateEvent.data.object, status: "pending" } } };
+    const stalePendingResponse = await webhookPost(new NextRequest("https://sendmynotes.com/api/webhooks/stripe", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(stalePendingEvent),
+    }));
+    assert.equal(stalePendingResponse.status, 200, "stale refund.updated event is idempotently acknowledged");
+    assert.equal((await firestoreDb.collection("financial_facts").doc("fact_ref_re_fixture_refund_pending").get()).data()?.providerRefundStatus, "succeeded", "stale pending status cannot regress a succeeded refund");
+    await assert.rejects(recordPaymentRefundFact({
+      orderId: refundOrder.id,
+      paymentIntentId: refundOrder.stripePaymentId,
+      refundId: "re_fixture_refund_pending",
+      chargeId: "ch_fixture_refund_projection",
+      amountCents: 264,
+      currency: "usd",
+      providerRefundStatus: "succeeded",
+      livemode: true,
+    }), /does not match the immutable linked refund fact/, "same refund ID cannot mutate its financial amount or linkage");
+    const refundRead = await orderGet(new NextRequest(`https://sendmynotes.com/api/orders/${refundOrder.id}?token=${refundOrder.viewToken}`), { params: Promise.resolve({ id: refundOrder.id }) });
+    assert.equal(refundRead.status, 200, "authorized order read remains available when refund evidence exists");
+    const refundReadBody = await refundRead.json();
+    assert.equal(refundReadBody.order.purchaseMeasurement.reason, "known_refund", "actual linked successful financial-ledger full-refund facts suppress conversion at the authorized read boundary");
+    assert.equal(refundReadBody.order.purchaseMeasurement.eligible, false, "successful full refund projection is ineligible for Purchase tracking");
+    assert.equal(refundReadBody.order.purchaseMeasurement.refundStatus, "fully_refunded", "returned view identifies authoritative linked succeeded refund evidence");
+    const originalAllowMock = process.env.ALLOW_LOCAL_MOCK_PAYMENTS;
+    process.env.ALLOW_LOCAL_MOCK_PAYMENTS = "true";
+    try {
+      const syncRefundOrder = {
+        ...refundOrder,
+        id: "order_fixture_refund_confirmation",
+        stripePaymentId: "pi_fixture_refund_confirmation",
+        amountInCents: 900,
+        status: "PROCESSING_HANDWRYTTEN" as const,
+      };
+      await saveOrder(syncRefundOrder as any);
+      await measurement.persistPurchaseMeasurement(syncRefundOrder.id, measurement.buildPurchaseMeasurement(syncRefundOrder, {
+        paymentIntentId: syncRefundOrder.stripePaymentId, amount: 900, amountReceived: 900, currency: "usd", livemode: true,
+      }));
+      await recordPaymentRefundFact({
+        orderId: syncRefundOrder.id,
+        paymentIntentId: syncRefundOrder.stripePaymentId,
+        refundId: "re_fixture_refund_confirmation_succeeded",
+        amountCents: 900,
+        currency: "usd",
+        providerRefundStatus: "succeeded",
+        livemode: true,
+      });
+      const confirmation = await confirmPost(new NextRequest("https://sendmynotes.com/api/checkout/confirm-order", {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ orderId: syncRefundOrder.id, paymentIntentId: syncRefundOrder.stripePaymentId }),
+      }));
+      const confirmationBody = await confirmation.json();
+      assert.equal(confirmation.status, 200, "confirmation completes through the local mock path for an already-processed fixture");
+      assert.equal(confirmationBody.purchaseMeasurement.reason, "known_refund", "synchronous confirmation returns the full-refund projection too");
+      assert.equal(confirmationBody.purchaseMeasurement.eligible, false, "synchronous confirmation cannot expose an eligible refunded Purchase");
+      assert.equal((await getOrderById(syncRefundOrder.id))?.purchaseMeasurement?.refundStatus, "unknown", "synchronous response projection leaves persisted capture evidence immutable");
+    } finally {
+      if (originalAllowMock === undefined) delete process.env.ALLOW_LOCAL_MOCK_PAYMENTS;
+      else process.env.ALLOW_LOCAL_MOCK_PAYMENTS = originalAllowMock;
+    }
+    const unchangedAfterRefundRead = await getOrderById(refundOrder.id);
+    assert.equal(unchangedAfterRefundRead?.purchaseMeasurement?.eligible, immutableCapture.eligible, "read projection does not mutate the verified capture snapshot");
+    assert.equal(unchangedAfterRefundRead?.purchaseMeasurement?.refundStatus, "unknown", "persisted capture evidence preserves unknown refund status");
     console.log("google-purchase-measurement: all fixture assertions passed");
   } finally {
     process.chdir(originalCwd);

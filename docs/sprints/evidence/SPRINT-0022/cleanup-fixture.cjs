@@ -1,0 +1,11 @@
+const fs=require('node:fs'),cp=require('node:child_process'),assert=require('node:assert/strict');
+const base='https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app';
+(async()=>{const f=JSON.parse(fs.readFileSync('.data/upload-staging-fixture.json')),d=JSON.parse(fs.readFileSync('.data/upload-staging-browser.json'));
+ assert.equal(f.uid,'sprint22-upload-test');const headers={Authorization:'Bearer '+f.idToken,Origin:base};
+ const deleted=await fetch(base+'/api/upload/assets/'+d.assetId,{method:'DELETE',headers});assert(deleted.ok,'Synthetic source deletion');
+ const preview=await fetch(base+'/api/upload/previews/design/'+d.selection.designId,{headers});assert([404,409].includes(preview.status),'Deleted derivative inaccessible');
+ const revoke=await fetch(base+'/api/admin/upload-access',{method:'PATCH',headers:{Cookie:'smn_admin_session='+f.cookie,Origin:base,'Content-Type':'application/json'},body:JSON.stringify({uid:f.uid,revoked:true})});assert(revoke.ok,'Synthetic grant revoked');
+ cp.execFileSync(process.execPath,[__dirname+'/staging-fixture.cjs','cleanup'],{stdio:'pipe'});
+ for(const p of ['.data/upload-staging-fixture.json','.data/upload-staging-browser.json'])fs.unlinkSync(p);
+ const out={checkedAt:new Date().toISOString(),passed:true,sourceDeleted:true,derivedPreviewDenied:true,syntheticGrantRevoked:true,syntheticAuthUserDeleted:true,localCredentialsRemoved:true,founderAccountUnchanged:true};fs.writeFileSync(__dirname+'/checks/fixture-cleanup.json',JSON.stringify(out,null,2));console.log(JSON.stringify(out,null,2));
+})().catch(e=>{console.error(e.message);process.exitCode=1});

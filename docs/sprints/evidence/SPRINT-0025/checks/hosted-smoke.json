@@ -1,0 +1,116 @@
+{
+  "checkedAt": "2026-11-02T19:22:08.305Z",
+  "base": "https://staging.sendmynotes.com",
+  "passed": true,
+  "checks": [
+    {
+      "route": "/account",
+      "status": 200,
+      "accountShell": true
+    },
+    {
+      "route": "/account/history",
+      "status": 200,
+      "accountShell": true
+    },
+    {
+      "route": "/account/images",
+      "status": 200,
+      "accountShell": true
+    },
+    {
+      "route": "/account/people",
+      "status": 200,
+      "accountShell": true
+    },
+    {
+      "route": "/account/dates",
+      "status": 200,
+      "accountShell": true
+    },
+    {
+      "route": "/account/drafts",
+      "status": 200,
+      "accountShell": true
+    },
+    {
+      "route": "/account/settings",
+      "status": 200,
+      "accountShell": true
+    },
+    {
+      "route": "/account/verify",
+      "status": 200,
+      "accountShell": true
+    },
+    {
+      "route": "/api/account",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/account/history",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/account/images",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/account/people",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/account/occasions",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/account/drafts",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/account/preferences",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/account/privacy-requests",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/reminder-occurrences",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/reminders",
+      "status": 401,
+      "privateNoStore": true
+    },
+    {
+      "route": "/api/cron/reminder-dispatch",
+      "status": 401,
+      "unauthenticatedRejected": true
+    },
+    {
+      "route": "/api/cron/upload-cleanup",
+      "status": 401,
+      "unauthenticatedRejected": true
+    },
+    {
+      "route": "/api/cron/account-library-cleanup",
+      "status": 401,
+      "unauthenticatedRejected": true
+    }
+  ],
+  "ordersCreated": 0,
+  "emailsSent": 0,
+  "authenticatedUserFlows": "not_exercised",
+  "productionMutations": 0
+}

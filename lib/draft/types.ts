@@ -1,3 +1,7 @@
+
+import type { UploadSelection } from "@/lib/upload/contracts";
+import type { AccountImageSelection } from "@/lib/account/contracts";
+
 /**
  * Versioned Draft State & Content Model for SendMyNotes.
  * Implements S1-01 requirements:
@@ -16,9 +20,15 @@ export interface SelectedDesign {
   customId?: string;
   imageUrl: string;
   title: string;
-  source: "preset" | "custom";
+  source: "preset" | "custom" | "upload" | "account";
   occasion?: string;
   accepted: boolean;
+  uploadSelection?: UploadSelection;
+}
+
+export interface PrivateUploadRecovery {
+  ownerUid: string;
+  selection: UploadSelection;
 }
 
 export interface CustomGenerationState {
@@ -108,6 +118,8 @@ export interface DraftOptionalPreferences {
  */
 export interface DraftState {
   addressDeferred?: boolean;
+  accountImage?: AccountImageSelection | null;
+  accountOwnerUid?: string | null;
   schemaVersion: number;
   createdAt: number;
   updatedAt: number;
@@ -116,6 +128,13 @@ export interface DraftState {
 
   // Required content fields
   selectedDesign: SelectedDesign | null;
+  uploadSelection?: UploadSelection | null;
+  /** Owner for the currently visible upload selection; never inferred from email. */
+  uploadOwnerUid?: string | null;
+  /** Hidden owner-bound reference retained until the same UID reauthenticates. */
+  privateUploadRecovery?: PrivateUploadRecovery | null;
+  /** Blocks checkout until this sender explicitly chooses a usable cover. */
+  coverChoiceRequired?: boolean;
   note: NoteDraft;
   recipient: AddressDraft | null;
   sender: AddressDraft | null;
@@ -145,6 +164,12 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "draftRevision",
   "experienceVersion",
   "selectedDesign",
+  "accountImage",
+  "accountOwnerUid",
+  "uploadSelection",
+  "uploadOwnerUid",
+  "privateUploadRecovery",
+  "coverChoiceRequired",
   "note",
   "recipient",
   "sender",

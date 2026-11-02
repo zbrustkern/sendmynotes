@@ -1,0 +1,49 @@
+{
+  "production": {
+    "critical_paths_checked": 37,
+    "critical_path_mismatches": [],
+    "changed_paths": [
+      "app/admin/page.tsx",
+      "app/order/[id]/page.tsx",
+      "app/privacy/page.tsx",
+      "app/return-policy/page.tsx",
+      "app/send/[occasion]/page.tsx",
+      "app/send/page.tsx",
+      "app/terms/page.tsx",
+      "components/AddressStep.tsx",
+      "components/CheckoutStep.tsx",
+      "components/VendingMachineBuilder.tsx",
+      "components/admin/HandwryttenStatusWidget.tsx",
+      "components/flow/EntryCardStep.tsx",
+      "components/v3/Step2NoteComposition.tsx",
+      "components/v3/Step3EnvelopeAddressing.tsx",
+      "components/v3/Step4ReviewAndPayment.tsx",
+      "components/v3/Step5Confirmation.tsx",
+      "components/v3/TargetPurchaseExperience.tsx",
+      "lib/product-facts.ts"
+    ]
+  },
+  "staging": {
+    "critical_paths_checked": 47,
+    "critical_path_mismatches": [],
+    "changed_paths": [
+      "app/admin/page.tsx",
+      "app/order/[id]/page.tsx",
+      "app/privacy/page.tsx",
+      "app/return-policy/page.tsx",
+      "app/send/[occasion]/page.tsx",
+      "app/send/page.tsx",
+      "app/terms/page.tsx",
+      "components/AddressStep.tsx",
+      "components/CheckoutStep.tsx",
+      "components/VendingMachineBuilder.tsx",
+      "components/flow/EntryCardStep.tsx",
+      "components/v3/Step2NoteComposition.tsx",
+      "components/v3/Step3EnvelopeAddressing.tsx",
+      "components/v3/Step4ReviewAndPayment.tsx",
+      "components/v3/Step5Confirmation.tsx",
+      "components/v3/TargetPurchaseExperience.tsx",
+      "lib/product-facts.ts"
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "run_id": "20261020-first-sale-cleanup",
+  "workflow": "df-sprint-plan + df-sprint-execute",
+  "project_root": "/Users/zeke/code/sendmynotes",
+  "stage": "complete",
+  "status": "complete",
+  "owner": "Codex coordinator",
+  "participants": [
+    "Codex coordinator",
+    "gpt-6-luna/high alternate planner",
+    "gpt-6-luna/high release auditor",
+    "gpt-6-luna/high implementation"
+  ],
+  "source_revision": "844b2bfe4c06e9fd617288bcfa1f4f8fdce7bbd3",
+  "inputs": [
+    "AGENTS.md",
+    "docs/CANONICAL_PROJECT_BRIEF.md",
+    "docs/CANONICAL_PRODUCT_SPECS.md",
+    "intent.md"
+  ],
+  "artifacts": [
+    "intent.md",
+    "local-draft.md",
+    "luna-plan-review.md",
+    "merge-notes.md",
+    "luna-implementation.md",
+    "luna-release-audit.md",
+    "luna-code-review.md",
+    "docs/sprints/SPRINT-0012.md",
+    "REPORT.md",
+    "ROLLBACK.md",
+    "checks/"
+  ],
+  "acceptance_criteria": [
+    "AC01 readable custom-art invitation",
+    "AC02 truthful scoped product claims",
+    "AC03 dated founder report only",
+    "AC04 safe regressions builds and independent review",
+    "AC05 staging pinned release verified",
+    "AC06 production pinned release and rollback verified"
+  ],
+  "checks": [
+    "Baseline App Hosting source, READY build and 100% traffic verified for both backends",
+    "Independent Luna iteration 2 source review passed with all identified findings closed",
+    "Seven existing relevant regression suites and optimized typechecked build passed on each branch",
+    "320/390/1280px local browser layout and chooser/navigation checks passed",
+    "37 production and 47 staging critical API/config/provider fingerprints unchanged",
+    "Staging f97f98f: rollout SUCCEEDED, build READY, matching source at 100% traffic",
+    "Staging runtime guards and payment configuration unchanged; hosted root/new/privacy and phone chooser checks passed",
+    "Production 0623a0a pushed only after staging gates passed",
+    "Production rollout SUCCEEDED, build READY, matching source at 100% traffic",
+    "Production runtime flags and payment configuration unchanged; hosted root/new/privacy/admin checks passed",
+    "No browser errors captured; short staging and production service-error checks returned zero errors",
+    "Rollback targets and procedure recorded; no live charge, generation or fulfillment test performed"
+  ],
+  "open_issues": [],
+  "iteration": 2,
+  "iteration_limit": 3,
+  "next_action": "No required cleanup or release work remains. Campaign settings are unchanged; customer demand remains unproven.",
+  "updated_at": "2026-10-21T03:32:57.032708+00:00",
+  "production_commit": "0623a0a89b6d948b272f25ad8c9bfb4f4554962f",
+  "staging_commit": "f97f98f62d0fee461c236c597e33e9f54a7275d3",
+  "acceptance_results": {
+    "AC01": "passed",
+    "AC02": "passed",
+    "AC03": "passed",
+    "AC04": "passed",
+    "AC05": "passed",
+    "AC06": "passed"
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "recorded_at": "2026-10-19T21:20:32.496631+00:00",
+  "production_base": "b831eb07c034e4bba7d68cedac6315c53f24064e",
+  "staging_base": "7f6e3e5c0aba98b47cbde08e76b0dadf2012481e",
+  "runtime_files": {
+    "production": {
+      "app/preview/entry/client.tsx": "3143c5c167d659e90070bb8c55f52a0f16c86f2d9b4361e81437dfa3f57f01f7",
+      "components/CheckoutStep.tsx": "443212ae8c70073126eef7ddd586090c722f1cfc3fc23a3f8e670bfd59da702c",
+      "components/VendingMachineBuilder.tsx": "c1db1666614ac04ff37f01cda0564affbc399f6612eb41d0a25c1957a0ebfc6c",
+      "components/v3/Step4ReviewAndPayment.tsx": "6115cc0674c679b698710360a072a55a7f83243b19b0e53b0f8d1695ede31216",
+      "components/v3/TargetPurchaseExperience.tsx": "451523c45cb1d447611505104b34a0ab3e2d1b81b3ec615062211bc45a96575b"
+    },
+    "staging": {
+      "app/preview/entry/client.tsx": "b328309dcbb8a7696647942075900886a57cd22d4624edc9b76d1eb2167cc840",
+      "components/CheckoutStep.tsx": "2e9a980508be1f94dd82478d07bb53edce81468eb059d9bbfad1496b24dd26fd",
+      "components/VendingMachineBuilder.tsx": "672fddef5b7ef6e45d6ae81366726a6a166d18f66d6bbb41911f012acb0251ff",
+      "components/v3/Step4ReviewAndPayment.tsx": "a9750b7bc6e0b01f85d37f9bdcb8ffbc9271bb973e77e452f26db8952a3ee1d8",
+      "components/v3/TargetPurchaseExperience.tsx": "cc47f5d5e73a9b3b0bafecac4b861f9e39b92e74a8b5ef41eccef04784d82ee0"
+    }
+  },
+  "production_diff_stat": "",
+  "staging_diff_stat": ""
+}

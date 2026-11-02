@@ -1,0 +1,152 @@
+{
+  "passed": true,
+  "results": [
+    {
+      "engine": "chromium",
+      "available": true,
+      "passed": true,
+      "widths": [
+        {
+          "width": 320,
+          "states": [
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 304,
+              "height": 393.40625,
+              "fontSize": "22px",
+              "overflow": "false"
+            },
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 148,
+              "height": 191.515625,
+              "fontSize": "22px",
+              "overflow": "false"
+            }
+          ]
+        },
+        {
+          "width": 375,
+          "states": [
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 346.5,
+              "height": 448.40625,
+              "fontSize": "22px",
+              "overflow": "false"
+            },
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 175.5,
+              "height": 227.109375,
+              "fontSize": "22px",
+              "overflow": "false"
+            }
+          ]
+        },
+        {
+          "width": 390,
+          "states": [
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 340.65625,
+              "height": 440.84375,
+              "fontSize": "22px",
+              "overflow": "false"
+            },
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 183,
+              "height": 236.8125,
+              "fontSize": "22px",
+              "overflow": "false"
+            }
+          ]
+        },
+        {
+          "width": 430,
+          "states": [
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 340,
+              "height": 440,
+              "fontSize": "22px",
+              "overflow": "false"
+            },
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 203,
+              "height": 262.703125,
+              "fontSize": "22px",
+              "overflow": "false"
+            }
+          ]
+        },
+        {
+          "width": 768,
+          "states": [
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 346.984375,
+              "height": 449.03125,
+              "fontSize": "22px",
+              "overflow": "false"
+            },
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 178,
+              "height": 230.34375,
+              "fontSize": "22px",
+              "overflow": "false"
+            }
+          ]
+        },
+        {
+          "width": 1280,
+          "states": [
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 373.46875,
+              "height": 483.3125,
+              "fontSize": "22px",
+              "overflow": "false"
+            },
+            {
+              "text": "Dear Friend,\n\nThank you for helping us settle into our new home. Your kindness made a busy week feel lighter.\n\nWe loved sharing stories around the table and look forward to another evening together soon.\n\nWith warm thanks,\nAlex and the Example family",
+              "lines": 9,
+              "width": 296.765625,
+              "height": 384.046875,
+              "fontSize": "22px",
+              "overflow": "false"
+            }
+          ]
+        }
+      ],
+      "checks": [
+        "single/spread same reference wrapping",
+        "A2 geometry",
+        "edits and every available font remeasure",
+        "unknown font explicit",
+        "overflow full text ends in signature",
+        "enlarged spread full text"
+      ]
+    },
+    {
+      "engine": "webkit",
+      "available": false,
+      "reason": "WebKit executable is not installed in this environment"
+    }
+  ],
+  "temporaryRouteRemovedAfterRun": true
+}

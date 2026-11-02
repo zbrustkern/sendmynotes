@@ -5,6 +5,8 @@ import Image from "next/image";
 import { Sparkles, X, Wand2, Loader2, AlertCircle, Check, ArrowRight } from "lucide-react";
 import { OCCASIONS } from "@/lib/card-presets";
 import { CardFrontPreview } from "@/components/CardFrontPreview";
+import { useAuth } from '@/context/AuthContext';
+import { AuthModal } from '@/components/AuthModal';
 
 interface CustomAiCommissionDrawerProps {
   savedArtwork?: { imageUrl: string; prompt: string; occasion: string } | null;
@@ -105,11 +107,17 @@ export function CustomAiCommissionDrawer({
     imageUrl: string;
     prompt: string;
     occasion: string;
+    saveCapability: string | null;
   } | null>(null);
+  const { user } = useAuth();
+  const [showSaveSignIn, setShowSaveSignIn] = useState(false);
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [saveMessage, setSaveMessage] = useState('');
+  const [saveRequestKey, setSaveRequestKey] = useState('');
 
   useEffect(() => {
     if (savedArtwork?.imageUrl) {
-      setGeneratedArt(savedArtwork);
+      setGeneratedArt(current => current?.imageUrl === savedArtwork.imageUrl ? current : {...savedArtwork, saveCapability: null});
       setPrompt(savedArtwork.prompt);
       setOccasion(savedArtwork.occasion);
     } else setGeneratedArt(null);
@@ -189,9 +197,12 @@ export function CustomAiCommissionDrawer({
           imageUrl: data.imageUrl,
           prompt: prompt.trim(),
           occasion,
+          saveCapability: typeof data.saveCapability === 'string' ? data.saveCapability : null,
         };
         setGeneratedArt(artwork);
         onArtworkGenerated?.(artwork);
+        setSaveState('idle'); setSaveMessage('');
+        setSaveRequestKey('');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error generating custom art";
@@ -220,6 +231,23 @@ export function CustomAiCommissionDrawer({
       presetId: presetAlternative.id,
     });
     onClose();
+  };
+
+  const saveGeneratedArt = async () => {
+    if (!generatedArt) return;
+    if (!user) { setShowSaveSignIn(true); return; }
+    if (!user.emailVerified) { setSaveState('error'); setSaveMessage('Verify your sign-in email before saving images. You can still use this front now.'); return; }
+    if (!generatedArt.saveCapability) { setSaveState('error'); setSaveMessage('This result can no longer be saved. You can still use it now or create another front.'); return; }
+    setSaveState('saving'); setSaveMessage('');
+    try {
+      const token = await user.getIdToken(); const requestKey = saveRequestKey || crypto.randomUUID(); if (!saveRequestKey) setSaveRequestKey(requestKey); const response = await fetch('/api/account/images/claim', {
+        method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', 'Idempotency-Key': requestKey },
+        body: JSON.stringify({ capability: generatedArt.saveCapability, title: generatedArt.occasion }), cache: 'no-store',
+      });
+      const result = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(result?.error || 'Your image could not be saved. Please try again.');
+      setSaveState('saved'); setSaveMessage('Saved to your images.');
+    } catch (error) { setSaveState('error'); setSaveMessage(error instanceof Error ? error.message : 'Your image could not be saved. Please try again.'); }
   };
 
   return (
@@ -441,10 +469,15 @@ export function CustomAiCommissionDrawer({
               >
                 <span>Select &amp; Write Note →</span>
               </button>
+              <button type="button" onClick={() => void saveGeneratedArt()} disabled={saveState === 'saving' || saveState === 'saved'} className="w-full py-2.5 border border-stone-300 hover:bg-stone-50 disabled:opacity-60 rounded-xl text-sm font-medium transition">
+                {saveState === 'saving' ? 'Saving to your images…' : saveState === 'saved' ? 'Saved to your images' : 'Save to my images'}
+              </button>
+              {saveMessage && <p role={saveState === 'error' ? 'alert' : 'status'} className={`text-xs ${saveState === 'error' ? 'text-rose-700' : 'text-emerald-800'}`}>{saveMessage}</p>}
             </div>
           )}
         </div>
       </div>
+      <AuthModal isOpen={showSaveSignIn} onClose={() => setShowSaveSignIn(false)} onSuccess={() => setShowSaveSignIn(false)} title="Sign in to save this front" subtitle="Your artwork will stay here while you sign in. Saving is optional; you can still continue with this card." />
     </div>
   );
 }

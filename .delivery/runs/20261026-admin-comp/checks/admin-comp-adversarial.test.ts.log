@@ -1,0 +1,7 @@
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_admin_comp_1345de7297362eee0748fdd8 amount: 800
+[Webhook] Payment confirmed for Order order_admin_comp_1345de7297362eee0748fdd8 (mode: stripe_test, livemode: false). Processing order...
+[OrderProcessor] Test payment mode active (stripe_test). Skipping live Handwrytten dispatch.
+[OrderProcessor] Order order_admin_comp_1345de7297362eee0748fdd8 successfully dispatched! HW ID: test_hw_order_admin_comp_1345de7297362eee0748fdd8
+[Webhook] Duplicate Stripe webhook evt_admin_comp_local_capture (payment_intent.succeeded) received. Safely returning 200 OK.
+Admin comp adversarial checks passed (integer cents, immutable quotes, auth, actor/reason privacy, staging hold, fixed-country amount, asset allowlist, idempotency, accepted payment binding, capability privacy, and legacy dispatch guards).

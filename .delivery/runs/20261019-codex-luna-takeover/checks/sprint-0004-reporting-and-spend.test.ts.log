@@ -1,0 +1,94 @@
+=================================================================
+📊 RUNNING SPRINT-0004: REPORTING, SPEND & ACTUAL-COST COVERAGE
+=================================================================
+
+--- Suite 1: SPRINT-0004-AC01 Golden Scenarios ---
+✅ PASS: Golden founder role is 'founder'
+✅ PASS: Golden founder excluded from customer reporting
+✅ PASS: Founder mobile ad visitor is excluded when excludeFounder: true
+✅ PASS: Founder mobile ad visitor is preserved when excludeFounder: false
+✅ PASS: Golden ultrawide role is 'customer'
+✅ PASS: Golden ultrawide included in customer reporting
+✅ PASS: Ultrawide desktop customer is included in customer reporting
+✅ PASS: Forged browser paid alias does NOT mark session as paid
+✅ PASS: Forged browser paid alias produces 0 revenue
+✅ PASS: Failed fulfillment order counts as verified paid order
+✅ PASS: Failed fulfillment order preserves verified revenue ($9.00)
+✅ PASS: Failed fulfillment order surfaces in operational exception queue
+✅ PASS: Deferred address order counts as verified paid order
+✅ PASS: Deferred address order increments addressDeferredCount
+✅ PASS: Draft resumer session found
+✅ PASS: Skipped note_confirmed milestone is NOT fabricated
+✅ PASS: Skipped cover_selected milestone is NOT fabricated
+✅ PASS: Observed draft_resumed milestone is present
+✅ PASS: Session with 2 orders has paidOrdersCount === 2
+✅ PASS: Session with 2 orders has revenueCents === 1800
+✅ PASS: Refunded fact reflects in summaryMetrics.refundedAmount
+✅ PASS: Net receipts strictly equals captured revenue minus refunded amount
+
+--- Suite 2: SPRINT-0004-AC02 Separation & Truth in Economics ---
+✅ PASS: Paid orders count is strictly separate from paid sessions count when multi-order session exists
+✅ PASS: Missing dated spend has value: null
+✅ PASS: Missing dated spend has status: 'unavailable'
+✅ PASS: Missing spend yields CAC: null (NEVER $0.00 CAC)
+✅ PASS: Missing spend yields CAC status: 'unavailable'
+✅ PASS: Missing supplier cost has value: null
+✅ PASS: Missing supplier cost has status: 'unavailable'
+✅ PASS: Missing supplier cost yields contribution margin: null (NEVER 39.6%)
+✅ PASS: Missing supplier cost yields margin status: 'unavailable'
+
+--- Suite 3: SPRINT-0004-AC03 Pagination Independence & Envelopes ---
+✅ PASS: Page 1 contains exactly 1 recent session
+✅ PASS: Page 50 contains multiple recent sessions
+✅ PASS: Changing recent-session limit does not alter totalSessions
+✅ PASS: Changing recent-session limit does not alter verifiedCapturedRevenue
+✅ PASS: Campaign summary row count is completely identical regardless of recentSessions pagination
+✅ PASS: Campaign totals are byte-for-byte identical across recentSessions pagination limits
+✅ PASS: Unmatched financial facts array exists
+✅ PASS: Direct and Unattributed channels remain visible and separate from paid ads
+✅ PASS: All 13 metric envelopes have definitionVersion, asOf, window, status, coverage, and America/Chicago timezone
+
+--- Suite 4: SPRINT-0004-AC04 Replay Safety & Idempotent Imports ---
+✅ PASS: First spend commit inserts 2 records
+✅ PASS: First spend commit skips 0 duplicates
+✅ PASS: Repeated spend commit commits 0 new records
+✅ PASS: Repeated spend commit identifies both as noop_duplicate
+✅ PASS: Total spend after duplicate import remains strictly $50.00 (got 5000c)
+✅ PASS: First supplier cost commit inserts 1 record
+✅ PASS: First supplier cost commit skips 0 duplicates
+✅ PASS: Repeated supplier cost commit commits 0 new records
+✅ PASS: Repeated supplier cost commit identifies noop_duplicate
+✅ PASS: Supplier cost allocation remains strictly $4.88
+✅ PASS: Analytics projection replay succeeds
+✅ PASS: Replay executes strictly with isReplay: true
+✅ PASS: Replay reports measured durationMs
+✅ PASS: Drilldown returns array of items
+✅ PASS: Drilldown summary totalMatching > 0
+
+--- Suite 5: API Route Endpoints Verification ---
+✅ PASS: Unauthenticated GET /api/admin/reporting returns 401
+✅ PASS: Unauthenticated GET /api/admin/spend-cost returns 401
+✅ PASS: Authenticated GET /api/admin/reporting returns 200
+✅ PASS: Reporting API returns definitionVersion
+✅ PASS: Reporting API discloses its bounded Firestore adapter
+✅ PASS: Reporting API discloses cloudWarehouseStatus
+✅ PASS: Drilldown GET /api/admin/reporting returns 200
+✅ PASS: Drilldown response includes metricKey
+✅ PASS: CSV Export GET /api/admin/reporting returns 200
+✅ PASS: CSV Export returns Content-Type: text/csv
+✅ PASS: POST /api/admin/reporting replay returns 200
+✅ PASS: Replay response confirms isReplay: true
+✅ PASS: POST /api/admin/spend-cost preview returns 200
+✅ PASS: Preview correctly identifies duplicates
+✅ PASS: GET /api/admin/spend-cost coverage returns 200
+✅ PASS: Coverage returns spend and cost summaries
+✅ PASS: GET /api/admin/metrics?version=v2 returns 200
+✅ PASS: Metrics v2 returns definitionVersion
+✅ PASS: POST /api/admin/ad-spend returns 200
+✅ PASS: Ad spend updated to 12500
+✅ PASS: GET /api/admin/ad-spend returns 200
+✅ PASS: Ad spend GET includes reportingPolicyVersion
+
+=================================================================
+🎉 SPRINT-0004 VERIFICATION COMPLETE: 77 PASSED, 0 FAILED
+=================================================================

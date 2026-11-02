@@ -1,0 +1,307 @@
+{
+  "checkedAt": "2026-11-01T21:46:32.340Z",
+  "mode": "plan",
+  "target": "production",
+  "project": "sendmynotes-2a417",
+  "actions": [
+    {
+      "resource": "sendmynotes-2a417-upload-private",
+      "action": "create_private_uniform_bucket",
+      "state": "planned"
+    },
+    {
+      "resource": "upload-cleanup-secret",
+      "action": "create_empty_secret_container",
+      "state": "planned"
+    },
+    {
+      "resource": "admin-session-signing-key",
+      "action": "create_empty_secret_container",
+      "state": "planned"
+    },
+    {
+      "resource": "reminder-worker-secret",
+      "action": "create_empty_secret_container",
+      "state": "planned"
+    },
+    {
+      "resource": "account_people",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_occasions",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_images",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_drafts",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "updatedAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_drafts",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "expiresAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_images",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleanupAttemptAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_images",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "objectDeletedAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "cleanupAttemptAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_privacy_requests",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_occasions",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "contactId",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occasionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occurrenceDate",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "ownerScope",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "nextCheckAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "leaseUntil",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "account_reminder_occurrences",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dispatchStartedAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "orders",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "orders",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "customerEmail",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "createdAt",
+          "order": "DESCENDING"
+        }
+      ],
+      "state": "planned"
+    },
+    {
+      "resource": "orders",
+      "action": "create_additive_index",
+      "fields": [
+        {
+          "fieldPath": "userId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accountOccasionId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "occasionOccurrenceDate",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "accountAcceptedAt",
+          "order": "ASCENDING"
+        }
+      ],
+      "state": "planned"
+    }
+  ],
+  "codeOrTrafficChanged": false,
+  "remaining": [
+    "Review/seed target-specific secret versions and runtime accessor bindings",
+    "Verify index READY",
+    "Runtime private put/read/delete and anonymous denial fixture",
+    "Authenticated jobs after dry-run review",
+    "Signed-in acceptance and explicit production rollout approval"
+  ]
+}

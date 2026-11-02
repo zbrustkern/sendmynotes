@@ -1,0 +1,25 @@
+{
+  "environment": "staging",
+  "phase": "before",
+  "checkedAt": "2026-10-27T13:21:44.116Z",
+  "checks": [
+    {
+      "route": "/",
+      "status": 200,
+      "durationMs": 4591,
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "route": "/send",
+      "status": 200,
+      "durationMs": 165,
+      "cacheControl": "private, no-cache, no-store, max-age=0, must-revalidate"
+    },
+    {
+      "route": "/api/admin/measurement-report",
+      "status": 401,
+      "durationMs": 159,
+      "cacheControl": "private, no-store, max-age=0"
+    }
+  ]
+}

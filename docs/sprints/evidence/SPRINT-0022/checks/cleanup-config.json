@@ -1,0 +1,8 @@
+{
+  "project": "sendmynotes-staging",
+  "secretConfigured": true,
+  "job": "projects/sendmynotes-staging/locations/us-central1/jobs/upload-private-cleanup",
+  "schedule": "17 4 * * *",
+  "timeZone": "America/Chicago",
+  "secretValuesLogged": false
+}

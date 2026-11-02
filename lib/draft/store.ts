@@ -32,6 +32,23 @@ export class MemoryDraftStorage implements DraftStorage {
   }
 }
 
+function validUploadSelection(value: unknown): value is NonNullable<DraftState["uploadSelection"]> {
+  if (!value || typeof value !== "object") return false;
+  const upload = value as Record<string, unknown>;
+  return upload.source === "upload" && upload.accepted === true &&
+    typeof upload.designId === "string" && /^[A-Za-z0-9_-]{1,128}$/.test(upload.designId) &&
+    typeof upload.masterSha256 === "string" && /^[a-f0-9]{64}$/i.test(upload.masterSha256) &&
+    Number.isSafeInteger(upload.revision) && (upload.revision as number) > 0 &&
+    typeof upload.title === "string" && upload.title.length <= 120;
+}
+
+function validPrivateUploadRecovery(value: unknown): DraftState["privateUploadRecovery"] {
+  if (!value || typeof value !== "object") return null;
+  const recovery = value as Record<string, unknown>;
+  if (typeof recovery.ownerUid !== "string" || recovery.ownerUid.length < 1 || recovery.ownerUid.length > 128 || !validUploadSelection(recovery.selection)) return null;
+  return { ownerUid: recovery.ownerUid, selection: recovery.selection };
+}
+
 /**
  * Gets default browser sessionStorage safely, falling back to MemoryDraftStorage if unavailable.
  */
@@ -133,6 +150,40 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
     email: typeof contactObj?.email === "string" && contactObj.email.length <= 254 ? contactObj.email : "",
     choice: contactObj?.choice === "provided" || contactObj?.choice === "omitted" ? contactObj.choice : "untouched",
   };
+
+  const activeUpload = validUploadSelection(record.uploadSelection) ? record.uploadSelection : null;
+  const storedRecovery = validPrivateUploadRecovery(record.privateUploadRecovery);
+  const ownerUid = typeof record.uploadOwnerUid === "string" && record.uploadOwnerUid.length > 0 && record.uploadOwnerUid.length <= 128
+    ? record.uploadOwnerUid
+    : null;
+  sanitized.uploadSelection = null;
+  sanitized.uploadOwnerUid = null;
+  sanitized.privateUploadRecovery = (activeUpload && ownerUid ? { ownerUid, selection: activeUpload } : null) || storedRecovery;
+  sanitized.coverChoiceRequired = activeUpload ? true : record.coverChoiceRequired === true;
+
+  const selected = record.selectedDesign as Record<string, unknown> | null | undefined;
+  const library = record.accountImage as Record<string, unknown> | undefined;
+  const validLibrary = library && typeof library.imageId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(library.imageId)
+    && Number.isSafeInteger(library.version) && Number(library.version) > 0
+    && typeof library.masterSha256 === 'string' && /^[a-f0-9]{64}$/.test(library.masterSha256);
+  sanitized.accountImage = validLibrary ? { imageId: library.imageId as string, version: library.version as number, masterSha256: library.masterSha256 as string } : null;
+  sanitized.accountOwnerUid = typeof record.accountOwnerUid === 'string' && record.accountOwnerUid.length <= 128 ? record.accountOwnerUid : null;
+  if (selected && typeof selected === "object") {
+    const isUpload = selected.source === "upload";
+    const isLibrary = selected.source === 'account';
+    sanitized.selectedDesign = {
+      presetId: typeof selected.presetId === "string" ? selected.presetId : undefined,
+      customId: typeof selected.customId === "string" ? selected.customId : undefined,
+      imageUrl: isUpload || isLibrary ? "" : typeof selected.imageUrl === "string" ? selected.imageUrl : "",
+      title: isUpload || isLibrary ? "" : typeof selected.title === "string" ? selected.title : "",
+      source: isUpload ? "upload" : isLibrary ? "account" : selected.source === "custom" ? "custom" : "preset",
+      occasion: typeof selected.occasion === "string" ? selected.occasion : undefined,
+      accepted: isUpload ? false : typeof selected.accepted === "boolean" ? selected.accepted : false,
+      uploadSelection: undefined,
+    };
+    if (isUpload) sanitized.selectedDesign = null;
+    if (isLibrary && (!validLibrary || !sanitized.accountOwnerUid)) { sanitized.selectedDesign = null; sanitized.coverChoiceRequired = true; }
+  }
 
   // Ensure lastCustomArtwork is well-formed if present
   if (record.lastCustomArtwork && typeof record.lastCustomArtwork === "object") {

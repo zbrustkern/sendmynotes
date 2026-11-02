@@ -1,0 +1,25 @@
+# SPRINT-0024 · Lane 3 shell, history, settings
+
+## Delivered
+
+- Added the account shell, identity-gated sign-in view, deep-link-preserving auth gate, desktop navigation, and 44 px mobile Account pages menu with signed-in email and sign-out action.
+- Replaced the legacy overview with owner-authenticated people, date, draft, history, and settings summaries. Summary language now distinguishes a saved date from the nearest upcoming date, bounds people data without claiming a total, and never says email is on from consent alone. Reminder readiness also requires confirmed time zone and delivery configuration.
+- Added private account history list/detail/media routes. Projection exposes only allowlisted card data and order-time address/message snapshots. Email matching can recover only legacy orders with no explicit `userId`; explicit ownership wins. The accepted status allowlist excludes `FAILED`, since a preassigned PaymentIntent is not proof of capture. Cursor pagination uses document snapshots and the document ID tie-breaker; rejected explicit-owner email matches can be advanced past with a bounded scan cursor. Private masters are served only after owner verification; public preset paths are restricted to flat `/presets` image paths.
+- Added history filters/search/pagination, truthful order status and mailed language, authenticated preview tabs, and a make-similar handoff that copies the immutable front through Lane 2’s `/images/from-order` and reuse APIs, then saves a versioned draft. It does not reuse the old recipient or sender address by default. Reuse carries the same idempotency key so retries do not create duplicate drafts.
+- Added versioned account preferences for profile, personal return address, global reminder pause, and IANA time zone. Reminder destination is projected from the current verified identity and is never stored from submitted input. `timeZoneConfirmed` defaults false and only changes after the user explicitly confirms 9:00 a.m. in the selected zone; changing zones clears the prior confirmation. The reminder availability flag uses the worker’s delivery configuration gate.
+- Added authenticated privacy request list/create APIs. Export and deletion requests persist as `manual_review`; deletion requires explicit confirmation and is not represented as completed. Added the owner-scoped privacy request index.
+- Removed old post-order one-click reminder writes and delivery promises. Confirmation and order-detail screens now link to `/account/dates`; the legacy `/api/reminders` GET/POST/DELETE methods require the authenticated actor, writes require same-origin, and respond `410` directing to the account Dates flow without reading or writing legacy rows.
+
+## Verification
+
+- `tests/account-history.test.ts` — synthetic mock storage: allowlist projection, private fields omitted, verified legacy-email ownership, explicit-owner isolation, failed unpaid exclusion, tied timestamp cursor traversal, and unverified email isolation.
+- `tests/account-preferences.test.ts` — synthetic mock storage: defaults, verified email identity, no persisted email, version conflicts, timezone validation, explicit 9:00 a.m. confirmation, preserving an unchanged confirmed zone on unrelated saves, and clearing confirmation after an unconfirmed zone change.
+- `tests/account-privacy-requests.test.ts` — synthetic mock storage route test: same-origin writes, deletion confirmation, manual-review status, private no-store response, allowlisted response, and owner isolation.
+- `tests/legacy-reminder-retirement.test.ts` — synthetic mock storage: anonymous legacy POST is denied with no record created; authenticated same-origin POST receives `410`; cross-origin writes are denied; retired GET/DELETE are authenticated.
+- Cross-lane checks also pass: `account-builder.test.ts`, `account-library-drafts.test.ts`, `account-order-association.test.ts`, `account-routes-security.test.ts`, and `sprint-0024-people-reminders.test.ts` (isolated mock storage). The worker fixture explicitly confirms its test zone before fake dispatch.
+- A prior `npx tsc --noEmit` passed before the latest explicit time-zone confirmation edits. The coordinator should rerun the full typecheck after these changes.
+- Browser spot check of the unauthenticated account gate at 320 px and 390 px showed no horizontal overflow. The 390 px screenshot showed the warm paper/green sign-in gate. A synthetic esbuild bundle with stub auth/API and synthetic data compiled outside `.next` ([fixture builder](/private/tmp/s24-ui-fixture/build.mjs)); signed-in responsive screenshots were not captured because CUA explicitly rejected `file:` navigation and disallowed workarounds. The local Next preview was stopped to avoid racing the coordinator’s `.next` build. No browser security restriction was bypassed.
+
+## Remaining review note
+
+Firestore composite indexes are listed in `firestore.indexes.json` for `orders.userId + createdAt`, `orders.customerEmail + createdAt`, and `account_privacy_requests.ownerScope + createdAt`. The coordinator should include the final production-build/typecheck result in sprint-wide evidence.

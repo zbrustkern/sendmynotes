@@ -90,3 +90,26 @@ env:
     availability:
       - BUILD
       - RUNTIME
+
+  # Account private storage. Reminder delivery stays disabled until inbox proof.
+  - variable: UPLOAD_PRIVATE_BUCKET
+    value: sendmynotes-2a417-upload-private
+    availability: [RUNTIME]
+  - variable: UPLOAD_IMAGE_MODEL
+    value: gemini-nano-banana-2.1
+    availability: [RUNTIME]
+  - variable: UPLOAD_ADMIN_EMAILS
+    value: zbrustkern@gmail.com,sentral@gmail.com
+    availability: [RUNTIME]
+  - variable: UPLOAD_CLEANUP_SECRET
+    secret: upload-cleanup-secret@1
+    availability: [RUNTIME]
+  - variable: ADMIN_SESSION_SIGNING_KEY
+    secret: admin-session-signing-key@1
+    availability: [RUNTIME]
+  - variable: REMINDER_WORKER_SECRET
+    secret: reminder-worker-secret@1
+    availability: [RUNTIME]
+  - variable: ACCOUNT_REMINDER_DELIVERY_ACTIVE
+    value: "false"
+    availability: [RUNTIME]
