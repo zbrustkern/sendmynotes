@@ -63,7 +63,7 @@ export function getStepUrl(targetStep: FlowStep): string {
   if (typeof window === "undefined") return "";
   const url = new URL(window.location.href);
   url.searchParams.set("step", targetStep);
-  return url.pathname + url.search;
+  return url.pathname + url.search + url.hash;
 }
 
 export function EntryPrototypeClient({
@@ -138,7 +138,7 @@ export function EntryPrototypeClient({
     ? (initialCoverUrl || initialPreset?.imageUrl || CARD_PRESETS[0].imageUrl)
     : undefined;
 
-  const { draft, dispatch, clearDraft, isLoaded, wasRestored, saveLocation } = useDraft({
+  const { draft, dispatch, clearDraft, isLoaded, wasRestored, hasStoredDraft, saveLocation } = useDraft({
     experienceVersion: "candidate_v1",
     initialPresetId: resolvedInitialPresetId,
     initialPresetTitle: resolvedInitialPresetTitle,
@@ -154,6 +154,7 @@ export function EntryPrototypeClient({
   const effectiveInitialStep: FlowStep = initialStep || (isAutoSelectMode ? "note" : "card");
 
   const [step, setStep] = useState<FlowStep>(effectiveInitialStep);
+  const initialDraftStepApplied = useRef(false);
   const [uploadHandoffError, setUploadHandoffError] = useState("");
   const [uploadHandoffLoading, setUploadHandoffLoading] = useState(false);
   const [uploadPreviewUrl, setUploadPreviewUrl] = useState("");
@@ -574,24 +575,16 @@ export function EntryPrototypeClient({
         // No order identity found — do not certify completed
         setIsOrderConfirmed(false);
       }
-    } else if (wasRestored && !draft.selectedDesign?.imageUrl) {
-      // A legacy words-only draft cannot resume payment with a fallback cover.
-      setStep("card");
-    } else if (isAutoSelectMode) {
-      // Auto-selection takes precedence over default "card" currentStep from createInitialDraft
-      if (draft.currentStep === "address" || draft.currentStep === "pay") {
+    } else if (!initialDraftStepApplied.current) {
+      initialDraftStepApplied.current = true;
+      if (wasRestored && !draft.selectedDesign?.imageUrl) {
+        // A legacy words-only draft cannot resume payment with a fallback cover.
+        setStep("card");
+      } else if (draft.currentStep && ["card", "note", "address", "pay"].includes(draft.currentStep)) {
         setStep(draft.currentStep as FlowStep);
       } else {
-        setStep("note");
+        setStep(effectiveInitialStep);
       }
-    } else if (draft.currentStep && draft.currentStep !== "confirmation") {
-      setStep(draft.currentStep as FlowStep);
-    } else if (initialStep) {
-      setStep(initialStep);
-    } else if (initialHandwrittenNote) {
-      setStep("note");
-    } else if (typeof window !== "undefined" && window.innerWidth >= 1024 && !searchParams?.get("step")) {
-      setStep("note");
     }
 
     if (!draft.selectedDesign && !draft.uploadSelection && !draft.privateUploadRecovery && !draft.coverChoiceRequired && !searchParams?.get("uploadDesign") && (resolvedInitialPresetUrl && resolvedInitialPresetTitle)) {
@@ -608,16 +601,8 @@ export function EntryPrototypeClient({
       });
     }
 
-    if (draft.note.salutation !== undefined && draft.note.salutation !== "") {
-      setSalutation(draft.note.salutation);
-    } else if (parsedScenario?.salutation) {
-      setSalutation(parsedScenario.salutation);
-    }
-    if (draft.note.signOff !== undefined && draft.note.signOff !== "") {
-      setSignOff(draft.note.signOff);
-    } else if (parsedScenario?.signOff) {
-      setSignOff(parsedScenario.signOff);
-    }
+    setSalutation(draft.note.salutation ?? parsedScenario?.salutation ?? "");
+    setSignOff(draft.note.signOff ?? parsedScenario?.signOff ?? "");
 
     if (draft.recipient) {
       const restoredRecipient = {
@@ -729,6 +714,9 @@ export function EntryPrototypeClient({
   useEffect(() => {
     if (typeof window === "undefined" || !isLoaded || legacyDraftHydratedRef.current) return;
     legacyDraftHydratedRef.current = true;
+    // Full drafts are authoritative, including a newly seeded destination when
+    // a different scenario's draft was archived. Legacy state must not override it.
+    if (hasStoredDraft) return;
 
     // 2. Once Per Browser Tab Session (sessionStorage Guard)
     try {
@@ -751,21 +739,8 @@ export function EntryPrototypeClient({
         )
       );
 
-      // If cross-occasion draft detected:
-      // DO NOT restore note, greeting, sign-off, or cover from foreign occasion!
-      // Completely clear mismatched draft from global localStorage so old occasion never bleeds!
+      // Do not restore or delete another destination's legacy work.
       if (isCrossOccasion) {
-        try {
-          localStorage.removeItem("smn_active_draft_v2");
-          localStorage.removeItem("hasCustomUserEdits");
-          if (savedOccasion) {
-            localStorage.removeItem(`smn_active_draft_v2_${savedOccasion}`);
-            localStorage.removeItem(`hasCustomUserEdits_${savedOccasion}`);
-          }
-        } catch {
-          // ignore
-        }
-
         if (parsed.recipientAddress && !recipient.fullName && !recipient.street1) {
           setRecipient(parsed.recipientAddress);
           if (parsed.domesticRecipientAddress) setDomesticRecipient(parsed.domesticRecipientAddress);
@@ -773,9 +748,6 @@ export function EntryPrototypeClient({
         }
         if (parsed.senderAddress && !sender.fullName && !sender.street1) {
           setSender(parsed.senderAddress);
-        }
-        if (isAutoSelectMode) {
-          setStep("note");
         }
         return;
       }
@@ -879,6 +851,7 @@ export function EntryPrototypeClient({
   }, [
     isLoaded,
     wasRestored,
+    hasStoredDraft,
     targetOccasionSlug,
     isAutoSelectMode,
     initialStep,
@@ -894,6 +867,7 @@ export function EntryPrototypeClient({
 
   // Browser History and ?step= synchronization (Single Navigation Home)
   const initialHistoryReplacedRef = useRef(false);
+  const [historyReady, setHistoryReady] = useState(false);
 
   useEffect(() => {
     if (!isLoaded || initialHistoryReplacedRef.current) return;
@@ -905,11 +879,12 @@ export function EntryPrototypeClient({
     const stepInUrl = params.get("step") as FlowStep | null;
     const validSteps: FlowStep[] = ["card", "note", "address", "pay"];
 
-    const activeInitialStep = stepInUrl && validSteps.includes(stepInUrl) ? stepInUrl : step;
-    if (stepInUrl && validSteps.includes(stepInUrl) && stepInUrl !== step) {
-      setStep(stepInUrl);
-      dispatch({ type: "SET_STEP", payload: stepInUrl });
-    }
+    const restoredStep = draft.currentStep && validSteps.includes(draft.currentStep as FlowStep)
+      ? draft.currentStep as FlowStep : effectiveInitialStep;
+    const activeInitialStep = draft.coverChoiceRequired || (wasRestored && !draft.selectedDesign?.imageUrl)
+      ? "card" : stepInUrl && validSteps.includes(stepInUrl) ? stepInUrl : restoredStep;
+    setStep(activeInitialStep);
+    dispatch({ type: "SET_STEP", payload: activeInitialStep });
 
     const currentDepth =
       typeof window.history.state?.smnDepth === "number" ? window.history.state.smnDepth : 0;
@@ -919,7 +894,16 @@ export function EntryPrototypeClient({
       "",
       url
     );
-  }, [isLoaded, step, dispatch]);
+    setHistoryReady(true);
+  }, [isLoaded, draft.currentStep, draft.coverChoiceRequired, draft.selectedDesign, wasRestored, effectiveInitialStep, dispatch]);
+
+  // State changes outside the normal Next/Back buttons (restoration, account
+  // handoff, recovery) must also leave the URL describing the visible step.
+  useEffect(() => {
+    if (!historyReady || !["card", "note", "address", "pay"].includes(step)) return;
+    if (new URLSearchParams(window.location.search).get("step") === step) return;
+    window.history.replaceState({ ...(window.history.state || {}), smnStep: step }, "", getStepUrl(step));
+  }, [historyReady, step]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
