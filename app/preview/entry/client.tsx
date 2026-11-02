@@ -42,7 +42,7 @@ import { extractOfferCodeFromUrlParams } from "@/lib/discount";
 import { restoreAccountDraft, inferAccountDraftResumeStep } from "@/lib/account/builder-state";
 import { useBuilderAccount } from "@/lib/account/use-builder-account";
 import { AccountRecipientPicker } from "@/components/account/AccountRecipientPicker";
-import { AccountBuilderTools } from "@/components/account/AccountBuilderTools";
+import { AccountBuilderActions, AccountBuilderTools } from "@/components/account/AccountBuilderTools";
 import type { AccountDraftContent } from "@/lib/account/contracts";
 import type { UploadSelection } from "@/lib/upload/contracts";
 
@@ -2179,7 +2179,7 @@ export function EntryPrototypeClient({
           </button>
         </div>
       )}
-      <AccountBuilderTools tools={accountTools} signedIn={Boolean(user)} disabled={paymentInFlight||isOrderConfirmed||isInitializingCheckout} addressStep={step==="address"} />
+      <AccountBuilderTools tools={accountTools} signedIn={Boolean(user)} disabled={paymentInFlight||isOrderConfirmed||isInitializingCheckout} />
       <ProgressIndicator currentStep={step} onBack={handleProgressBack} />
       {!draft.coverChoiceRequired && (uploadHandoffLoading || uploadHandoffError) && <div className="mx-auto mt-3 max-w-3xl px-4"><p role={uploadHandoffError ? "alert" : "status"} className={`rounded-xl px-4 py-3 text-sm ${uploadHandoffError ? "bg-amber-50 text-amber-900" : "bg-stone-50 text-stone-600"}`}>{uploadHandoffError || "Checking your private card front…"}</p></div>}
 
@@ -2310,6 +2310,7 @@ export function EntryPrototypeClient({
             />
           </div>
         )}
+        <AccountBuilderActions tools={accountTools} signedIn={Boolean(user)} disabled={paymentInFlight||isOrderConfirmed||isInitializingCheckout} addressStep={step==="address"} />
       </main>
 
       {/* 4. PERSISTENT BOTTOM ACTION BAR (Steps 1 and 3) */}

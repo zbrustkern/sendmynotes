@@ -43,7 +43,9 @@ async function run(){
   assert.equal(updated.version,2);
   await throwsCode(()=>updateContact(actor,contact.id,{displayName:'Stale'},1),'conflict');
 
-  const event=await createOccasion(actor,{contactId:contact.id,title:'Birthday',type:'birthday',month:11,day:15,recurrence:'annual',reminderEnabled:true},'create-event-001');
+  // Keep this opt-in fixture outside the late-reminder window as the real date advances.
+  const futureBirthday=shiftCivilDate(localCivilDate(Date.now(),'America/Chicago'),40);
+  const event=await createOccasion(actor,{contactId:contact.id,title:'Birthday',type:'birthday',month:futureBirthday.month,day:futureBirthday.day,recurrence:'annual',reminderEnabled:true},'create-event-001');
   assert.equal(event.reminderEnabled,true);
   assert.equal((await getOccasion(other,event.id)),null,'another owner cannot read occasion');
   const storedOccurrences=await firestoreDb.collection('account_reminder_occurrences').where('ownerUid','==',actor.uid).where('occasionId','==',event.id).get();
