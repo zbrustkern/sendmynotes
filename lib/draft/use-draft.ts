@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useReducer, useRef, useState, useCallback } from "react";
-import { DraftState, DraftStorage } from "./types";
-import { draftReducer, DraftAction, createInitialDraft } from "./reducer";
-import { loadResumableDraft, persistResumableDraft, clearDraft as clearStorageDraft, getBrowserSessionStorage, getBrowserLocalStorage } from "./store";
-import { canonicalOccasion } from "../card-presets";
+import { DraftStorage } from "./types";
+import { draftReducer, createInitialDraft } from "./reducer";
+import { getBrowserSessionStorage, getBrowserLocalStorage } from "./store";
+import { loadEntryDraft, persistEntryDraft, clearEntryDraft } from "./entry-context";
 
 interface UseDraftOptions {
   storage?: DraftStorage;
@@ -35,6 +35,8 @@ export function useDraft(options: UseDraftOptions = {}) {
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [wasRestored, setWasRestored] = useState(false);
+  const [hasStoredDraft, setHasStoredDraft] = useState(false);
+  const entryContext = initialPresetId ? `preset:${initialPresetId}` : "general";
   const [saveLocation, setSaveLocation] = useState<"device" | "tab" | "unavailable">("unavailable");
   const [state, dispatch] = useReducer(draftReducer, createInitialDraft(experienceVersion));
   const storageRef = useRef<DraftStorage>(storage);
@@ -45,32 +47,17 @@ export function useDraft(options: UseDraftOptions = {}) {
 
   // Hydrate on mount
   useEffect(() => {
-    const existing = loadResumableDraft(storageRef.current, deviceRef.current);
-    const existingOccasion = canonicalOccasion(existing?.selectedDesign?.occasion);
-    const targetOccasion = initialOccasion ? canonicalOccasion(initialOccasion) : undefined;
-    const isOccasionMismatch = Boolean(
-      existing &&
-      targetOccasion &&
-      targetOccasion !== "general" &&
-      existingOccasion !== targetOccasion
-    );
-
-    if (existing && !isOccasionMismatch) {
+    const { draft: existing, hasStoredDraft: stored } = loadEntryDraft(storageRef.current, deviceRef.current, entryContext);
+    setHasStoredDraft(stored);
+    if (existing) {
       dispatch({ type: "HYDRATE_DRAFT", payload: existing });
-      setWasRestored(!existing.completed && Boolean(existing.selectedDesign?.imageUrl || existing.customGeneration.resultImageUrl || existing.note.text || existing.note.salutation || existing.note.signOff));
+      const untouchedStarter = Boolean(initialPresetId && existing.selectedDesign?.presetId === initialPresetId &&
+        existing.note.text === (initialHandwrittenNote || "") && existing.note.salutation === (initialSalutation || "") &&
+        existing.note.signOff === (initialSignOff || "") && existing.note.style === (initialFontStyleId || "hwDavid") &&
+        !existing.recipient && !existing.sender);
+      setWasRestored(!existing.completed && !untouchedStarter && Boolean(existing.selectedDesign?.imageUrl || existing.customGeneration.resultImageUrl || existing.note.text || existing.note.salutation || existing.note.signOff));
     } else {
-      if (isOccasionMismatch) {
-        // Cross-occasion draft detected: purge foreign draft from storage immediately
-        clearStorageDraft(storageRef.current);
-        if (deviceRef.current) clearStorageDraft(deviceRef.current);
-        // Retain existing delivery addresses so user doesn't have to retype them
-        if (existing?.recipient) {
-          dispatch({ type: "UPDATE_RECIPIENT", payload: existing.recipient });
-        }
-        if (existing?.sender) {
-          dispatch({ type: "UPDATE_SENDER", payload: existing.sender });
-        }
-      }
+      dispatch({ type: "HYDRATE_DRAFT", payload: { ...createInitialDraft(experienceVersion), entryContext } });
       // If an initial preset or curated scenario was passed via URL/context:
       if (initialPresetUrl && initialPresetTitle) {
         dispatch({
@@ -79,7 +66,7 @@ export function useDraft(options: UseDraftOptions = {}) {
             presetId: initialPresetId,
             imageUrl: initialPresetUrl,
             title: initialPresetTitle,
-            occasion: initialOccasion || targetOccasion,
+            occasion: initialOccasion,
             source: "preset",
             accepted: Boolean(initialHandwrittenNote), // Pre-seeded curated scenario starts accepted
           },
@@ -96,6 +83,7 @@ export function useDraft(options: UseDraftOptions = {}) {
           },
         });
       }
+      if (initialPresetUrl && initialPresetTitle) dispatch({ type: "SET_STEP", payload: "note" });
     }
     setIsLoaded(true);
   }, [
@@ -107,20 +95,22 @@ export function useDraft(options: UseDraftOptions = {}) {
     initialSalutation,
     initialSignOff,
     initialFontStyleId,
+    entryContext,
+    experienceVersion,
   ]);
 
   // Persist state updates
   useEffect(() => {
     if (!isLoaded) return;
-    setSaveLocation(persistResumableDraft(state, storageRef.current, deviceRef.current));
-  }, [state, isLoaded]);
+    setSaveLocation(persistEntryDraft(state, storageRef.current, deviceRef.current, entryContext));
+  }, [state, isLoaded, entryContext]);
 
   const handleClearDraft = useCallback(() => {
-    clearStorageDraft(storageRef.current);
-    if (deviceRef.current) clearStorageDraft(deviceRef.current);
+    clearEntryDraft(storageRef.current, entryContext);
+    if (deviceRef.current) clearEntryDraft(deviceRef.current, entryContext);
     setWasRestored(false);
     dispatch({ type: "CLEAR_DRAFT", payload: { experienceVersion } });
-  }, [experienceVersion]);
+  }, [experienceVersion, entryContext]);
 
   return {
     draft: state,
@@ -128,6 +118,7 @@ export function useDraft(options: UseDraftOptions = {}) {
     clearDraft: handleClearDraft,
     isLoaded,
     wasRestored,
+    hasStoredDraft,
     saveLocation,
   };
 }
