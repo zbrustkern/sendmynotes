@@ -57,6 +57,7 @@ export function ExperienceRouter({
   if (isV3) {
     return (
       <EntryPrototypeClient
+        key={scenarioSlug || initialOccasion || "general"}
         initialOccasion={initialOccasion}
         initialCoverUrl={initialCoverUrl}
         initialPrintedGreeting={initialPrintedGreeting}

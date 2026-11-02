@@ -117,6 +117,8 @@ export interface DraftOptionalPreferences {
  * Complete draft state object.
  */
 export interface DraftState {
+  /** Entry destination that owns this draft, independent of cover changes. */
+  entryContext?: string;
   addressDeferred?: boolean;
   accountImage?: AccountImageSelection | null;
   accountOwnerUid?: string | null;
@@ -157,6 +159,7 @@ export interface DraftState {
  * Any key not in this list will be excluded from persistent storage.
  */
 export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
+  "entryContext",
   "addressDeferred",
   "schemaVersion",
   "createdAt",

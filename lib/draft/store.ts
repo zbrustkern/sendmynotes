@@ -122,6 +122,9 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
   }
 
   // Ensure note is well-formed
+  sanitized.entryContext = typeof record.entryContext === "string" &&
+    /^(general|preset:[a-z0-9-]{1,120})$/.test(record.entryContext)
+    ? record.entryContext : undefined;
   const noteObj = record.note as Record<string, unknown> | undefined;
   sanitized.note = {
     salutation: typeof noteObj?.salutation === "string" ? noteObj.salutation : "",
