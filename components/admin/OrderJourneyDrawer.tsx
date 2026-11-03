@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import type { Order, MailingAddress } from "@/lib/types";
+import { OrderFollowupPanel } from "@/components/admin/OrderFollowupPanel";
 import type {
   InvestigationOrderSummary,
   UnifiedEvidenceTimeline,
@@ -508,6 +509,7 @@ export function OrderJourneyDrawer({
           <p className="text-[11px] text-stone-600 leading-tight">{recipientSummary}</p>
         </div>
       </div>
+      <OrderFollowupPanel orderId={orderId} />
     </div>
   );
 }

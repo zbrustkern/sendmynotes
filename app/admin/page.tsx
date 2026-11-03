@@ -43,6 +43,9 @@ import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
 import { StudioCompModal } from "@/components/admin/StudioCompModal";
 import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
 import { PrivacyOperationsPanel } from "@/components/admin/PrivacyOperationsPanel";
+import { PostPurchaseQueuePanel } from "@/components/admin/PostPurchaseQueuePanel";
+import { PostPurchaseSettingsPanel } from "@/components/admin/PostPurchaseSettingsPanel";
+import { OrderFollowupPanel } from "@/components/admin/OrderFollowupPanel";
 
 export default function AdminDashboardPage() {
   const { user, signInWithGoogle, signOut: authSignOut } = useAuth();
@@ -64,6 +67,9 @@ export default function AdminDashboardPage() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingStripeId, setSyncingStripeId] = useState<string | null>(null);
   const [expandedJourneyOrderId, setExpandedJourneyOrderId] = useState<string | null>(null);
+  const [showPostPurchaseQueue, setShowPostPurchaseQueue] = useState(false);
+  const [showPostPurchaseSettings, setShowPostPurchaseSettings] = useState(false);
+  const [selectedFollowupOrderId, setSelectedFollowupOrderId] = useState<string | null>(null);
 
   // Modals
   const [selectedProofOrderId, setSelectedProofOrderId] = useState<string | null>(null);
@@ -858,6 +864,13 @@ export default function AdminDashboardPage() {
             {/* Handwrytten Status Widget */}
             <HandwryttenStatusWidget />
 
+            <section className="space-y-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-xl text-stone-900">Optional post-purchase follow-ups</h2><p className="text-xs text-stone-600">Review eligible orders, permission, timing, and message settings.</p></div><div className="flex gap-2"><button type="button" aria-expanded={showPostPurchaseQueue} onClick={() => setShowPostPurchaseQueue((v) => !v)} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm">{showPostPurchaseQueue ? "Hide queue" : "Open queue"}</button><button type="button" aria-expanded={showPostPurchaseSettings} onClick={() => setShowPostPurchaseSettings((v) => !v)} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm">{showPostPurchaseSettings ? "Hide settings" : "Flow settings"}</button></div></div>
+              {showPostPurchaseQueue && <PostPurchaseQueuePanel onSelectOrder={(orderId) => { setSelectedFollowupOrderId(orderId); document.getElementById(`order-row-${orderId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }} />}
+              {showPostPurchaseQueue && selectedFollowupOrderId && <OrderFollowupPanel orderId={selectedFollowupOrderId} onClose={() => setSelectedFollowupOrderId(null)} />}
+              {showPostPurchaseSettings && <PostPurchaseSettingsPanel />}
+            </section>
+
             {/* ACTIVE TROUBLESHOOTING ALERT CALLOUT */}
             {hasActiveAlerts && (
               <div className="p-3.5 sm:p-4 rounded-2xl bg-rose-50 border border-rose-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-rose-900 text-xs">
@@ -1233,7 +1246,7 @@ export default function AdminDashboardPage() {
 
                           return (
                             <React.Fragment key={order.id}>
-                              <tr className="hover:bg-stone-50/50 transition">
+                              <tr id={`order-row-${order.id}`} className="hover:bg-stone-50/50 transition">
                                 <td className="py-3 px-4">
                                   <div className="relative w-10 h-14 rounded-lg overflow-hidden border border-stone-200 shadow-sm bg-stone-100 flex-shrink-0">
                                     <Image

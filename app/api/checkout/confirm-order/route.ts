@@ -1,3 +1,4 @@
+import { trySyncPostPurchaseOrder } from "@/lib/post-purchase/integration";
 import { NextRequest, NextResponse } from "next/server";
 import { getStripeClient, CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { resolvePaymentMode, PaymentMode } from "@/lib/payment-mode";
@@ -259,6 +260,8 @@ export async function POST(req: NextRequest) {
 
     }
 
+    await trySyncPostPurchaseOrder(orderId);
+
     // A browser's verifyOnly request remains a non-dispatching quote check.
     // Real completion delegates the transactional hold to processPaidOrder so
     // webhook and synchronous paths share the same race-safe authority.
@@ -365,6 +368,8 @@ export async function POST(req: NextRequest) {
         });
       }
     }
+
+    await trySyncPostPurchaseOrder(orderId);
 
     return NextResponse.json({
       success: result.success,

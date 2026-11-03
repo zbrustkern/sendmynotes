@@ -47,7 +47,7 @@ function formatAddressText(address?: Partial<MailingAddress> | null): string {
 
 function orderMailingDetails(order: Order) {
   const isInternational = Boolean(order.quote?.countryCode && order.quote.countryCode !== "US");
-  const amountCents = order.quote?.totalCents ?? order.finalAmountInCents ?? order.amountInCents ?? 900;
+  const amountCents = order.purchaseMeasurement?.amountInCents ?? order.quote?.totalCents ?? order.finalAmountInCents ?? order.amountInCents ?? 900;
   return {
     isInternational,
     formattedAmount: `$${(amountCents / 100).toFixed(2)}`,
@@ -155,7 +155,7 @@ https://sendmynotes.com
     <h1 class="title">Your card for ${escapeHtml(recipientName)} is reserved</h1>
     
     <p class="intro">
-      Thank you for your order! Your ${formattedAmount} payment has been received and your custom card is locked in.
+      Thank you for your order! Your ${formattedAmount} payment has been received and your card is reserved.
     </p>
 
     <!-- Receipt Breakdown -->
@@ -182,7 +182,7 @@ https://sendmynotes.com
 
     <!-- Prominent Call to Action -->
     <div class="step-guidance">
-      <strong>📮 Next Step:</strong> Whenever you're ready, add ${escapeHtml(recipientName)}'s mailing address using the button below. Once entered, our robotic pens will immediately write your note in real ink and dispatch your card.
+      <strong>📮 Next Step:</strong> Whenever you're ready, add ${escapeHtml(recipientName)}'s mailing address using the button below. Once the address is added, we can prepare your card for mailing.
     </div>
 
     <div class="cta-container">

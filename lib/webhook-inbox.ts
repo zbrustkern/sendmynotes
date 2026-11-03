@@ -39,11 +39,19 @@ export async function acceptWebhookEvent(
     throw new Error("Unverified webhook signature rejected");
   }
 
-  const docId = `inbox_${input.providerEventId}`;
+  const docId = `inbox_${input.provider}_${input.providerEventId}`;
   const docRef = firestoreDb.collection(WEBHOOK_INBOX_COLLECTION).doc(docId);
 
   return firestoreDb.runTransaction(async (transaction: any) => {
-    const snapshot = await transaction.get(docRef);
+    let snapshot = await transaction.get(docRef);
+    // Read legacy un-namespaced rows for replay compatibility. Old Resend rows
+    // were incorrectly written as Handwrytten, so accept that legacy provider only
+    // when the stable event id matches the Resend callback.
+    if (!snapshot.exists) {
+      const legacy = await transaction.get(firestoreDb.collection(WEBHOOK_INBOX_COLLECTION).doc(`inbox_${input.providerEventId}`));
+      const old = legacy.exists ? legacy.data() as ProviderWebhookInboxRecord : null;
+      if (old && (old.provider === input.provider || (input.provider === "resend" && old.provider === "handwrytten"))) snapshot = legacy;
+    }
 
     if (snapshot.exists) {
       const existing = snapshot.data() as ProviderWebhookInboxRecord;
@@ -70,7 +78,7 @@ export async function acceptWebhookEvent(
     const now = input.nowMs ?? Date.now();
     const record: ProviderWebhookInboxRecord = {
       inboxId: docId,
-      provider: input.provider === "resend" ? ("handwrytten" as any) : input.provider,
+      provider: input.provider,
       providerEventId: input.providerEventId,
       eventType: input.eventType,
       receivedAt: now,
@@ -94,8 +102,8 @@ export async function acceptWebhookEvent(
 /**
  * Marks a webhook inbox record as successfully processed.
  */
-export async function markWebhookInboxProcessed(providerEventId: string): Promise<void> {
-  const docId = `inbox_${providerEventId}`;
+export async function markWebhookInboxProcessed(providerEventId: string, provider: AcceptWebhookInput["provider"] = "stripe"): Promise<void> {
+  const docId = `inbox_${provider}_${providerEventId}`;
   const docRef = firestoreDb.collection(WEBHOOK_INBOX_COLLECTION).doc(docId);
 
   await docRef.set(
@@ -113,9 +121,10 @@ export async function markWebhookInboxProcessed(providerEventId: string): Promis
  */
 export async function markWebhookInboxFailed(
   providerEventId: string,
-  error: string
+  error: string,
+  provider: AcceptWebhookInput["provider"] = "stripe"
 ): Promise<ProviderWebhookInboxRecord> {
-  const docId = `inbox_${providerEventId}`;
+  const docId = `inbox_${provider}_${providerEventId}`;
   const docRef = firestoreDb.collection(WEBHOOK_INBOX_COLLECTION).doc(docId);
 
   return firestoreDb.runTransaction(async (transaction: any) => {
@@ -142,10 +151,12 @@ export async function markWebhookInboxFailed(
  * Retrieves a webhook inbox record by its providerEventId.
  */
 export async function getWebhookInboxRecord(
-  providerEventId: string
+  providerEventId: string,
+  provider: AcceptWebhookInput["provider"] = "stripe"
 ): Promise<ProviderWebhookInboxRecord | null> {
-  const docId = `inbox_${providerEventId}`;
-  const snapshot = await firestoreDb.collection(WEBHOOK_INBOX_COLLECTION).doc(docId).get();
+  const collection = firestoreDb.collection(WEBHOOK_INBOX_COLLECTION);
+  let snapshot = await collection.doc(`inbox_${provider}_${providerEventId}`).get();
+  if (!snapshot.exists) snapshot = await collection.doc(`inbox_${providerEventId}`).get();
   if (!snapshot.exists) {
     return null;
   }

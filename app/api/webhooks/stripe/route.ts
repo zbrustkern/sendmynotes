@@ -1,3 +1,4 @@
+import { trySyncPostPurchaseOrder } from "@/lib/post-purchase/integration";
 import { normalizeCountryCode } from "@/lib/mailing-destinations";
 import { effectiveOrderEmail } from "@/lib/checkout-contact";
 import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/receipt-email-delivery";
@@ -184,6 +185,8 @@ export async function POST(req: NextRequest) {
         console.warn("[Webhook] Purchase measurement snapshot write unavailable.");
       }
 
+      await trySyncPostPurchaseOrder(orderId);
+
       console.log(
         `[Webhook] Payment confirmed for Order ${orderId} (mode: ${paymentMode}, livemode: ${!isTestPayment}). Processing order...`
       );
@@ -244,6 +247,8 @@ export async function POST(req: NextRequest) {
           });
         }
       }
+
+      await trySyncPostPurchaseOrder(orderId);
 
       // Automated Transactional Email Dispatch (Resend + Google Secret Manager)
       try {

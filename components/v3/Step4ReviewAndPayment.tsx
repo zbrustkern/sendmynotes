@@ -154,6 +154,7 @@ function InnerPaymentForm({
     setIsProcessingState(processing);
   };
   const [isPaymentCaptured, setIsPaymentCaptured] = useState(false);
+  const [followupOptIn, setFollowupOptIn] = useState(false);
   const [committedEmail, setCommittedEmail] = useState(customerEmail);
   const emailTouched = React.useRef(false);
   useEffect(() => { if (!emailTouched.current) setCommittedEmail(customerEmail); }, [customerEmail]);
@@ -171,7 +172,7 @@ function InnerPaymentForm({
     try {
       const response = await fetch("/api/checkout/contact", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderId, viewToken, customerEmail: email }),
+        body: JSON.stringify({ orderId, viewToken, customerEmail: email, followupOptIn: Boolean(email && followupOptIn) }),
       });
       const data = await response.json();
       return response.ok ? null : (data.error || "We couldn't save your email preference. Please retry before paying.");
@@ -860,6 +861,7 @@ function InnerPaymentForm({
               onChange={(e) => {
                 emailTouched.current = true;
                 onChangeCustomerEmail(e.target.value);
+                setFollowupOptIn(false);
                 if (errorMessage) setErrorMessage(null);
               }}
               onBlur={() => setCommittedEmail(customerEmail)}
@@ -869,6 +871,11 @@ function InnerPaymentForm({
             <p className="text-[11px] text-stone-500">
               {recipient.street1?.trim() ? "For your receipt and available mailing updates. You can leave this blank." : "We’ll email a secure link so you can add the recipient address later."}
             </p>
+            <label className="flex items-start gap-2 pt-2 text-xs leading-5 text-stone-600">
+              <input type="checkbox" checked={followupOptIn} disabled={!customerEmail.trim() || isProcessing || isPaymentCaptured}
+                onChange={(event) => setFollowupOptIn(event.target.checked)} className="mt-1 accent-amber-800" />
+              <span>Email me a check-in and occasional offers from SendMyNotes. Optional; unsubscribe anytime. No account needed.</span>
+            </label>
           </div>
 
           {/* STRIPE PAYMENT CONTAINER - DIRECTLY ABOVE THE FOLD */}

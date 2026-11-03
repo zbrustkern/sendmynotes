@@ -1,3 +1,4 @@
+import { validateFollowupLinkForCheckout } from "@/lib/post-purchase/attribution";
 import { resolveAccountOrderAssociation } from "@/lib/account/order-association";
 import { AccountError, accountError } from "@/lib/account/http";
 import { pinGeneratedOrderMaster } from "@/lib/account/order-front";
@@ -47,6 +48,7 @@ export async function POST(req: NextRequest) {
 
     const isAddressDeferred = Boolean(body.addressDeferred || body.address_deferred);
     const attribution = sanitizeOrderAttribution(rawAttribution);
+    const postPurchaseLinkObservation = await validateFollowupLinkForCheckout(body.followupLink, req.headers.get("sec-gpc") !== "1" && !attribution?.gpc && !attribution?.optOut);
     let isFounderTest = req.cookies.get("smn_founder_device")?.value === "1";
     if (!isFounderTest && typeof sessionId === "string") {
       try {
@@ -206,6 +208,7 @@ export async function POST(req: NextRequest) {
         listPriceCents: CARD_FLAT_RATE_CENTS,
         isFounderTest,
         ...(attribution ? { attribution } : {}),
+      ...(postPurchaseLinkObservation ? { postPurchaseLinkObservation } : {}),
         ...(sessionId ? { sessionId } : {}),
         ...(experienceVersion ? { experienceVersion } : {}),
         viewToken,
@@ -310,6 +313,7 @@ export async function POST(req: NextRequest) {
       listPriceCents: CARD_FLAT_RATE_CENTS,
       isFounderTest,
       ...(attribution ? { attribution } : {}),
+      ...(postPurchaseLinkObservation ? { postPurchaseLinkObservation } : {}),
       ...(sessionId ? { sessionId } : {}),
       ...(experienceVersion ? { experienceVersion } : {}),
       viewToken,

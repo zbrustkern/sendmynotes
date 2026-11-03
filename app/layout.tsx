@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { AttributionTracker } from "@/components/AttributionTracker";
@@ -130,7 +131,7 @@ export default function RootLayout({
             }),
           }}
         />
-        <MarketingScripts />
+        <Suspense fallback={null}><MarketingScripts /></Suspense>
         <meta
           name="facebook-domain-verification"
           content={process.env.NEXT_PUBLIC_META_DOMAIN_VERIFICATION || "7j8rbkz9ktc5jzapl53uueqvute5et"}

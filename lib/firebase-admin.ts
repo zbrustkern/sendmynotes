@@ -273,6 +273,7 @@ class MockFirestore {
 class MockTransaction {
   private writesStarted = false;
   private writes: Array<() => Promise<void>> = [];
+  private preconditions: Array<() => Promise<void>> = [];
   constructor(private firestore: MockFirestore) {}
 
   async get<T = unknown>(ref: MockDocRef<T>): Promise<MockDocumentSnapshot<T>> {
@@ -285,6 +286,15 @@ class MockTransaction {
   set<T = unknown>(ref: MockDocRef<T>, data: T, options?: { merge?: boolean }): this {
     this.writesStarted = true;
     this.writes.push(() => ref.set(data, options));
+    return this;
+  }
+
+  create<T = unknown>(ref: MockDocRef<T>, data: T): this {
+    this.writesStarted = true;
+    this.preconditions.push(async () => {
+      if ((await ref.get()).exists) throw Object.assign(new Error("Document already exists"), { code: 6 });
+    });
+    this.writes.push(() => ref.create(data));
     return this;
   }
 
@@ -301,6 +311,7 @@ class MockTransaction {
   }
 
   async commit(): Promise<void> {
+    for (const check of this.preconditions) await check();
     for (const write of this.writes) await write();
   }
 }

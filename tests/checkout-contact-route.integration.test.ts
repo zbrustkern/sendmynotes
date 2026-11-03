@@ -78,6 +78,10 @@ async function run() {
     assert.equal(provided.status, 200);
     assert.equal((await getOrderById(id))?.customerEmail, "sender@example.com", "contact preference is stored on the order for the single SendMyNotes receipt");
     assert.equal(updateCalls, 0, "saving contact must not enable duplicate Stripe receipts");
+    const optin = await saveContactPost(request({orderId:id,viewToken:"capability-token",customerEmail:"sender@example.com",followupOptIn:true}));
+    assert.equal(optin.status,200);
+    assert.equal((await getOrderById(id))?.postPurchaseConsent?.optedIn,true);
+    assert.equal((await getOrderById(id))?.postPurchaseConsent?.disclosureVersion,"post_purchase_v1_2026-11-03");
     const omitted = await saveContactPost(request({ orderId: id, viewToken: "capability-token", customerEmail: "   " }));
     assert.equal(omitted.status, 200);
     const saved = await getOrderById(id) as any;

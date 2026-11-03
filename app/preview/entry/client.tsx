@@ -1,4 +1,5 @@
 "use client";
+import { getStoredFollowupLink } from "@/lib/post-purchase/link-client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
@@ -1710,6 +1711,7 @@ export function EntryPrototypeClient({
           ...(accountLinks.occasionId ? {accountOccasionId:accountLinks.occasionId,accountContactId:accountLinks.contactId} : {}),
           discountCode: discountCodeToUse,
           attribution: getStoredAttribution() || undefined,
+          followupLink: getStoredFollowupLink(),
           sessionId: getSessionId(),
           experienceVersion: draft.experienceVersion || "candidate_v1",
         }),

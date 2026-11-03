@@ -308,7 +308,7 @@ export interface FinancialFactRecord {
 
 export interface ProviderWebhookInboxRecord {
   inboxId: string;
-  provider: "stripe" | "handwrytten";
+  provider: "stripe" | "handwrytten" | "resend";
   providerEventId: string;
   eventType: string;
   receivedAt: number;

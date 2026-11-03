@@ -1,23 +1,27 @@
 "use client";
 
 import Script from "next/script";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { GOOGLE_TAG_ID, GOOGLE_ADS_ID, GA4_MEASUREMENT_ID } from "@/lib/google-ads";
 import { META_PIXEL_ID } from "@/lib/meta-ads";
 
 /** Marketing tags are omitted on private capability URLs containing bearer credentials. */
 export function MarketingScripts() {
   const pathname = usePathname();
-  if (pathname?.startsWith("/comp-payment/") || process.env.NEXT_PUBLIC_STAGING_REVIEW_ONLY === "true") return null;
+  const searchParams = useSearchParams();
+  // Discount codes and unsubscribe tokens are bearer-like private capabilities.
+  // Suppress automatic Google/Meta page views on those URLs so query strings
+  // cannot be sent to third parties by browser page-view collection.
+  if (pathname?.startsWith("/comp-payment/") || pathname === "/email/unsubscribe" || searchParams.has("discount") || searchParams.has("token") || searchParams.has("followupRef") || process.env.NEXT_PUBLIC_STAGING_REVIEW_ONLY === "true") return null;
   return <>
     <Script async src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG_ID || GOOGLE_ADS_ID}`} strategy="afterInteractive" />
     <Script id="smn-google-tag-init" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: `
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
-      ${GOOGLE_TAG_ID ? `gtag('config', '${GOOGLE_TAG_ID}');` : ""}
-      gtag('config', '${GOOGLE_ADS_ID}');
-      ${GA4_MEASUREMENT_ID ? `gtag('config', '${GA4_MEASUREMENT_ID}', { send_page_view: true });` : ""}
+      ${GOOGLE_TAG_ID ? `gtag('config', '${GOOGLE_TAG_ID}', { send_page_view: false });` : ""}
+      gtag('config', '${GOOGLE_ADS_ID}', { send_page_view: false });
+      ${GA4_MEASUREMENT_ID ? `gtag('config', '${GA4_MEASUREMENT_ID}', { send_page_view: false });` : ""}
     ` }} />
     <Script id="smn-meta-pixel" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: `
       !function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?

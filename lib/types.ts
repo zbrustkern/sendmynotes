@@ -112,6 +112,13 @@ export interface Order {
   contactEmailSyncStatus?: "pending" | "synced";
   contactEmailUpdateId?: string;
   contactEmailUpdateStartedAt?: number;
+  /** Explicit optional-email choice, separate from receipt delivery. Server authored. */
+  postPurchaseConsent?: { optedIn: boolean; disclosureVersion: string; source: "checkout"; recordedAt: number };
+  postPurchaseSenderKey?: string;
+  postPurchaseMailedAt?: number;
+  postPurchaseMailingEvidence?: { source: string; recordedAt: number };
+  postPurchaseLinkObservation?: { referenceHash: string; messageId: string; enrollmentId: string; sourceOrderId: string; environment: string; observedAt: number; createdAt: number; expiresAt: number };
+  retentionAttribution?: { schemaVersion: 1; campaignId: "post_purchase_v1"; enrollmentId: string; messageId: string; grantId?: string; sourceOrderId: string; method: "redeemed_code" | "observed_link"; observedAt: number; buyerAssociation: "observed_repeat" | "different_email_possible_referral" | "unknown" };
   userId?: string;
   accountOccasionId?: string;
   occasionOccurrenceDate?: string;

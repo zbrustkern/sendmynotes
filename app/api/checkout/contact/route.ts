@@ -9,7 +9,7 @@ import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/rec
 /** Commit the sender's email choice before Stripe confirmation using the order view capability. */
 export async function POST(req: NextRequest) {
   try {
-    const { orderId, viewToken, customerEmail } = await req.json();
+    const { orderId, viewToken, customerEmail, followupOptIn } = await req.json();
     if (typeof orderId !== "string" || typeof viewToken !== "string") {
       return NextResponse.json({ error: "Order access could not be verified." }, { status: 400 });
     }
@@ -38,6 +38,9 @@ export async function POST(req: NextRequest) {
       if (current.status !== "PENDING_PAYMENT" && !(paidRecovery && current.status === "PAYMENT_RECEIVED" && current.fulfillmentStatus === "CONTACT_RECOVERY_REQUIRED")) throw new Error("ORDER_ALREADY_IN_PROGRESS");
       transaction.update(ref, {
         customerEmail: email,
+        ...((typeof followupOptIn === "boolean" || (current.postPurchaseConsent && current.customerEmail !== email)) ? { postPurchaseConsent: {
+          optedIn: Boolean(email && followupOptIn), disclosureVersion: "post_purchase_v1_2026-11-03", source: "checkout", recordedAt: Date.now(),
+        } } : {}),
         contactEmailChoice: contactEmailChoice(email),
         contactEmailSyncStatus: "synced",
         contactEmailUpdateId: null,
