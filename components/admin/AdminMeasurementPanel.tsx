@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import type { AdminMeasurementReport, ReportChannel, ReportPeriod, ReportRecordMode } from "@/lib/contracts/admin-measurement-report";
+import { ATTRIBUTION_GROUP_LABELS } from "@/lib/attribution-contract";
 import { CampaignPerformanceWidget } from "@/components/admin/CampaignPerformanceWidget";
 
 interface AdminMeasurementPanelProps {
@@ -19,7 +20,7 @@ interface AdminMeasurementPanelProps {
 }
 
 const periods: Record<string, ReportPeriod> = { today: "today", last7: "last7", oct13: "since_oct13", since_oct13: "since_oct13", all: "all", custom: "custom" };
-const channels: Record<string, ReportChannel> = { all: "all", google: "google_paid", google_cpc: "google_paid", google_paid: "google_paid", email: "email", organic: "organic", meta: "social_meta", social_meta: "social_meta", referral: "referral", direct: "direct", unknown: "unknown" };
+const channels: Record<string, ReportChannel> = { all: "all", ...Object.fromEntries(Object.keys(ATTRIBUTION_GROUP_LABELS).map((key) => [key, key as ReportChannel])), google: "paid", google_cpc: "paid", google_paid: "paid", email: "email_other", organic: "organic_search", meta: "social_referral", social_meta: "social_referral", referral: "social_referral", direct: "direct_observed", unknown: "unknown" };
 const scopeLabel = (report: AdminMeasurementReport) => {
   const range = report.scope.period === "all" ? `All available (${report.sources?.orders?.count ?? "unknown"} order records covered)` : `${report.scope.startDate ?? "?"} to ${report.scope.endDate ?? "?"}`;
   const channel = report.scope.channel === "all" ? "all channels" : report.scope.channel.replaceAll("_", " ");
@@ -106,7 +107,7 @@ export function AdminMeasurementPanel({ filterDateRange: controlledDateRange, on
     </div>
     {period === "custom" && <div className="grid grid-cols-1 gap-3 sm:grid-cols-2"><label className="text-sm font-medium text-stone-700">Start date<input type="date" value={customFrom} onChange={(event) => { setLocalCustomFrom(event.target.value); onCustomDateChange?.(event.target.value, customTo); }} className="mt-1 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-base" /></label><label className="text-sm font-medium text-stone-700">End date<input type="date" value={customTo} onChange={(event) => { setLocalCustomTo(event.target.value); onCustomDateChange?.(customFrom, event.target.value); }} className="mt-1 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-base" /></label></div>}
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      <label className="text-sm font-medium text-stone-700">Channel<select value={channel} onChange={(event) => { setLocalChannel(event.target.value); onChannelChange?.(event.target.value); }} className="mt-1 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-base"><option value="all">All recorded channels</option><option value="google_paid">Google paid</option><option value="email">Email</option><option value="organic">Organic</option><option value="social_meta">Meta social</option><option value="referral">Referral</option><option value="direct">Direct</option><option value="unknown">Unknown</option></select></label>
+      <label className="text-sm font-medium text-stone-700">Channel<select value={channel} onChange={(event) => { setLocalChannel(event.target.value); onChannelChange?.(event.target.value); }} className="mt-1 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-base"><option value="all">All recorded channels</option>{Object.entries(ATTRIBUTION_GROUP_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
       <label className="text-sm font-medium text-stone-700">Records<select value={records} onChange={(event) => { const next = event.target.value as ReportRecordMode; setLocalRecords(next); onRecordsChange?.(next); }} className="mt-1 min-h-11 w-full rounded-xl border border-stone-300 bg-white px-3 text-base"><option value="customers">Customer reporting</option><option value="all">All operational records</option></select></label>
     </div>
     {loading && !report && <p role="status" className="rounded-xl border border-stone-200 bg-white p-4 text-sm text-stone-700">Loading measurement report…</p>}

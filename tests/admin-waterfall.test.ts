@@ -80,6 +80,7 @@ async function runAdminWaterfallTests() {
     fixedClock
   );
   assert.strictEqual(unknownAttributionScope.channel, "unknown", "Unknown attribution must be a selectable, filterable channel");
+  assert.strictEqual(normalizeWaterfallScope(new URLSearchParams({ window: "last7", channel: "google_paid" }), fixedClock).channel, "paid", "legacy channel aliases resolve into the six groups");
 
   // 1g. Custom Range
   const scopeCustom = normalizeWaterfallScope(
@@ -402,9 +403,9 @@ async function runAdminWaterfallTests() {
   const matrix = originReport.originMatrix;
   assert.ok(matrix.length >= 3, "Matrix must have at least 3 origin rows");
 
-  const metaRow = matrix.find((r) => r.channel === "meta");
-  const googleRow = matrix.find((r) => r.channel === "google");
-  const directRow = matrix.find((r) => r.channel === "direct");
+  const metaRow = matrix.find((r) => r.channel === "social_referral");
+  const googleRow = matrix.find((r) => r.channel === "paid");
+  const directRow = matrix.find((r) => r.channel === "direct_observed");
 
   assert.ok(metaRow, "Must have Meta origin row");
   assert.ok(googleRow, "Must have Google origin row");
