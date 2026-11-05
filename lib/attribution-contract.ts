@@ -151,4 +151,3 @@ export interface LegacyAttributionEvidence {
   /** Legacy `(direct/organic)` is ambiguous unless the matching sentinel exists. */
   observedEntry?: boolean;
 }
-
