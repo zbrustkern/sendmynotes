@@ -23,7 +23,7 @@ const periods: Record<string, ReportPeriod> = { today: "today", last7: "last7", 
 const channels: Record<string, ReportChannel> = { all: "all", ...Object.fromEntries(Object.keys(ATTRIBUTION_GROUP_LABELS).map((key) => [key, key as ReportChannel])), google: "paid", google_cpc: "paid", google_paid: "paid", email: "email_other", organic: "organic_search", meta: "social_referral", social_meta: "social_referral", referral: "social_referral", direct: "direct_observed", unknown: "unknown" };
 const scopeLabel = (report: AdminMeasurementReport) => {
   const range = report.scope.period === "all" ? `All available (${report.sources?.orders?.count ?? "unknown"} order records covered)` : `${report.scope.startDate ?? "?"} to ${report.scope.endDate ?? "?"}`;
-  const channel = report.scope.channel === "all" ? "all channels" : report.scope.channel.replaceAll("_", " ");
+  const channel = report.scope.channel === "all" ? "all channels" : ATTRIBUTION_GROUP_LABELS[report.scope.channel];
   return `${range} · ${channel} · ${report.scope.records === "customers" ? "customer reporting" : "all operational records"}`;
 };
 const money = (cents: number | null) => cents === null ? "Unavailable" : new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
