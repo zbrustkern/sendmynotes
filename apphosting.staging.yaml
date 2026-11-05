@@ -8,6 +8,12 @@ env:
   - variable: INTERNATIONAL_MAILING_PREVIEW
     value: "true"
     availability: [RUNTIME]
+  - variable: NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED
+    value: "true"
+    availability: [BUILD, RUNTIME]
+  - variable: ATTRIBUTION_V2_ENABLED
+    value: "true"
+    availability: [RUNTIME]
   - variable: NEXT_PUBLIC_STAGING_REVIEW_ONLY
     value: "true"
     availability: [BUILD, RUNTIME]
