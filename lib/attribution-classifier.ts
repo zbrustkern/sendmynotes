@@ -69,7 +69,9 @@ export function classifyAttributionEvidence(input: AttributionClassifierInput): 
     paid_search: "paid_search", paidsearch: "paid_search", paid_social: "paid_social", paidsocial: "paid_social",
     display: "paid_other", banner: "paid_other", cpv: "paid_other", cpm: "paid_other", paid: "paid_unknown",
   };
-  const explicitPaid = paidMediums[med];
+  let explicitPaid = paidMediums[med];
+  if (med === "cpc" || med === "ppc") explicitPaid = googleSource ? "paid_search" : metaSource ? "paid_social" : "paid_unknown";
+  if (["paid_social", "paidsocial"].includes(med) && metaSource) explicitPaid = "paid_social";
   const organic = med === "organic" || med === "seo";
   const email = ["email", "e-mail", "newsletter"].includes(med) || ["email", "newsletter", "mail"].includes(src);
   const socialMedium = ["social", "social-network", "social_media", "social-media"].includes(med);
@@ -80,17 +82,18 @@ export function classifyAttributionEvidence(input: AttributionClassifierInput): 
   const incompatible = (explicitPaid && (organic || email || socialMedium)) ||
     (organic && (email || socialMedium)) ||
     (input.hasGoogleClickId && (organic || email || socialMedium)) ||
-    (input.hasMetaClickId && (explicitPaid || organic || email));
+    (input.hasMetaClickId && (explicitPaid && explicitPaid !== "paid_social" || organic || email)) ||
+    (input.hasGoogleClickId && explicitPaid && explicitPaid !== "paid_search");
   if (incompatible) return unknown(input, "conflicting_evidence", "conflict");
 
   if (explicitPaid) return make(explicitPaid, "utm", "explicit_paid_medium", input);
   if (input.hasGoogleClickId) return make("paid_unknown", "click_id", "google_click_untyped", input);
   if (input.hasMetaClickId) return make("social_referral", "click_id", "meta_click_unverified_paid", input);
-  if (organic && googleSource) return make("organic_search", "utm", "organic_campaign", input);
+  if (organic && (googleSource || ["bing", "yahoo", "duckduckgo", "baidu", "yandex"].includes(src))) return make("organic_search", "utm", "organic_campaign", input);
   if (organic) return unknown(input, "conflicting_evidence", "conflict");
   if (email) return make("email", "utm", "email_campaign", input);
   if (socialMedium) return make("social_referral", "utm", "social_referrer", input);
-  if (tagsPresent) {
+  if (tagsPresent || cleanLabel(input.content) || cleanLabel(input.term)) {
     if (refKind && (med === "referral" || med === "ref")) return make("referral", "utm", "referral_campaign", input);
     return make("other_campaign", "utm", "other_campaign_tags", input);
   }
@@ -103,7 +106,7 @@ export function classifyAttributionEvidence(input: AttributionClassifierInput): 
 }
 
 export function adaptLegacyAttribution(evidence: LegacyAttributionEvidence): AttributionClassification {
-  const input: AttributionClassifierInput = { source: evidence?.source, medium: evidence?.medium, campaign: evidence?.campaign, entryObservation: "legacy" };
+  const input: AttributionClassifierInput = { source: evidence?.source, medium: evidence?.medium, campaign: evidence?.campaign, hasGoogleClickId: evidence?.hasGoogleClickId, hasMetaClickId: evidence?.hasMetaClickId, hasEmailClickId: evidence?.hasEmailClickId, entryObservation: "complete" };
   if (!evidence || typeof evidence !== "object") return unknown({}, "invalid_evidence", "legacy_adapter");
   if ([evidence.source, evidence.medium, evidence.campaign, evidence.referrer].some((v) => v != null && typeof v !== "string")) return unknown({}, "invalid_evidence", "legacy_adapter");
   const source = normalized(evidence.source) ?? "";
@@ -111,12 +114,18 @@ export function adaptLegacyAttribution(evidence: LegacyAttributionEvidence): Att
   const campaign = normalized(evidence.campaign) ?? "";
   if (source === "direct" && medium === "none" && campaign === "(direct/organic)") return make("direct_observed", "legacy_adapter", "legacy_direct_sentinel", input);
   if ((source === "google" || source === "googleads") && medium === "organic" && campaign === "(direct/organic)") return make("organic_search", "legacy_adapter", "legacy_organic_sentinel", input);
-  return make("unknown", "legacy_adapter", "legacy_ambiguous", input);
+  const sentinel = campaign === "(direct/organic)";
+  if (!source && !medium && !campaign && !evidence.hasGoogleClickId && !evidence.hasMetaClickId && !evidence.hasEmailClickId && !evidence.referrer) return make("unknown", "legacy_adapter", "legacy_ambiguous", input);
+  let referrerHost: string | undefined;
+  if (evidence.referrer) { try { referrerHost = new URL(evidence.referrer).hostname; } catch { return unknown(input, "invalid_evidence", "legacy_adapter"); } }
+  const result = classifyAttributionEvidence({ ...input, referrerHost, entryObservation: "complete" });
+  if (result.channel === "direct_observed" && (!evidence.observedEntry || sentinel)) return make("unknown", "legacy_adapter", "legacy_ambiguous", input);
+  return { ...result, provenance: "legacy_adapter" };
 }
 
 export function attributionCampaignKey(classification: AttributionClassification): string {
   // JSON tuple encoding prevents delimiter collisions while retaining campaign case and identity.
-  return JSON.stringify([classification.source ?? null, classification.medium ?? null, classification.campaign ?? null]);
+  return JSON.stringify([classification.channel, classification.provenance, classification.source ?? null, classification.medium ?? null, classification.campaign ?? null]);
 }
 
 export function matchesAttributionGroup(filter: AttributionGroupFilter, classification: AttributionClassification): boolean {
