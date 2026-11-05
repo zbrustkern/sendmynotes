@@ -34,6 +34,17 @@ export type AttributionGroup =
   | "direct_observed"
   | "unknown";
 
+export type AttributionGroupFilter = "all" | AttributionGroup;
+
+export const ATTRIBUTION_GROUP_LABELS: Readonly<Record<AttributionGroup, string>> = {
+  paid: "Paid",
+  organic_search: "Organic Search",
+  social_referral: "Social & Referral",
+  email_other: "Email & Other Campaign",
+  direct_observed: "Direct / No Referrer",
+  unknown: "Unknown",
+};
+
 export type AttributionReason =
   | "explicit_paid_medium"
   | "google_click_untyped"
