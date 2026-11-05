@@ -25,10 +25,21 @@ const conflict = classifyAttributionEvidence({ source: "google", medium: "organi
 assert.deepEqual([conflict.channel, conflict.reason], ["unknown", "conflicting_evidence"]);
 assert.equal(classifyAttributionEvidence({ source: "google", medium: "cpc", entryObservation: "complete" }).channel, "paid_search");
 assert.equal(classifyAttributionEvidence({ source: "google", medium: "cpc", hasMetaClickId: true, entryObservation: "complete" }).channel, "unknown");
+assert.equal(classifyAttributionEvidence({ source: "google", medium: "cpc", hasGoogleClickId: true, entryObservation: "complete" }).channel, "paid_search");
+assert.equal(classifyAttributionEvidence({ source: "facebook", medium: "paid_social", hasMetaClickId: true, entryObservation: "complete" }).channel, "paid_social");
+assert.equal(classifyAttributionEvidence({ content: "creative-A", entryObservation: "complete" }).channel, "other_campaign");
+assert.equal(classifyAttributionEvidence({ term: "gift", entryObservation: "complete" }).channel, "other_campaign");
 assert.equal(classifyAttributionEvidence({ source: "google", medium: "cpc", campaign: "https://secret.test/?gclid=x", entryObservation: "complete" }).campaign, undefined);
 assert.equal(classifyAttributionEvidence({ source: "https://secret.test", entryObservation: "complete" }).source, undefined);
 assert.equal(classifyAttributionEvidence({ source: 12 as unknown as string, entryObservation: "complete" }).reason, "invalid_evidence");
-assert.equal(adaptLegacyAttribution({ source: "google", medium: "cpc", campaign: "Sale" }).channel, "unknown", "legacy rows do not receive new channel inference");
+assert.equal(adaptLegacyAttribution({ source: "google", medium: "cpc", campaign: "Sale" }).channel, "paid_search", "legacy UTM evidence uses canonical channel rules");
+assert.equal(adaptLegacyAttribution({ source: "google", medium: "cpc", campaign: "Sale" }).provenance, "legacy_adapter");
+assert.equal(adaptLegacyAttribution({}).channel, "unknown");
+assert.equal(adaptLegacyAttribution({ observedEntry: true }).channel, "unknown");
+assert.equal(adaptLegacyAttribution({ source: "facebook", medium: "paid_social", hasMetaClickId: true }).channel, "paid_social");
+assert.equal(adaptLegacyAttribution({ source: "google", medium: "organic", campaign: "Campaign" }).channel, "organic_search");
+assert.equal(adaptLegacyAttribution({ referrer: "https://www.google.com/search?q=private" }).channel, "organic_search");
+assert.equal(classifyAttributionEvidence({ source: "person@example.com", entryObservation: "complete" }).source, undefined);
 assert.equal(matchesAttributionGroup("paid", classifyAttributionEvidence({ hasGoogleClickId: true, entryObservation: "complete" })), true);
 assert.equal(matchesAttributionGroup("all", conflict), true);
 
@@ -37,6 +48,7 @@ const b = classifyAttributionEvidence({ source: "Google", medium: "email", campa
 const c = classifyAttributionEvidence({ source: "Google", medium: "cpc", campaign: "spring", entryObservation: "complete" });
 assert.notEqual(attributionCampaignKey(a), attributionCampaignKey(b), "same campaign from distinct source/medium is distinct");
 assert.notEqual(attributionCampaignKey(a), attributionCampaignKey(c), "campaign identity preserves case");
+assert.notEqual(attributionCampaignKey(classifyAttributionEvidence({ hasGoogleClickId: true, entryObservation: "complete" })), attributionCampaignKey(classifyAttributionEvidence({ hasMetaClickId: true, entryObservation: "complete" })));
 assert.notEqual(attributionCampaignKey(classifyAttributionEvidence({ source: "a|b", medium: "c", campaign: "d", entryObservation: "complete" })), attributionCampaignKey(classifyAttributionEvidence({ source: "a", medium: "b|c", campaign: "d", entryObservation: "complete" })), "structured keys avoid delimiter collisions");
 
 console.log("attribution-classifier: fixture and focused assertions passed");
