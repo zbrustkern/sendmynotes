@@ -1,7 +1,7 @@
 export const REPORT_TIME_ZONE = "America/Chicago" as const;
 
 export type ReportPeriod = "today" | "last7" | "since_oct13" | "all" | "custom";
-export type ReportChannel = "all" | "google_paid" | "email" | "organic" | "social_meta" | "referral" | "direct" | "unknown";
+export type ReportChannel = "all" | "paid" | "organic_search" | "social_referral" | "email_other" | "direct_observed" | "unknown";
 export type ReportRecordMode = "customers" | "all";
 export type SourceStatus = "complete" | "partial" | "unavailable";
 
@@ -46,8 +46,8 @@ export interface AdminMeasurementReport {
     refunds: { knownOrderCount: number | null; knownRefundedCents: number | null; unknownOrderCount: number | null };
     disputes: { knownOrderCount: number | null; unknownOrderCount: number | null };
   };
-  orderDiagnostics: Array<{ orderId: string; createdAt: string | null; classification: "independent_customer" | "founder_test" | "comp" | "admin_origin" | "unresolved"; paymentEvidenceStatus: "verified_capture" | "missing" | "conflict"; paymentEvidenceSource: "purchase_snapshot" | "reconciliation" | "both" | "none" | "conflict"; amountInCents: number | null; currency: string | null; verifiedAt: string | null; observedAt: string | null; campaign: { key: string; source: string; medium: string; campaign: string; label: string; channel: Exclude<ReportChannel, "all"> }; refundStatus: "none_observed" | "partial" | "full" | "unknown"; disputeStatus: "none_observed" | "disputed" | "unknown"; clickIdPresent: boolean | null }>;
-  campaigns: Array<{ key: string; source: string; medium: string; campaign: string; label: string; channel: Exclude<ReportChannel, "all">; orders: number | null; capturedCents: number | null; observedSessions: number | null; eventCounts: Record<string, number> | null }>;
+  orderDiagnostics: Array<{ orderId: string; createdAt: string | null; classification: "independent_customer" | "founder_test" | "comp" | "admin_origin" | "unresolved"; paymentEvidenceStatus: "verified_capture" | "missing" | "conflict"; paymentEvidenceSource: "purchase_snapshot" | "reconciliation" | "both" | "none" | "conflict"; amountInCents: number | null; currency: string | null; verifiedAt: string | null; observedAt: string | null; campaign: { key: string; source: string; medium: string; campaign: string; label: string; channel: string; group: Exclude<ReportChannel, "all"> }; refundStatus: "none_observed" | "partial" | "full" | "unknown"; disputeStatus: "none_observed" | "disputed" | "unknown"; clickIdPresent: boolean | null }>;
+  campaigns: Array<{ key: string; source: string; medium: string; campaign: string; label: string; channel: string; group: Exclude<ReportChannel, "all">; orders: number | null; capturedCents: number | null; observedSessions: number | null; eventCounts: Record<string, number> | null }>;
   activity: { observedSessions: number | null; eventCounts: Record<string, number> | null; sampled: boolean };
   exceptions: ReportException[];
   attribution: { campaignRecorded: number | null; clickIdPresent: number | null };

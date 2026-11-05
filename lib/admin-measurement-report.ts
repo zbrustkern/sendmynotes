@@ -3,12 +3,24 @@ import {
   ReportReconciliationEntry, ReportScope, SourceCoverage, REPORT_TIME_ZONE,
 } from "@/lib/contracts/admin-measurement-report";
 import { ALLOWED_BROWSER_EVENT_NAMES } from "@/lib/telemetry-schema";
+import { ATTRIBUTION_GROUP_LABELS } from "@/lib/attribution-contract";
+import type { AttributionGroup, AttributionClassification } from "@/lib/attribution-contract";
+import { adaptLegacyAttribution, attributionCampaignKey } from "@/lib/attribution-classifier";
 
-const CHANNELS: ReportChannel[] = ["all", "google_paid", "email", "organic", "social_meta", "referral", "direct", "unknown"];
+const CHANNELS = new Set(["all", ...Object.keys(ATTRIBUTION_GROUP_LABELS), "google_paid", "email", "organic", "social_meta", "referral", "direct"]);
 const PERIODS: ReportPeriod[] = ["today", "last7", "since_oct13", "all", "custom"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class InvalidReportScope extends Error {}
+
+const LEGACY_CHANNEL_GROUP: Record<string, AttributionGroup> = {
+  google_paid: "paid", email: "email_other", organic: "organic_search", social_meta: "social_referral",
+  referral: "social_referral", direct: "direct_observed", unknown: "unknown",
+};
+
+function normalizeChannel(value: string): ReportChannel {
+  return (LEGACY_CHANNEL_GROUP[value] ?? value) as ReportChannel;
+}
 
 function validDate(value: string): boolean {
   if (!DATE_RE.test(value)) return false;
@@ -52,7 +64,7 @@ export function normalizeReportScope(params: URLSearchParams, now = new Date()):
   const rawPeriod = params.get("period") ?? "last7";
   const rawChannel = params.get("channel") ?? "all";
   const rawRecords = params.get("records") ?? "customers";
-  if (!PERIODS.includes(rawPeriod as ReportPeriod) || !CHANNELS.includes(rawChannel as ReportChannel) || !["customers", "all"].includes(rawRecords)) {
+  if (!PERIODS.includes(rawPeriod as ReportPeriod) || !CHANNELS.has(rawChannel) || !["customers", "all"].includes(rawRecords)) {
     throw new InvalidReportScope("Invalid report filter.");
   }
   const period = rawPeriod as ReportPeriod;
@@ -70,7 +82,7 @@ export function normalizeReportScope(params: URLSearchParams, now = new Date()):
     throw new InvalidReportScope("Invalid or reversed report dates.");
   }
   return {
-    period, startDate, endDate, channel: rawChannel as ReportChannel,
+    period, startDate, endDate, channel: normalizeChannel(rawChannel),
     records: rawRecords as ReportRecordMode,
     startUtc: startDate ? chicagoMidnight(startDate) : null,
     endUtc: endDate ? chicagoMidnight(addDays(endDate, 1)) : null,
@@ -103,15 +115,23 @@ function classification(order: ReportOrderInput, sidecar?: ReportReconciliationE
   return "unresolved";
 }
 
+function classifyLegacyOrder(order: ReportOrderInput): AttributionClassification {
+  const attr = order.attribution;
+  return adaptLegacyAttribution({ source: attr?.source || order.source || null, medium: attr?.medium || null,
+    campaign: attr?.campaign || order.campaignId || attr?.campaignId || null,
+    referrer: (attr as typeof attr & { referrer?: string })?.referrer ?? null,
+    observedEntry: Boolean(attr?.source || attr?.medium || attr?.campaign || order.source || order.campaignId),
+    hasGoogleClickId: Boolean(attr?.gclid || attr?.wbraid || attr?.gbraid),
+    hasMetaClickId: Boolean(attr?.fbclid), hasEmailClickId: Boolean(attr?.emailClickId),
+  });
+}
 function campaignParts(order: ReportOrderInput) {
-  const rawSource = order.attribution?.source || order.source || "unknown";
-  const rawMedium = order.attribution?.medium || "unknown";
-  const rawCampaign = order.attribution?.campaign || order.campaignId || order.attribution?.campaignId || "unknown";
-  const source = sanitizeAttributionText(rawSource).toLowerCase();
-  const medium = sanitizeAttributionText(rawMedium).toLowerCase();
-  const name = sanitizeAttributionText(rawCampaign).toLowerCase();
-  const label = rawCampaign === "unknown" ? "Unattributed" : sanitizeAttributionText(rawCampaign);
-  return { source, medium, campaign: name, key: `${source}|${medium}|${name}`, label };
+  const classification = classifyLegacyOrder(order);
+  const source = sanitizeAttributionText(classification.source ?? "unknown").toLowerCase();
+  const medium = sanitizeAttributionText(classification.medium ?? "unknown").toLowerCase();
+  const campaignValue = classification.campaign;
+  const name = sanitizeAttributionText(campaignValue ?? "unknown").toLowerCase();
+  return { source, medium, campaign: name, key: attributionCampaignKey(classification), label: campaignValue ? sanitizeAttributionText(campaignValue) : "Unattributed", classification };
 }
 function sanitizeAttributionText(value: unknown): string {
   if (typeof value !== "string") return "unknown";
@@ -119,26 +139,10 @@ function sanitizeAttributionText(value: unknown): string {
   if (/@/.test(clean) || /\+?\d[\d\s().-]{6,}\d/.test(clean)) return "[redacted]";
   return clean || "unknown";
 }
-function channelFor(order: ReportOrderInput): ReportChannel {
-  const { source, medium } = campaignParts(order);
-  if (["email", "e-mail"].includes(medium) || order.attribution?.emailClickId) return "email";
-  if (medium === "organic") return "organic";
-  if (["facebook", "instagram", "meta"].some((s) => source.includes(s)) || medium === "social" || !!order.attribution?.fbclid) return "social_meta";
-  if (["cpc", "ppc", "paid", "paidsearch"].includes(medium) && (source.includes("google") || order.attribution?.gclid || order.attribution?.wbraid || order.attribution?.gbraid) || order.attribution?.gclid || order.attribution?.wbraid || order.attribution?.gbraid) return "google_paid";
-  if (["referral", "affiliate"].includes(medium)) return "referral";
-  if (source === "direct" || medium === "none" || medium === "direct") return "direct";
-  return "unknown";
-}
-function eventChannel(event: NonNullable<AggregateInput["telemetry"]>[number]): Exclude<ReportChannel, "all"> {
-  const source = (event.source || "unknown").toLowerCase();
-  const medium = (event.medium || "unknown").toLowerCase();
-  if (["email", "e-mail"].includes(medium)) return "email";
-  if (medium === "organic") return "organic";
-  if (["facebook", "instagram", "meta"].some((s) => source.includes(s)) || medium === "social" || event.hasMetaClick) return "social_meta";
-  if (event.hasGoogleClick || ["cpc", "ppc", "paid", "paidsearch"].includes(medium) && source.includes("google")) return "google_paid";
-  if (["referral", "affiliate"].includes(medium)) return "referral";
-  if (source === "direct" || ["none", "direct"].includes(medium)) return "direct";
-  return "unknown";
+function channelFor(order: ReportOrderInput) { return classifyLegacyOrder(order); }
+function eventChannel(event: NonNullable<AggregateInput["telemetry"]>[number]): AttributionClassification {
+  return adaptLegacyAttribution({ source: event.source, medium: event.medium, campaign: event.campaign,
+    observedEntry: Boolean(event.source || event.medium || event.campaign), hasGoogleClickId: event.hasGoogleClick, hasMetaClickId: event.hasMetaClick });
 }
 
 export interface AggregateInput {
@@ -199,7 +203,7 @@ export function aggregateMeasurementReport(input: AggregateInput): AdminMeasurem
     const created = timestampMillis(order.createdAt);
     if (created === null) { undated++; exceptions.push({ orderId: order.id, code: "missing_created_at" }); continue; }
     else if ((scope.startUtc && created < Date.parse(scope.startUtc)) || (scope.endUtc && created >= Date.parse(scope.endUtc))) continue;
-    if (scope.channel !== "all" && channelFor(order) !== scope.channel) continue;
+    if (scope.channel !== "all" && channelFor(order).group !== scope.channel) continue;
     const sidecar = sidecarByOrder.get(order.id);
     let type = classification(order, sidecar);
     if (sidecar?.classification === "independent_customer" && type !== "customer") exceptions.push({ orderId: order.id, code: "classification_conflict" });
@@ -251,10 +255,10 @@ export function aggregateMeasurementReport(input: AggregateInput): AdminMeasurem
   };
   const disputed = rows.filter((x) => disputeEvidence(x.order) === "disputed");
   const disputeUnknown = rows.filter((x) => disputeEvidence(x.order) === "unknown");
-  const campaigns = new Map<string, { key: string; source: string; medium: string; campaign: string; label: string; channel: Exclude<ReportChannel, "all">; orders: number; capturedCents: number }>();
+  const campaigns = new Map<string, { key: string; source: string; medium: string; campaign: string; label: string; channel: string; group: Exclude<ReportChannel, "all">; orders: number; capturedCents: number }>();
   for (const c of customers) {
     const parts = campaignParts(c.order);
-    const agg = campaigns.get(parts.key) ?? { ...parts, channel: channelFor(c.order) as Exclude<ReportChannel, "all">, orders: 0, capturedCents: 0 };
+    const agg = campaigns.get(parts.key) ?? { key: parts.key, source: parts.source, medium: parts.medium, campaign: parts.campaign, label: parts.label, channel: parts.classification.channel, group: parts.classification.group, orders: 0, capturedCents: 0 };
     agg.orders++; agg.capturedCents += c.amount ?? 0; campaigns.set(parts.key, agg);
   }
   const eventsByCampaign = new Map<string, Array<{ sessionKey?: string; eventName?: string }>>();
@@ -266,14 +270,15 @@ export function aggregateMeasurementReport(input: AggregateInput): AdminMeasurem
     if (!uniqueTelemetry.has(eventId)) uniqueTelemetry.set(eventId, event);
   }
   for (const event of uniqueTelemetry.values()) {
-    const source = sanitizeAttributionText(event.source || "unknown").toLowerCase();
-    const medium = sanitizeAttributionText(event.medium || "unknown").toLowerCase();
-    const name = sanitizeAttributionText(event.campaign || "unknown").toLowerCase();
-    const key = `${source}|${medium}|${name}`;
-    if (scope.channel !== "all" && eventChannel(event) !== scope.channel) continue;
+    const classification = eventChannel(event);
+    const source = sanitizeAttributionText(classification.source || "unknown").toLowerCase();
+    const medium = sanitizeAttributionText(classification.medium || "unknown").toLowerCase();
+    const name = sanitizeAttributionText(classification.campaign || "unknown").toLowerCase();
+    const key = attributionCampaignKey(classification);
+    if (scope.channel !== "all" && classification.group !== scope.channel) continue;
     const rows = eventsByCampaign.get(key) ?? [];
     rows.push(event); eventsByCampaign.set(key, rows);
-    if (!campaigns.has(key)) campaigns.set(key, { source, medium, campaign: name, key, label: !event.campaign || event.campaign === "unknown" ? "Unattributed" : sanitizeAttributionText(event.campaign), channel: eventChannel(event), orders: 0, capturedCents: 0 });
+    if (!campaigns.has(key)) campaigns.set(key, { source, medium, campaign: name, key, label: classification.campaign || "Unattributed", channel: classification.channel, group: classification.group, orders: 0, capturedCents: 0 });
   }
   const status = input.orderCoverage.status === "unavailable" ? "unavailable" : input.orderCoverage.status === "partial" || input.telemetryCoverage.status !== "complete" || input.reconciliationCoverage.status !== "complete" ? "partial" : "complete";
   const orderIds = new Set(rows.map((x) => x.order.id));
@@ -313,7 +318,7 @@ export function aggregateMeasurementReport(input: AggregateInput): AdminMeasurem
         currency: evidenceStatus === "verified_capture" ? "USD" : null,
         verifiedAt: typeof m?.verifiedAt === "number" && Number.isFinite(m.verifiedAt) ? new Date(m.verifiedAt).toISOString() : null,
         observedAt: sidecar?.observedAt && Number.isFinite(Date.parse(sidecar.observedAt)) ? new Date(sidecar.observedAt).toISOString() : null,
-        campaign: { ...parts, channel: channelFor(row.order) as Exclude<ReportChannel, "all"> },
+        campaign: { key: parts.key, source: parts.source, medium: parts.medium, campaign: parts.campaign, label: parts.label, channel: parts.classification.channel, group: parts.classification.group },
         refundStatus: ["partial", "partially_refunded"].includes(refund) ? "partial" as const : ["full", "fully_refunded"].includes(refund) ? "full" as const : refund === "none_observed" ? "none_observed" as const : "unknown" as const,
         disputeStatus: dispute === "disputed" ? "disputed" as const : dispute === "none_observed" ? "none_observed" as const : "unknown" as const,
         clickIdPresent: clicksKnown ? click : null };

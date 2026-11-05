@@ -292,15 +292,15 @@ async function run() {
   directOrder.attribution = { sessionId: "s_filter_direct", source: "direct", medium: "none", campaign: "unknown" };
   const filteredReport = aggregateWaterfallReport({
     asOf: now,
-    scope: { ...scope, channel: "google" },
+    scope: { ...scope, channel: "paid" },
     orders: [verifiedOrder("order_filter_google", "s_filter_google"), directOrder],
     telemetry: [...googleJourney, ...directJourney],
   });
-  assert.equal(filteredReport.scope.channel, "google");
+  assert.equal(filteredReport.scope.channel, "paid");
   assert.equal(filteredReport.kpis.uniqueSessions, 1, "the selected channel filters the conversion denominator");
   assert.equal(filteredReport.kpis.paidCustomerOrders, 1, "the same channel filters the order KPI");
   assert.equal(filteredReport.kpis.capturedRevenueCents, 765, "the same channel filters revenue");
-  assert.deepEqual(filteredReport.originMatrix.map((row) => row.channel), ["google"], "the same channel filters the attribution matrix");
+  assert.deepEqual(filteredReport.originMatrix.map((row) => row.channel), ["paid"], "the same channel filters the attribution matrix");
   assert.equal(filteredReport.waterfall.find((step) => step.step === "6_PAID")?.paidOrders, 1);
 
   // Exact mixed founder/customer cohort proves business denominator AND numerator

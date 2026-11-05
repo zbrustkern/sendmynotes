@@ -18,6 +18,8 @@ import {
   WATERFALL_CHANNELS,
   WATERFALL_WINDOWS,
 } from "./contracts/admin-waterfall";
+import type { AttributionClassification } from "./attribution-contract";
+import { adaptLegacyAttribution, attributionCampaignKey, matchesAttributionGroup } from "./attribution-classifier";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -97,8 +99,11 @@ export function normalizeWaterfallScope(
     ? (rawWindow as WaterfallWindow)
     : "last7";
 
+  const legacy: Record<string, WaterfallChannel> = { google: "paid", google_cpc: "paid", google_paid: "paid", meta: "social_referral", social_meta: "social_referral", email: "email_other", organic: "organic_search", referral: "social_referral", direct: "direct_observed" };
   const channel: WaterfallChannel = WATERFALL_CHANNELS.includes(rawChannel as WaterfallChannel)
     ? (rawChannel as WaterfallChannel)
+    : legacy[rawChannel]
+      ? legacy[rawChannel]
     : "all";
 
   const audience: WaterfallAudience = WATERFALL_AUDIENCES.includes(rawAudience as WaterfallAudience)
@@ -258,29 +263,10 @@ export function classifyChannel(params: {
   wbraid?: string;
   gbraid?: string;
   emailClickId?: string;
-}): WaterfallChannel {
-  const source = (params.source || "").toLowerCase().trim();
-  const medium = (params.medium || "").toLowerCase().trim();
-
-  if (params.fbclid || ["facebook", "instagram", "meta"].some((s) => source.includes(s)) || medium === "paid_social" || medium === "social") {
-    return "meta";
-  }
-  if (params.gclid || params.wbraid || params.gbraid || source.includes("google") || ["cpc", "ppc", "paid", "paidsearch"].includes(medium)) {
-    return "google";
-  }
-  if (params.emailClickId || ["email", "e-mail"].includes(medium)) {
-    return "email";
-  }
-  if (medium === "organic") {
-    return "organic";
-  }
-  if (["referral", "affiliate"].includes(medium)) {
-    return "referral";
-  }
-  if (source === "direct" || ["none", "direct"].includes(medium)) {
-    return "direct";
-  }
-  return "unknown";
+}): AttributionClassification {
+  return adaptLegacyAttribution({ source: params.source, medium: params.medium, campaign: params.campaign,
+    observedEntry: Boolean(params.source || params.medium || params.campaign), hasMetaClickId: Boolean(params.fbclid),
+    hasGoogleClickId: Boolean(params.gclid || params.wbraid || params.gbraid), hasEmailClickId: Boolean(params.emailClickId) });
 }
 
 export function classifyDevice(deviceType?: string, userAgent?: string): "mobile" | "desktop" | "tablet" {
@@ -558,18 +544,13 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
 
       const rawCampaign = attr.campaign || attr.utmCampaign || order.campaignId || linkedAttribution?.campaign || "unknown";
 
-      const orderChannel = classifyChannel({
-        source: rawSource,
-        medium: rawMedium,
-        campaign: rawCampaign,
-        fbclid: attr.fbclid,
-        gclid: attr.gclid,
-        wbraid: attr.wbraid,
-        gbraid: attr.gbraid,
-        emailClickId: attr.emailClickId,
-      });
+      const orderClassification = adaptLegacyAttribution({ source: attr.source || attr.utmSource || order.source || null, medium: attr.medium || attr.utmMedium || null, campaign: attr.campaign || attr.utmCampaign || order.campaignId || linkedAttribution?.campaign || null,
+          referrer: (attr as typeof attr & { referrer?: string }).referrer ?? null,
+          observedEntry: Boolean(attr.source || attr.utmSource || attr.medium || attr.utmMedium || attr.campaign || attr.utmCampaign || order.source || order.campaignId),
+          hasGoogleClickId: hasGoogle, hasMetaClickId: hasFb, hasEmailClickId: hasEmail });
+      const orderChannel = orderClassification.group;
 
-      if (scope.channel !== "all" && orderChannel !== scope.channel) {
+      if (scope.channel !== "all" && !matchesAttributionGroup(scope.channel, orderClassification)) {
         continue;
       }
 
@@ -593,10 +574,10 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         heldOrFailedOrders++;
       }
 
-      const sourceClean = (rawSource || "unknown").toLowerCase().trim();
-      const mediumClean = (rawMedium || "unknown").toLowerCase().trim();
-      const campaignClean = (rawCampaign || "unknown").toLowerCase().trim();
-      const originKey = `${sourceClean}|${mediumClean}|${campaignClean}`;
+      const sourceClean = (orderClassification.source || "unknown").toLowerCase().trim();
+      const mediumClean = (orderClassification.medium || "unknown").toLowerCase().trim();
+      const campaignClean = (orderClassification.campaign || "unknown").toLowerCase().trim();
+      const originKey = attributionCampaignKey(orderClassification);
 
       validPaidCustomerOrders.push({
         order,
@@ -652,7 +633,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     if (hasBot) {
       const botAttribution = sessionAttribution.get(sessionId);
       const botChannel = classifyChannel({ source: botAttribution?.source, medium: botAttribution?.medium, campaign: botAttribution?.campaign });
-      if (scope.channel === "all" || botChannel === scope.channel) botFilteredCount++;
+      if (scope.channel === "all" || matchesAttributionGroup(scope.channel, botChannel)) botFilteredCount++;
       continue;
     }
 
@@ -660,7 +641,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     if (hasFounder) {
       const qaAttribution = sessionAttribution.get(sessionId);
       const qaChannel = classifyChannel({ source: qaAttribution?.source, medium: qaAttribution?.medium, campaign: qaAttribution?.campaign });
-      if (scope.channel === "all" || qaChannel === scope.channel) {
+      if (scope.channel === "all" || matchesAttributionGroup(scope.channel, qaChannel)) {
         founderFilteredCount++;
         ownerQaSessionCount++;
       }
@@ -672,7 +653,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const device = classifyDevice(primaryEvent?.deviceType, primaryEvent?.userAgent);
 
     // Determine attribution from earliest event carrying UTM or click IDs
-    let sessionChannel: WaterfallChannel = "unknown";
+    let sessionClassification: AttributionClassification = adaptLegacyAttribution({ observedEntry: false });
     let sessionSource = "unknown";
     let sessionMedium = "unknown";
     let sessionCampaign = "unknown";
@@ -692,30 +673,17 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         emailClickId: ev.emailClickId,
       });
 
-      if (ev.fbclid) {
-        sessionChannel = "meta";
-        sessionSource = src || "meta";
-        sessionMedium = med || "paid_social";
-        sessionCampaign = cmp || "none";
-        break;
-      }
-      if (ev.gclid || ev.wbraid || ev.gbraid) {
-        sessionChannel = "google";
-        sessionSource = src || "google";
-        sessionMedium = med || "cpc";
-        sessionCampaign = cmp || "none";
-        break;
-      }
       if (src || med || cmp || ev.gclid || ev.wbraid || ev.gbraid || ev.fbclid || ev.emailClickId) {
-        sessionChannel = ch;
-        sessionSource = src || (ev.gclid || ev.wbraid || ev.gbraid ? "google" : ev.fbclid ? "meta" : "unknown");
-        sessionMedium = med || (ev.gclid || ev.wbraid || ev.gbraid ? "cpc" : ev.fbclid ? "paid_social" : "unknown");
-        sessionCampaign = cmp || "unknown";
+        sessionClassification = ch;
+        sessionSource = ch.source || "unknown";
+        sessionMedium = ch.medium || "unknown";
+        sessionCampaign = ch.campaign || "unknown";
         break;
       }
     }
+    const sessionChannel = sessionClassification.group;
 
-    if (scope.channel !== "all" && sessionChannel !== scope.channel) {
+    if (scope.channel !== "all" && !matchesAttributionGroup(scope.channel, sessionClassification)) {
       continue;
     }
 
@@ -739,7 +707,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const sourceClean = sessionSource.toLowerCase().trim();
     const mediumClean = sessionMedium.toLowerCase().trim();
     const campaignClean = sessionCampaign.toLowerCase().trim();
-    const originKey = `${sourceClean}|${mediumClean}|${campaignClean}`;
+    const originKey = attributionCampaignKey(sessionClassification);
 
     eligibleSessions.push({
       sessionId,
@@ -917,7 +885,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
 
       if (scope.channel !== "all" && rec.channel) {
         const ch = classifyChannel({ source: rec.channel });
-        if (ch !== scope.channel) continue;
+        if (!matchesAttributionGroup(scope.channel, ch)) continue;
       }
 
       spendSum += rec.amountCents;

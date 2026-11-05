@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { aggregateMeasurementReport, InvalidReportScope, normalizeReportScope } from "@/lib/admin-measurement-report";
 import { SourceCoverage } from "@/lib/contracts/admin-measurement-report";
 import { reconciliationApplyTargetError, reconciliationManifestHash, toReconciliationEntries, validateReconciliationManifest, ReconciliationManifest } from "@/lib/admin-measurement-reconciliation";
+import { ATTRIBUTION_GROUP_LABELS } from "@/lib/attribution-contract";
+import { classifyChannel } from "@/lib/admin-waterfall-report";
 
 const complete = (cap = 2000): SourceCoverage => ({ status: "complete", count: 0, cap });
 
@@ -15,6 +17,36 @@ function testChicagoBoundaries() {
   assert.throws(() => normalizeReportScope(new URLSearchParams("period=custom&start=2026-02-30&end=2026-03-01")), InvalidReportScope);
   assert.throws(() => normalizeReportScope(new URLSearchParams("period=custom&start=2026-03-02&end=2026-03-01")), InvalidReportScope);
   assert.throws(() => normalizeReportScope(new URLSearchParams("period=wat")), InvalidReportScope);
+}
+
+function testAttributionGroupFiltersAndSharedClassification() {
+  const labels = ATTRIBUTION_GROUP_LABELS;
+  assert.deepEqual(Object.values(labels), ["Paid", "Organic Search", "Social & Referral", "Email & Other Campaign", "Direct / No Referrer", "Unknown"]);
+  const groups = Object.keys(labels);
+  assert.deepEqual(groups, ["paid", "organic_search", "social_referral", "email_other", "direct_observed", "unknown"]);
+  for (const [legacy, expected] of Object.entries({ google_paid: "paid", email: "email_other", organic: "organic_search", social_meta: "social_referral", referral: "social_referral", direct: "direct_observed", unknown: "unknown" })) {
+    const scope = normalizeReportScope(new URLSearchParams(`period=all&channel=${legacy}`));
+    assert.equal(scope.channel, expected);
+  }
+  const evidence = { source: "google", medium: "organic", campaign: "spring", observedEntry: true };
+  const fromMeasurement = aggregateMeasurementReport({ asOf: new Date(), scope: normalizeReportScope(new URLSearchParams("period=all&records=all")),
+    orders: [{ id: "legacy-google-organic", createdAt: "2026-10-20T12:00:00Z", source: evidence.source, attribution: { source: evidence.source, medium: evidence.medium, campaign: evidence.campaign } }],
+    orderCoverage: complete(), telemetryCoverage: complete(500), reconciliationCoverage: complete(100) });
+  const waterfallClassification = classifyChannel(evidence);
+  assert.equal(fromMeasurement.orderDiagnostics[0].campaign.channel, waterfallClassification.channel);
+  assert.equal(fromMeasurement.orderDiagnostics[0].campaign.group, waterfallClassification.group);
+  assert.equal(waterfallClassification.group, "organic_search");
+  assert.equal(classifyChannel({ source: "direct", medium: "organic" }).group, "direct_observed", "the explicit legacy direct sentinel remains direct");
+  assert.equal(classifyChannel({ source: "google", medium: "organic" }).group, "organic_search", "Google organic sentinel remains organic search");
+  assert.equal(classifyChannel({}).group, "unknown", "empty legacy evidence remains unknown");
+  const sameCampaignDifferentSource = aggregateMeasurementReport({ asOf: new Date(), scope: normalizeReportScope(new URLSearchParams("period=all&records=all")),
+    orders: ["google", "bing"].map((source, index) => ({ id: `src-${index}`, createdAt: "2026-10-20T12:00:00Z", source, attribution: { source, medium: "organic", campaign: "spring" } })),
+    orderCoverage: complete(), telemetryCoverage: complete(500), reconciliationCoverage: complete(100) });
+  assert.equal(new Set(sameCampaignDifferentSource.orderDiagnostics.map((row) => row.campaign.key)).size, 2, "the same campaign label under separate sources remains separate");
+  const empty = aggregateMeasurementReport({ asOf: new Date(), scope: normalizeReportScope(new URLSearchParams("period=all&records=all")),
+    orders: [{ id: "empty", createdAt: "2026-10-20T12:00:00Z", attribution: {} }],
+    orderCoverage: complete(), telemetryCoverage: complete(500), reconciliationCoverage: complete(100) });
+  assert.equal(empty.orderDiagnostics[0].campaign.group, "unknown");
 }
 
 function testPaymentClassificationAndTelemetrySeparation() {
@@ -160,6 +192,7 @@ function testReconciliationManifestSafety() {
 }
 
 testChicagoBoundaries();
+testAttributionGroupFiltersAndSharedClassification();
 testPaymentClassificationAndTelemetrySeparation();
 testIncompleteSourcesSuppressOnlyAffectedTotals();
 testCampaignLabelsArePrivacySanitized();
