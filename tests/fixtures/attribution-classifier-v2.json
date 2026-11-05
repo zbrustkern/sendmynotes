@@ -1,0 +1,47 @@
+[
+  {
+    "name": "explicit Google paid search",
+    "input": { "source": "google", "medium": "cpc", "campaign": "Spring Test", "entryObservation": "complete" },
+    "expected": { "channel": "paid_search", "group": "paid", "provenance": "utm", "reason": "explicit_paid_medium" }
+  },
+  {
+    "name": "Google click identifier without inventory type",
+    "input": { "hasGoogleClickId": true, "entryObservation": "complete" },
+    "expected": { "channel": "paid_unknown", "group": "paid", "provenance": "click_id", "reason": "google_click_untyped" }
+  },
+  {
+    "name": "organic search campaign",
+    "input": { "source": "google", "medium": "organic", "entryObservation": "complete" },
+    "expected": { "channel": "organic_search", "group": "organic_search", "provenance": "utm", "reason": "organic_campaign" }
+  },
+  {
+    "name": "Meta click identifier does not prove paid social",
+    "input": { "hasMetaClickId": true, "entryObservation": "complete" },
+    "expected": { "channel": "social_referral", "group": "social_referral", "provenance": "click_id", "reason": "meta_click_unverified_paid" }
+  },
+  {
+    "name": "observed no-referrer entry",
+    "input": { "entryObservation": "complete" },
+    "expected": { "channel": "direct_observed", "group": "direct_observed", "provenance": "observed_no_referrer", "reason": "direct_observed" }
+  },
+  {
+    "name": "capture did not observe an entry",
+    "input": { "entryObservation": "missing" },
+    "expected": { "channel": "unknown", "group": "unknown", "provenance": "unknown", "reason": "no_entry_observation" }
+  },
+  {
+    "name": "legacy Google organic sentinel stays organic search",
+    "input": { "source": "google", "medium": "organic", "campaign": "(direct/organic)", "entryObservation": "legacy" },
+    "expected": { "channel": "organic_search", "group": "organic_search", "provenance": "legacy_adapter", "reason": "legacy_organic_sentinel" }
+  },
+  {
+    "name": "legacy direct organic sentinel remains legacy no-referrer evidence",
+    "input": { "source": "direct", "medium": "none", "campaign": "(direct/organic)", "entryObservation": "legacy" },
+    "expected": { "channel": "direct_observed", "group": "direct_observed", "provenance": "legacy_adapter", "reason": "legacy_direct_sentinel" }
+  },
+  {
+    "name": "empty legacy tuple remains unknown",
+    "input": { "entryObservation": "legacy" },
+    "expected": { "channel": "unknown", "group": "unknown", "provenance": "legacy_adapter", "reason": "legacy_ambiguous" }
+  }
+]
