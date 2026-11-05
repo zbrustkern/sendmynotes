@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { boundedSourceCoverage, readMeasurementSources, reportRuntimeIssue, ORDER_CAP, TELEMETRY_CAP, RECONCILIATION_CAP } from "@/lib/admin-measurement-source";
 
-type FakeConfig = { counts?: Record<string, number>; failures?: Set<string>; delays?: Record<string, number> };
+type FakeConfig = { counts?: Record<string, number>; failures?: Set<string>; delays?: Record<string, number>; records?: Record<string, Array<Record<string, unknown>>> };
 class FakeQuery {
   private cap = 100;
   constructor(private readonly path: string, private readonly config: FakeConfig, private readonly calls: string[]) {}
@@ -13,11 +13,14 @@ class FakeQuery {
     this.calls.push(`get:${this.path}`);
     if (this.config.delays?.[this.path]) await new Promise((resolve) => setTimeout(resolve, this.config.delays![this.path]));
     if (this.config.failures?.has(this.path)) throw new Error("fixture read denied");
-    const size = this.config.counts?.[this.path] ?? 0;
-    const rows = Array.from({ length: Math.min(size, this.cap) }, (_, i) => ({
-      id: `${this.path.replaceAll("/", "_")}_${i}`,
-      data: () => this.path === "telemetry_events" ? { eventName: "step_navigated", sessionId: `s${i}`, timestamp: Date.now(), utmSource: "google", utmMedium: "cpc", utmCampaign: "fixture" } : { orderId: `recon_${i}`, revision: 1 },
-    }));
+    const fixtureRows = this.config.records?.[this.path];
+    const size = this.config.counts?.[this.path] ?? fixtureRows?.length ?? 0;
+    const rows = fixtureRows
+      ? fixtureRows.slice(0, this.cap).map((record, i) => ({ id: typeof record.id === "string" ? record.id : `${this.path.replaceAll("/", "_")}_${i}`, data: () => record }))
+      : Array.from({ length: Math.min(size, this.cap) }, (_, i) => ({
+          id: `${this.path.replaceAll("/", "_")}_${i}`,
+          data: () => this.path === "telemetry_events" ? { eventName: "step_navigated", sessionId: `s${i}`, timestamp: Date.now(), utmSource: "google", utmMedium: "cpc", utmCampaign: "fixture" } : { orderId: `recon_${i}`, revision: 1 },
+        }));
     return { docs: rows, size };
   }
 }
@@ -82,10 +85,32 @@ async function testReadFailureAndDeadlineAreLocalToSource() {
   assert.equal(slowDb.writes, 0);
 }
 
+async function testV2AttributionIsProjectedWithSessionBinding() {
+  const sessionId = "sess_current_123";
+  const snapshot = {
+    schemaVersion: 2,
+    classifierVersion: "2026-11-05.1",
+    persistence: "persistent",
+    firstObservedTouch: { touchId: "touch_first_123", sessionId: "sess_first_123", source: "google", medium: "cpc", campaign: "spring", provenance: "utm", observedAtClientMs: 1792890000000, expiresAt: 1800666000000, clockQuality: "client_unanchored" },
+    currentSessionTouch: { touchId: "touch_current_123", sessionId, source: "google", medium: "cpc", campaign: "spring", provenance: "utm", observedAtClientMs: 1792890000000, expiresAt: 1800666000000, clockQuality: "client_unanchored" },
+  };
+  const db = new FakeDb({ records: {
+    orders: [{ id: "ord_v2", sessionId, attribution: { utmSource: "Google", utmMedium: "CPC", utmCampaign: "spring", attributionV2: snapshot } }],
+    telemetry_events: [{ id: "evt_v2", eventName: "landing_viewed", sessionId, timestamp: Date.now(), metadata: { attributionV2: snapshot } }],
+  } });
+  const result = await readMeasurementSources(null, null, undefined, { db, isMock: false, expectedProject: "sendmynotes-2a417", actualProject: "sendmynotes-2a417", nodeEnv: "test" });
+  assert.equal(result.orders[0].sessionId, sessionId);
+  assert.equal(result.orders[0].attribution?.attributionV2 && (result.orders[0].attribution.attributionV2 as any).firstObservedTouch.campaign, "spring");
+  assert.equal(result.telemetry[0].sessionKey, sessionId);
+  assert.equal((result.telemetry[0].attributionV2 as any)?.currentSessionTouch.sessionId, sessionId);
+  assert.ok(db.calls.some((call) => call.includes("metadata.attributionV2")), "source projection explicitly selects V2 telemetry snapshots");
+}
+
 async function main() {
   await testRuntimeGatesBeforeReads();
   await testIndependentCappedReadsNoWrites();
   await testReadFailureAndDeadlineAreLocalToSource();
+  await testV2AttributionIsProjectedWithSessionBinding();
   process.stdout.write("admin measurement source tests passed\n");
 }
 void main();

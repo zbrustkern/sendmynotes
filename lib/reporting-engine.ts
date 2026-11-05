@@ -433,7 +433,7 @@ export async function evaluateCohortAndFunnelReport(params: {
         firstSeenAt: env.occurred_at,
         lastSeenAt: env.occurred_at,
         channel: props.attribution_observed || props.utmSource || props.utm_source || props.referrer ? channelInfo.channel : "Unattributed",
-        attributionGroup: classifyAttributionProperties(props, env.session_id).group,
+        attributionGroup: classifyAttributionProperties(props, sessionId).group,
         campaign: props.utmCampaign || props.utm_campaign,
         deviceCategory: deviceCat,
         route: env.route_template || "/",

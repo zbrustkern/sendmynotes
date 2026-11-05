@@ -27,6 +27,7 @@ import {
   sanitizeMetadata,
   sanitizeUrlOrPath,
 } from "./telemetry-schema";
+import { sanitizeAttributionSnapshot } from "./attribution-classifier";
 import {
   classifyTrafficProvenance,
   resolveConsentState,
@@ -166,6 +167,11 @@ export async function ingestEventV2(
     envelope.event_name,
     envelope.properties
   );
+  if (sanitizedProperties.attributionV2) {
+    const sessionBoundSnapshot = sanitizeAttributionSnapshot(sanitizedProperties.attributionV2, envelope.session_id);
+    if (sessionBoundSnapshot) sanitizedProperties.attributionV2 = sessionBoundSnapshot;
+    else delete sanitizedProperties.attributionV2;
+  }
   envelope.properties = sanitizedProperties;
 
   // 5. Clock Skew Diagnostics

@@ -20,6 +20,7 @@ import {
   TELEMETRY_V2_COLLECTION,
 } from "@/lib/telemetry-v2";
 import { classifyTrafficProvenance, resolveConsentState } from "@/lib/journey-identity";
+import { sanitizeAttributionSnapshot } from "@/lib/attribution-classifier";
 
 const MAX_BODY_BYTES = 4096; // 4KB
 
@@ -35,7 +36,8 @@ type LegacyProjectionClaim =
 const ACQUISITION_METADATA_KEYS = new Set([
   "utmSource", "utmMedium", "utmCampaign", "utmContent", "utmTerm",
   "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",
-  "gclid", "wbraid", "gbraid", "fbclid", "emailClickId", "referrer",
+  "gclid", "wbraid", "gbraid", "fbclid", "emailClickId", "referrer", "attributionV2",
+  "attribution_v2",
 ]);
 
 function omitAcquisitionMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
@@ -224,6 +226,11 @@ export async function POST(req: NextRequest) {
     if (metadataError) {
       await recordTelemetryCollectorRejection("invalid_metadata");
       return NextResponse.json({ error: metadataError }, { status: 400 });
+    }
+    if (attributionAllowed && sanitizedMetadataRaw.attributionV2) {
+      const sessionBoundSnapshot = sanitizeAttributionSnapshot(sanitizedMetadataRaw.attributionV2, sessionId.trim().slice(0, 100));
+      if (sessionBoundSnapshot) sanitizedMetadataRaw.attributionV2 = sessionBoundSnapshot;
+      else delete sanitizedMetadataRaw.attributionV2;
     }
     const sanitizedMetadata = attributionAllowed
       ? sanitizedMetadataRaw

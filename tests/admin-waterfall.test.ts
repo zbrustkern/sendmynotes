@@ -3,6 +3,7 @@ import {
   aggregateWaterfallReport,
   chicagoMidnight,
   classifyChannel,
+  classifyOrderAttributionSnapshot,
   classifyDevice,
   isBotEvent,
   isFounderEvent,
@@ -18,6 +19,19 @@ import {
   WaterfallScope,
   WaterfallTelemetryEventInput,
 } from "../lib/contracts/admin-waterfall";
+
+const attributionV2Touch = (touchId: string, sessionId: string, fields: Record<string, unknown>) => ({
+  touchId, sessionId, observedAtClientMs: Date.now(), expiresAt: Date.now() + 86400000, clockQuality: "client_unanchored", ...fields,
+});
+const firstVsCurrentSnapshot = {
+  schemaVersion: 2,
+  classifierVersion: "2026-11-05.1",
+  persistence: "persistent",
+  firstObservedTouch: attributionV2Touch("touch_first_456", "sess_first_456", { source: "google", medium: "cpc", campaign: "spring", channel: "paid_search", group: "paid", provenance: "utm", reason: "explicit_paid_medium" }),
+  currentSessionTouch: attributionV2Touch("touch_current_456", "sess_current_456", { channel: "direct_observed", group: "direct_observed", provenance: "observed_no_referrer", reason: "direct_observed" }),
+};
+assert.equal(classifyChannel({ attributionV2: firstVsCurrentSnapshot, sessionId: "sess_current_456" }).group, "direct_observed", "session evidence uses the current-session touch");
+assert.equal(classifyOrderAttributionSnapshot(firstVsCurrentSnapshot, "sess_current_456")?.group, "paid", "order campaign evidence uses the first observed touch");
 
 async function runAdminWaterfallTests() {
   console.log("=================================================");
