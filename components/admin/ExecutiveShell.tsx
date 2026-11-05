@@ -33,6 +33,7 @@ import {
   DatePreset,
   serializeAdminGlobalScope,
 } from "@/lib/admin-scope";
+import { ATTRIBUTION_GROUP_LABELS } from "@/lib/attribution-contract";
 
 export interface ExecutiveShellProps {
   currentWorkspace?: AdminWorkspaceId;
@@ -362,10 +363,12 @@ export function ExecutiveShell({
                   aria-label="Filter by Acquisition Channel"
                 >
                   <option value="all">All Channels</option>
-                  <option value="paid">All Paid Ads</option>
-                  <option value="google_cpc">Google CPC</option>
-                  <option value="meta_paid">Meta Paid</option>
-                  <option value="organic_direct">Organic & Direct</option>
+                  {Object.entries(ATTRIBUTION_GROUP_LABELS).map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+                  {["google_cpc", "meta_paid", "organic_direct"].includes(scope.channel) && (
+                    <option value={scope.channel} disabled>Legacy filter: {scope.channel.replaceAll("_", " ")}</option>
+                  )}
                 </select>
               </div>
 

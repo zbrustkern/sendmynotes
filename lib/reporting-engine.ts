@@ -39,6 +39,8 @@ import {
 import { FINANCIAL_FACTS_COLLECTION } from "./financial-ledger";
 import { TELEMETRY_V2_COLLECTION } from "./telemetry-v2";
 import { TELEMETRY_COLLECTION } from "./telemetry";
+import type { AttributionGroup } from "./attribution-contract";
+import { classifyAttributionProperties } from "./attribution-classifier";
 
 export const REPORTING_PROJECTIONS_COLLECTION = "reporting_projections_v2";
 
@@ -180,6 +182,7 @@ export interface EvaluatedSession {
   firstSeenAt: number;
   lastSeenAt: number;
   channel: AcquisitionChannel;
+  attributionGroup: AttributionGroup;
   campaign?: string;
   deviceCategory: "mobile" | "desktop" | "tablet" | "all";
   route: string;
@@ -430,6 +433,7 @@ export async function evaluateCohortAndFunnelReport(params: {
         firstSeenAt: env.occurred_at,
         lastSeenAt: env.occurred_at,
         channel: props.attribution_observed || props.utmSource || props.utm_source || props.referrer ? channelInfo.channel : "Unattributed",
+        attributionGroup: classifyAttributionProperties(props, env.session_id).group,
         campaign: props.utmCampaign || props.utm_campaign,
         deviceCategory: deviceCat,
         route: env.route_template || "/",
@@ -475,12 +479,16 @@ export async function evaluateCohortAndFunnelReport(params: {
       const sessionId = leg.sessionId || `leg_sess_${doc.id}`;
       let sess = sessionsMap.get(sessionId);
       if (!sess) {
+        const attribution = classifyAttributionProperties(leg);
+        const legacyChannel = classifyAcquisitionChannel({ utmSource: leg.utmSource || leg.utm_source, utmMedium: leg.utmMedium || leg.utm_medium, utmCampaign: leg.utmCampaign || leg.utm_campaign, referrer: leg.referrer }).channel;
         sess = {
           sessionId,
           trafficRole: isFounder ? "founder" : "customer",
           firstSeenAt: leg.timestamp,
           lastSeenAt: leg.timestamp,
-          channel: "Direct",
+          channel: attribution.group === "unknown" ? "Unattributed" : legacyChannel,
+          attributionGroup: attribution.group,
+          campaign: leg.utmCampaign || leg.utm_campaign,
           deviceCategory: "desktop",
           route: leg.path || "/",
           observedMilestones: new Set<string>(),
@@ -502,8 +510,9 @@ export async function evaluateCohortAndFunnelReport(params: {
     (scope.deviceCategory && scope.deviceCategory !== "all") ||
     scope.experienceVersion
   );
-  const channelMatches = (channel: string, requested?: string) => {
+  const channelMatches = (channel: string, requested?: string, group?: AttributionGroup) => {
     if (!requested || requested === "all") return true;
+    if (["paid", "organic_search", "social_referral", "email_other", "direct_observed", "unknown"].includes(requested)) return group === requested;
     const value = channel.toLowerCase();
     if (requested === "paid") return value.includes("paid") || value.includes("cpc");
     if (requested === "google_cpc") return value.includes("google");
@@ -513,7 +522,7 @@ export async function evaluateCohortAndFunnelReport(params: {
   };
   for (const [sessionId, session] of sessionsMap) {
     if (
-      !channelMatches(session.channel, scope.channel) ||
+      !channelMatches(session.channel, scope.channel, session.attributionGroup) ||
       (scope.deviceCategory && scope.deviceCategory !== "all" && session.deviceCategory !== scope.deviceCategory) ||
       (scope.experienceVersion && session.experienceVersion !== scope.experienceVersion)
     ) {
@@ -613,7 +622,9 @@ export async function evaluateCohortAndFunnelReport(params: {
     startDate,
     endDate,
     channels: scope.channel && scope.channel !== "all" ?
-      ["Google CPC", "Meta Paid", "Organic Search", "Organic Social", "Referral", "Direct", "Unattributed"].filter((channel) => channelMatches(channel, scope.channel)) : undefined,
+      ["Google CPC", "Meta Paid", "Organic Search", "Organic Social", "Referral", "Direct", "Unattributed", "Email", "Other Campaign"].filter((channel) => channelMatches(channel, scope.channel, ({
+        "Google CPC": "paid", "Meta Paid": "paid", "Organic Search": "organic_search", "Organic Social": "social_referral", Referral: "social_referral", Direct: "direct_observed", Unattributed: "unknown", Email: "email_other", "Other Campaign": "email_other",
+      } as Record<string, AttributionGroup>)[channel])) : undefined,
   });
   // Spend has no device or experience allocation. Do not divide total spend by
   // a filtered subcohort and present the result as that subcohort's CAC.

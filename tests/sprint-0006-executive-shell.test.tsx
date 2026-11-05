@@ -340,9 +340,12 @@ async function runSprint0006Tests() {
       );
       assert.ok(shellMarkup.includes("Since Oct 13 Baseline"), "Must render Oct 13 baseline preset");
       assert.ok(shellMarkup.includes("Customer Mode"), "Must render customer mode toggle");
+      for (const label of ["Paid", "Organic Search", "Social &amp; Referral", "Email &amp; Other Campaign", "Direct / No Referrer", "Unknown"]) {
+        assert.ok(shellMarkup.includes(label), `Must render consolidated attribution filter ${label}`);
+      }
 
       // 5. Quick actions: Comp Card & Refresh
-      assert.ok(shellMarkup.includes("Dispatch Comp"), "Must render Dispatch Comp quick action");
+      assert.ok(shellMarkup.includes("Comp tools") || shellMarkup.includes("New comp card"), "Must render complimentary card quick action");
       assert.ok(shellMarkup.includes("Refresh"), "Must render Refresh button");
       assert.ok(shellMarkup.includes("founder@sendmynotes.com"), "Must render user email badge");
 
@@ -382,6 +385,13 @@ async function runSprint0006Tests() {
       assert.ok(drilldownUrl.includes("channel=google_cpc"), "Drilldown URL must preserve channel");
       assert.ok(drilldownUrl.includes("device=mobile"), "Drilldown URL must preserve device");
       assert.ok(drilldownUrl.includes("orderId=smn_order_123"), "Drilldown URL must include orderId");
+
+      for (const group of ["paid", "organic_search", "social_referral", "email_other", "direct_observed", "unknown"] as const) {
+        const groupedScope = parseAdminGlobalScope(`?channel=${group}`);
+        assert.strictEqual(groupedScope.channel, group, `${group} remains a selectable filter`);
+        assert.ok(serializeAdminGlobalScope(groupedScope).includes(`channel=${group}`), `${group} survives URL serialization`);
+        assert.strictEqual(toGlobalReportScope(groupedScope).channel, group, `${group} reaches the reporting API scope`);
+      }
 
       // 4. createRequestSequenceGuard prevents stale response race conditions
       const guard = createRequestSequenceGuard();

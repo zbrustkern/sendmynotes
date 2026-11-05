@@ -7,14 +7,14 @@ import { ATTRIBUTION_GROUP_LABELS } from "@/lib/attribution-contract";
 import type { AttributionGroup, AttributionClassification } from "@/lib/attribution-contract";
 import { adaptLegacyAttribution, attributionCampaignKey } from "@/lib/attribution-classifier";
 
-const CHANNELS = new Set(["all", ...Object.keys(ATTRIBUTION_GROUP_LABELS), "google_paid", "email", "organic", "social_meta", "referral", "direct"]);
+const CHANNELS = new Set(["all", ...Object.keys(ATTRIBUTION_GROUP_LABELS), "google", "google_cpc", "google_paid", "email", "organic", "meta", "social_meta", "referral", "direct"]);
 const PERIODS: ReportPeriod[] = ["today", "last7", "since_oct13", "all", "custom"];
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export class InvalidReportScope extends Error {}
 
 const LEGACY_CHANNEL_GROUP: Record<string, AttributionGroup> = {
-  google_paid: "paid", email: "email_other", organic: "organic_search", social_meta: "social_referral",
+  google: "paid", google_cpc: "paid", google_paid: "paid", email: "email_other", organic: "organic_search", meta: "social_referral", social_meta: "social_referral",
   referral: "social_referral", direct: "direct_observed", unknown: "unknown",
 };
 

@@ -137,6 +137,7 @@ async function runAdminWaterfallTests() {
       timestamp: tsNow,
       utmSource: "direct",
       utmMedium: "none",
+      utmCampaign: "(direct/organic)",
       deviceType: "mobile",
     },
     {
@@ -364,6 +365,7 @@ async function runAdminWaterfallTests() {
       timestamp: tsNow,
       utmSource: "direct",
       utmMedium: "none",
+      utmCampaign: "(direct/organic)",
       deviceType: "desktop",
     },
   ];
@@ -412,7 +414,7 @@ async function runAdminWaterfallTests() {
   assert.ok(directRow, "Must have Direct origin row");
 
   assert.strictEqual(metaRow!.source, "meta");
-  assert.strictEqual(metaRow!.medium, "paid_social");
+  assert.strictEqual(metaRow!.medium, "unknown", "a Meta click ID must not invent a paid-social medium");
   assert.strictEqual(metaRow!.campaign, "fall_special");
   assert.strictEqual(metaRow!.paidOrders, 1);
   assert.strictEqual(metaRow!.capturedRevenueCents, 900);
@@ -420,7 +422,7 @@ async function runAdminWaterfallTests() {
   assert.strictEqual(originReport.coverage.unmatchedPaidOrders, 1);
 
   assert.strictEqual(googleRow!.source, "google");
-  assert.strictEqual(googleRow!.medium, "cpc");
+  assert.strictEqual(googleRow!.medium, "unknown", "a Google click ID must not invent a paid-search medium");
   assert.strictEqual(googleRow!.campaign, "brand_search");
   assert.strictEqual(googleRow!.sessions, 1);
   assert.strictEqual(googleRow!.paidOrders, 0);
@@ -467,6 +469,10 @@ async function runAdminWaterfallTests() {
 
   assert.strictEqual(reportWithSpend.kpis.recordedAdSpendCents, 4500, "Must sum recorded ad spend (4500 cents)");
   assert.strictEqual(reportWithSpend.kpis.cpaCents, 4500, "CPA must be $45.00 for 1 order ($45 / 1)");
+  const paidSpendOnly = aggregateWaterfallReport({ asOf: fixedClock, scope: { ...baseScope, channel: "paid" }, orders: [], telemetry: [], adSpendRecords: spendRecords });
+  assert.strictEqual(paidSpendOnly.kpis.recordedAdSpendCents, 4500, "Meta ad spend belongs to the Paid filter");
+  const organicSpendOnly = aggregateWaterfallReport({ asOf: fixedClock, scope: { ...baseScope, channel: "organic_search" }, orders: [], telemetry: [], adSpendRecords: spendRecords });
+  assert.strictEqual(organicSpendOnly.kpis.recordedAdSpendCents, null, "Meta ad spend does not leak into Organic Search");
 
   console.log("   ✓ Zero fake COGS or fabricated margins; ad spend and CPA strictly recorded or null");
 

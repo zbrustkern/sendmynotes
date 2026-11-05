@@ -36,7 +36,8 @@ function testAttributionGroupFiltersAndSharedClassification() {
   assert.equal(fromMeasurement.orderDiagnostics[0].campaign.channel, waterfallClassification.channel);
   assert.equal(fromMeasurement.orderDiagnostics[0].campaign.group, waterfallClassification.group);
   assert.equal(waterfallClassification.group, "organic_search");
-  assert.equal(classifyChannel({ source: "direct", medium: "organic" }).group, "direct_observed", "the explicit legacy direct sentinel remains direct");
+  assert.equal(classifyChannel({ source: "direct", medium: "none", campaign: "(direct/organic)" }).group, "direct_observed", "the exact legacy direct sentinel remains direct");
+  assert.equal(classifyChannel({ source: "direct", medium: "none" }).group, "unknown", "ambiguous direct/none rows remain unknown");
   assert.equal(classifyChannel({ source: "google", medium: "organic" }).group, "organic_search", "Google organic sentinel remains organic search");
   assert.equal(classifyChannel({}).group, "unknown", "empty legacy evidence remains unknown");
   const sameCampaignDifferentSource = aggregateMeasurementReport({ asOf: new Date(), scope: normalizeReportScope(new URLSearchParams("period=all&records=all")),
@@ -70,7 +71,7 @@ function testPaymentClassificationAndTelemetrySeparation() {
   assert.equal(report.exceptions.filter((e) => e.code === "payment_intent_collision").length, 2);
   assert.equal(report.activity.observedSessions, 1);
   assert.equal(report.activity.eventCounts?.step_navigated, 1);
-  assert.equal(report.campaigns.find((x) => x.key === "google|cpc|launch")?.observedSessions, 1);
+  assert.equal(report.campaigns.find((x) => x.source === "google" && x.medium === "cpc" && x.campaign === "launch")?.observedSessions, 1);
   assert.equal(JSON.stringify(report).includes("raw-private-click"), false);
   const customerView = aggregateMeasurementReport({ asOf: new Date("2026-10-26T18:00:00Z"), scope: { ...scope, records: "customers" }, orders,
     orderCoverage: { status: "complete", count: 6, cap: 2000 }, telemetryCoverage: { status: "complete", count: 1, cap: 500 }, reconciliationCoverage: complete(100), telemetry: [event, event] });
@@ -108,7 +109,7 @@ function testCampaignLabelsArePrivacySanitized() {
   assert.equal(serialized.includes("founder@example.test"), false);
   assert.equal(serialized.includes("312) 555-0199"), false);
   assert.equal(serialized.includes("owner@example.test"), false);
-  assert.ok(report.campaigns.some((row) => row.label === "[redacted]"));
+  assert.ok(report.campaigns.every((row) => !row.label.includes("@")), "unsafe campaign labels are omitted before they reach the report");
 }
 
 function testRefundGrossAndUncertainty() {

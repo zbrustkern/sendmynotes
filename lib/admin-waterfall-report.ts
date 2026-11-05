@@ -269,6 +269,21 @@ export function classifyChannel(params: {
     hasGoogleClickId: Boolean(params.gclid || params.wbraid || params.gbraid), hasEmailClickId: Boolean(params.emailClickId) });
 }
 
+function classifyAdSpendChannel(value?: string): AttributionClassification {
+  const key = value?.trim().toLowerCase().replace(/[\s-]+/g, "_") ?? "";
+  const paidSource: Record<string, [string, string]> = {
+    google: ["google", "paid"], google_ads: ["google", "paid"], google_paid: ["google", "paid"], google_cpc: ["google", "cpc"],
+    meta: ["meta", "paid_social"], meta_ads: ["meta", "paid_social"], facebook: ["meta", "paid_social"], facebook_ads: ["meta", "paid_social"], instagram: ["meta", "paid_social"],
+  };
+  const known = paidSource[key];
+  if (known) return classifyChannel({ source: known[0], medium: known[1] });
+  if (key === "direct" || key === "direct_observed") return classifyChannel({ source: "direct", medium: "none", campaign: "(direct/organic)" });
+  if (key === "organic" || key === "organic_search") return classifyChannel({ source: "google", medium: "organic" });
+  if (key === "email" || key === "email_other") return classifyChannel({ source: "email", medium: "email" });
+  if (key === "social_referral") return classifyChannel({ source: "social", medium: "social" });
+  return classifyChannel({ source: key || undefined });
+}
+
 export function classifyDevice(deviceType?: string, userAgent?: string): "mobile" | "desktop" | "tablet" {
   const dt = (deviceType || "").toLowerCase();
   const ua = (userAgent || "").toLowerCase();
@@ -884,7 +899,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
       if (scope.endDate && rec.date > scope.endDate) continue;
 
       if (scope.channel !== "all" && rec.channel) {
-        const ch = classifyChannel({ source: rec.channel });
+        const ch = classifyAdSpendChannel(rec.channel);
         if (!matchesAttributionGroup(scope.channel, ch)) continue;
       }
 
