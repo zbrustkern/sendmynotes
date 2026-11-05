@@ -16,6 +16,9 @@ const marketingScripts = readFileSync(new URL("../components/MarketingScripts.ts
 assert(marketingScripts.includes('pathname?.startsWith("/comp-payment/")'), "private payment capabilities do not load advertising pixels");
 const attributionTracker = readFileSync(new URL("../components/AttributionTracker.tsx", import.meta.url), "utf8");
 assert(attributionTracker.includes('pathname?.startsWith("/comp-payment/")'), "private payment capabilities skip attribution capture and route tracking");
+assert(attributionTracker.includes('process.env.NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED === "true"'), "V2 attribution stays disabled unless explicitly enabled for staging");
+assert.equal((attributionTracker.match(/document\.referrer/g) ?? []).length, 1, "the browser referrer is read through one document-entry cache only");
+assert(attributionTracker.includes("attributionV2: snapshot"), "V2 attribution remains additive to the legacy flat attribution object");
 const privateMiddleware = readFileSync(new URL("../middleware.ts", import.meta.url), "utf8");
 assert(privateMiddleware.includes('response.headers.set("Referrer-Policy", "no-referrer")'), "payment capability URLs are not sent as referrers");
 assert(privateMiddleware.includes('response.headers.set("X-Robots-Tag", "noindex, nofollow, noarchive")'), "payment capability pages are excluded from indexing and archive");

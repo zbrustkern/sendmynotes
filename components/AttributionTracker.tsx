@@ -9,8 +9,20 @@ import { mayStoreGoogleClientId } from "@/lib/order-attribution";
 import { trackMetaPageView, getMetaBrowserCookie, buildMetaFbcString } from "@/lib/meta-ads";
 import { sanitizeUrlOrPath, sanitizeAttribution } from "@/lib/telemetry-schema";
 import { observeFollowupLink } from "@/lib/post-purchase/link-client";
+import { getOrCreateJourneyIdentity, resolveConsentState } from "@/lib/journey-identity";
+import { captureAttributionSnapshotV2, getAttributionStorageForBrowser, readAttributionSnapshotV2 } from "@/lib/attribution-capture";
 
 export const SMN_ATTRIBUTION_KEY = "smn_attribution";
+export const ATTRIBUTION_V2_ENABLED = process.env.NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED === "true";
+let documentReferrerWasRead = false;
+let documentReferrerAtEntry: string | undefined;
+
+function readDocumentReferrerOnce(): string | undefined {
+  if (documentReferrerWasRead) return documentReferrerAtEntry;
+  documentReferrerWasRead = true;
+  try { documentReferrerAtEntry = typeof document !== "undefined" ? document.referrer || undefined : undefined; } catch { /* privacy mode */ }
+  return documentReferrerAtEntry;
+}
 function persistAttribution(attribution: OrderAttribution): void {
   inMemoryAttribution = attribution;
   try { sessionStorage.setItem(SMN_ATTRIBUTION_KEY, JSON.stringify(attribution)); } catch { /* in-memory fallback */ }
@@ -89,9 +101,21 @@ function safeSetStorage(key: string, value: string): void {
  */
 export function getStoredAttribution(): OrderAttribution | null {
   if (typeof window === "undefined") return null;
+  const attachV2 = (value: OrderAttribution | null): OrderAttribution | null => {
+    if (!ATTRIBUTION_V2_ENABLED) return value;
+    try {
+      const consentState = resolveConsentState();
+      if (consentState === "denied" || consentState === "gpc_restricted") return value;
+      const { storage } = getAttributionStorageForBrowser();
+      const sessionId = getOrCreateJourneyIdentity().sessionId;
+      const snapshot = readAttributionSnapshotV2(storage, sessionId);
+      if (snapshot) return { ...(value ?? {}), attributionV2: snapshot };
+    } catch { /* V2 is additive and may remain unavailable when identity/storage is blocked. */ }
+    return value;
+  };
   try {
     const raw = safeGetStorage(SMN_ATTRIBUTION_KEY);
-    if (!raw) return inMemoryAttribution;
+    if (!raw) return attachV2(inMemoryAttribution);
 
     const parsed = JSON.parse(raw) as OrderAttribution;
     const expiresAt = parsed.expiresAt || (parsed.capturedAt ? parsed.capturedAt + 90 * 24 * 60 * 60 * 1000 : 0);
@@ -99,7 +123,7 @@ export function getStoredAttribution(): OrderAttribution | null {
       try { sessionStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
       try { localStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
       inMemoryAttribution = null;
-      return null;
+      return attachV2(null);
     }
 
     // Check if _fbp or _fbc became available after the initial attribution was saved
@@ -127,9 +151,9 @@ export function getStoredAttribution(): OrderAttribution | null {
       persistAttribution(parsed);
     }
 
-    return parsed;
+    return attachV2(parsed);
   } catch {
-    return inMemoryAttribution;
+    return attachV2(inMemoryAttribution);
   }
 }
 
@@ -144,6 +168,8 @@ function AttributionTrackerInner() {
   // retain safe UTM/click evidence, while bearer tokens and private routes do not.
   const acquisitionCaptureBlocked = isPrivatePaymentPath || pathname === "/email/unsubscribe" || searchParams.has("token");
   const isFirstRender = useRef(true);
+  const legacyDocumentEntry = useRef(true);
+  const v2DocumentEntry = useRef(true);
 
   useEffect(() => {
     if (!followupReference || typeof window === "undefined") return;
@@ -196,6 +222,8 @@ function AttributionTrackerInner() {
   }, [isPrivateTrackingPath, pathname]);
 
   useEffect(() => {
+    const isDocumentEntry = legacyDocumentEntry.current;
+    legacyDocumentEntry.current = false;
     if (typeof window === "undefined") return;
     if (acquisitionCaptureBlocked) return;
 
@@ -233,8 +261,9 @@ function AttributionTrackerInner() {
         fbc = buildMetaFbcString(fbclid) || undefined;
       }
 
-      const cleanReferrer = sanitizeUrlOrPath(document.referrer) || undefined;
+      const cleanReferrer = isDocumentEntry ? sanitizeUrlOrPath(readDocumentReferrerOnce()) || undefined : undefined;
       const cleanLandingPath = sanitizeUrlOrPath(pathname || window.location.pathname) || "/";
+      const existingAttribution = getStoredAttribution();
 
       // If user landed with campaign parameters, overwrite or set attribution
       if (hasCampaignParams) {
@@ -255,8 +284,8 @@ function AttributionTrackerInner() {
           fbclid,
           fbp: fbp || undefined,
           fbc: fbc || undefined,
-          referrer: cleanReferrer,
-          landingPath: cleanLandingPath,
+          referrer: cleanReferrer || existingAttribution?.referrer,
+          landingPath: isDocumentEntry ? cleanLandingPath : existingAttribution?.landingPath || cleanLandingPath,
           googleClientId: isGpcActive ? undefined : getGoogleClientId(),
           googleClientIdNormalized: isGpcActive ? undefined : normalizedClientIdFromCookie(),
           gpc: isGpcActive || undefined,
@@ -298,8 +327,12 @@ function AttributionTrackerInner() {
         }
       }
 
+      // The document referrer belongs to the page load that created this
+      // component. An SPA route transition is not a fresh arrival.
+      if (!isDocumentEntry) return;
+
       // First time visitor without UTMs: classify referrer
-      const ref = document.referrer;
+      const ref = cleanReferrer || "";
       let detectedSource = "direct";
       let detectedMedium = "none";
 
@@ -363,6 +396,26 @@ function AttributionTrackerInner() {
     } catch (e) {
       console.warn("[Attribution Tracker] Non-fatal capture notice:", e);
     }
+  }, [acquisitionCaptureBlocked, searchParams, pathname]);
+
+  useEffect(() => {
+    const isDocumentEntry = v2DocumentEntry.current;
+    v2DocumentEntry.current = false;
+    if (!ATTRIBUTION_V2_ENABLED || typeof window === "undefined" || acquisitionCaptureBlocked) return;
+    let active = true;
+    const consentState = resolveConsentState();
+    void captureAttributionSnapshotV2({
+      url: window.location.pathname + window.location.search,
+      pathname: pathname || window.location.pathname,
+      documentReferrer: isDocumentEntry ? readDocumentReferrerOnce() : undefined,
+      documentEntry: isDocumentEntry,
+      consentState,
+      origin: window.location.origin,
+    }).then((snapshot) => {
+      if (!active) return;
+      inMemoryAttribution = { ...(inMemoryAttribution ?? {}), attributionV2: snapshot };
+    }).catch(() => { /* V2 capture must not interrupt checkout or telemetry. */ });
+    return () => { active = false; };
   }, [acquisitionCaptureBlocked, searchParams, pathname]);
 
   // Keep the historical raw _ga value intact; store Google's normalized client ID separately.
