@@ -11,7 +11,7 @@ const MAX_LABEL_LENGTH = 120;
 const cleanLabel = (value?: string | null): string | undefined => {
   if (typeof value !== "string") return undefined;
   const label = value.trim().replace(/[\u0000-\u001f\u007f]/g, "").slice(0, MAX_LABEL_LENGTH);
-  if (!label || /^https?:\/\//i.test(label) || /(?:gclid|fbclid|msclkid|wbraid|gbraid)=/i.test(label)) return undefined;
+  if (!label || /^https?:\/\//i.test(label) || /(?:gclid|fbclid|msclkid|wbraid|gbraid)=/i.test(label) || /\b[^\s@]+@[^\s@]+\.[^\s@]+\b/.test(label)) return undefined;
   return label;
 };
 
