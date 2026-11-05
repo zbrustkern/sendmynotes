@@ -19,7 +19,7 @@ import {
   WATERFALL_WINDOWS,
 } from "./contracts/admin-waterfall";
 import type { AttributionClassification } from "./attribution-contract";
-import { adaptLegacyAttribution, attributionCampaignKey, matchesAttributionGroup } from "./attribution-classifier";
+import { adaptLegacyAttribution, attributionCampaignKey, classifyAttributionProperties, matchesAttributionGroup } from "./attribution-classifier";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -263,10 +263,21 @@ export function classifyChannel(params: {
   wbraid?: string;
   gbraid?: string;
   emailClickId?: string;
+  attributionV2?: unknown;
+  sessionId?: string;
 }): AttributionClassification {
+  if (params.attributionV2) return classifyAttributionProperties({ attributionV2: params.attributionV2 }, params.sessionId);
   return adaptLegacyAttribution({ source: params.source, medium: params.medium, campaign: params.campaign,
     observedEntry: Boolean(params.source || params.medium || params.campaign), hasMetaClickId: Boolean(params.fbclid),
     hasGoogleClickId: Boolean(params.gclid || params.wbraid || params.gbraid), hasEmailClickId: Boolean(params.emailClickId) });
+}
+
+export function classifyOrderAttributionSnapshot(value: unknown, sessionId?: string): AttributionClassification | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const snapshot = value as { firstObservedTouch?: unknown; currentSessionTouch?: unknown };
+  if (snapshot.firstObservedTouch) return classifyAttributionProperties({ attributionV2: value }, undefined, "first");
+  if (snapshot.currentSessionTouch && sessionId) return classifyAttributionProperties({ attributionV2: value }, sessionId, "current");
+  return undefined;
 }
 
 function classifyAdSpendChannel(value?: string): AttributionClassification {
@@ -559,7 +570,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
 
       const rawCampaign = attr.campaign || attr.utmCampaign || order.campaignId || linkedAttribution?.campaign || "unknown";
 
-      const orderClassification = adaptLegacyAttribution({ source: attr.source || attr.utmSource || order.source || null, medium: attr.medium || attr.utmMedium || null, campaign: attr.campaign || attr.utmCampaign || order.campaignId || linkedAttribution?.campaign || null,
+      const orderClassification = classifyOrderAttributionSnapshot(attr.attributionV2, order.sessionId) ?? adaptLegacyAttribution({ source: attr.source || attr.utmSource || order.source || null, medium: attr.medium || attr.utmMedium || null, campaign: attr.campaign || attr.utmCampaign || order.campaignId || linkedAttribution?.campaign || null,
           referrer: (attr as typeof attr & { referrer?: string }).referrer ?? null,
           observedEntry: Boolean(attr.source || attr.utmSource || attr.medium || attr.utmMedium || attr.campaign || attr.utmCampaign || order.source || order.campaignId),
           hasGoogleClickId: hasGoogle, hasMetaClickId: hasFb, hasEmailClickId: hasEmail });
@@ -686,6 +697,8 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         wbraid: ev.wbraid,
         gbraid: ev.gbraid,
         emailClickId: ev.emailClickId,
+        attributionV2: ev.metadata?.attributionV2,
+        sessionId: ev.sessionId,
       });
 
       if (src || med || cmp || ev.gclid || ev.wbraid || ev.gbraid || ev.fbclid || ev.emailClickId) {

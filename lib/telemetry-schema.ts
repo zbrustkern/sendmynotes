@@ -1,5 +1,6 @@
 import { TelemetryEventName } from "./types";
 import { SERVER_ONLY_AUTHORITY_EVENTS } from "./contracts/admin-overhaul";
+import { sanitizeAttributionSnapshot } from "./attribution-classifier";
 
 /**
  * Authority Events that represent financial or fulfillment truth.
@@ -602,8 +603,13 @@ export function sanitizeMetadata(
   const sanitized: Record<string, unknown> = {};
 
   for (const [key, value] of Object.entries(raw)) {
-    // If value is a nested object or array, drop it
+    // The V2 attribution snapshot is the only nested property with an explicit,
+    // narrow sanitizer; arbitrary nested payloads remain dropped.
     if (value !== null && typeof value === "object") {
+      if (key === "attributionV2" || key === "attribution_v2") {
+        const snapshot = sanitizeAttributionSnapshot(value);
+        if (snapshot) sanitized.attributionV2 = snapshot;
+      }
       continue;
     }
 

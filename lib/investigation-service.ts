@@ -1042,7 +1042,7 @@ export async function queryJourneysEvidence(params: {
     const observedChannel = classifyAcquisitionChannel({ utmSource: attribution.utmSource || attribution.utm_source, utmMedium: attribution.utmMedium || attribution.utm_medium, utmCampaign: attribution.utmCampaign || attribution.utm_campaign, referrer: attribution.referrer });
     const channel = attribution.channel || (attribution.attribution_observed || attribution.utmSource || attribution.utm_source || attribution.referrer ? observedChannel.channel : "Unattributed");
     if (scope.channel && scope.channel !== "all") {
-      const group = classifyAttributionProperties(attribution, firstEv.session_id).group;
+      const group = firstEv.session_id ? classifyAttributionProperties(attribution, firstEv.session_id).group : "unknown";
       if (["paid", "organic_search", "social_referral", "email_other", "direct_observed", "unknown"].includes(scope.channel)) {
         if (group !== scope.channel) continue;
       } else {

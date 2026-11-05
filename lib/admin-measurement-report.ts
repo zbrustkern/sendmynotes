@@ -5,7 +5,7 @@ import {
 import { ALLOWED_BROWSER_EVENT_NAMES } from "@/lib/telemetry-schema";
 import { ATTRIBUTION_GROUP_LABELS } from "@/lib/attribution-contract";
 import type { AttributionGroup, AttributionClassification } from "@/lib/attribution-contract";
-import { adaptLegacyAttribution, attributionCampaignKey } from "@/lib/attribution-classifier";
+import { adaptLegacyAttribution, attributionCampaignKey, classifyAttributionProperties } from "@/lib/attribution-classifier";
 
 const CHANNELS = new Set(["all", ...Object.keys(ATTRIBUTION_GROUP_LABELS), "google", "google_cpc", "google_paid", "email", "organic", "meta", "social_meta", "referral", "direct"]);
 const PERIODS: ReportPeriod[] = ["today", "last7", "since_oct13", "all", "custom"];
@@ -117,6 +117,9 @@ function classification(order: ReportOrderInput, sidecar?: ReportReconciliationE
 
 function classifyLegacyOrder(order: ReportOrderInput): AttributionClassification {
   const attr = order.attribution;
+  const snapshot = attr?.attributionV2 as { firstObservedTouch?: unknown; currentSessionTouch?: unknown } | undefined;
+  if (snapshot?.firstObservedTouch) return classifyAttributionProperties({ attributionV2: attr?.attributionV2 }, undefined, "first");
+  if (snapshot?.currentSessionTouch && order.sessionId) return classifyAttributionProperties({ attributionV2: attr?.attributionV2 }, order.sessionId, "current");
   return adaptLegacyAttribution({ source: attr?.source || order.source || null, medium: attr?.medium || null,
     campaign: attr?.campaign || order.campaignId || attr?.campaignId || null,
     referrer: (attr as typeof attr & { referrer?: string })?.referrer ?? null,
@@ -141,6 +144,7 @@ function sanitizeAttributionText(value: unknown): string {
 }
 function channelFor(order: ReportOrderInput) { return classifyLegacyOrder(order); }
 function eventChannel(event: NonNullable<AggregateInput["telemetry"]>[number]): AttributionClassification {
+  if (event.attributionV2) return classifyAttributionProperties({ attributionV2: event.attributionV2 }, event.sessionKey);
   return adaptLegacyAttribution({ source: event.source, medium: event.medium, campaign: event.campaign,
     observedEntry: Boolean(event.source || event.medium || event.campaign), hasGoogleClickId: event.hasGoogleClick, hasMetaClickId: event.hasMetaClick });
 }
@@ -154,7 +158,7 @@ export interface AggregateInput {
   telemetryCoverage: SourceCoverage;
   reconciliationCoverage: SourceCoverage;
   reconciliations?: ReportReconciliationEntry[];
-  telemetry?: Array<{ eventId?: string; sessionKey?: string; eventName?: string; source?: string; medium?: string; campaign?: string; hasGoogleClick?: boolean; hasMetaClick?: boolean }>;
+  telemetry?: Array<{ eventId?: string; sessionKey?: string; eventName?: string; source?: string; medium?: string; campaign?: string; hasGoogleClick?: boolean; hasMetaClick?: boolean; attributionV2?: unknown }>;
   telemetrySampled?: boolean;
 }
 

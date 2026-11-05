@@ -5,6 +5,8 @@ import {
   type AttributionGroup,
   type AttributionGroupFilter,
   type LegacyAttributionEvidence,
+  type AttributionSnapshotV2,
+  type AttributionTouchV2,
 } from "./attribution-contract";
 
 const MAX_LABEL_LENGTH = 120;
@@ -128,7 +130,7 @@ export function adaptLegacyAttribution(evidence: LegacyAttributionEvidence): Att
 
 /** Resolve the reporting group from an event's V2 snapshot or legacy flat fields.
  * A client-supplied channel label is never accepted as classification evidence. */
-export function classifyAttributionProperties(value: unknown, expectedSessionId?: string): AttributionClassification {
+export function classifyAttributionProperties(value: unknown, expectedSessionId?: string, touchRole: "first" | "current" = "current"): AttributionClassification {
   if (!value || typeof value !== "object" || Array.isArray(value)) return unknown({}, "invalid_evidence");
   const props = value as Record<string, unknown>;
   const snapshot = props.attributionV2 && typeof props.attributionV2 === "object" && !Array.isArray(props.attributionV2)
@@ -136,11 +138,12 @@ export function classifyAttributionProperties(value: unknown, expectedSessionId?
     : props.attribution_v2 && typeof props.attribution_v2 === "object" && !Array.isArray(props.attribution_v2)
       ? props.attribution_v2 as Record<string, unknown>
       : undefined;
-  const touch = snapshot?.schemaVersion === 2 && snapshot.currentSessionTouch && typeof snapshot.currentSessionTouch === "object"
-    ? snapshot.currentSessionTouch as Record<string, unknown>
+  const touchValue = touchRole === "first" ? snapshot?.firstObservedTouch : snapshot?.currentSessionTouch;
+  const touch = snapshot?.schemaVersion === 2 && touchValue && typeof touchValue === "object"
+    ? touchValue as Record<string, unknown>
     : undefined;
   if (touch) {
-    if (expectedSessionId && touch.sessionId !== expectedSessionId) return unknown({}, "invalid_evidence");
+    if (touchRole === "current" && expectedSessionId && touch.sessionId !== expectedSessionId) return unknown({}, "invalid_evidence");
     const source = typeof touch.source === "string" ? touch.source : undefined;
     const provenance = touch.provenance;
     const medium = typeof touch.medium === "string" ? touch.medium : undefined;
@@ -184,6 +187,91 @@ export function classifyAttributionProperties(value: unknown, expectedSessionId?
     hasEmailClickId: emailClick,
     observedEntry: entryWasObserved,
   });
+}
+
+const SAFE_TOUCH_ID = /^[A-Za-z0-9_-]{6,100}$/;
+const MISSING_REASONS = new Set(["consent_denied", "gpc_restricted", "entry_not_observed", "session_unavailable", "storage_unavailable", "expired", "invalid_evidence", "legacy_touch_role_unknown"]);
+const SNAPSHOT_PERSISTENCE = new Set(["persistent", "memory_only", "unavailable", "not_attempted"]);
+
+function safeReferrerHost(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length > 253 || /[/:?#@\s]/.test(value)) return undefined;
+  const host = value.toLowerCase().replace(/\.$/, "");
+  if (!/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)(?:\.(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?))*$/.test(host)) return undefined;
+  return host;
+}
+
+function safeLandingPath(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length > 200 || !value.startsWith("/") || /[?#\r\n\0]/.test(value) || value.includes("..") || /@|\b\d{7,}\b/.test(value)) return undefined;
+  return value;
+}
+
+function sanitizeTouch(value: unknown, expectedSessionId?: string): { touch: AttributionTouchV2 | null; sessionMismatch: boolean } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return { touch: null, sessionMismatch: false };
+  const raw = value as Record<string, unknown>;
+  const touchId = typeof raw.touchId === "string" && SAFE_TOUCH_ID.test(raw.touchId) ? raw.touchId : undefined;
+  const sessionId = typeof raw.sessionId === "string" && SAFE_TOUCH_ID.test(raw.sessionId) ? raw.sessionId : null;
+  if (!touchId) return { touch: null, sessionMismatch: false };
+  if (expectedSessionId && sessionId !== expectedSessionId) return { touch: null, sessionMismatch: true };
+
+  const source = cleanLabel(typeof raw.source === "string" ? raw.source : undefined);
+  const medium = cleanLabel(typeof raw.medium === "string" ? raw.medium : undefined);
+  const campaign = cleanLabel(typeof raw.campaign === "string" ? raw.campaign : undefined);
+  const referrerHost = safeReferrerHost(raw.referrerHost);
+  const provenance = raw.provenance;
+  let classification: AttributionClassification;
+  if (provenance === "conflict" || raw.reason === "conflicting_evidence") {
+    classification = unknown({ source, medium, campaign }, "conflicting_evidence", "conflict");
+  } else if (provenance === "legacy_adapter") {
+    classification = adaptLegacyAttribution({ source, medium, campaign, referrer: referrerHost ? `https://${referrerHost}/` : undefined, observedEntry: true });
+  } else if (provenance === "click_id" && !source || provenance === "utm" && !source && !medium && !campaign || provenance === "external_referrer" && !referrerHost) {
+    classification = unknown({ source, medium, campaign }, "invalid_evidence");
+  } else {
+    classification = classifyAttributionEvidence({
+      source,
+      medium,
+      campaign,
+      referrerHost,
+      hasGoogleClickId: provenance === "click_id" && ["google", "googleads", "google_ads"].includes(normalized(source) ?? ""),
+      hasMetaClickId: provenance === "click_id" && ["meta", "facebook", "fb", "instagram"].includes(normalized(source) ?? ""),
+      hasEmailClickId: provenance === "click_id" && ["email", "newsletter", "mail"].includes(normalized(source) ?? ""),
+      entryObservation: "complete",
+    });
+  }
+  const observedAtClientMs = typeof raw.observedAtClientMs === "number" && Number.isFinite(raw.observedAtClientMs) && raw.observedAtClientMs > 0 ? raw.observedAtClientMs : null;
+  const expiresAt = typeof raw.expiresAt === "number" && Number.isFinite(raw.expiresAt) && raw.expiresAt > 0 ? raw.expiresAt : null;
+  return {
+    touch: {
+      ...classification,
+      touchId,
+      sessionId,
+      observedAtClientMs,
+      expiresAt,
+      clockQuality: "client_unanchored",
+      ...(safeLandingPath(raw.landingPath) ? { landingPath: safeLandingPath(raw.landingPath) } : {}),
+      ...(referrerHost ? { referrerHost } : {}),
+    },
+    sessionMismatch: false,
+  };
+}
+
+/** Allowlisted sanitizer for the only nested browser attribution property. */
+export function sanitizeAttributionSnapshot(value: unknown, expectedSessionId?: string): AttributionSnapshotV2 | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const raw = value as Record<string, unknown>;
+  if (raw.schemaVersion !== 2) return undefined;
+  const first = sanitizeTouch(raw.firstObservedTouch);
+  const current = sanitizeTouch(raw.currentSessionTouch, expectedSessionId);
+  const cleanReason = (reason: unknown) => typeof reason === "string" && MISSING_REASONS.has(reason) ? reason as AttributionSnapshotV2["currentSessionMissingReason"] : undefined;
+  const persistence = typeof raw.persistence === "string" && SNAPSHOT_PERSISTENCE.has(raw.persistence) ? raw.persistence as AttributionSnapshotV2["persistence"] : "unavailable";
+  return {
+    schemaVersion: 2,
+    classifierVersion: typeof raw.classifierVersion === "string" && /^[\w.-]{1,50}$/.test(raw.classifierVersion) ? raw.classifierVersion : "unknown",
+    firstObservedTouch: first.touch,
+    currentSessionTouch: current.touch,
+    ...(cleanReason(raw.firstObservedMissingReason) ? { firstObservedMissingReason: cleanReason(raw.firstObservedMissingReason) } : {}),
+    ...((current.sessionMismatch ? "session_unavailable" : cleanReason(raw.currentSessionMissingReason)) ? { currentSessionMissingReason: current.sessionMismatch ? "session_unavailable" : cleanReason(raw.currentSessionMissingReason) } : {}),
+    persistence,
+  };
 }
 
 export function attributionCampaignKey(classification: AttributionClassification): string {

@@ -229,6 +229,7 @@ export interface WaterfallOrderInput {
     gbraid?: string;
     fbclid?: string;
     emailClickId?: string;
+    attributionV2?: unknown;
   };
   source?: string;
 }

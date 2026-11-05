@@ -50,6 +50,27 @@ function testAttributionGroupFiltersAndSharedClassification() {
   assert.equal(empty.orderDiagnostics[0].campaign.group, "unknown");
 }
 
+function testV2FirstTouchAndCheckoutSessionStayDistinct() {
+  const touch = (touchId: string, sessionId: string, fields: Record<string, unknown>) => ({
+    touchId, sessionId, observedAtClientMs: 1792890000000, expiresAt: 1800666000000, clockQuality: "client_unanchored", ...fields,
+  });
+  const snapshot = {
+    schemaVersion: 2,
+    classifierVersion: "2026-11-05.1",
+    persistence: "persistent",
+    firstObservedTouch: touch("touch_first_123", "sess_first_123", { source: "google", medium: "cpc", campaign: "spring_launch", channel: "paid_search", group: "paid", provenance: "utm", reason: "explicit_paid_medium" }),
+    currentSessionTouch: touch("touch_current_123", "sess_current_123", { channel: "direct_observed", group: "direct_observed", provenance: "observed_no_referrer", reason: "direct_observed" }),
+  };
+  const order = { id: "v2_order", sessionId: "sess_current_123", createdAt: "2026-10-24T12:00:00Z", amountInCents: 900, stripePaymentId: "pi_v2", paymentMode: "stripe_live", paymentMethod: "STRIPE", attribution: { attributionV2: snapshot }, purchaseMeasurement: { version: 1, transactionId: "v2_order", amountInCents: 900, currency: "USD", verifiedAt: 1792843200000, eligible: true, reason: "eligible" } };
+  const event = { eventId: "v2_event", sessionKey: "sess_current_123", eventName: "landing_viewed", attributionV2: snapshot };
+  const scope = normalizeReportScope(new URLSearchParams("period=all&records=all"));
+  const report = aggregateMeasurementReport({ asOf: new Date("2026-10-26T18:00:00Z"), scope, orders: [order], orderCoverage: complete(2000), telemetryCoverage: complete(500), reconciliationCoverage: complete(100), telemetry: [event] });
+  assert.equal(report.orderDiagnostics[0].campaign.group, "paid", "order campaign diagnosis uses first observed acquisition touch");
+  assert.equal(report.orderDiagnostics[0].campaign.campaign, "spring_launch");
+  assert.ok(report.campaigns.some((row) => row.group === "direct_observed"), "session activity keeps the distinct checkout-session touch");
+  assert.equal(report.activity.observedSessions, 1);
+}
+
 function testPaymentClassificationAndTelemetrySeparation() {
   const scope = normalizeReportScope(new URLSearchParams("period=all&records=all"), new Date("2026-10-26T18:00:00Z"));
   const orders = [
@@ -194,6 +215,7 @@ function testReconciliationManifestSafety() {
 
 testChicagoBoundaries();
 testAttributionGroupFiltersAndSharedClassification();
+testV2FirstTouchAndCheckoutSessionStayDistinct();
 testPaymentClassificationAndTelemetrySeparation();
 testIncompleteSourcesSuppressOnlyAffectedTotals();
 testCampaignLabelsArePrivacySanitized();

@@ -56,6 +56,7 @@ export interface AdminMeasurementReport {
 
 export interface ReportOrderInput {
   id: string;
+  sessionId?: string;
   createdAt?: number | string | { seconds?: number; _seconds?: number };
   amountInCents?: number;
   stripePaymentId?: string;
@@ -80,7 +81,7 @@ export interface ReportOrderInput {
   refundedAmountInCents?: number;
   disputeStatus?: string;
   campaignId?: string;
-  attribution?: { campaignId?: string; source?: string; medium?: string; campaign?: string; gclid?: string; wbraid?: string; gbraid?: string; fbclid?: string; emailClickId?: string };
+  attribution?: { campaignId?: string; source?: string; medium?: string; campaign?: string; gclid?: string; wbraid?: string; gbraid?: string; fbclid?: string; emailClickId?: string; attributionV2?: unknown };
   source?: string;
 }
 

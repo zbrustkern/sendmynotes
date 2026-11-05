@@ -257,6 +257,15 @@ async function runTelemetryIngestionTests() {
       customerEmail: "jane@example.com",
       metadata: {
         hasReturnAddress: true,
+        attributionV2: {
+          schemaVersion: 2,
+          classifierVersion: "2026-11-05.1",
+          persistence: "persistent",
+          snapshotStage: "checkout_started",
+          snapshotCapturedAtServerMs: 123,
+          firstObservedTouch: { touchId: "touch_first_123", sessionId: "sess_prior_123", source: "google", medium: "cpc", campaign: "spring_launch", channel: "paid_search", group: "paid", provenance: "utm", reason: "explicit_paid_medium", observedAtClientMs: Date.now(), expiresAt: Date.now() + 86400000, clockQuality: "server_anchored", referrerHost: "google.com", landingPath: "/start", gclid: "raw-click-secret", printedMessage: "private note" },
+          currentSessionTouch: { touchId: "touch_current_123", sessionId: personalDataSession, source: "google", medium: "cpc", campaign: "spring_launch", channel: "paid_search", group: "paid", provenance: "utm", reason: "explicit_paid_medium", observedAtClientMs: Date.now(), expiresAt: Date.now() + 86400000, clockQuality: "server_anchored", referrerHost: "google.com", landingPath: "/start?token=private", gclid: "raw-click-secret" },
+        },
         // Forbidden keys in metadata:
         recipientName: "John Smith",
         streetAddress: "123 Main Street",
@@ -293,6 +302,25 @@ async function runTelemetryIngestionTests() {
   testAssert(storedMetadata.contactEmail === undefined, "Metadata contactEmail is NOT stored");
   testAssert(storedMetadata.secretMessage === undefined, "Metadata secretMessage is NOT stored");
   testAssert(storedMetadata.nested === undefined, "Nested metadata object is NOT stored");
+  const storedAttributionV2 = storedMetadata.attributionV2 as Record<string, unknown>;
+  const storedCurrentTouch = storedAttributionV2?.currentSessionTouch as Record<string, unknown>;
+  testAssert(storedAttributionV2?.schemaVersion === 2, "Known V2 attribution snapshot passes the explicit nested sanitizer");
+  testAssert(storedCurrentTouch?.sessionId === personalDataSession, "Current touch is bound to the collector session identity");
+  testAssert(storedCurrentTouch?.channel === "paid_search" && storedCurrentTouch?.clockQuality === "client_unanchored", "Collector reclassifies V2 evidence and downgrades client clock trust");
+  testAssert(storedAttributionV2?.snapshotStage === undefined && storedAttributionV2?.snapshotCapturedAtServerMs === undefined, "Client cannot set server-only snapshot fields");
+  testAssert(!JSON.stringify(storedAttributionV2).includes("raw-click-secret") && !JSON.stringify(storedAttributionV2).includes("private note"), "V2 snapshot excludes click IDs and personal content");
+  testAssert(storedCurrentTouch?.landingPath === undefined, "Landing paths containing query values are removed");
+
+  const deniedSession = `sess_privacy_denied_${Date.now()}`;
+  const deniedReq = new NextRequest("http://localhost:3000/api/telemetry", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ eventName: "landing_viewed", sessionId: deniedSession, consent_state: "denied", properties: { attributionV2: { schemaVersion: 2, currentSessionTouch: { touchId: "touch_denied_123", sessionId: deniedSession, source: "google", medium: "cpc", provenance: "utm" } } } }),
+  });
+  const deniedRes = await telemetryRoutePost(deniedReq);
+  const deniedResJson = await deniedRes.json();
+  const deniedEvent = (await firestoreDb.collection(TELEMETRY_COLLECTION).doc(deniedResJson.eventId).get()).data() as Record<string, unknown>;
+  const deniedMetadata = (deniedEvent.metadata || {}) as Record<string, unknown>;
+  testAssert(deniedRes.status === 200 && deniedMetadata.attributionV2 === undefined, "Consent denial removes V2 attribution from the persisted event");
 
   // ---------------------------------------------------------------------------
   // 5. URL Hygiene: Query Strings & Hashes Stripped
