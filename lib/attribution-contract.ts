@@ -145,6 +145,9 @@ export interface LegacyAttributionEvidence {
   campaign?: string | null;
   referrer?: string | null;
   capturedAt?: number | null;
+  hasGoogleClickId?: boolean;
+  hasMetaClickId?: boolean;
+  hasEmailClickId?: boolean;
   /** Legacy `(direct/organic)` is ambiguous unless the matching sentinel exists. */
   observedEntry?: boolean;
 }
