@@ -260,6 +260,56 @@ async function runAdminWaterfallTests() {
   assert.strictEqual(allTrafficReport.kpis.uniqueSessions, custReport.kpis.uniqueSessions, "QA toggle must not change customer session KPI");
   assert.strictEqual(allTrafficReport.kpis.paidCustomerOrders, custReport.kpis.paidCustomerOrders, "QA toggle must not change customer orders");
 
+  // V2 referral entry data must remain in the same channel when owner QA
+  // comparison applies the dashboard's channel filter.
+  const qaReferralSession = "sess_qa_referral";
+  const qaReferralTouch = attributionV2Touch("touch_qa_referral", qaReferralSession, {
+    source: "example",
+    medium: "referral",
+    campaign: "synthetic_launch",
+    referrerHost: "example.com",
+    channel: "referral",
+    group: "social_referral",
+    provenance: "utm",
+    reason: "referral_campaign",
+  });
+  const qaReferralEvent: WaterfallTelemetryEventInput = {
+    eventId: "event_qa_referral",
+    sessionId: qaReferralSession,
+    eventName: "landing_viewed",
+    timestamp: tsNow,
+    source: "example",
+    medium: "referral",
+    campaign: "synthetic_launch",
+    classification: { role: "founder", reason: "qa_cookie" },
+    metadata: {
+      attributionV2: {
+        schemaVersion: 2,
+        classifierVersion: "2026-11-05.1",
+        persistence: "persistent",
+        firstObservedTouch: qaReferralTouch,
+        currentSessionTouch: qaReferralTouch,
+      },
+    },
+  };
+  const referralQaReport = aggregateWaterfallReport({
+    asOf: fixedClock,
+    scope: { ...baseScope, channel: "social_referral", audience: "all_traffic" },
+    orders: [],
+    telemetry: [qaReferralEvent],
+  });
+  const nonReferralQaReport = aggregateWaterfallReport({
+    asOf: fixedClock,
+    scope: { ...baseScope, channel: "email_other", audience: "all_traffic" },
+    orders: [],
+    telemetry: [qaReferralEvent],
+  });
+  assert.strictEqual(referralQaReport.deviceBreakdown.ownerQaSessionCount, 1, "V2 referral QA is visible under Social & Referral");
+  assert.strictEqual(referralQaReport.deviceBreakdown.founderFilteredCount, 1, "V2 referral QA remains excluded from customer results");
+  assert.strictEqual(nonReferralQaReport.deviceBreakdown.ownerQaSessionCount, 0, "V2 referral QA does not leak into Email & Other");
+  assert.strictEqual(referralQaReport.kpis.uniqueSessions, 0, "owner QA does not enter the customer session denominator");
+  assert.strictEqual(referralQaReport.kpis.paidCustomerOrders, 0, "owner QA does not enter paid customer orders");
+
   console.log("   ✓ Bot and founder sessions and orders are strictly filtered in 'customers' mode");
 
   // =========================================================================

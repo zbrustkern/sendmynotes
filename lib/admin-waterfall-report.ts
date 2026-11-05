@@ -501,16 +501,34 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     }
   }
 
-  const sessionAttribution = new Map<string, { source: string; medium: string; campaign: string }>();
+  const sessionAttribution = new Map<string, {
+    source: string;
+    medium: string;
+    campaign: string;
+    classification: AttributionClassification;
+  }>();
   for (const [sessionId, events] of sessionEvents) {
     const ordered = [...events].sort((a, b) => (timestampMillis(a.timestamp ?? a.createdAt) ?? 0) - (timestampMillis(b.timestamp ?? b.createdAt) ?? 0));
     const event = ordered.find((candidate) => Boolean(
-      candidate.utmSource || candidate.source || candidate.utmMedium || candidate.medium || candidate.utmCampaign || candidate.campaign || candidate.gclid || candidate.wbraid || candidate.gbraid || candidate.fbclid || candidate.emailClickId
+      candidate.metadata?.attributionV2 || candidate.utmSource || candidate.source || candidate.utmMedium || candidate.medium || candidate.utmCampaign || candidate.campaign || candidate.gclid || candidate.wbraid || candidate.gbraid || candidate.fbclid || candidate.emailClickId
     ));
+    const classification = classifyChannel({
+      source: event?.utmSource || event?.source,
+      medium: event?.utmMedium || event?.medium,
+      campaign: event?.utmCampaign || event?.campaign,
+      fbclid: event?.fbclid,
+      gclid: event?.gclid,
+      wbraid: event?.wbraid,
+      gbraid: event?.gbraid,
+      emailClickId: event?.emailClickId,
+      attributionV2: event?.metadata?.attributionV2,
+      sessionId,
+    });
     sessionAttribution.set(sessionId, {
-      source: event?.utmSource || event?.source || (event?.gclid || event?.wbraid || event?.gbraid ? "google" : event?.fbclid ? "meta" : "unknown"),
-      medium: event?.utmMedium || event?.medium || (event?.gclid || event?.wbraid || event?.gbraid ? "cpc" : event?.fbclid ? "paid_social" : "unknown"),
-      campaign: event?.utmCampaign || event?.campaign || "unknown",
+      source: event?.utmSource || event?.source || (event?.gclid || event?.wbraid || event?.gbraid ? "google" : event?.fbclid ? "meta" : classification.source || "unknown"),
+      medium: event?.utmMedium || event?.medium || (event?.gclid || event?.wbraid || event?.gbraid ? "cpc" : event?.fbclid ? "paid_social" : classification.medium || "unknown"),
+      campaign: event?.utmCampaign || event?.campaign || classification.campaign || "unknown",
+      classification,
     });
   }
 
@@ -658,7 +676,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const hasBot = events.some(isBotEvent);
     if (hasBot) {
       const botAttribution = sessionAttribution.get(sessionId);
-      const botChannel = classifyChannel({ source: botAttribution?.source, medium: botAttribution?.medium, campaign: botAttribution?.campaign });
+      const botChannel = botAttribution?.classification ?? classifyChannel({ source: botAttribution?.source, medium: botAttribution?.medium, campaign: botAttribution?.campaign });
       if (scope.channel === "all" || matchesAttributionGroup(scope.channel, botChannel)) botFilteredCount++;
       continue;
     }
@@ -666,7 +684,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const hasFounder = events.some(isFounderEvent);
     if (hasFounder) {
       const qaAttribution = sessionAttribution.get(sessionId);
-      const qaChannel = classifyChannel({ source: qaAttribution?.source, medium: qaAttribution?.medium, campaign: qaAttribution?.campaign });
+      const qaChannel = qaAttribution?.classification ?? classifyChannel({ source: qaAttribution?.source, medium: qaAttribution?.medium, campaign: qaAttribution?.campaign });
       if (scope.channel === "all" || matchesAttributionGroup(scope.channel, qaChannel)) {
         founderFilteredCount++;
         ownerQaSessionCount++;
