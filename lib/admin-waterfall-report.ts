@@ -509,7 +509,13 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
   }>();
   for (const [sessionId, events] of sessionEvents) {
     const ordered = [...events].sort((a, b) => (timestampMillis(a.timestamp ?? a.createdAt) ?? 0) - (timestampMillis(b.timestamp ?? b.createdAt) ?? 0));
+    // V2 is the canonical session-bound attribution snapshot. A legacy flat
+    // event can be emitted before the snapshot is available (or carry an old
+    // direct sentinel), so prefer the earliest V2 snapshot when the session
+    // has one and only use flat fields as a compatibility fallback.
     const event = ordered.find((candidate) => Boolean(
+      candidate.metadata?.attributionV2 || candidate.metadata?.attribution_v2
+    )) ?? ordered.find((candidate) => Boolean(
       candidate.metadata?.attributionV2 || candidate.utmSource || candidate.source || candidate.utmMedium || candidate.medium || candidate.utmCampaign || candidate.campaign || candidate.gclid || candidate.wbraid || candidate.gbraid || candidate.fbclid || candidate.emailClickId
     ));
     const classification = classifyChannel({
@@ -521,7 +527,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
       wbraid: event?.wbraid,
       gbraid: event?.gbraid,
       emailClickId: event?.emailClickId,
-      attributionV2: event?.metadata?.attributionV2,
+      attributionV2: event?.metadata?.attributionV2 ?? event?.metadata?.attribution_v2,
       sessionId,
     });
     sessionAttribution.set(sessionId, {
@@ -696,37 +702,13 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const primaryEvent = events[0];
     const device = classifyDevice(primaryEvent?.deviceType, primaryEvent?.userAgent);
 
-    // Determine attribution from earliest event carrying UTM or click IDs
-    let sessionClassification: AttributionClassification = adaptLegacyAttribution({ observedEntry: false });
-    let sessionSource = "unknown";
-    let sessionMedium = "unknown";
-    let sessionCampaign = "unknown";
-
-    for (const ev of events) {
-      const src = ev.utmSource || ev.source;
-      const med = ev.utmMedium || ev.medium;
-      const cmp = ev.utmCampaign || ev.campaign;
-      const ch = classifyChannel({
-        source: src,
-        medium: med,
-        campaign: cmp,
-        fbclid: ev.fbclid,
-        gclid: ev.gclid,
-        wbraid: ev.wbraid,
-        gbraid: ev.gbraid,
-        emailClickId: ev.emailClickId,
-        attributionV2: ev.metadata?.attributionV2,
-        sessionId: ev.sessionId,
-      });
-
-      if (src || med || cmp || ev.gclid || ev.wbraid || ev.gbraid || ev.fbclid || ev.emailClickId) {
-        sessionClassification = ch;
-        sessionSource = ch.source || "unknown";
-        sessionMedium = ch.medium || "unknown";
-        sessionCampaign = ch.campaign || "unknown";
-        break;
-      }
-    }
+    // Use the same canonical selection for customer sessions, owner QA, and
+    // orders so a prior legacy event cannot put one journey in another channel.
+    const attribution = sessionAttribution.get(sessionId);
+    const sessionClassification: AttributionClassification = attribution?.classification ?? adaptLegacyAttribution({ observedEntry: false });
+    const sessionSource = sessionClassification.source ?? "unknown";
+    const sessionMedium = sessionClassification.medium ?? "unknown";
+    const sessionCampaign = sessionClassification.campaign ?? "unknown";
     const sessionChannel = sessionClassification.group;
 
     if (scope.channel !== "all" && !matchesAttributionGroup(scope.channel, sessionClassification)) {

@@ -292,23 +292,69 @@ async function runAdminWaterfallTests() {
       },
     },
   };
+  const earlierLegacyDirectQaEvent: WaterfallTelemetryEventInput = {
+    eventId: "event_qa_referral_legacy_early",
+    sessionId: qaReferralSession,
+    eventName: "session_start",
+    timestamp: tsNow - 1_000,
+    source: "direct",
+    medium: "none",
+    campaign: "(direct/organic)",
+    classification: { role: "founder", reason: "qa_cookie" },
+  };
+  const qaReferralEvents = [earlierLegacyDirectQaEvent, qaReferralEvent];
   const referralQaReport = aggregateWaterfallReport({
     asOf: fixedClock,
     scope: { ...baseScope, channel: "social_referral", audience: "all_traffic" },
     orders: [],
-    telemetry: [qaReferralEvent],
+    telemetry: qaReferralEvents,
   });
   const nonReferralQaReport = aggregateWaterfallReport({
     asOf: fixedClock,
     scope: { ...baseScope, channel: "email_other", audience: "all_traffic" },
     orders: [],
-    telemetry: [qaReferralEvent],
+    telemetry: qaReferralEvents,
+  });
+  const staleLegacyChannelQaReport = aggregateWaterfallReport({
+    asOf: fixedClock,
+    scope: { ...baseScope, channel: "direct_observed", audience: "all_traffic" },
+    orders: [],
+    telemetry: qaReferralEvents,
   });
   assert.strictEqual(referralQaReport.deviceBreakdown.ownerQaSessionCount, 1, "V2 referral QA is visible under Social & Referral");
   assert.strictEqual(referralQaReport.deviceBreakdown.founderFilteredCount, 1, "V2 referral QA remains excluded from customer results");
   assert.strictEqual(nonReferralQaReport.deviceBreakdown.ownerQaSessionCount, 0, "V2 referral QA does not leak into Email & Other");
+  assert.strictEqual(staleLegacyChannelQaReport.deviceBreakdown.ownerQaSessionCount, 0, "an earlier legacy direct sentinel cannot override the session-bound V2 referral");
   assert.strictEqual(referralQaReport.kpis.uniqueSessions, 0, "owner QA does not enter the customer session denominator");
   assert.strictEqual(referralQaReport.kpis.paidCustomerOrders, 0, "owner QA does not enter paid customer orders");
+
+  const customerReferralSession = "sess_customer_referral";
+  const customerReferralTouch = attributionV2Touch("touch_customer_referral", customerReferralSession, {
+    source: "example",
+    medium: "referral",
+    campaign: "synthetic_launch",
+    referrerHost: "example.com",
+    channel: "referral",
+    group: "social_referral",
+    provenance: "utm",
+    reason: "referral_campaign",
+  });
+  const customerReferralReport = aggregateWaterfallReport({
+    asOf: fixedClock,
+    scope: { ...baseScope, channel: "social_referral", audience: "customers" },
+    orders: [],
+    telemetry: [
+      { ...earlierLegacyDirectQaEvent, eventId: "event_customer_referral_legacy_early", sessionId: customerReferralSession, classification: { role: "customer", reason: "standard_visitor_session" } },
+      {
+        ...qaReferralEvent,
+        eventId: "event_customer_referral_v2",
+        sessionId: customerReferralSession,
+        classification: { role: "customer", reason: "standard_visitor_session" },
+        metadata: { attributionV2: { schemaVersion: 2, classifierVersion: "2026-11-05.1", persistence: "persistent", firstObservedTouch: customerReferralTouch, currentSessionTouch: customerReferralTouch } },
+      },
+    ],
+  });
+  assert.strictEqual(customerReferralReport.kpis.uniqueSessions, 1, "customer sessions also use V2 when an earlier legacy event disagrees");
 
   console.log("   ✓ Bot and founder sessions and orders are strictly filtered in 'customers' mode");
 
