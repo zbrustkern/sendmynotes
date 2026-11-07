@@ -456,6 +456,10 @@ export async function trackEventV2(
         const win = window as unknown as { gtag?: (...args: unknown[]) => void };
         if (typeof win.gtag === "function") {
           const { sanitized } = sanitizeMetadata(eventName, properties || {});
+          // Coupon values can identify a recipient-specific post-purchase grant.
+          // Keep them in first-party telemetry only; never forward them to GA.
+          delete (sanitized as Record<string, unknown>).promoCode;
+          delete (sanitized as Record<string, unknown>).discountCode;
           win.gtag("event", eventName, {
             event_category: "visitor_telemetry_v2",
             event_id: eventId,
@@ -563,6 +567,10 @@ export async function trackEvent(
         const win = window as unknown as { gtag?: (...args: unknown[]) => void };
         if (typeof win.gtag === "function") {
           const { sanitized } = sanitizeMetadata(eventName, metadata || {});
+          // Coupon values can identify a recipient-specific post-purchase grant.
+          // Keep them in first-party telemetry only; never forward them to GA.
+          delete (sanitized as Record<string, unknown>).promoCode;
+          delete (sanitized as Record<string, unknown>).discountCode;
           win.gtag("event", eventName, {
             event_category: "visitor_telemetry",
             step_number: step,

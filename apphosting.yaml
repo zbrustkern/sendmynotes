@@ -113,3 +113,10 @@ env:
   - variable: ACCOUNT_REMINDER_DELIVERY_ACTIVE
     value: "false"
     availability: [RUNTIME]
+  # Optional post-purchase email stays disabled until sender/domain and consent gates pass.
+  - variable: POST_PURCHASE_DELIVERY_ACTIVE
+    value: "false"
+    availability: [RUNTIME]
+  - variable: POST_PURCHASE_AUTO_ENROLL_ACTIVE
+    value: "false"
+    availability: [RUNTIME]

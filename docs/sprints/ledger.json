@@ -275,6 +275,19 @@
       "application_candidate": "8373cb3c529ae726ca8c22ee5976364d311e4b35",
       "staging_build": "build-2026-11-01-003",
       "privacy_decision": "manual_requests_for_this_release; initial_operator_Zeke"
+    },
+    {
+      "id": "SPRINT-0026",
+      "title": "Confirmed-order follow-ups and second-purchase offers",
+      "path": "docs/sprints/SPRINT-0026.md",
+      "status": "active",
+      "updated_at": "2026-11-03T00:00:00-05:00",
+      "implementation_status": "implemented_staging_candidate_no_live_activation",
+      "acceptance_status": "synthetic_validation_passed_staging_rollout_pending",
+      "release_environment": "staging_candidate",
+      "evidence": "docs/sprints/evidence/SPRINT-0026/IMPLEMENTATION.md",
+      "execution_model": "gpt-6-luna",
+      "execution_method": "three_native_luna_agents_user_requested"
     }
   ]
 }

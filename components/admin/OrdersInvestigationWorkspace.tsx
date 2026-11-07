@@ -23,6 +23,8 @@ import type {
   FulfillmentRetryGateResult,
 } from "@/lib/investigation-service";
 import { OrderJourneyDrawer } from "./OrderJourneyDrawer";
+import { PostPurchaseSettingsPanel } from "./PostPurchaseSettingsPanel";
+import { PostPurchaseQueuePanel } from "./PostPurchaseQueuePanel";
 
 export interface OrdersInvestigationWorkspaceProps {
   scope: AdminGlobalScope;
@@ -43,6 +45,8 @@ export function OrdersInvestigationWorkspace({
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(scope.orderId || null);
+  const [showFollowupSettings, setShowFollowupSettings] = useState(false);
+  const [showFollowupQueue, setShowFollowupQueue] = useState(false);
 
   // Invariant Scoped Totals (AC01)
   const [totalMatchingCount, setTotalMatchingCount] = useState(0);
@@ -217,6 +221,12 @@ export function OrdersInvestigationWorkspace({
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-stone-200 bg-white p-3">
+        <div><p className="text-sm font-semibold text-stone-900">Orders workspace</p><p className="text-xs text-stone-500">Review optional post-purchase follow-ups alongside order evidence.</p></div>
+        <div className="flex gap-2"><button type="button" aria-pressed={showFollowupQueue} onClick={() => setShowFollowupQueue((value) => !value)} className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium">{showFollowupQueue ? "Hide queue" : "Follow-up queue"}</button><button type="button" aria-pressed={showFollowupSettings} onClick={() => setShowFollowupSettings((value) => !value)} className="rounded-lg border border-stone-300 px-3 py-2 text-sm font-medium">{showFollowupSettings ? "Hide settings" : "Follow-up settings"}</button></div>
+      </div>
+      {showFollowupQueue && <PostPurchaseQueuePanel onSelectOrder={(orderId) => setSelectedOrderId(orderId)} />}
+      {showFollowupSettings && <PostPurchaseSettingsPanel />}
       {loadError && <p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">Evidence unavailable or stale: {loadError}</p>}
       {/* 1. OPERATIONAL EXCEPTION ALERT BANNER (AC01) */}
       {warningBanner && (

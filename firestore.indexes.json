@@ -313,6 +313,98 @@
           "order": "ASCENDING"
         }
       ]
+    },
+    {
+      "collectionGroup": "post_purchase_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "dueAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "post_purchase_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "leaseUntil",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "post_purchase_enrollments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "senderKey",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "programId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "post_purchase_enrollments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "sourceOrderId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "programId",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "post_purchase_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "step",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "followupFinalizedAt",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "acceptedAt",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "post_purchase_messages",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "enrollmentId",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "step",
+          "order": "ASCENDING"
+        }
+      ]
     }
   ],
   "fieldOverrides": []

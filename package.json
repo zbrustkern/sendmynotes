@@ -49,7 +49,12 @@
     "test:upload-creative": "node --import tsx tests/upload-creative.test.ts",
     "test:international-rates": "tsx tests/international-pricing.test.ts",
     "test:address-intake": "tsx tests/sender-validation.test.ts",
-    "test:account": "node scripts/account/run-tests.mjs"
+    "test:account": "node scripts/account/run-tests.mjs",
+    "post-purchase": "tsx scripts/post-purchase.ts",
+    "test:post-purchase-cli": "node --import tsx tests/post-purchase-cli.test.ts",
+    "test:post-purchase-operator": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-operator.test.ts",
+    "test:post-purchase-dispatch": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-dispatch.test.ts",
+    "test:post-purchase-resend-webhook": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-resend-webhook.test.ts"
   },
   "dependencies": {
     "@google-cloud/secret-manager": "^7.2.0",

@@ -8,6 +8,7 @@ import { GA4_MEASUREMENT_ID } from "@/lib/google-ads";
 import { mayStoreGoogleClientId } from "@/lib/order-attribution";
 import { trackMetaPageView, getMetaBrowserCookie, buildMetaFbcString } from "@/lib/meta-ads";
 import { sanitizeUrlOrPath, sanitizeAttribution } from "@/lib/telemetry-schema";
+import { observeFollowupLink } from "@/lib/post-purchase/link-client";
 
 export const SMN_ATTRIBUTION_KEY = "smn_attribution";
 function persistAttribution(attribution: OrderAttribution): void {
@@ -135,23 +136,68 @@ export function getStoredAttribution(): OrderAttribution | null {
 function AttributionTrackerInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
+  const followupReference = searchParams.get("followupRef");
+  const hasPrivateQuery = searchParams.has("discount") || searchParams.has("token") || Boolean(followupReference);
   const isPrivatePaymentPath = Boolean(pathname?.startsWith("/comp-payment/"));
+  const isPrivateTrackingPath = isPrivatePaymentPath || pathname === "/email/unsubscribe" || hasPrivateQuery;
+  // Campaign attribution is first-party and allowlisted. Coupon/link URLs still
+  // retain safe UTM/click evidence, while bearer tokens and private routes do not.
+  const acquisitionCaptureBlocked = isPrivatePaymentPath || pathname === "/email/unsubscribe" || searchParams.has("token");
   const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    if (!followupReference || typeof window === "undefined") return;
+    let active = true;
+    void observeFollowupLink(followupReference).finally(() => {
+      if (!active) return;
+      // Keep the opaque reference in sessionStorage only after consented observation.
+      // Remove it from the address bar even when analytics is denied or GPC is active.
+      const url = new URL(window.location.href);
+      url.searchParams.delete("followupRef");
+      window.history.replaceState(window.history.state, "", `${url.pathname}${url.search}${url.hash}`);
+    });
+    return () => { active = false; };
+  }, [followupReference]);
 
   // Track Meta Pixel PageView on client-side route transitions (SPA navigation)
   useEffect(() => {
-    if (isPrivatePaymentPath) return;
+    if (isPrivateTrackingPath) return;
     if (isFirstRender.current) {
       isFirstRender.current = false;
       return;
     }
     // Subsequent client-side route transitions
     trackMetaPageView();
-  }, [isPrivatePaymentPath, pathname]);
+  }, [isPrivateTrackingPath, pathname]);
+
+  // Tags can already be loaded when SPA navigation enters a private query URL.
+  // Send explicit page views with a path-only location so query values never
+  // become the referrer/page_location implicitly captured by the tag.
+  useEffect(() => {
+    if (typeof window === "undefined" || isPrivateTrackingPath || !GA4_MEASUREMENT_ID) return;
+    const safePath = sanitizeUrlOrPath(pathname || window.location.pathname) || "/";
+    let active = true;
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const sendSafePageView = () => {
+      if (!active) return;
+      const win = window as unknown as { gtag?: (...args: unknown[]) => void };
+      if (typeof win.gtag !== "function") {
+        if (++attempts < 12) timer = setTimeout(sendSafePageView, 250);
+        return;
+      }
+      win.gtag("event", "page_view", {
+        page_location: `${window.location.origin}${safePath}`,
+        page_path: safePath,
+      });
+    };
+    sendSafePageView();
+    return () => { active = false; if (timer) clearTimeout(timer); };
+  }, [isPrivateTrackingPath, pathname]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    if (isPrivatePaymentPath) return;
+    if (acquisitionCaptureBlocked) return;
 
     try {
       const isGpcActive =
@@ -317,7 +363,7 @@ function AttributionTrackerInner() {
     } catch (e) {
       console.warn("[Attribution Tracker] Non-fatal capture notice:", e);
     }
-  }, [isPrivatePaymentPath, searchParams, pathname]);
+  }, [acquisitionCaptureBlocked, searchParams, pathname]);
 
   // Keep the historical raw _ga value intact; store Google's normalized client ID separately.
   useEffect(() => {

@@ -1,3 +1,5 @@
+import { localTimeToEpoch, validCivilDate } from "@/lib/account/calendar";
+import { trySyncPostPurchaseOrder } from "@/lib/post-purchase/integration";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrdersCollection, updateOrderStatus } from "@/lib/firebase-admin";
 import { Order } from "@/lib/types";
@@ -151,6 +153,21 @@ export async function POST(req: NextRequest) {
       updates.handwryttenMailedDate = String(dateSent);
     }
 
+    // Retention timing requires explicit authenticated mailing evidence. Legacy
+    // broad status/date fallbacks below remain display-only and never start a flow.
+    const explicitMailDate = payload.date_sent || payload.mailed_date || nestedOrder?.date_sent || nestedOrder?.mailed_date;
+    let explicitMailedAt = NaN;
+    if (typeof explicitMailDate === "string") {
+      if (/^\d{4}-\d{2}-\d{2}$/.test(explicitMailDate)) {
+        const [year, month, day] = explicitMailDate.split("-").map(Number);
+        if (validCivilDate({ year, month, day })) explicitMailedAt = localTimeToEpoch({ year, month, day }, 12, "America/Chicago");
+      } else if (/T.*(?:Z|[+-]\d{2}:\d{2})$/.test(explicitMailDate)) explicitMailedAt = Date.parse(explicitMailDate);
+    }
+    if (webhookSecret && ["mailed", "sent", "shipped"].includes(rawStatus) && Number.isFinite(explicitMailedAt) && explicitMailedAt <= Date.now() && explicitMailedAt >= order.createdAt - 86400000) {
+      updates.postPurchaseMailedAt = explicitMailedAt;
+      updates.postPurchaseMailingEvidence = { source: "authenticated_supplier_mailed_date", recordedAt: Date.now() };
+    }
+
     // Map Handwrytten status to high-level OrderStatus
     if (
       rawStatus.includes("mail") ||
@@ -173,6 +190,7 @@ export async function POST(req: NextRequest) {
     }
 
     await updateOrderStatus(orderId, updates);
+    await trySyncPostPurchaseOrder(orderId);
     console.log(
       `[Handwrytten Webhook] Successfully updated Order ${orderId} (HW: ${hwOrderId}) ->`,
       updates
