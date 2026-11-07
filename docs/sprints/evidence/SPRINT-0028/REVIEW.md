@@ -1,6 +1,6 @@
 # Sprint 0028 local implementation review
 
-Three user-requested `gpt-6-luna` agents implemented the UI/draft, checkout, and fulfillment lanes. The parent reviewed the combined changes, fixed integration issues, and ran local verification. The starting revision is `8940401`; the final local implementation commit is recorded in Git history. No remote push, deployment, live payment, customer email, refund or physical mailing was performed.
+Three user-requested `gpt-6-luna` agents implemented the UI/draft, checkout, and fulfillment lanes. The parent reviewed the combined changes, fixed integration issues, and ran local verification. The starting revision is `8940401`; the reviewed implementation commit is `c143662` on `codex/multi-send-sprint-0028`. Subsequent evidence-only commits preserve the tested code. No remote push, deployment, live payment, customer email, refund or physical mailing was performed.
 
 ## Implemented
 

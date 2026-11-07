@@ -1,4 +1,4 @@
-Final local verification (base 8940401; implementation on codex/multi-send-sprint-0028):
+Final local verification (base 8940401; implementation c143662 on codex/multi-send-sprint-0028):
 PASS node node_modules/typescript/bin/tsc --noEmit
 PASS npm run build (production build; scrubbed environment, external network denied; no cloud credentials)
 PASS git diff --check
@@ -29,3 +29,5 @@ Build warnings from ADC discovery were handled by existing fallback paths with n
 Browser execution requires PLAYWRIGHT_MODULE_PATH to point to an installed Playwright package and the Chrome executable used by the script. Seed only the isolated local mock feature flag, never a live configuration. The screenshots use synthetic recipient data.
 
 Environment-dependent acceptance remains open in REVIEW.md and OPERATIONS.md.
+
+Integration check: all 139 transferred files matched the verified isolated worktree byte-for-byte; original checkout typecheck also passed. Unrelated untracked files were preserved.

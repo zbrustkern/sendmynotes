@@ -1,0 +1,265 @@
+RUN tests/multi-send-contracts.test.ts
+multi-send contracts passed
+RUN tests/multi-send-checkout-route.test.ts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_bc0c0feb80509d012e5237dbd38ec5fb amount: 1800
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_bc0c0feb80509d012e5237dbd38ec5fb amount: 1800
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_bc0c0feb80509d012e5237dbd38ec5fb amount: 1800
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_3af31418568f350cdd6a88139aefba72 amount: 1800
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_b6c451ddf81b439deec52cee0b498b77 amount: 2520
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_388db68edc708d183a4b7c5e06246559 amount: 900
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_bdf8433ace84557b4123cdf9b0af417e amount: 900
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_63e53cae69c56f5845544c9f15ed2e50 amount: 1800
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_775317394902ccc03490525ccd4977ba amount: 1800
+[MOCK Stripe] Creating simulated PaymentIntent for order: order_bc1a3cedb1117d647ba4bfe5b9aa3810 amount: 1800
+[Checkout Intent Error] injected cancellation failure
+[Incident Logged] [STRIPE] Stripe PaymentIntent Initialization Error (ID: inc_group_624f54cd7b5b2195f654ad843d895e9e_1794021320873_p7tvtu)
+multi-send checkout route passed
+RUN tests/multi-send-fulfillment.test.ts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+multi-send fulfillment: fake-adapter recovery scenarios passed (distinct payloads, uncertain/thrown/systemic outcomes, preparation recovery, concurrent fences, late result fencing, capture mismatch, correction requeue, refund allocation race, no-ID reconciliation).
+RUN tests/multi-send-payment-pipeline.test.ts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[Webhook] Payment confirmed for Order pipeline_batch_1794021322098 (mode: live, livemode: true). Processing order...
+multi-send payment pipeline: verified capture, queue, exact three-recipient manifest, and signed webhook replay passed
+RUN tests/multi-send-webhook.test.ts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[Handwrytten Webhook] Received webhook event for HW ID: hw_batch_hook
+[Handwrytten Webhook] Received webhook event for HW ID: hw_batch_hook
+[Handwrytten Webhook] Received webhook event for HW ID: hw_batch_hook
+[Handwrytten Webhook] Received webhook event for HW ID: hw_legacy_hook
+[Handwrytten Webhook] Successfully updated Order webhook_legacy_1794021322558 (HW: hw_legacy_hook) -> {
+  handwryttenStatus: 'mailed',
+  status: 'MAILED',
+  handwryttenMailedDate: '2026-11-07'
+}
+multi-send webhook: batch auth, strict status mapping, and legacy fallback passed
+RUN tests/multi-send-presentation.test.ts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Multi-send read privacy, recipient snapshots and rejected/uncertain presentation passed.
+RUN tests/draft.test.ts
+=================================================
+🧪 RUNNING DRAFT MODEL & STORE TESTS (S1-01)
+=================================================
+
+--- 1. Testing Initial Draft Structure ---
+✅ PASS: Schema version is 1
+✅ PASS: Initial draftRevision is 0
+✅ PASS: Initial selectedDesign is null
+✅ PASS: Experience version initialized
+✅ PASS: Initial note text is empty
+✅ PASS: Initial recipient is null
+✅ PASS: Initial sender is null
+
+--- 2. Testing draftRevision Increments ---
+✅ PASS: draftRevision increments to 1 on SELECT_DESIGN
+✅ PASS: selectedDesign is set
+✅ PASS: Selection is not yet accepted (displaying != acceptance)
+✅ PASS: draftRevision increments to 2 on ACCEPT_DESIGN
+✅ PASS: selectedDesign is marked accepted
+✅ PASS: draftRevision increments to 3 on UPDATE_NOTE
+✅ PASS: Note text updated
+✅ PASS: draftRevision increments to 4 on UPDATE_RECIPIENT
+✅ PASS: draftRevision increments to 5 on UPDATE_SENDER
+
+--- 3. Testing Storage Survival (Page Refresh) ---
+✅ PASS: Draft saved successfully to storage
+✅ PASS: Raw JSON exists in storage
+✅ PASS: Draft successfully loaded from storage
+✅ PASS: Loaded draft preserved draftRevision
+✅ PASS: Loaded draft preserved card selection
+✅ PASS: Loaded draft preserved accepted state
+✅ PASS: Loaded draft preserved note text
+✅ PASS: Loaded draft preserved recipient
+✅ PASS: Loaded draft preserved the international destination country
+✅ PASS: Loaded draft preserved an alphanumeric international postal code
+✅ PASS: Loaded draft preserved sender
+
+--- 4. Testing 24-Hour Expiry ---
+✅ PASS: Draft older than 24h is discarded
+✅ PASS: Storage item removed on expiry
+✅ PASS: Draft updated 2h ago is accepted
+
+--- 5. Testing Schema Version Mismatch ---
+✅ PASS: Mismatched schema version is safely discarded
+✅ PASS: Mismatched storage item cleared
+
+--- 6. Testing Forbidden Sensitive Keys Exclusion ---
+✅ PASS: Stored draft does not contain forbidden key 'clientSecret'
+✅ PASS: Stored draft does not contain forbidden key 'client_secret'
+✅ PASS: Stored draft does not contain forbidden key 'card'
+✅ PASS: Stored draft does not contain forbidden key 'cardNumber'
+✅ PASS: Stored draft does not contain forbidden key 'card_number'
+✅ PASS: Stored draft does not contain forbidden key 'cvc'
+✅ PASS: Stored draft does not contain forbidden key 'cvv'
+✅ PASS: Stored draft does not contain forbidden key 'paymentMethod'
+✅ PASS: Stored draft does not contain forbidden key 'payment_method'
+✅ PASS: Stored draft does not contain forbidden key 'stripeKey'
+✅ PASS: Stored draft does not contain forbidden key 'stripe_key'
+✅ PASS: Stored draft does not contain forbidden key 'viewToken'
+✅ PASS: Stored draft does not contain forbidden key 'view_token'
+✅ PASS: Stored draft does not contain forbidden key 'receiptToken'
+✅ PASS: Stored draft does not contain forbidden key 'receipt_token'
+✅ PASS: Stored draft does not contain forbidden key 'secret'
+✅ PASS: Stored key 'schemaVersion' is on the allowed keys list
+✅ PASS: Stored key 'createdAt' is on the allowed keys list
+✅ PASS: Stored key 'updatedAt' is on the allowed keys list
+✅ PASS: Stored key 'draftRevision' is on the allowed keys list
+✅ PASS: Stored key 'experienceVersion' is on the allowed keys list
+✅ PASS: Stored key 'selectedDesign' is on the allowed keys list
+✅ PASS: Stored key 'accountImage' is on the allowed keys list
+✅ PASS: Stored key 'accountOwnerUid' is on the allowed keys list
+✅ PASS: Stored key 'uploadSelection' is on the allowed keys list
+✅ PASS: Stored key 'uploadOwnerUid' is on the allowed keys list
+✅ PASS: Stored key 'privateUploadRecovery' is on the allowed keys list
+✅ PASS: Stored key 'coverChoiceRequired' is on the allowed keys list
+✅ PASS: Stored key 'note' is on the allowed keys list
+✅ PASS: Stored key 'recipient' is on the allowed keys list
+✅ PASS: Stored key 'multiSend' is on the allowed keys list
+✅ PASS: Stored key 'multiSendUndo' is on the allowed keys list
+✅ PASS: Stored key 'sender' is on the allowed keys list
+✅ PASS: Stored key 'schedule' is on the allowed keys list
+✅ PASS: Stored key 'discountCode' is on the allowed keys list
+✅ PASS: Stored key 'appliedOffer' is on the allowed keys list
+✅ PASS: Stored key 'attribution' is on the allowed keys list
+✅ PASS: Stored key 'customGeneration' is on the allowed keys list
+✅ PASS: Stored key 'checkoutSnapshotId' is on the allowed keys list
+✅ PASS: Stored key 'checkoutContact' is on the allowed keys list
+✅ PASS: Stored key 'currentStep' is on the allowed keys list
+✅ PASS: Stored key 'completed' is on the allowed keys list
+✅ PASS: Stored key 'lastCustomArtwork' is on the allowed keys list
+✅ PASS: Poisoned clientSecret was stripped on save
+✅ PASS: Poisoned card data was stripped on save
+✅ PASS: Poisoned viewToken was stripped on save
+✅ PASS: Poisoned stripeKey was stripped on save
+
+--- 7. Testing Private Upload Account Boundaries ---
+✅ PASS: Validated owner can restore the private selection in memory
+✅ PASS: Session persistence does not hydrate a private upload as visible selection
+✅ PASS: Session persistence omits the private title and selected cover
+✅ PASS: Session persistence retains only a hidden owner-bound recovery reference
+✅ PASS: Reload requires cover choice until private access is revalidated
+✅ PASS: Private cover hiding preserves the sender's note
+✅ PASS: Private cover hiding preserves the recipient address
+✅ PASS: Changing UID removes the prior private selection from visible state
+✅ PASS: UID change retains recovery under the original owner only
+✅ PASS: UID change blocks checkout until an explicit safe cover choice
+✅ PASS: UID change preserves safe note and address fields
+✅ PASS: A different UID cannot restore the hidden private selection
+✅ PASS: Explicit catalog choice safely unblocks the retained guest draft
+✅ PASS: Explicit catalog choice discards recovery so later identity changes cannot override the chosen front
+✅ PASS: Original owner can restore only after the caller supplies the validated same-owner selection
+✅ PASS: Multi-send preserves explicit blank greeting separately from inheritance
+✅ PASS: Multi-send edits revise the draft and invalidate checkout snapshot
+✅ PASS: Multi-send draft saves through allowlisted persistence
+✅ PASS: Refresh migration keeps recipients and explicit blank greeting
+✅ PASS: Shared salutation edits propagate to multi-send inheritance
+✅ PASS: Default salutation edits leave explicit blank overrides unchanged
+✅ PASS: Collapsing to one retains prior recipient identities and greeting choices for undo
+✅ PASS: Undo state persists across refresh
+✅ PASS: Undo restores recipient set and shared default greeting
+✅ PASS: Removing one of several recipients can be undone without losing greeting choices
+
+--- 8. Testing clearDraft ---
+✅ PASS: clearDraft removes item from storage
+✅ PASS: loadDraft returns null after clearDraft
+
+=================================================
+🎉 ALL DRAFT MODEL TESTS PASSED (106/106)
+=================================================
+RUN tests/sprint-0005-offer-engine.test.ts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+======================================================================
+🎟️ RUNNING SPRINT-0005 OFFER ENGINE & PRICING INTEGRITY TEST SUITE
+======================================================================
+
+--- SUITE 1: AC01 — URL Parameter Extraction, Priority & Routing ---
+  ✅ PASS: Extracts code from ?discount=
+  ✅ PASS: Extracts code from ?code=
+  ✅ PASS: Extracts code from ?promo=
+  ✅ PASS: Priority order: discount takes precedence over code and promo
+  ✅ PASS: Priority order: code takes precedence over promo
+  ✅ PASS: Priority order: promo resolves when discount and code are absent
+  ✅ PASS: Normalizes code: trims whitespace and converts to uppercase
+  ✅ PASS: Normalizes lowercase code to uppercase
+  ✅ PASS: Extracts from URLSearchParams instance
+  ✅ PASS: Extracts from Next.js searchParams Record object
+  ✅ PASS: Extracts from full absolute URL string
+  ✅ PASS: Returns null when input is null
+  ✅ PASS: Returns null when input is empty string
+  ✅ PASS: Returns null when no promo parameter is present
+  ✅ PASS: Extracted offer code from complex deep link
+  ✅ PASS: Destination path preserved without alteration
+  ✅ PASS: UTM source preserved alongside offer code
+  ✅ PASS: UTM campaign preserved alongside offer code
+
+--- SUITE 2: AC02 — Concurrency, Inventory Caps & Reservations ---
+  ✅ PASS: Bridged legacy discount into offer_versions with maxUses: 1
+  ✅ PASS: Under concurrent reservation requests for final slot (maxUses: 1), strictly 1 succeeds
+  ✅ PASS: Rejected contender receives status: 'exhausted'
+  ✅ PASS: Rejected contender receives explicit error message
+  ✅ PASS: Released active reservation on order cancellation
+  ✅ PASS: Released hold allowed contending checkout to successfully claim the slot
+  ✅ PASS: Expired reservation hold automatically pruned; fresh buyer successfully claims slot
+  ✅ PASS: First redemption succeeds
+  ✅ PASS: Second redemption is recognized as duplicate
+  ✅ PASS: Counter usedCount is strictly 1 after duplicate redemption attempts
+  ✅ PASS: Cumulative savings totalDiscountGivenCents is strictly 300¢ (not double-counted)
+
+--- SUITE 3: AC03 — Authoritative Quotes, Tamper Immunity & Non-Restoring Refunds ---
+  ✅ PASS: Issued quote successfully
+  ✅ PASS: Server ignored client price and enforced canonical base price (900¢)
+  ✅ PASS: Discount amount computed correctly server-side (180¢)
+  ✅ PASS: Payable finalAmountInCents computed correctly server-side (720¢)
+  ✅ PASS: Quote validity set to exactly 30 minutes
+  ✅ PASS: Fresh quote (<30 min) passes integrity verification
+  ✅ PASS: Stale quote (>30 min) fails integrity verification
+  ✅ PASS: Stale quote signals requiresPriceReconfirmation: true
+  ✅ PASS: Mismatched payment intent amount fails integrity verification
+  ✅ PASS: Price mismatch signals requiresPriceReconfirmation: true
+  ✅ PASS: Server redemption accepts exact persisted quote, order, reservation, and capture binding
+  ✅ PASS: Idempotency replay with changed commercial terms is rejected
+  ✅ PASS: Used count incremented to 1 on redemption
+  ✅ PASS: Recorded refund outcome on offer redemption document
+  ✅ PASS: Redemption doc marked as refunded
+  ✅ PASS: refundRestoredUsage is strictly false
+  ✅ PASS: REFUND_RESTORES_OFFER_USAGE constant is strictly false per Contract 4
+  ✅ PASS: usedCount is preserved at 1 after refund (usage is NOT restored)
+
+--- SUITE 4: AC04 — Free/Comp Redemptions & Cost-Audit Preservation ---
+  ✅ PASS: 100% free voucher quote is valid
+  ✅ PASS: isFree is true for 100% discount
+  ✅ PASS: finalAmountInCents is 0
+  ✅ PASS: discountAmountInCents is 900¢
+  ✅ PASS: Free promo order redeemed successfully without payment intent
+  ✅ PASS: Commercial kind classified as 'free_promo'
+  ✅ PASS: Studio comp redeemed successfully
+  ✅ PASS: Commercial kind classified as 'studio_comp'
+  ✅ PASS: Paid discounted order redeemed successfully
+  ✅ PASS: Commercial kind classified as 'discounted_paid'
+  ✅ PASS: Analytics generated for correct promo code
+  ✅ PASS: Total redemptions count is 3
+  ✅ PASS: freePromoCount correctly separated (1)
+  ✅ PASS: studioCompCount correctly separated (1)
+  ✅ PASS: paidDiscountedCount correctly separated (1)
+  ✅ PASS: Supplier cost status reported as 'unconfirmed'
+  ✅ PASS: netMarginCents reported as null (never fabricated)
+  ✅ PASS: Net captured revenue accurately aggregated (450¢)
+
+======================================================================
+📊 SPRINT-0005 TEST RESULTS: 65/65 PASSED (0 FAILED)
+======================================================================
+
+RUN tests/ordinary-quote-dispatch-safety.test.ts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[OrderProcessor] Test payment mode active (stripe_test). Skipping live Handwrytten dispatch.
+[Meta CAPI Notice] META_CONVERSIONS_API_ACCESS_TOKEN is not configured. Server-side event skipped safely.
+[OrderProcessor] Order valid-quote-1794021324125 successfully dispatched! HW ID: test_hw_valid-quote-1794021324125
+ordinary quote dispatch safety tests passed
+RUN tests/checkout-contact-route.integration.test.ts
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+[Incident Logged] [STRIPE] Paid order contact preference needs reconciliation (contact_choice_1794021324743_capture_pending) (ID: inc_group_3a84ac91f38c8931c414113902e8f320_1794021324756_0btee8)
+[OrderProcessor Critical] Return address is required. on Order contact_choice_1794021324743_paid_conflict. Halting fulfillment.
+[Incident Logged] [HANDWRYTTEN] Invalid/Missing Sender Address on Order contact_choice_1794021324743_paid_conflict (ID: inc_group_10799ce7625b7a53215434527f067c8f_1794021324758_y3vlqb)
+checkout contact route integration tests passed
+ALL REQUESTED SUITES PASSED
