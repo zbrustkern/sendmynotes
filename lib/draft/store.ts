@@ -133,6 +133,45 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
     style: typeof noteObj?.style === "string" ? noteObj.style : "hwDavid",
   };
 
+  // Keep only well-shaped multi-send data. Old schema-v1 drafts naturally have
+  // no batch key and continue through the legacy single-recipient path.
+  const multi = record.multiSend as Record<string, unknown> | null | undefined;
+  if (multi?.version === 1 && Array.isArray(multi.recipients) && multi.recipients.length >= 1 && multi.recipients.length <= 25) {
+    const recipients = multi.recipients.filter((item): item is Record<string, unknown> => Boolean(item && typeof item === "object" && !Array.isArray(item)))
+      .map((item) => {
+        const greeting = item.greeting as Record<string, unknown> | undefined;
+        const address = item.address as Record<string, unknown> | undefined;
+        if (typeof item.id !== "string" || !item.id || !address || typeof address !== "object") return null;
+        const cleanAddress = {
+          name: typeof address.name === "string" ? address.name : "",
+          addressLine1: typeof address.addressLine1 === "string" ? address.addressLine1 : "",
+          addressLine2: typeof address.addressLine2 === "string" ? address.addressLine2 : undefined,
+          city: typeof address.city === "string" ? address.city : "",
+          state: typeof address.state === "string" ? address.state : "",
+          zip: typeof address.zip === "string" ? address.zip : "",
+          country: typeof address.country === "string" ? address.country : "US",
+        };
+        const cleanGreeting = greeting?.mode === "custom" && typeof greeting.text === "string"
+          ? { mode: "custom" as const, text: greeting.text }
+          : { mode: "inherit" as const };
+        return { id: item.id.slice(0, 128), address: cleanAddress, greeting: cleanGreeting,
+          householdAcknowledgedWith: Array.isArray(item.householdAcknowledgedWith) ? item.householdAcknowledgedWith.filter((entry): entry is {id:string;addressKey:string} => Boolean(entry && typeof entry === "object" && typeof (entry as any).id === "string" && typeof (entry as any).addressKey === "string")).slice(0,25) : undefined };
+      }).filter((item): item is NonNullable<typeof item> => Boolean(item));
+    if (recipients.length) {
+      const batchNote = multi.note as Record<string, unknown> | undefined;
+      sanitized.multiSend = { version: 1, checkoutId: typeof multi.checkoutId === "string" && multi.checkoutId.length <= 128 ? multi.checkoutId : "", originWasDeferred: multi.originWasDeferred === true, recipients, note: {
+        salutation: typeof batchNote?.salutation === "string" ? batchNote.salutation : "",
+        text: typeof batchNote?.text === "string" ? batchNote.text : "",
+        signOff: typeof batchNote?.signOff === "string" ? batchNote.signOff : "",
+        style: typeof batchNote?.style === "string" ? batchNote.style : "hwDavid",
+      } };
+    }
+  } else sanitized.multiSend = null;
+  if (record.multiSendUndo && typeof record.multiSendUndo === "object") {
+    const backup = sanitizeDraftState({ ...record, multiSend: record.multiSendUndo, multiSendUndo: null });
+    sanitized.multiSendUndo = backup?.multiSend || null;
+  } else sanitized.multiSendUndo = null;
+
   // Ensure customGeneration is well-formed
   const customObj = record.customGeneration as Record<string, unknown> | undefined;
   sanitized.customGeneration = {

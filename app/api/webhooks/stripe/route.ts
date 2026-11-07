@@ -233,6 +233,7 @@ export async function POST(req: NextRequest) {
           destinationSurchargeCents: latestOrder.quote?.internationalSurchargeCents || 0,
           verifiedCaptureId: paymentIntent.id,
           requireAuthoritativeBinding: true,
+        ...(latestOrder.multiSend ? { multiSendCount: latestOrder.multiSend.recipients.length } : {}),
         });
         offerRedemption = redemption.redeemed
           ? { status: "redeemed" }

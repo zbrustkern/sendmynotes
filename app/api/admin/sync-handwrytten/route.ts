@@ -23,6 +23,9 @@ export async function POST(req: NextRequest) {
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
+    if (order.multiSend?.kind === "parent") {
+      return NextResponse.json({ error: "Batch status sync requires a recipient delivery ID; parent-level supplier sync is unavailable.", code: "MULTI_SEND_CHILD_REQUIRED" }, { status: 409 });
+    }
 
     if (!order.handwryttenOrderId) {
       return NextResponse.json(

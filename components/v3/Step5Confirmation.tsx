@@ -22,8 +22,12 @@ import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
 import { cancelGoogleAdsPurchaseRetries, trackGoogleAdsPurchase } from "@/lib/google-ads";
 import { trackMetaPurchase } from "@/lib/meta-ads";
+import { MultiSendOrderStatus } from "@/components/multi-send/MultiSendOrderStatus";
+import type { MultiSendView } from "@/lib/multi-send/presentation";
+import type { Order } from "@/lib/types";
 
 interface Step5ConfirmationProps {
+  cardQuantity?: number;
   orderId: string;
   viewToken?: string | null;
   fulfillmentStatus?: string;
@@ -44,6 +48,7 @@ interface Step5ConfirmationProps {
 }
 
 export function Step5Confirmation({
+  cardQuantity = 1,
   orderId,
   viewToken,
   fulfillmentStatus,
@@ -62,6 +67,13 @@ export function Step5Confirmation({
   isAddressDeferred = false,
   isPreviewHold = false,
 }: Step5ConfirmationProps) {
+  const [batchOrder, setBatchOrder] = useState<(Order & {multiSendView: MultiSendView}) | null>(null);
+  useEffect(() => {
+    if (cardQuantity < 2 || !viewToken) return;
+    let active = true;
+    fetch(`/api/orders/${encodeURIComponent(orderId)}?token=${encodeURIComponent(viewToken)}`, { cache: "no-store" }).then(res => res.ok ? res.json() : null).then(data => { if (active && data?.order?.multiSendView && !data.order.multiSendView.redacted) setBatchOrder(data.order); }).catch(() => {});
+    return () => { active = false; };
+  }, [orderId, viewToken, cardQuantity]);
   const deliveryEstimate = useMemo(() => calculateDeliveryEstimate(), []);
   const isInternational = isInternationalCountry(recipient.country);
   const isPreviewHoldActive = isPreviewHold && isInternational;
@@ -105,6 +117,7 @@ export function Step5Confirmation({
       try {
         trackMetaPurchase({
           orderId,
+          itemCount: cardQuantity,
           value: amountInCents ? amountInCents / 100 : 9.0,
           customerEmail,
           customerName: sender.fullName,
@@ -164,6 +177,8 @@ export function Step5Confirmation({
       }
     }
   };
+
+  if (cardQuantity > 1) return batchOrder ? <MultiSendOrderStatus order={batchOrder} view={batchOrder.multiSendView} /> : <section className="max-w-2xl mx-auto space-y-4"><h1 className="font-serif text-3xl">Your order is being confirmed</h1><p>Your {cardQuantity} purchased cards and their individual status are available on the secure order page.</p><Link className="underline text-emerald-800" href={`/order/${encodeURIComponent(orderId)}?token=${encodeURIComponent(viewToken || "")}`}>View all card deliveries</Link></section>;
 
   return (
     <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-7 pb-24 md:pb-12 animate-in fade-in duration-300">

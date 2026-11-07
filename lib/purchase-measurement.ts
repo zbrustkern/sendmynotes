@@ -47,6 +47,7 @@ export function buildPurchaseMeasurement(
   return {
     version: 1,
     transactionId: order.id,
+    ...(order.multiSend ? { itemCount: order.multiSend.recipients.length } : {}),
     amountInCents: Number.isInteger(capture.amountReceived) ? capture.amountReceived : 0,
     currency: "USD",
     verifiedAt: now,

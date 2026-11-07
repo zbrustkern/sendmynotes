@@ -1,0 +1,242 @@
+{
+  "scope": "Local HTML design mockup only. No implementation, payment, supplier, or live deployment testing.",
+  "checks": [
+    {
+      "scene": "single",
+      "width": 320,
+      "scrollWidth": 320,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "address",
+      "width": 320,
+      "scrollWidth": 320,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "add",
+      "width": 320,
+      "scrollWidth": 320,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "payment",
+      "width": 320,
+      "scrollWidth": 320,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "paid",
+      "width": 320,
+      "scrollWidth": 320,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "attention",
+      "width": 320,
+      "scrollWidth": 320,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "uncertain",
+      "width": 320,
+      "scrollWidth": 320,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "deferred",
+      "width": 320,
+      "scrollWidth": 320,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "single",
+      "width": 390,
+      "scrollWidth": 390,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "address",
+      "width": 390,
+      "scrollWidth": 390,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "add",
+      "width": 390,
+      "scrollWidth": 390,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "payment",
+      "width": 390,
+      "scrollWidth": 390,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "paid",
+      "width": 390,
+      "scrollWidth": 390,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "attention",
+      "width": 390,
+      "scrollWidth": 390,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "uncertain",
+      "width": 390,
+      "scrollWidth": 390,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "deferred",
+      "width": 390,
+      "scrollWidth": 390,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "single",
+      "width": 768,
+      "scrollWidth": 768,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "address",
+      "width": 768,
+      "scrollWidth": 768,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "add",
+      "width": 768,
+      "scrollWidth": 768,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "payment",
+      "width": 768,
+      "scrollWidth": 768,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "paid",
+      "width": 768,
+      "scrollWidth": 768,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "attention",
+      "width": 768,
+      "scrollWidth": 768,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "uncertain",
+      "width": 768,
+      "scrollWidth": 768,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "deferred",
+      "width": 768,
+      "scrollWidth": 768,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "single",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "address",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "add",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "payment",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "paid",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "attention",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "uncertain",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "brokenImages": 0,
+      "overflowingElements": []
+    },
+    {
+      "scene": "deferred",
+      "width": 1280,
+      "scrollWidth": 1280,
+      "brokenImages": 0,
+      "overflowingElements": []
+    }
+  ],
+  "interactions": [
+    "Desktop preview stays left at identical x/width; right sub-grid expands in place",
+    "Production state dropdown, apartment disclosure and city/state/ZIP grouping",
+    "Cancel second editor returns to quiet single-card baseline and singular payment",
+    "Greeting edits preserve separate message and sign-off fields",
+    "Deferred opt-in prompt keeps single preferences or completes first address before adding second",
+    "Exact duplicate blocks; household addition needs explicit confirmation without losing entered data",
+    "Recipient unit editing, removal and undo preserve identity and totals",
+    "Fixed mobile footer blocks unsaved editor, focuses clear of bar, then pays correct committed total",
+    "Rejected-not-sent and dispatch-uncertain have distinct copy and actions"
+  ],
+  "pageErrors": [],
+  "externalRequests": []
+}

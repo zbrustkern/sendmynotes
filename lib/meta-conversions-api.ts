@@ -372,12 +372,12 @@ export async function sendMetaCapiPurchaseEvent(params: {
     contents: [
       {
         id: order.id,
-        quantity: 1,
-        item_price: valueInDollars,
+        quantity: order.multiSend?.recipients.length || 1,
+        item_price: valueInDollars / (order.multiSend?.recipients.length || 1),
       },
     ],
     order_id: order.id,
-    num_items: 1,
+    num_items: order.multiSend?.recipients.length || 1,
   };
 
   return sendMetaCapiEvents(

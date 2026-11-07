@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
         }
 
         const existingOrder = orderDoc.data() as Order;
+        if (existingOrder.multiSend?.kind === "parent") throw new Error("MULTI_SEND_REQUIRES_PAID_CHECKOUT");
         if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {
           throw new Error("CONTACT_COMMIT_PENDING");
         }
@@ -160,6 +161,9 @@ export async function POST(req: NextRequest) {
           { error: "This order requires payment and cannot be completed as free." },
           { status: 400 }
         );
+      }
+      if (msg === "MULTI_SEND_REQUIRES_PAID_CHECKOUT") {
+        return NextResponse.json({ error: "Multi-send requires its verified paid checkout; the free-order shortcut cannot dispatch a batch.", code: "MULTI_SEND_REQUIRES_PAID_CHECKOUT" }, { status: 409 });
       }
       if (msg === "NO_DISCOUNT_CODE" || msg === "INVALID_DISCOUNT_CODE") {
         return NextResponse.json(

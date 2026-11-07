@@ -7,7 +7,15 @@ export function getStripeSecretKey(): string {
   return normalizeStripeSecretKey(process.env).secret;
 }
 
+let testStripeClientFactory: (() => Stripe) | null = null;
+
+/** Test-only seam for deterministic payment-route tests; never configured by runtime code. */
+export function setStripeClientFactoryForTests(factory: (() => Stripe) | null): void {
+  testStripeClientFactory = factory;
+}
+
 export function getStripeClient(): Stripe {
+  if (testStripeClientFactory) return testStripeClientFactory();
   const secretKey = getStripeSecretKey() || "sk_test_unconfigured_placeholder";
   return new Stripe(secretKey, {
     apiVersion: "2025-01-27.acacia" as unknown as Stripe.LatestApiVersion,

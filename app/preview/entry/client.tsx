@@ -15,6 +15,8 @@ import {
 import { Step2NoteComposition, HANDWRITING_STYLES } from "@/components/v3/Step2NoteComposition";
 import { Step3EnvelopeAddressing, AddressData, MailingOption, isInternationalCountry } from "@/components/v3/Step3EnvelopeAddressing";
 import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step4ReviewAndPayment";
+import { expectedMultiSendTotal } from "@/lib/multi-send/contracts";
+import { MultiSendAddressEditor } from "@/components/v3/MultiSendAddressEditor";
 import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
 import { evaluateCheckoutInitTransition } from "@/lib/payment-mode";
@@ -48,6 +50,7 @@ import type { AccountDraftContent } from "@/lib/account/contracts";
 import type { UploadSelection } from "@/lib/upload/contracts";
 
 export interface EntryPrototypeClientProps {
+  multiSendEnabled?: boolean;
   initialOccasion?: string;
   initialPresetId?: string;
   initialCoverUrl?: string;
@@ -68,6 +71,7 @@ export function getStepUrl(targetStep: FlowStep): string {
 }
 
 export function EntryPrototypeClient({
+  multiSendEnabled,
   initialOccasion,
   initialPresetId,
   initialCoverUrl,
@@ -80,6 +84,15 @@ export function EntryPrototypeClient({
   initialStep,
 }: EntryPrototypeClientProps = {}) {
   const searchParams = useSearchParams();
+  const [isMultiSendFeatureEnabled, setIsMultiSendFeatureEnabled] = useState(multiSendEnabled === true);
+  useEffect(() => {
+    if (typeof multiSendEnabled === "boolean") { setIsMultiSendFeatureEnabled(multiSendEnabled); return; }
+    let active = true;
+    void fetch("/api/feature-flags", { cache: "no-store" }).then((response) => response.ok ? response.json() : null)
+      .then((data) => { if (active) setIsMultiSendFeatureEnabled(data?.flags?.multiSendEnabled === true); })
+      .catch(() => { if (active) setIsMultiSendFeatureEnabled(false); });
+    return () => { active = false; };
+  }, [multiSendEnabled]);
   const { user, loading: authLoading } = useAuth();
 
   const occasionParam = initialOccasion || searchParams?.get("occasion") || undefined;
@@ -390,8 +403,84 @@ export function EntryPrototypeClient({
   });
   const [domesticRecipient, setDomesticRecipient] = useState<AddressData>({ fullName: "", street1: "", street2: "", city: "", state: "", zip: "" });
   const [internationalRecipient, setInternationalRecipient] = useState<AddressData | null>(null);
+  const [reviewEditGreetingId, setReviewEditGreetingId] = useState<string | null>(null);
+  const [openNewBatchRecipient, setOpenNewBatchRecipient] = useState(false);
+  const [multiSendPreviewId, setMultiSendPreviewId] = useState<string | null>(null);
+  const [multiSendPreviewGreeting, setMultiSendPreviewGreeting] = useState<string | null>(null);
+  const [multiSendPreviewUnsaved, setMultiSendPreviewUnsaved] = useState(false);
+  const [editBatchAddressId, setEditBatchAddressId] = useState<string | null>(null);
+  const [showDeferredBatchPrompt, setShowDeferredBatchPrompt] = useState(false);
+  const multiSendUnsavedRef = useRef(false);
+  const multiSendEditorFocusRef = useRef<(() => void) | null>(null);
   const [mailingOptions, setMailingOptions] = useState<{ destinations: MailingOption[]; enabled: boolean; previewAvailable?: boolean } | null>(null);
   const isInternational = isInternationalCountry(recipient.country);
+
+  const addAnotherRecipient = (confirmedDeferred = false) => {
+    if (!isMultiSendFeatureEnabled || isInternational) return;
+    const wasDeferred = isAddressDeferred;
+    if (isAddressDeferred && !confirmedDeferred) { setShowDeferredBatchPrompt(true); return; }
+    setShowDeferredBatchPrompt(false);
+    if (isAddressDeferred) { setIsAddressDeferred(false); dispatch({ type: "SET_ADDRESS_DEFERRED", payload: false }); }
+    const current = draft.multiSend;
+    if (current) return;
+    const makeId = () => crypto.randomUUID();
+    const firstRecipientId = makeId();
+    dispatch({ type: "SET_MULTI_SEND", payload: {
+      version: 1,
+      checkoutId: makeId(),
+      originWasDeferred: wasDeferred,
+      note: { ...draft.note, salutation, signOff },
+      recipients: [
+        { id: firstRecipientId, address: toAddressDraft(recipient), greeting: { mode: "inherit" } },
+      ],
+    } });
+    if (wasDeferred) setEditBatchAddressId(firstRecipientId);
+    else setOpenNewBatchRecipient(true);
+  };
+  const updateMultiSend = (value: NonNullable<typeof draft.multiSend>) => {
+    const first = value.recipients[0];
+    if (first) { setRecipient(toAddressData(first.address)); dispatch({ type: "UPDATE_RECIPIENT", payload: first.address }); }
+    dispatch({ type: "SET_MULTI_SEND", payload: value });
+  };
+  const undoMultiSend = () => {
+    const batch = draft.multiSend;
+    const survivor = batch?.recipients[0];
+    dispatch({ type: "SET_MULTI_SEND", payload: null });
+    if (survivor) {
+      setRecipient(toAddressData(survivor.address));
+      dispatch({ type: "UPDATE_RECIPIENT", payload: survivor.address });
+      const greeting = survivor.greeting.mode === "custom" ? survivor.greeting.text : batch!.note.salutation || "";
+      setSalutation(greeting);
+      dispatch({ type: "UPDATE_NOTE", payload: { salutation: greeting } });
+    }
+  };
+  const undoRecipientRemoval = () => {
+    const snapshot = draft.multiSendUndo;
+    const first = snapshot?.recipients[0];
+    if (!snapshot || !first) return;
+    dispatch({ type: "RESTORE_MULTI_SEND_UNDO" });
+    setRecipient(toAddressData(first.address));
+    dispatch({ type: "UPDATE_RECIPIENT", payload: first.address });
+    setSalutation(snapshot.note.salutation || "");
+  };
+  const removeMultiRecipient = (id: string) => {
+    const batch = draft.multiSend;
+    if (!batch) return;
+    const remaining = batch.recipients.filter((r) => r.id !== id);
+    if (remaining.length < 2) {
+      const survivor = remaining[0];
+      dispatch({ type: "SET_MULTI_SEND", payload: null });
+      if (survivor) {
+        setRecipient(toAddressData(survivor.address));
+        dispatch({ type: "UPDATE_RECIPIENT", payload: survivor.address });
+        const greeting = survivor.greeting.mode === "custom" ? survivor.greeting.text : batch.note.salutation || "";
+        setSalutation(greeting); dispatch({ type: "UPDATE_NOTE", payload: { salutation: greeting } });
+      }
+      return;
+    }
+    dispatch({ type: "SET_MULTI_SEND_UNDO", payload: batch });
+    updateMultiSend({ ...batch, recipients: remaining });
+  };
 
   const [sender, setSender] = useState<AddressData>({
     fullName: "",
@@ -446,9 +535,11 @@ export function EntryPrototypeClient({
   const checkoutRequestInFlight = React.useRef(false);
   const discountRequestInFlight = React.useRef(false);
   const addressRevision = React.useRef(0);
-  const currentDisplayTotalCents = isInternational
-    ? (appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900) + 500
-    : amountInCents;
+  const currentDisplayTotalCents = draft.multiSend
+    ? expectedMultiSendTotal(draft.multiSend.recipients.length, appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900)
+    : isInternational
+      ? (appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900) + 500
+      : amountInCents;
 
   const accountResumeStep = useRef<{uid:string;step:"note"|"address"}|null>(null);
   const [accountLinks, setAccountLinks] = useState<{contactId?:string;occasionId?:string}>({});
@@ -467,7 +558,7 @@ export function EntryPrototypeClient({
   };
   const accountContent: AccountDraftContent = {
     selectedDesign:draft.selectedDesign, accountImage:draft.accountImage,
-    note:{...draft.note,salutation,signOff}, recipient:toAddressDraft(recipient),sender:toAddressDraft(sender),
+    note:{...draft.note,salutation,signOff}, recipient:toAddressDraft(recipient),sender:toAddressDraft(sender), multiSend:draft.multiSend || null,
     ...accountLinks,currentStep:step === "pay" ? "address" : step,
   };
   const accountTools = useBuilderAccount({
@@ -1324,6 +1415,7 @@ export function EntryPrototypeClient({
       country: updated.country || "USA",
     };
     dispatch({ type: "UPDATE_RECIPIENT", payload: mapped });
+    if (draft.multiSend) updateMultiSend({ ...draft.multiSend, recipients: draft.multiSend.recipients.map((item, index) => index === 0 ? { ...item, address: mapped } : item) });
   };
 
   const handleSaveInternationalRecipient = (address: AddressData) => {
@@ -1486,6 +1578,7 @@ export function EntryPrototypeClient({
 
   // Determine target previous step and handle back navigation
   const handleProgressBack = useCallback(() => {
+    if (step === "address" && multiSendUnsavedRef.current) { setAddressValidationError("Save or cancel the open recipient editor before leaving this step."); multiSendEditorFocusRef.current?.(); return; }
     const stepOrder: Record<FlowStep, FlowStep | null> = {
       card: null,
       note: "card",
@@ -1519,7 +1612,27 @@ export function EntryPrototypeClient({
 
   // Validate address and transition to checkout (never disable button silently without explanation)
   const handleAddressSubmit = () => {
-    if (!recipient.fullName.trim()) {
+    if (multiSendUnsavedRef.current) { setAddressValidationError("Save or cancel the open recipient editor before continuing."); multiSendEditorFocusRef.current?.(); return; }
+    if (draft.multiSend) {
+      if (draft.multiSend.recipients.length < 2) { setAddressValidationError("Add and save at least one more recipient before checkout."); return; }
+      const incomplete = draft.multiSend.recipients.find((r) => !r.address.name.trim() || !r.address.addressLine1.trim() || !r.address.city.trim() || !r.address.state.trim() || !r.address.zip.trim());
+      if (incomplete) { setAddressValidationError("Complete every recipient's name and mailing address before checkout."); return; }
+      const seen = new Map<string, { id: string; name: string; addressKey: string }>();
+      let acknowledgementSaved = false;
+      for (const r of draft.multiSend.recipients) {
+        const key = [r.address.addressLine1, r.address.addressLine2, r.address.city, r.address.state, r.address.zip, r.address.country || "US"].map(s => (s || "").trim().toLowerCase().replace(/\s+/g," ")).join("|");
+        const prior = seen.get(key);
+        if (prior && prior.name.toLowerCase() === r.address.name.trim().toLowerCase()) { setAddressValidationError("This mailing address is already on the recipient list."); return; }
+        if (prior && !r.householdAcknowledgedWith?.some((ack) => ack.id === prior.id && ack.addressKey === key)) {
+          if (!window.confirm(`This is the same address as ${prior.name}. Send a separate card to ${r.address.name}?`)) return;
+          updateMultiSend({ ...draft.multiSend, recipients: draft.multiSend.recipients.map((person) => person.id === r.id ? { ...person, householdAcknowledgedWith: [...(person.householdAcknowledgedWith || []), { id: prior.id, addressKey: key }] } : person.id === prior.id ? { ...person, householdAcknowledgedWith: [...(person.householdAcknowledgedWith || []), { id: r.id, addressKey: key }] } : person) });
+          acknowledgementSaved = true;
+        }
+        seen.set(key, { id: r.id, name: r.address.name.trim(), addressKey: key });
+      }
+      if (acknowledgementSaved) { setAddressValidationError("Household confirmation saved. Select Review & pay again to continue."); return; }
+    }
+    if (!draft.multiSend && !recipient.fullName.trim()) {
       const err = "Please provide the recipient's full name.";
       setAddressValidationError(err);
       trackJourneyEvent("address_validation_failed", {
@@ -1528,7 +1641,7 @@ export function EntryPrototypeClient({
       });
       return;
     }
-    if (!isAddressDeferred) {
+    if (!draft.multiSend && !isAddressDeferred) {
       if (!recipient.street1.trim()) {
         const err = "Please provide the recipient's street address.";
         setAddressValidationError(err);
@@ -1597,6 +1710,7 @@ export function EntryPrototypeClient({
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
     const privateCheckoutEpoch = privateRequestEpochRef.current;
     const privateCheckoutIsStale = () => privateCheckoutEpoch !== privateRequestEpochRef.current;
+    const priorCheckoutBinding = { orderId, viewToken };
     checkoutRequestInFlight.current = true;
     const requestedAddressRevision = addressRevision.current;
     setCheckoutInitError(null);
@@ -1605,8 +1719,11 @@ export function EntryPrototypeClient({
     // the current destination and offer. The prior offer remains visible until the
     // matching replacement response succeeds, but its payment form cannot submit.
     setClientSecret(null);
-    setOrderId("");
-    setViewToken(null);
+    // Batch edits need their prior capability to replace the frozen snapshot, including retries after a recoverable quote/hold failure.
+    if (!draft.multiSend) {
+      setOrderId("");
+      setViewToken(null);
+    }
     setIsFreeOrder(false);
     dispatch({ type: "SET_CHECKOUT_SNAPSHOT", payload: null });
 
@@ -1684,6 +1801,26 @@ export function EntryPrototypeClient({
           ...(draft.accountImage ? {accountImage:draft.accountImage} : {}),
           printedMessage: "",
           handwrittenNote: fullHandwrittenMessage,
+          ...(draft.multiSend ? { multiSend: {
+            version: 1,
+            checkoutId: draft.multiSend.checkoutId,
+            note: { salutation, text: draft.note.text, signOff, style: draft.note.style || "hwDavid" },
+            recipients: draft.multiSend.recipients.map((item) => ({
+              id: item.id,
+              ...(item.householdAcknowledgedWith?.length ? { householdAcknowledgedWith: item.householdAcknowledgedWith } : {}),
+              address: {
+                firstName: item.address.name.trim().split(/\s+/)[0] || "",
+                lastName: item.address.name.trim().split(/\s+/).slice(1).join(" "),
+                street1: item.address.addressLine1,
+                street2: item.address.addressLine2 || undefined,
+                city: item.address.city,
+                state: item.address.state,
+                zip: item.address.zip,
+                country: item.address.country || "US",
+              },
+              greeting: item.greeting,
+            })),
+          }, ...(priorCheckoutBinding.orderId && priorCheckoutBinding.viewToken ? { replaces: priorCheckoutBinding } : {}) } : {}),
           fontStyleId: draft.note.style || "hwDavid",
           addressDeferred: isAddressDeferred,
           address_deferred: isAddressDeferred,
@@ -1701,6 +1838,7 @@ export function EntryPrototypeClient({
             firstName: senderFirstName,
             lastName: senderLastName,
             street1: sender.street1,
+            street2: sender.street2 || undefined,
             city: sender.city,
             state: sender.state,
             zip: sender.zip,
@@ -1724,6 +1862,24 @@ export function EntryPrototypeClient({
       const data = await res.json();
       if (privateCheckoutIsStale()) return false;
       if (!res.ok) {
+        if (typeof data.orderPath === "string" && (data.code === "MULTI_SEND_PAYMENT_CLOSED" || data.code === "MULTI_SEND_LATE_PAYMENT")) {
+          window.location.assign(data.orderPath);
+          return false;
+        }
+        const erroredRecipient = typeof data.recipientId === "string" ? draft.multiSend?.recipients.find(r => r.id === data.recipientId) : undefined;
+        if (erroredRecipient && data.code === "RECIPIENT_MESSAGE_TOO_LONG") {
+          setReviewEditGreetingId(erroredRecipient.id);
+          setAddressValidationError(data.error || `Review ${erroredRecipient.address.name || "this recipient"}'s greeting.`);
+          setStep("address"); dispatch({ type: "SET_STEP", payload: "address" });
+        } else if (erroredRecipient) {
+          setEditBatchAddressId(erroredRecipient.id);
+          const prefix = `Recipient ${erroredRecipient.id}:`;
+          const visibleError = typeof data.error === "string" && data.error.startsWith(prefix)
+            ? `${erroredRecipient.address.name || "Recipient"}:${data.error.slice(prefix.length)}`
+            : data.error || "Review this recipient's address.";
+          setAddressValidationError(visibleError);
+          setStep("address"); dispatch({ type: "SET_STEP", payload: "address" });
+        }
         throw new Error(data.error || "Failed to initialize payment gateway.");
       }
       if (requestedAddressRevision !== addressRevision.current) {
@@ -1735,7 +1891,9 @@ export function EntryPrototypeClient({
         throw new Error(decision.errorMessage || "Unable to proceed to payment.");
       }
 
-      const expectedPrice = expectedAmountInCents !== undefined
+      const expectedPrice = draft.multiSend
+        ? expectedMultiSendTotal(draft.multiSend.recipients.length, expectedAmountInCents ?? discountToApply?.finalAmountInCents ?? 900)
+        : expectedAmountInCents !== undefined
         ? expectedAmountInCents + (isInternational ? 500 : 0)
         : discountCodeToUse ? (discountToApply?.finalAmountInCents ?? 900) + (isInternational ? 500 : 0) : 900 + (isInternational ? 500 : 0);
       const serverPrice = data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents;
@@ -2115,6 +2273,7 @@ export function EntryPrototypeClient({
         {!embedded && <FlowHeader showClearDraft={false} onClearDraft={resetEntireFlow} orderTotalCents={amountInCents} resetDisabled={isOrderConfirmed || paymentInFlight} />}
         <main className="flex-1 max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
           <Step5Confirmation
+            cardQuantity={draft.multiSend?.recipients.length || 1}
             orderId={orderId}
             viewToken={viewToken}
             fulfillmentStatus={fulfillmentStatus || undefined}
@@ -2187,6 +2346,7 @@ export function EntryPrototypeClient({
         {step === "note" && (
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step2NoteComposition
+              isMultiSend={Boolean(draft.multiSend)}
               amountInCents={currentDisplayTotalCents}
               discountApplied={Boolean(appliedDiscount)}
               hideFixedActionBar={false}
@@ -2233,7 +2393,25 @@ export function EntryPrototypeClient({
               </div>
             )}
             <Step3EnvelopeAddressing
-              recipientTools={<AccountRecipientPicker user={user} currentRecipient={accountContent.recipient||null} onChoose={(_address,contact)=>accountTools.chooseContact(contact)} disabled={paymentInFlight||isInitializingCheckout||isOrderConfirmed} />}
+              multiSendEnabled={isMultiSendFeatureEnabled && !draft.multiSend}
+              multiSendMode={Boolean(draft.multiSend)}
+              previewRecipient={draft.multiSend?.recipients.find(r => r.id === multiSendPreviewId) ? toAddressData(draft.multiSend.recipients.find(r => r.id === multiSendPreviewId)!.address) : undefined}
+              multiSendCardPreview={draft.multiSend ? { coverUrl: currentCard.imageUrl, title: currentCard.title, message: [multiSendPreviewGreeting !== null ? multiSendPreviewGreeting : salutation, draft.note.text, signOff].filter(Boolean).join("\n\n"), fontStyleId: draft.note.style || "hwDavid", occasion: currentCard.occasion, unsaved: multiSendPreviewUnsaved } : undefined}
+              onAddAnotherRecipient={addAnotherRecipient}
+              recipientTools={<>
+                <AccountRecipientPicker user={user} currentRecipient={accountContent.recipient||null} onChoose={(_address,contact)=>accountTools.chooseContact(contact)} disabled={paymentInFlight||isInitializingCheckout||isOrderConfirmed} />
+                {showDeferredBatchPrompt && <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><p className="font-semibold">Multiple cards need complete addresses.</p><p className="mt-1 text-stone-700">Keep one recipient with the address link, or switch to entering complete addresses now.</p><div className="mt-3 flex flex-wrap gap-4"><button type="button" className="font-semibold underline" onClick={()=>setShowDeferredBatchPrompt(false)}>Keep one recipient</button><button type="button" className="font-semibold underline" onClick={()=>addAnotherRecipient(true)}>Switch to complete addresses</button></div></div>}
+                {draft.multiSend && <MultiSendAddressEditor value={draft.multiSend} onChange={updateMultiSend} onUndo={undoMultiSend}
+                  onUndoRemoval={undoRecipientRemoval} hasUndoRemoval={Boolean(draft.multiSendUndo)}
+                  onRemove={removeMultiRecipient} defaultGreeting={salutation} bodyNote={draft.note.text} signOff={signOff} onPreviewRecipient={setMultiSendPreviewId}
+                  onLivePreview={(id, greeting, unsaved) => { setMultiSendPreviewId(id); setMultiSendPreviewGreeting(greeting); setMultiSendPreviewUnsaved(unsaved); }}
+                  editRecipientId={reviewEditGreetingId} onEditConsumed={() => setReviewEditGreetingId(null)}
+                  openNewRecipient={openNewBatchRecipient} onOpenNewConsumed={() => setOpenNewBatchRecipient(false)}
+                  editAddressId={editBatchAddressId} onAddressEditConsumed={() => setEditBatchAddressId(null)}
+                  selectedPreviewId={multiSendPreviewId}
+                  unsavedGuard={(unsaved, focus) => { multiSendUnsavedRef.current = unsaved; multiSendEditorFocusRef.current = focus || null; if (!unsaved && addressValidationError?.includes("Save or cancel the open recipient editor")) setAddressValidationError(null); }} />}
+                {!draft.multiSend && draft.multiSendUndo && <button type="button" className="text-sm font-semibold text-emerald-800 underline" onClick={() => { setSalutation(draft.multiSendUndo?.note.salutation || ""); dispatch({type:"RESTORE_MULTI_SEND_UNDO"}); }}>Undo recipient change</button>}
+              </>}
               hideFixedActionBar={true}
               recipient={recipient}
               onChangeRecipient={handleUpdateRecipient}
@@ -2259,6 +2437,10 @@ export function EntryPrototypeClient({
         {step === "pay" && !draft.coverChoiceRequired && (!draft.accountImage || accountTools.ready) && (!draft.uploadSelection || (privatePreviewReady && !uploadHandoffLoading && verifiedUploadDesignId === draft.uploadSelection.designId && verifiedUploadOwnerUid === user?.uid)) && (
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step4ReviewAndPayment
+              onEditMultiGreeting={(id) => { setReviewEditGreetingId(id); setStep("address"); dispatch({ type: "SET_STEP", payload: "address" }); }}
+              onPreviewMultiRecipient={(id) => { setMultiSendPreviewId(id); setStep("address"); dispatch({ type: "SET_STEP", payload: "address" }); }}
+              multiSendSelectedRecipientId={multiSendPreviewId}
+              multiSendRecipients={draft.multiSend?.recipients.map((r) => ({ id: r.id, name: r.address.name, city: r.address.city, state: r.address.state, greeting: r.greeting.mode === "inherit" ? (draft.multiSend?.note.salutation || "") : r.greeting.text }))}
               isUpdatingCheckout={isInitializingCheckout}
               checkoutError={checkoutInitError}
               onRetryCheckout={() => { void initializeCheckout(); }}
@@ -2302,8 +2484,8 @@ export function EntryPrototypeClient({
       {/* 4. PERSISTENT BOTTOM ACTION BAR (Steps 1 and 3) */}
       {step !== "pay" && step !== "note" && (
         <ActionBar
-          priceDisplay={isInternational || currentDisplayTotalCents !== 900 ? `$${(currentDisplayTotalCents / 100).toFixed(2)} total` : "$9 total"}
-          priceSubtext={isInternational ? "International mailing included" : "USPS mailing included"}
+          priceDisplay={draft.multiSend ? `$${(currentDisplayTotalCents / 100).toFixed(2)} subtotal` : isInternational || currentDisplayTotalCents !== 900 ? `$${(currentDisplayTotalCents / 100).toFixed(2)} total` : "$9 total"}
+          priceSubtext={draft.multiSend ? `${draft.multiSend.recipients.length} committed cards · $9 each` : isInternational ? "International mailing included" : "USPS mailing included"}
           primaryLabel={step === "card" ? "Write your note" : "Review & pay"}
           isLoading={isInitializingCheckout}
           isDisabled={step === "card" ? draft.coverChoiceRequired || !draft.selectedDesign || Boolean(draft.accountImage && !accountTools.ready) || Boolean(draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid)) : false}

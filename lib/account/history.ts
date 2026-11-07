@@ -1,3 +1,5 @@
+import { projectMultiSendView, type MultiSendView } from '@/lib/multi-send/presentation';
+import { listMultiSendDeliveries } from '@/lib/multi-send/orders';
 import type { Order } from '@/lib/types';
 import type { AccountActor } from './contracts';
 import { getOrdersCollection } from '@/lib/firebase-admin';
@@ -13,6 +15,7 @@ export type AccountHistoryOrder = {
   recipientAddress: Order['recipientAddress'] | null; returnAddress: Order['returnAddress'] | null;
   amountInCents: number | null; currency: 'USD'; discountAmountInCents: number | null; mailedAt: string | null;
   trackingAvailable: boolean;
+  multiSendView?: MultiSendView;
 };
 type Cursor = { before: number; id: string };
 
@@ -48,12 +51,13 @@ function project(order: Order): AccountHistoryOrder {
     updatedAt: orderDate(order.updatedAt),
     status: order.status,
     customerStatus: customerStatus(order),
-    recipientName: recipientName || 'Recipient not available',
+    recipientName: order.multiSend ? `${order.multiSend.recipients.length} recipients` : recipientName || 'Recipient not available',
+    multiSendView: projectMultiSendView(order, [], true),
     occasion: typeof order.occasion === 'string' ? order.occasion.slice(0, 140) : null,
     frontAvailable: Boolean(order.uploadMaster || isTrustedOrderFrontSource(order.frontImageUrl)),
-    message: [typeof order.printedMessage === 'string' ? order.printedMessage.trim() : '', typeof order.handwrittenNote === 'string' ? order.handwrittenNote.trim() : ''].filter(Boolean).join('\n\n'),
-    salutation: typeof order.printedMessage === 'string' ? order.printedMessage : '',
-    noteText: typeof order.handwrittenNote === 'string' ? order.handwrittenNote : typeof order.printedMessage === 'string' ? order.printedMessage : '',
+    message: order.multiSend ? [order.multiSend.shared.note.text, order.multiSend.shared.note.signOff].filter(Boolean).join('\n\n') : [typeof order.printedMessage === 'string' ? order.printedMessage.trim() : '', typeof order.handwrittenNote === 'string' ? order.handwrittenNote.trim() : ''].filter(Boolean).join('\n\n'),
+    salutation: order.multiSend ? order.multiSend.shared.note.salutation || '' : typeof order.printedMessage === 'string' ? order.printedMessage : '',
+    noteText: order.multiSend ? order.multiSend.shared.note.text : typeof order.handwrittenNote === 'string' ? order.handwrittenNote : typeof order.printedMessage === 'string' ? order.printedMessage : '',
     fontStyleId: typeof order.fontStyleId === 'string' ? order.fontStyleId : null,
     recipientAddress: recipient && typeof recipient === 'object' ? { firstName: recipient.firstName || '', lastName: recipient.lastName || '', street1: recipient.street1 || '', ...(recipient.street2 ? { street2: recipient.street2 } : {}), city: recipient.city || '', state: recipient.state || '', zip: recipient.zip || '', country: recipient.country || 'US' } : null,
     returnAddress: order.returnAddress && typeof order.returnAddress === 'object' ? { firstName: order.returnAddress.firstName || '', lastName: order.returnAddress.lastName || '', street1: order.returnAddress.street1 || '', ...(order.returnAddress.street2 ? { street2: order.returnAddress.street2 } : {}), city: order.returnAddress.city || '', state: order.returnAddress.state || '', zip: order.returnAddress.zip || '', country: order.returnAddress.country || 'US' } : null,
@@ -130,5 +134,7 @@ export async function getAccountHistoryOrder(actor: AccountActor, id: string): P
   const owner = belongsToActor(order, actor);
   if (!owner) return null;
   const safePublicFront = typeof order.frontImageUrl === 'string' && /^\/presets\/[A-Za-z0-9_.-]+\.(?:png|jpe?g|webp)$/i.test(order.frontImageUrl) ? order.frontImageUrl : null;
-  return { order: project(order), hasPrivateMaster: Boolean(order.uploadMaster), safePublicFront };
+  const projected = project(order);
+  if (order.multiSend) projected.multiSendView = projectMultiSendView(order, await listMultiSendDeliveries(order.id), true);
+  return { order: projected, hasPrivateMaster: Boolean(order.uploadMaster), safePublicFront };
 }

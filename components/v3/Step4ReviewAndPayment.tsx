@@ -48,6 +48,10 @@ export interface AppliedDiscountInfo {
 }
 
 interface Step4ReviewAndPaymentProps {
+  multiSendRecipients?: Array<{ id: string; name: string; city: string; state: string; greeting: string }>;
+  multiSendSelectedRecipientId?: string | null;
+  onEditMultiGreeting?: (id: string) => void;
+  onPreviewMultiRecipient?: (id: string) => void;
   cardTitle: string;
   cardUrl: string;
   salutation: string;
@@ -81,6 +85,10 @@ interface Step4ReviewAndPaymentProps {
 }
 
 interface InnerPaymentProps {
+  multiSendRecipients?: Array<{ id: string; name: string; city: string; state: string; greeting: string }>;
+  multiSendSelectedRecipientId?: string | null;
+  onEditMultiGreeting?: (id: string) => void;
+  onPreviewMultiRecipient?: (id: string) => void;
   cardTitle: string;
   cardUrl: string;
   salutation: string;
@@ -109,6 +117,10 @@ interface InnerPaymentProps {
 }
 
 function InnerPaymentForm({
+  multiSendRecipients,
+  multiSendSelectedRecipientId,
+  onEditMultiGreeting,
+  onPreviewMultiRecipient,
   cardTitle,
   cardUrl,
   salutation,
@@ -591,7 +603,8 @@ function InnerPaymentForm({
     }
   }, []);
 
-  const recipientDisplayName = recipient.fullName?.trim() || "Recipient";
+  const selectedMultiRecipient = multiSendRecipients?.find((person) => person.id === multiSendSelectedRecipientId) || multiSendRecipients?.[0];
+  const recipientDisplayName = multiSendRecipients && multiSendRecipients.length > 1 ? `${multiSendRecipients.length} recipients` : recipient.fullName?.trim() || "Recipient";
   const recipientLocation = useMemo(() => {
     if (!recipient.street1?.trim()) {
       return "Address Added Later";
@@ -643,6 +656,16 @@ function InnerPaymentForm({
         </button>
       </div>
 
+      {multiSendRecipients && multiSendRecipients.length > 1 && <section className="mb-4 rounded-xl border border-stone-200 bg-white p-4" aria-label="Cards in this order">
+        <h2 className="font-semibold text-stone-900">{multiSendRecipients.length} cards · ${((finalPriceCents || 0) / 100).toFixed(2)} total</h2>
+        <ul className="mt-3 divide-y divide-stone-100">{multiSendRecipients.map((person) => <li key={person.id} className="py-3 text-sm">
+          <div className="font-semibold">{person.name}<span className="font-normal text-stone-500">{person.city ? ` · ${person.city}${person.state ? `, ${person.state}` : ""}` : ""}</span></div>
+          <div className="mt-1 text-stone-700">Inside greeting: {person.greeting || "No greeting"}</div>
+          <button type="button" className="mt-1 text-xs font-semibold text-emerald-800 underline" onClick={() => onEditMultiGreeting?.(person.id)}>Edit greeting</button>
+          <button type="button" className="ml-3 mt-1 text-xs font-semibold text-emerald-800 underline" onClick={() => onPreviewMultiRecipient?.(person.id)}>Preview this card</button>
+        </li>)}</ul>
+      </section>}
+
       {/* SLEEK 1-ROW ORDER SUMMARY BAR (Mobile only) */}
       <div className="lg:hidden bg-[#FAF8F5] rounded-2xl p-3 sm:p-3.5 border border-stone-200 shadow-2xs flex items-center justify-between gap-3 min-h-[84px]">
         {/* Left: Thumbnail + Recipient info + Delivery + Preview/Edit */}
@@ -675,7 +698,7 @@ function InnerPaymentForm({
 
             <div className="text-xs text-stone-600 truncate">
               <span className="font-medium text-stone-800">To: </span>
-              <span>{recipientDisplayName}</span>
+              <span>{multiSendRecipients && multiSendRecipients.length > 1 ? `${multiSendRecipients.length} recipients` : recipientDisplayName}</span>
               <span className="text-stone-400"> ({recipientLocation})</span>
             </div>
 
@@ -994,9 +1017,9 @@ function InnerPaymentForm({
                   </span>
                   <span className="text-emerald-700 font-medium">
                     {appliedDiscount.isFree
-                      ? "100% Free Order"
+                      ? (multiSendRecipients && multiSendRecipients.length > 1 ? "One card free" : "100% Free Order")
                       : appliedDiscount.type === "PERCENTAGE"
-                      ? `${appliedDiscount.value}% Off`
+                      ? `${appliedDiscount.value}% Off${multiSendRecipients && multiSendRecipients.length > 1 ? " one card" : ""}`
                       : `-$${(appliedDiscount.discountAmountInCents / 100).toFixed(2)} Off`}
                   </span>
                 </div>
@@ -1170,13 +1193,13 @@ function InnerPaymentForm({
         isOpen={isPreviewOpen}
         onClose={() => setIsPreviewOpen(false)}
         title="Card Preview"
-        description={cardTitle}
+        description={selectedMultiRecipient ? `Card for ${selectedMultiRecipient.name}` : cardTitle}
       >
         <div className="py-2">
           <CardPreview
             coverUrl={cardUrl}
             printedGreeting=""
-            handwrittenNote={[salutation, bodyNote, signOff].filter(Boolean).join("\n\n")}
+            handwrittenNote={[selectedMultiRecipient?.greeting ?? salutation, bodyNote, signOff].filter(Boolean).join("\n\n")}
             fontStyleId={fontStyleId || "hwDavid"}
             occasion={occasion || "Greeting Card"}
             currentStep={4}

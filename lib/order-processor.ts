@@ -23,6 +23,7 @@ import { normalizeCountryCode, getSupplierCountry, isProductionInternationalEnab
 import { isOrderQuoteValid } from "./order-pricing";
 import { isAdminCompQuoteSnapshotValid } from "./admin-comp-pricing";
 import { verifyCheckoutQuoteIntegrity } from "./offer-engine";
+import { isMultiSendOrder } from "./multi-send/orders";
 
 export interface ProcessPaidOrderResult {
   success: boolean;
@@ -94,6 +95,17 @@ export function verifyPaymentIntentForOrder(input: {
     }
   }
   const capturedAmountCents = pi.amount_received ?? pi.amount ?? 0;
+  if (input.order.multiSend?.kind === "parent") {
+    if (pi.metadata?.contentRevision !== input.order.multiSend.contentRevision || pi.metadata?.itemCount !== String(input.order.multiSend.recipients.length)) {
+      return { valid: false, reason: "PaymentIntent batch content revision or item count does not match the immutable multi-send snapshot.", expectedAmountCents, capturedAmountCents };
+    }
+    if (input.order.multiSend.quote.totalCents !== expectedAmountCents || input.order.multiSend.quote.currency !== "USD") {
+      return { valid: false, reason: "Multi-send parent quote does not match its accepted payable amount.", expectedAmountCents, capturedAmountCents };
+    }
+    if (input.order.discountCode && (pi.metadata?.discountCode !== input.order.discountCode || Number(pi.metadata?.discountAmountCents) !== (input.order.discountAmountInCents || 0) || pi.metadata?.quoteId !== input.order.quoteId)) {
+      return { valid: false, reason: "PaymentIntent offer metadata does not match the parent checkout snapshot.", expectedAmountCents, capturedAmountCents };
+    }
+  }
   if (storedQuote && pi.metadata?.recipientCountryCode && pi.metadata.recipientCountryCode !== addressCountry) return { valid: false, reason: "Payment intent destination does not match the order quote.", expectedAmountCents, capturedAmountCents };
   if (storedQuote && pi.metadata?.quoteVersion && pi.metadata.quoteVersion !== storedQuote.version) return { valid: false, reason: "Payment intent quote version does not match the order snapshot.", expectedAmountCents, capturedAmountCents };
   if (storedQuote && pi.metadata?.quotedTotalCents && Number(pi.metadata.quotedTotalCents) !== storedQuote.totalCents) return { valid: false, reason: "Payment intent total does not match the order snapshot.", expectedAmountCents, capturedAmountCents };
@@ -209,6 +221,7 @@ export async function processPaidOrder(
       amount_received: authorityOrder.finalAmountInCents ?? authorityOrder.amountInCents ?? 900,
       currency: "usd", livemode: false, metadata: {
         orderId,
+        ...(authorityOrder.multiSend ? { contentRevision: authorityOrder.multiSend.contentRevision, itemCount: String(authorityOrder.multiSend.recipients.length) } : {}),
         ...(adminQuote ? {
           origin: "ADMIN_COMP",
           adminCompQuoteId: adminQuote.quoteId,
@@ -272,6 +285,7 @@ export async function processPaidOrder(
       expectedFinalCents,
       paymentIntentAmountCents: paymentIntent.amount,
       surchargeCents: authorityOrder.quote?.internationalSurchargeCents || 0,
+      ...(authorityOrder.multiSend ? { multiSendCount: authorityOrder.multiSend.recipients.length } : {}),
     });
     if (!quoteIntegrity.valid) {
       const reason = quoteIntegrity.reason || "Price quote expired or changed; reconfirm the total before fulfillment.";
@@ -365,6 +379,30 @@ export async function processPaidOrder(
     currency: paymentCurrency,
     verifiedPaymentIntent: paymentIntent,
   };
+
+  // A batch is a parent purchase with independently dispatched children. Never
+  // allow this payment convergence path to fall through to singular fulfillment.
+  if (authorityOrder.multiSend) {
+    if (!isMultiSendOrder(authorityOrder)) {
+      await updateOrderStatus(orderId, { status: "PAYMENT_RECEIVED", fulfillmentStatus: "MULTI_SEND_INVALID_HOLD", fulfillmentError: "Paid batch snapshot is invalid; no supplier dispatch was attempted." } as any);
+      return { success: false, status: "PAYMENT_RECEIVED", error: "Paid batch snapshot is invalid." };
+    }
+    const parentRef = getOrdersCollection().doc(orderId);
+    const convergence = await firestoreDb.runTransaction(async (tx: any) => {
+      const snap = await tx.get(parentRef); if (!snap.exists) throw new Error("Order disappeared during payment convergence.");
+      const current = snap.data() as Order;
+      const stillBatchProgressed = isMultiSendOrder(current) && ["MULTI_SEND_READY", "MULTI_SEND_PARTIAL", "MULTI_SEND_CHECKING", "MULTI_SEND_COMPLETE", "MULTI_SEND_HELD", "MULTI_SEND_PREPARATION_UNCERTAIN", "MULTI_SEND_PREPARATION_REJECTED", "MULTI_SEND_INVALID_HOLD"].includes(current.fulfillmentStatus || "");
+      const nextStatus = stillBatchProgressed ? current.status : "QUEUED_FOR_FULFILLMENT";
+      tx.update(parentRef, {
+        status: nextStatus, stripePaymentId: paymentIntentId,
+        paymentMode: localMockAllowed ? "local_mock" : (isLivePayment ? "live" : "stripe_test"),
+        isTest: !isLivePayment, fulfillmentStatus: stillBatchProgressed ? current.fulfillmentStatus : (current.fulfillmentStatus || "MULTI_SEND_QUEUED"),
+        ...(stillBatchProgressed ? {} : { fulfillmentError: undefined }), updatedAt: Date.now(),
+      });
+      return { progressed: stillBatchProgressed, status: nextStatus };
+    });
+    return { success: true, status: convergence.status, alreadyProcessed: convergence.progressed };
+  }
 
   // 1. Atomic Locking via Firestore Transaction:
   // Read and check status atomically, and claim the 'DISPATCHING' lock.

@@ -243,13 +243,24 @@ export async function sendOrderPenningReceiptEmail({
 
   const orderId = order.id;
   const shortOrderId = orderId.replace(/^order_/, "").slice(0, 8).toUpperCase();
+  const batchCount = order.multiSend?.kind === "parent" ? order.multiSend.recipients.length : 0;
 
-  const recipientName =
+  const recipientName = batchCount
+    ? `${batchCount} recipients`
+    :
     [order.recipientAddress?.firstName, order.recipientAddress?.lastName].filter(Boolean).join(" ").trim() ||
     (order as any).recipientName ||
     "your recipient";
 
-  const noteText = order.handwrittenNote || order.printedMessage || "";
+  const noteText = batchCount
+    ? `Your shared note and each recipient's greeting are saved to this ${batchCount}-card order.`
+    : order.handwrittenNote || order.printedMessage || "";
+  const mailingAddressHtml = batchCount
+    ? `${batchCount} separately addressed cards are included in this order.`
+    : formatAddressHtml(order.recipientAddress);
+  const mailingAddressText = batchCount
+    ? `${batchCount} separately addressed cards are included in this order.`
+    : formatAddressText(order.recipientAddress);
   const mailingDetails = orderMailingDetails(order);
   const formattedAmount = mailingDetails.formattedAmount;
 
@@ -257,7 +268,9 @@ export async function sendOrderPenningReceiptEmail({
   const deliveryEstimate = calculateDeliveryEstimate(order.scheduledSendDate);
   const estimatedArrivalText = mailingDetails.isInternational ? "Varies by destination" : `${deliveryEstimate.formattedRange} (Estimated)`;
 
-  const subject = `We're penning your card to ${recipientName}! (Receipt #${shortOrderId})`;
+  const subject = batchCount
+    ? `Your ${batchCount}-card order is confirmed (Receipt #${shortOrderId})`
+    : `We're penning your card to ${recipientName}! (Receipt #${shortOrderId})`;
 
   const textBody = `
 SendMyNotes Studio — Order Confirmation & Receipt
@@ -267,8 +280,8 @@ Total Paid: ${formattedAmount} (All-in, including real ballpoint inking & ${mail
 
 Hello,
 
-Good news! We are preparing your handwritten card for ${recipientName}.
-Our robotic equipment is queuing your personal words to be written in real ballpoint pen ink.
+Good news! We are preparing ${batchCount ? `your ${batchCount} separately addressed cards` : `your handwritten card for ${recipientName}`}.
+Our robotic equipment is queuing each recipient's personal words to be written in real ballpoint pen ink.
 
 ESTIMATED DELIVERY TIMING:
 -------------------------------------------------
@@ -277,7 +290,7 @@ Timing: ${mailingDetails.deliveryText}
 
 MAILING TO:
 -------------------------------------------------
-${formatAddressText(order.recipientAddress)}
+${mailingAddressText}
 
 YOUR HANDWRITTEN NOTE:
 -------------------------------------------------
@@ -326,13 +339,13 @@ https://sendmynotes.com
     <h1 class="title">We're penning your card to ${escapeHtml(recipientName)}!</h1>
     
     <p class="intro">
-      Thank you for your order! Your ${formattedAmount} payment has been received and our robotic equipment is preparing to ink your card in real ballpoint pen.
+      Thank you for your order! Your ${formattedAmount} payment has been received and our robotic equipment is preparing to ink ${batchCount ? `${batchCount} separately addressed cards` : "your card"} in real ballpoint pen.
     </p>
 
     <!-- Receipt Breakdown -->
     <div class="receipt-box">
       <div class="receipt-row">
-        <span>Custom Folded A2 Card (Real Ballpoint Pen Inking)</span>
+        <span>${batchCount ? `${batchCount} Custom Folded A2 Cards` : "Custom Folded A2 Card"} (Real Ballpoint Pen Inking)</span>
         <span>${formattedAmount}</span>
       </div>
       <div class="receipt-row">
@@ -352,13 +365,13 @@ https://sendmynotes.com
     </div>
 
     <!-- Recipient Address -->
-    <div class="section-label">Mailing Address</div>
+    <div class="section-label">${batchCount ? "Recipient Addresses" : "Mailing Address"}</div>
     <div class="address-box">
-      ${formatAddressHtml(order.recipientAddress)}
+      ${mailingAddressHtml}
     </div>
 
     <!-- Note Preview -->
-    <div class="section-label">Your Note (Being Inked in Real Ballpoint Pen)</div>
+    <div class="section-label">${batchCount ? "Personal Notes" : "Your Note (Being Inked in Real Ballpoint Pen)"}</div>
     <div class="note-container">
       ${formatNoteHtml(noteText)}
     </div>

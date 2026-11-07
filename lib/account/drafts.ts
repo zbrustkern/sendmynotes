@@ -15,6 +15,22 @@ function cleanAddress(value: unknown) {
   const row = value as Record<string, unknown>;
   return { name: str(row.name, 100), addressLine1: str(row.addressLine1, 160), addressLine2: str(row.addressLine2, 160), city: str(row.city, 100), state: str(row.state, 80), zip: str(row.zip, 32), country: str(row.country, 80, 'US') };
 }
+function cleanMultiSend(value: unknown): AccountDraftContent['multiSend'] {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (row.version !== 1 || !Array.isArray(row.recipients) || row.recipients.length < 1 || row.recipients.length > 25) throw new AccountError('invalid', 'Multi-send draft is invalid.');
+  const recipients = row.recipients.map((entry) => {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) throw new AccountError('invalid', 'Multi-send recipient is invalid.');
+    const r = entry as Record<string, unknown>; const address = r.address as Record<string, unknown> | null;
+    if (typeof r.id !== 'string' || !r.id || !address || typeof address !== 'object') throw new AccountError('invalid', 'Multi-send recipient is incomplete.');
+    const greeting = r.greeting as Record<string, unknown> | null;
+    return { id: str(r.id, 128), address: { name: str(address.name, 100), addressLine1: str(address.addressLine1, 160), addressLine2: str(address.addressLine2, 160), city: str(address.city, 100), state: str(address.state, 80), zip: str(address.zip, 32), country: str(address.country, 80, 'US') },
+      greeting: greeting?.mode === 'custom' ? { mode: 'custom' as const, text: str(greeting.text, 120) } : { mode: 'inherit' as const },
+      householdAcknowledgedWith: Array.isArray(r.householdAcknowledgedWith) ? r.householdAcknowledgedWith.filter((ack): ack is {id:string;addressKey:string} => Boolean(ack && typeof ack === 'object' && typeof (ack as any).id === 'string' && typeof (ack as any).addressKey === 'string')).slice(0,25) : undefined };
+  });
+  const noteRow = row.note && typeof row.note === 'object' ? row.note as Record<string, unknown> : {};
+  return { version: 1, checkoutId: str(row.checkoutId, 128), originWasDeferred: row.originWasDeferred === true, recipients, note: { salutation: str(noteRow.salutation, 120), text: str(noteRow.text, 12000), signOff: str(noteRow.signOff, 120), style: str(noteRow.style, 80, 'hwDavid') } };
+}
 export function sanitizeAccountDraftContent(value: unknown): AccountDraftContent {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new AccountError('invalid', 'Draft contents are incomplete.');
   const row = value as Record<string, unknown>;
@@ -42,7 +58,7 @@ export function sanitizeAccountDraftContent(value: unknown): AccountDraftContent
     if (selectedDesign?.source !== 'account') throw new AccountError('invalid', 'The saved image selection is incomplete.');
   } else if (selectedDesign?.source === 'account') throw new AccountError('invalid', 'The saved image selection is incomplete.');
   const step = ['card', 'note', 'address'].includes(String(row.currentStep)) ? row.currentStep as 'card' | 'note' | 'address' : 'card';
-  const clean: AccountDraftContent = { selectedDesign, note, recipient: cleanAddress(row.recipient), sender: cleanAddress(row.sender), currentStep: step };
+  const clean: AccountDraftContent = { selectedDesign, note, recipient: cleanAddress(row.recipient), sender: cleanAddress(row.sender), currentStep: step, multiSend: cleanMultiSend(row.multiSend) };
   if (imageRef) clean.accountImage = imageRef;
   if (typeof row.contactId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(row.contactId)) clean.contactId = row.contactId;
   if (typeof row.occasionId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(row.occasionId)) clean.occasionId = row.occasionId;

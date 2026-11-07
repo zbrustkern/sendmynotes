@@ -1,5 +1,8 @@
 import { Suspense } from "react";
 import { EntryPrototypeClient } from "./client";
+import { getFeatureFlagsState } from "@/lib/feature-flags";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   robots: {
@@ -9,7 +12,8 @@ export const metadata = {
   title: "SendMyNotes - Choose a Card (Prototype)",
 };
 
-export default function EntryPreviewPage() {
+export default async function EntryPreviewPage() {
+  const flags = await getFeatureFlagsState();
   return (
     <Suspense
       fallback={
@@ -23,7 +27,7 @@ export default function EntryPreviewPage() {
         </div>
       }
     >
-      <EntryPrototypeClient />
+      <EntryPrototypeClient multiSendEnabled={flags.flags.multiSendEnabled === true} />
     </Suspense>
   );
 }

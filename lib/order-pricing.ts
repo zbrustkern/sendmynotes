@@ -32,8 +32,12 @@ export function calculateOrderQuote(input: { countryCode: string; discountCents?
 
 
 export function isOrderQuoteValid(quote: OrderQuote | null | undefined): quote is OrderQuote {
-  if (!quote || quote.version !== ORDER_PRICE_VERSION || quote.currency !== "USD") return false;
+  if (!quote || quote.currency !== "USD") return false;
   if (!/^[A-Z]{2}$/.test(quote.countryCode)) return false;
+  if (quote.version === "multi-send-900-v1") {
+    return quote.countryCode === "US" && Number.isSafeInteger(quote.basePriceCents) && quote.basePriceCents >= 1800 && quote.basePriceCents % BASE_PRICE_CENTS === 0 && Number.isSafeInteger(quote.discountCents) && quote.discountCents >= 0 && quote.discountCents <= BASE_PRICE_CENTS && quote.internationalSurchargeCents === 0 && quote.totalCents === quote.basePriceCents - quote.discountCents;
+  }
+  if (quote.version !== ORDER_PRICE_VERSION) return false;
   if (!Number.isSafeInteger(quote.basePriceCents) || quote.basePriceCents !== BASE_PRICE_CENTS) return false;
   if (!Number.isSafeInteger(quote.discountCents) || quote.discountCents < 0 || quote.discountCents > quote.basePriceCents) return false;
   const expectedSurcharge = quote.countryCode === "US" ? 0 : INTERNATIONAL_SURCHARGE_CENTS;

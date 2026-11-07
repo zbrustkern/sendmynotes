@@ -3,6 +3,9 @@ import { stripPrivateOrderMedia } from "@/lib/upload/order-master";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderById } from "@/lib/firebase-admin";
 import { verifyAdminAuth } from "@/lib/admin-auth";
+import { requireAccountActor } from "@/lib/account/http";
+import { listMultiSendDeliveries } from "@/lib/multi-send/orders";
+import { projectMultiSendView } from "@/lib/multi-send/presentation";
 import { Order } from "@/lib/types";
 import { projectPurchaseMeasurementForOrder } from "@/lib/purchase-measurement";
 
@@ -23,6 +26,8 @@ function sanitizeOrderForPublicView(order: Order): Order {
     adminCompPaymentRequestId: _requestId, adminCompPaymentRequestStatus: _requestStatus, ...publicOrder } = order;
   return {
     ...stripPrivateRetention(stripPrivateOrderMedia(publicOrder)),
+    multiSend: undefined,
+    printedMessage: order.multiSend ? "" : order.printedMessage,
     customerEmail: maskEmail(order.customerEmail),
     recipientAddress: {
       ...order.recipientAddress,
@@ -45,6 +50,9 @@ function sanitizeOrderForPublicView(order: Order): Order {
     isRedacted: true,
   };
 }
+
+export const dynamic = "force-dynamic";
+const privateHeaders = { "Cache-Control": "private, no-store, max-age=0" };
 
 export async function GET(
   req: NextRequest,
@@ -71,25 +79,30 @@ export async function GET(
       url.searchParams.get("viewToken") ||
       req.headers.get("x-view-token");
 
-    const isAuthorized =
+    let isAuthorized =
       Boolean(order.viewToken && token && token === order.viewToken) ||
       verifyAdminAuth(req);
 
+    if (!isAuthorized && order.multiSend && req.headers.get('authorization')) {
+      try { const actor = await requireAccountActor(req); isAuthorized = Boolean(order.userId && order.userId === actor.uid); } catch { /* A failed account proof never grants access. */ }
+    }
     if (isAuthorized) {
       const purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, order.purchaseMeasurement);
       return NextResponse.json({
         order: {
           ...stripPrivateRetention(stripPrivateOrderMedia(order)),
+          multiSend: undefined,
+          multiSendView: projectMultiSendView(order, order.multiSend ? await listMultiSendDeliveries(order.id) : [], true),
           purchaseMeasurement,
           isRedacted: false,
         },
-      });
+      }, { headers: privateHeaders });
     }
 
     // Public / Unauthenticated requester receives PII-sanitized view
     return NextResponse.json({
-      order: sanitizeOrderForPublicView(order),
-    });
+      order: { ...sanitizeOrderForPublicView(order), multiSendView: projectMultiSendView(order, [], false) },
+    }, { headers: privateHeaders });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error fetching order";
     return NextResponse.json({ error: msg }, { status: 500 });
@@ -151,6 +164,8 @@ export async function POST(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
 
+    // Email/ZIP knowledge is insufficient to unlock an entire recipient list.
+    if (order.multiSend) return NextResponse.json({ error: "Use your secure receipt link or signed-in account to view this order." }, { status: 403 });
     const body = await req.json();
     const { email, zip } = body;
 

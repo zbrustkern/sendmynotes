@@ -1,0 +1,31 @@
+Final local verification (base 8940401; implementation on codex/multi-send-sprint-0028):
+PASS node node_modules/typescript/bin/tsc --noEmit
+PASS npm run build (production build; scrubbed environment, external network denied; no cloud credentials)
+PASS git diff --check
+PASS saved browser-acceptance.cjs against localhost:3110 (including refresh, households, undo, CSS zoom and four viewport widths)
+PASS browser-deferral.cjs against localhost:3110
+PASS run-safe-tests.py for the 10 suites listed as RUN in tests.log; isolated mock stores and external transports denied.
+
+Additional relevant regression suites passed during combined review:
+tests/account-builder.test.ts
+tests/account-history.test.ts
+tests/account-library-drafts.test.ts
+tests/checkout-contact-route.integration.test.ts
+tests/email-transactional.test.ts
+tests/google-purchase-measurement.test.ts
+tests/handwrytten-sync.test.ts
+tests/international-pricing.test.ts
+tests/meta-conversions-api.test.ts
+tests/multi-send-presentation.test.ts
+tests/payment-mode-safety.test.ts
+tests/sender-validation.test.ts
+tests/sprint-0005-offer-engine.test.ts
+tests/upload-checkout.test.ts
+tests/upload-creative.test.ts
+tests/transaction-security.test.ts
+tests/feature-flags.test.ts
+
+Build warnings from ADC discovery were handled by existing fallback paths with network denied. /preview/entry is dynamic in the final build. No live provider, financial or email calls were made.
+Browser execution requires PLAYWRIGHT_MODULE_PATH to point to an installed Playwright package and the Chrome executable used by the script. Seed only the isolated local mock feature flag, never a live configuration. The screenshots use synthetic recipient data.
+
+Environment-dependent acceptance remains open in REVIEW.md and OPERATIONS.md.

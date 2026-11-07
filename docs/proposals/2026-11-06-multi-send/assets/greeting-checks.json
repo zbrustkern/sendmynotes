@@ -1,0 +1,68 @@
+{
+  "scope": "Local proposed mockups only; no supplier, payment, physical fit or product implementation tested.",
+  "layouts": [
+    {
+      "width": 320,
+      "state": "greetings"
+    },
+    {
+      "width": 320,
+      "state": "greetingedit"
+    },
+    {
+      "width": 320,
+      "state": "greetingreview"
+    },
+    {
+      "width": 390,
+      "state": "greetings"
+    },
+    {
+      "width": 390,
+      "state": "greetingedit"
+    },
+    {
+      "width": 390,
+      "state": "greetingreview"
+    },
+    {
+      "width": 768,
+      "state": "greetings"
+    },
+    {
+      "width": 768,
+      "state": "greetingedit"
+    },
+    {
+      "width": 768,
+      "state": "greetingreview"
+    },
+    {
+      "width": 1280,
+      "state": "greetings"
+    },
+    {
+      "width": 1280,
+      "state": "greetingedit"
+    },
+    {
+      "width": 1280,
+      "state": "greetingreview"
+    }
+  ],
+  "verified": [
+    "Single baseline unchanged",
+    "Live recipient preview",
+    "Unsaved edit guard and mobile focus",
+    "Shared body/sign-off unchanged",
+    "Cancel retains saved greeting",
+    "Default changes preserve overrides",
+    "Reset resumes inheritance",
+    "Blank override omits greeting",
+    "Address edit retains override",
+    "Payment displays exact greetings",
+    "Payment edit returns to recipient"
+  ],
+  "errors": [],
+  "requests": []
+}

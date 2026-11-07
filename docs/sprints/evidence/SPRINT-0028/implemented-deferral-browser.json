@@ -1,0 +1,9 @@
+{
+  "errors": [],
+  "checks": [
+    "conflict before validation",
+    "keep preserves deferral",
+    "switch completes first recipient",
+    "collapse does not revive discarded deferral"
+  ]
+}

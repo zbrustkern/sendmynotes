@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import type { Order, MailingAddress } from "@/lib/types";
+import { MultiSendDeliveryPanel } from "./MultiSendDeliveryPanel";
 import { OrderFollowupPanel } from "@/components/admin/OrderFollowupPanel";
 import type {
   InvestigationOrderSummary,
@@ -73,6 +74,7 @@ export function OrderJourneyDrawer({
   const [queueObservations, setQueueObservations] = useState<Record<string, { state: string; timestamp: number; clientReported: true }>>({});
 
   const orderId = "orderId" in order ? order.orderId : order.id;
+  const isBatch = Boolean((order as any).multiSend || (order as any).multiSendQuantity);
 
   // Auto-fetch timeline if not provided
   useEffect(() => {
@@ -175,7 +177,7 @@ export function OrderJourneyDrawer({
             </button>
           )}
 
-          {onInspectProof && (
+          {onInspectProof && !isBatch && (
             <button
               type="button"
               onClick={() => onInspectProof(orderId)}
@@ -308,7 +310,7 @@ export function OrderJourneyDrawer({
             </button>
           )}
 
-          {onSyncHandwrytten && (
+          {onSyncHandwrytten && !isBatch && (
             <button
               type="button"
               disabled={activeAction !== null}
@@ -324,7 +326,7 @@ export function OrderJourneyDrawer({
             </button>
           )}
 
-          {onRetryAddress && (
+          {onRetryAddress && !isBatch && (
             <button
               type="button"
               onClick={() => onRetryAddress(order)}
@@ -336,7 +338,7 @@ export function OrderJourneyDrawer({
           )}
         </div>
 
-        {onRetryFulfillment && (
+        {onRetryFulfillment && !isBatch && (
           <div>
             <button
               type="button"
@@ -354,6 +356,8 @@ export function OrderJourneyDrawer({
           </div>
         )}
       </div>
+
+      {isBatch && <MultiSendDeliveryPanel orderId={orderId} revealed={(order as any).multiSendView} />}
 
       {/* 4. CHRONOLOGICAL UNIFIED EVIDENCE TIMELINE (SPRINT-0007-T02, AC02) */}
       <div className="bg-stone-50/60 p-4 rounded-2xl border border-stone-200 space-y-3">

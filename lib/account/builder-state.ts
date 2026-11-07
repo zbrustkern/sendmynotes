@@ -13,6 +13,7 @@ export function restoreAccountDraft(content:AccountDraftContent,uid:string,exper
     selectedDesign:content.selectedDesign?{...content.selectedDesign,accepted:false,imageUrl:content.accountImage?'':content.selectedDesign.imageUrl}:null,
     accountImage:content.accountImage||null,accountOwnerUid:content.accountImage?uid:null,
     note:{...content.note},recipient:content.recipient?{...content.recipient}:null,sender:content.sender?{...content.sender}:null,
+    multiSend:content.multiSend ? structuredClone(content.multiSend) : null,
     currentStep:'card',
   };
 }

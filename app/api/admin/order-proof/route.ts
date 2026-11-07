@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
+    if (order.multiSend?.kind === "parent") {
+      return NextResponse.json({ error: "Batch proof lookup requires an individual delivery ID.", code: "MULTI_SEND_CHILD_REQUIRED" }, { status: 409 });
+    }
 
     let hwLiveStatus: any = null;
     if (order.handwryttenOrderId) {

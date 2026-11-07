@@ -46,6 +46,9 @@ export async function POST(req: NextRequest) {
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
+    if (order.multiSend?.kind === "parent") {
+      return NextResponse.json({ error: "Batch deliveries cannot use singular retry or parent address correction. Resolve one recipient delivery by its child ID.", code: "MULTI_SEND_CHILD_REQUIRED" }, { status: 409 });
+    }
 
     if (order.isInternationalPreview) {
       return NextResponse.json({ error: "International preview orders are held from supplier fulfillment." }, { status: 423 });

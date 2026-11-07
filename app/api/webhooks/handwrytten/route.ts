@@ -1,7 +1,7 @@
 import { localTimeToEpoch, validCivilDate } from "@/lib/account/calendar";
 import { trySyncPostPurchaseOrder } from "@/lib/post-purchase/integration";
 import { NextRequest, NextResponse } from "next/server";
-import { getOrdersCollection, updateOrderStatus } from "@/lib/firebase-admin";
+import { firestoreDb, getOrdersCollection, updateOrderStatus } from "@/lib/firebase-admin";
 import { Order } from "@/lib/types";
 
 /**
@@ -99,6 +99,34 @@ export async function POST(req: NextRequest) {
       nestedOrder?.order_status ||
       "updated"
     ).toLowerCase().trim();
+
+    // Batch supplier IDs belong to child delivery records. Update only the
+    // matched child and derive the parent summary from its frozen manifest.
+    const deliverySnapshot = await firestoreDb.collectionGroup("deliveries").where("supplierOrderId", "==", hwOrderId).limit(1).get();
+    if (!deliverySnapshot.empty) {
+      if (!webhookSecret) return NextResponse.json({ error: "Batch delivery webhook authentication is not configured." }, { status: 503 });
+      const urlToken = req.nextUrl.searchParams.get("token") || req.nextUrl.searchParams.get("secret");
+      const headerToken = req.headers.get("x-webhook-token") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+      if ((urlToken || headerToken) !== webhookSecret) return NextResponse.json({ error: "Unauthorized webhook caller" }, { status: 401 });
+      const deliveryDoc = deliverySnapshot.docs[0];
+      const delivery = deliveryDoc.data() as any;
+      const parentRef = deliveryDoc.ref.parent.parent;
+      if (!parentRef || delivery.parentOrderId !== parentRef.id) return NextResponse.json({ received: true, warning: "Batch delivery parent could not be verified." });
+      const mailed = ["mailed", "sent", "shipped", "complete", "completed", "done"].includes(rawStatus);
+      const transitioned = await firestoreDb.runTransaction(async (tx: any) => {
+        const currentSnap = await tx.get(deliveryDoc.ref); if (!currentSnap.exists) return false;
+        const current = currentSnap.data() as any;
+        if (current.supplierOrderId !== hwOrderId || !["ACCEPTED", "MAILED", "DISPATCH_UNCERTAIN"].includes(current.state)) return false;
+        tx.update(deliveryDoc.ref, { state: mailed ? "MAILED" : current.state, handwryttenStatus: rawStatus, ...(payload.tracking_number ? { trackingNumber: String(payload.tracking_number) } : {}), ...(payload.tracking_url ? { trackingUrl: String(payload.tracking_url) } : {}), ...(payload.date_sent || payload.mailed_date ? { mailedAt: String(payload.date_sent || payload.mailed_date) } : {}), stateVersion: Number(current.stateVersion || 0) + 1, updatedAt: Date.now() }); return true;
+      });
+      if (!transitioned) return NextResponse.json({ received: true, warning: "Delivery state changed or is not supplier-status-syncable." });
+      const children = await parentRef.collection("deliveries").get();
+      const rows = children.docs.map((doc: any) => doc.data());
+      const uncertain = rows.some((row: any) => row.state === "DISPATCH_UNCERTAIN" || row.state === "DISPATCHING");
+      const allTerminal = rows.length > 0 && rows.every((row: any) => ["MAILED", "REJECTED", "REFUNDED"].includes(row.state));
+      await parentRef.update({ status: "QUEUED_FOR_FULFILLMENT", fulfillmentStatus: uncertain ? "MULTI_SEND_CHECKING" : allTerminal ? "MULTI_SEND_COMPLETE" : "MULTI_SEND_PARTIAL", updatedAt: Date.now() });
+      return NextResponse.json({ received: true, orderId: parentRef.id, deliveryId: delivery.recipientId, handwryttenOrderId: hwOrderId, status: mailed ? "MAILED" : "PROCESSING_HANDWRYTTEN" });
+    }
 
     // Query matching SendMyNotes order from Firestore
     const snapshot = await getOrdersCollection()

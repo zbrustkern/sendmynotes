@@ -23,6 +23,8 @@ import {
   Eye,
   Loader2,
 } from "lucide-react";
+import { MultiSendOrderStatus } from "@/components/multi-send/MultiSendOrderStatus";
+import type { MultiSendView } from "@/lib/multi-send/presentation";
 import { Order } from "@/lib/types";
 import { isCustomerPurchaseOrder } from "@/lib/customer-purchase-classification";
 import { detectCardIntent } from "@/lib/card-intent";
@@ -40,7 +42,7 @@ export default function OrderStatusPage() {
     if (orderId) cancelGoogleAdsPurchaseRetries(orderId);
   }, [orderId]);
 
-  const [order, setOrder] = useState<Order | null>(null);
+  const [order, setOrder] = useState<(Order & {multiSendView?: MultiSendView}) | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
@@ -57,7 +59,7 @@ export default function OrderStatusPage() {
 
   // Auto-sync recipient address to user's address book if logged in or after claiming account
   useEffect(() => {
-    if (user && order?.recipientAddress && order.recipientAddress.street1) {
+    if (user && !order?.multiSendView && order?.recipientAddress && order.recipientAddress.street1) {
       saveAddress({
         firstName: order.recipientAddress.firstName,
         lastName: order.recipientAddress.lastName,
@@ -167,6 +169,7 @@ export default function OrderStatusPage() {
             try {
             trackMetaPurchase({
               orderId: data.order.id,
+              itemCount: data.order.purchaseMeasurement?.itemCount || data.order.multiSendView?.quantity || 1,
               value: data.order.amountInCents ? data.order.amountInCents / 100 : 9.0,
               customerEmail: data.order.customerEmail,
               customerName: data.order.returnAddress?.firstName
@@ -263,6 +266,8 @@ export default function OrderStatusPage() {
       </div>
     );
   }
+
+  if (order.multiSendView) return <MultiSendOrderStatus order={order} view={order.multiSendView} />;
 
   const orderTotalCents = order.quote?.totalCents ?? order.finalAmountInCents ?? order.amountInCents ?? 900;
   const isInternational = Boolean((order.quote?.countryCode || order.recipientAddress.country) && !["US", "USA", "United States"].includes(order.quote?.countryCode || order.recipientAddress.country || ""));

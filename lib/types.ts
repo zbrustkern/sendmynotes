@@ -1,5 +1,6 @@
 import type { UploadOrderMaster } from "./upload/contracts";
 import type { AttributionSnapshotV2 } from "./attribution-contract";
+import type { MultiSendParentSnapshot } from "./multi-send/contracts";
 export interface MailingAddress {
   firstName: string;
   lastName: string;
@@ -101,6 +102,8 @@ export interface OrderAttribution {
 
 export interface Order {
   id: string;
+  /** Immutable, server-authored multi-send purchase and per-recipient payload snapshot. */
+  multiSend?: MultiSendParentSnapshot;
   operationId?: string;
   receiptEmailSentAt?: number;
   addressDeferredEmailSentAt?: number;
@@ -186,6 +189,7 @@ export interface Order {
 
 export interface PurchaseMeasurementSnapshot {
   version: 1;
+  itemCount?: number;
   transactionId: string;
   amountInCents: number;
   currency: "USD";
@@ -262,6 +266,8 @@ export interface HandwryttenOrderParams {
   recipient: MailingAddress;
   returnAddress: MailingAddress;
   scheduledSendDate?: string; // YYYY-MM-DD
+  /** Used only for a frozen batch child whose complete paid message is already composed. */
+  exactMessage?: boolean;
 }
 
 export interface HandwryttenOrderResult {

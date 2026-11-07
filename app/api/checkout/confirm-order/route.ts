@@ -277,6 +277,7 @@ export async function POST(req: NextRequest) {
         expectedFinalCents: expectedAmountCents,
         paymentIntentAmountCents: serverVerifiedPaymentIntent?.amount ?? expectedAmountCents,
         surchargeCents: order.quote?.internationalSurchargeCents || 0,
+        ...(order.multiSend ? { multiSendCount: order.multiSend.recipients.length } : {}),
       });
       if (!integrityCheck.valid) {
         return NextResponse.json({ success: false, error: integrityCheck.reason || "Price changed or quote expired. Please reconfirm total before paying.", requiresPriceReconfirmation: true }, { status: 409 });
@@ -354,6 +355,7 @@ export async function POST(req: NextRequest) {
         destinationSurchargeCents: order.quote?.internationalSurchargeCents || 0,
         verifiedCaptureId: verifiedPaymentIntentId,
         requireAuthoritativeBinding: true,
+        ...(order.multiSend ? { multiSendCount: order.multiSend.recipients.length } : {}),
       });
       offerRedemption = redemption.redeemed
         ? { status: "redeemed" }

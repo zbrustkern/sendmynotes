@@ -1,5 +1,5 @@
 import type { MailingAddress } from '@/lib/types';
-import type { SelectedDesign, NoteDraft, AddressDraft } from '@/lib/draft/types';
+import type { SelectedDesign, NoteDraft, AddressDraft, MultiSendDraft } from '@/lib/draft/types';
 
 export type AccountActor = { uid: string; email: string; emailVerified: boolean };
 export type VersionedRecord = { id: string; version: number; createdAt: number; updatedAt: number };
@@ -26,7 +26,7 @@ export type AccountImage = VersionedRecord & {
 };
 export type AccountDraftContent = {
   selectedDesign: SelectedDesign | null; accountImage?: AccountImageSelection | null;
-  note: NoteDraft; recipient: AddressDraft | null; sender: AddressDraft | null;
+  note: NoteDraft; recipient: AddressDraft | null; sender: AddressDraft | null; multiSend?: MultiSendDraft | null;
   contactId?: string; occasionId?: string; currentStep?: 'card' | 'note' | 'address';
 };
 export type AccountDraft = VersionedRecord & {

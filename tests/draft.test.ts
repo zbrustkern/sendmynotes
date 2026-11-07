@@ -255,6 +255,35 @@ const ownerRestore = draftReducer(switchedPrivate, {
 assert(ownerRestore.uploadSelection?.designId === privateSelection.designId && ownerRestore.uploadOwnerUid === "uid-a", "Original owner can restore only after the caller supplies the validated same-owner selection");
 
 // 8. clearDraft verification
+const multi = draftReducer(createInitialDraft(), { type: "SET_MULTI_SEND", payload: {
+  version: 1,
+  checkoutId: "b7f8dd66-f0d7-4e22-844e-998c88631c9b",
+  note: { salutation: "Dear friends,", text: "Hello", signOff: "Love,", style: "hwDavid" },
+  recipients: [{ id: "r1", address: { name: "Maya", addressLine1: "1 Main", city: "Lafayette", state: "IN", zip: "47901", country: "US" }, greeting: { mode: "inherit" } }, { id: "r2", address: { name: "Jordan", addressLine1: "2 Main", city: "Lafayette", state: "IN", zip: "47901", country: "US" }, greeting: { mode: "custom", text: "" } }],
+} });
+assert(multi.multiSend?.recipients[1].greeting.mode === "custom" && multi.multiSend.recipients[1].greeting.text === "", "Multi-send preserves explicit blank greeting separately from inheritance");
+assert(multi.draftRevision === 1 && multi.checkoutSnapshotId === null, "Multi-send edits revise the draft and invalidate checkout snapshot");
+const multiStorage = new MemoryDraftStorage();
+assert(saveDraft(multi, multiStorage), "Multi-send draft saves through allowlisted persistence");
+const loadedMulti = loadDraft(multiStorage);
+assert(loadedMulti?.multiSend?.recipients.length === 2 && loadedMulti.multiSend.recipients[1].greeting.mode === "custom" && loadedMulti.multiSend.recipients[1].greeting.text === "", "Refresh migration keeps recipients and explicit blank greeting");
+const changedDefault = draftReducer(multi, { type: "UPDATE_NOTE", payload: { salutation: "Dear everyone," } });
+assert(changedDefault.multiSend?.note.salutation === "Dear everyone,", "Shared salutation edits propagate to multi-send inheritance");
+assert(changedDefault.multiSend?.recipients[1].greeting.mode === "custom" && changedDefault.multiSend.recipients[1].greeting.text === "", "Default salutation edits leave explicit blank overrides unchanged");
+const collapsed = draftReducer(multi, { type: "SET_MULTI_SEND", payload: null });
+assert(collapsed.multiSend === null && collapsed.multiSendUndo?.recipients.length === 2, "Collapsing to one retains prior recipient identities and greeting choices for undo");
+const undoStorage = new MemoryDraftStorage();
+saveDraft(collapsed, undoStorage);
+const loadedCollapsed = loadDraft(undoStorage);
+assert(loadedCollapsed?.multiSendUndo?.recipients[1].greeting.mode === "custom", "Undo state persists across refresh");
+const restoredMulti = loadedCollapsed && draftReducer(loadedCollapsed, { type: "RESTORE_MULTI_SEND_UNDO" });
+assert(restoredMulti?.multiSend?.recipients.length === 2 && restoredMulti.note.salutation === "Dear friends,", "Undo restores recipient set and shared default greeting");
+const beforeRemove = multi;
+const afterRemove = draftReducer(beforeRemove, { type: "SET_MULTI_SEND_UNDO", payload: beforeRemove.multiSend ?? null });
+const removedThird = draftReducer(afterRemove, { type: "SET_MULTI_SEND", payload: { ...multi.multiSend!, recipients: multi.multiSend!.recipients.slice(0, 1) } });
+const undoRemoval = draftReducer(removedThird, { type: "RESTORE_MULTI_SEND_UNDO" });
+assert(undoRemoval.multiSend?.recipients.length === 2 && undoRemoval.multiSend.recipients[1].id === "r2", "Removing one of several recipients can be undone without losing greeting choices");
+
 console.log("\n--- 8. Testing clearDraft ---");
 clearDraft(mockStorage);
 assert(mockStorage.getItem(DRAFT_STORAGE_KEY) === null, "clearDraft removes item from storage");

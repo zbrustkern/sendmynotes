@@ -302,6 +302,24 @@
       "interactive_preview": "docs/proposals/2026-11-06-holiday-cards/assets/holiday-cards-preview.html",
       "authorization": "Founder authorized Approach A (graceful seasonal gating) and addition of 2 explicitly Christmas cards on November 6, 2026.",
       "confirmed_decisions": "Approach A seasonal gating; expand Christmas & Holidays to 7 cards (The Heirloom Tree, The Holiday Nutcracker, Warm Hearth & Cedar, Winter Cardinals, Gilded Juniper Wreath, Snowy Cottage at Twilight, Vintage Evergreen baseline); preserve schema compatibility and dimension 4 A2 ratio."
+    },
+    {
+      "id": "SPRINT-0028",
+      "title": "Minimal multi-send, one payment and reliable per-card fulfillment",
+      "path": "docs/sprints/SPRINT-0028.md",
+      "proposal": "docs/proposals/2026-11-06-multi-send/DESIGN_SPEC.md",
+      "greeting_design": "docs/proposals/2026-11-06-multi-send/PERSONAL_GREETINGS.md",
+      "interactive_preview": "docs/proposals/2026-11-06-multi-send/assets/personal-greetings.html",
+      "planning_notes": "docs/sprints/drafts/SPRINT-0028-PLANNING-NOTES.md",
+      "status": "in_progress",
+      "implementation_status": "integrated_local_checks_passed",
+      "execution_method": "local_gpt-6-luna_agents_user_requested",
+      "execution_base": "8940401",
+      "execution_worktree": "/private/tmp/sendmynotes-sprint0028-8940401",
+      "authorization": "User approved personal greeting scope and requested Luna agents execute locally. No deployment or live provider side effects.",
+      "updated_at": "2026-11-06",
+      "acceptance_status": "local_verified_hosted_and_supplier_gates_pending",
+      "execution_review": "docs/sprints/evidence/SPRINT-0028/REVIEW.md"
     }
   ]
 }

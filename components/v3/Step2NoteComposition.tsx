@@ -209,6 +209,7 @@ export const STUDIO_OCCASION_PILLS = [
 ] as const;
 
 interface Step2NoteCompositionProps {
+  isMultiSend?: boolean;
   amountInCents?: number;
   discountApplied?: boolean;
   salutation: string;
@@ -231,6 +232,7 @@ interface Step2NoteCompositionProps {
 }
 
 export function Step2NoteComposition({
+  isMultiSend = false,
   amountInCents = 900,
   discountApplied = false,
   salutation,
@@ -500,7 +502,7 @@ export function Step2NoteComposition({
             {/* 1. GREETING INPUT */}
             <div>
               <label className="block text-xs font-semibold text-stone-700 mb-1">
-                Greeting (optional)
+                {isMultiSend ? "Default greeting" : "Greeting (optional)"}
               </label>
               <input
                 ref={salutationInputRef}

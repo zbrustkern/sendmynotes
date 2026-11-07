@@ -374,6 +374,8 @@ export interface VerifyQuoteIntegrityInput {
   paymentIntentAmountCents?: number;
   /** Destination upgrade added after the offer discount, never discounted. */
   surchargeCents?: number;
+  /** Extra cards priced at the base rate; offer still discounts one card only. */
+  multiSendCount?: number;
   nowMs?: number;
 }
 
@@ -405,14 +407,15 @@ export async function verifyCheckoutQuoteIntegrity(
 
         // 1. Expiration check
         const surchargeCents = Math.max(0, Math.floor(input.surchargeCents || 0));
-        const authoritativeQuotedTotal = quote.payableAmountCents + surchargeCents;
+        const extraCardsCents = Math.max(0, Math.floor(input.multiSendCount || 1) - 1) * CARD_FLAT_RATE_CENTS;
+        const authoritativeQuotedTotal = quote.payableAmountCents + extraCardsCents + surchargeCents;
         if (nowMs > quote.expiresAt) {
           // Re-evaluate fresh base pricing, then reapply the immutable destination surcharge.
           const fresh = await issueOfferPriceQuote({ code: quote.code, nowMs });
           return {
             valid: false,
             requiresPriceReconfirmation: true,
-            authoritativeFinalCents: (fresh.finalAmountInCents ?? CARD_FLAT_RATE_CENTS) + surchargeCents,
+            authoritativeFinalCents: (fresh.finalAmountInCents ?? CARD_FLAT_RATE_CENTS) + extraCardsCents + surchargeCents,
             staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
             reason: "Price quote has expired. Please reconfirm total before paying.",
             quote,
@@ -452,13 +455,13 @@ export async function verifyCheckoutQuoteIntegrity(
       return {
         valid: false,
         requiresPriceReconfirmation: true,
-        authoritativeFinalCents: CARD_FLAT_RATE_CENTS + Math.max(0, Math.floor(input.surchargeCents || 0)),
+        authoritativeFinalCents: CARD_FLAT_RATE_CENTS * Math.max(1, Math.floor(input.multiSendCount || 1)) + Math.max(0, Math.floor(input.surchargeCents || 0)),
         staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
         reason: fresh.error || "Discount code is no longer valid.",
       };
     }
 
-    const authoritativeTotal = fresh.finalAmountInCents + Math.max(0, Math.floor(input.surchargeCents || 0));
+    const authoritativeTotal = fresh.finalAmountInCents + Math.max(0, Math.floor(input.multiSendCount || 1) - 1) * CARD_FLAT_RATE_CENTS + Math.max(0, Math.floor(input.surchargeCents || 0));
     if (
       (input.paymentIntentAmountCents != null && input.paymentIntentAmountCents !== authoritativeTotal) ||
       (input.expectedFinalCents != null && input.expectedFinalCents !== authoritativeTotal)
@@ -477,7 +480,7 @@ export async function verifyCheckoutQuoteIntegrity(
   }
 
   // No discount: destination surcharge is added after the canonical domestic base.
-  const noDiscountTotal = CARD_FLAT_RATE_CENTS + Math.max(0, Math.floor(input.surchargeCents || 0));
+  const noDiscountTotal = CARD_FLAT_RATE_CENTS * Math.max(1, Math.floor(input.multiSendCount || 1)) + Math.max(0, Math.floor(input.surchargeCents || 0));
   if (
     (input.paymentIntentAmountCents != null && input.paymentIntentAmountCents !== noDiscountTotal) ||
     (input.expectedFinalCents != null && input.expectedFinalCents !== noDiscountTotal)
@@ -507,6 +510,8 @@ export interface ReserveOfferInput {
   sessionId: string;
   journeyId?: string;
   quoteId?: string;
+  /** Transfer an existing active hold only after its unpaid intent was canceled. */
+  replaceOrderId?: string;
   nowMs?: number;
   reservationTtlMs?: number;
 }
@@ -615,11 +620,18 @@ export async function reserveOfferForCheckout(
 
     let activeReservationsCount = 0;
     const expiredReservationRefs: any[] = [];
+    const replacedReservationRefs: any[] = [];
     for (const doc of reservationsQuery.docs) {
       const r = doc.data() as OfferReservationRecord;
       if (r.status !== "active") continue;
       // Skip reservation belonging to current orderId
       if (r.orderId === input.orderId) continue;
+
+      if (r.orderId === input.replaceOrderId) {
+        if (r.expiresAt > nowMs) replacedReservationRefs.push(doc.ref);
+        else expiredReservationRefs.push(doc.ref);
+        continue;
+      }
 
       if (r.expiresAt <= nowMs) {
         // Expired reservation hold: release it!
@@ -647,6 +659,9 @@ export async function reserveOfferForCheckout(
         status: "expired",
         releasedReason: "ttl_expired",
       });
+    }
+    for (const replacedRef of replacedReservationRefs) {
+      transaction.update(replacedRef, { status: "released", releasedReason: "multi_send_replaced" });
     }
 
     // 5. Create active reservation
@@ -749,6 +764,7 @@ export interface RedeemOfferInput {
   isStudioComp?: boolean;
   verifiedCaptureId?: string;
   requireAuthoritativeBinding?: boolean;
+  multiSendCount?: number;
   nowMs?: number;
 }
 
@@ -771,7 +787,8 @@ export async function redeemOfferForOrder(
   const nowMs = input.nowMs ?? Date.now();
   const normalized = input.code.trim().toUpperCase();
   const surchargeCents = input.destinationSurchargeCents ?? 0;
-  const basePayableCents = input.finalAmountCents - surchargeCents;
+  const extraCardsCents = Math.max(0, Math.floor(input.multiSendCount || 1) - 1) * CARD_FLAT_RATE_CENTS;
+  const basePayableCents = input.finalAmountCents - surchargeCents - extraCardsCents;
   if (!Number.isSafeInteger(surchargeCents) || surchargeCents < 0 || !Number.isSafeInteger(basePayableCents) || basePayableCents < 0) {
     return { redeemed: false, error: "Checkout amount breakdown is invalid." };
   }
@@ -811,7 +828,7 @@ export async function redeemOfferForOrder(
     if (input.requireAuthoritativeBinding) {
       const orderSnap = await transaction.get(firestoreDb.collection("orders").doc(input.orderId));
       const boundOrder = orderSnap.exists ? orderSnap.data() as any : null;
-      const totalSnapshotMatches = surchargeCents > 0
+      const totalSnapshotMatches = surchargeCents > 0 || (input.multiSendCount || 1) > 1
         ? boundOrder?.amountInCents === input.finalAmountCents && boundOrder?.quote?.totalCents === input.finalAmountCents && boundOrder?.quote?.discountCents === input.discountAmountCents && boundOrder?.quote?.internationalSurchargeCents === surchargeCents
         : (!boundOrder?.quote || (boundOrder.quote.totalCents === input.finalAmountCents && boundOrder.quote.discountCents === input.discountAmountCents));
       if (!boundOrder || String(boundOrder.discountCode || "").toUpperCase() !== normalized || boundOrder.quoteId !== input.quoteId || boundOrder.finalAmountInCents !== input.finalAmountCents || !totalSnapshotMatches || boundOrder.discountAmountInCents !== input.discountAmountCents) {

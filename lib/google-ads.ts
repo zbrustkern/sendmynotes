@@ -252,7 +252,7 @@ export function trackGoogleAdsPurchase(params: {
   let alreadySent = memorySent.has(key);
   try { alreadySent ||= window.sessionStorage.getItem(key) === "sent"; } catch { /* in-memory dedup remains */ }
   // GA4 is independent and must resume even when Ads was already accepted in an earlier mount.
-  queueGA4Purchase(params.orderId, measurement.amountInCents, params.consent, 0);
+  queueGA4Purchase(params.orderId, measurement.amountInCents, params.consent, 0, measurement.itemCount || 1);
   if (alreadySent || inFlight.has(key)) return "suppressed";
   inFlight.add(key);
 
@@ -308,7 +308,7 @@ function observeQueue(orderId: string, destination: "google_ads" | "ga4", state:
   }
 }
 
-function queueGA4Purchase(orderId: string, amountInCents: number, consent?: { gpc?: boolean; optOut?: boolean }, attempt = 0): void {
+function queueGA4Purchase(orderId: string, amountInCents: number, consent?: { gpc?: boolean; optOut?: boolean }, attempt = 0, itemCount = 1): void {
   const key = gaKey(orderId);
   if (memorySent.has(key)) return;
   try { if (window.sessionStorage.getItem(key) === "sent") return; } catch { /* memory fallback */ }
@@ -320,7 +320,7 @@ function queueGA4Purchase(orderId: string, amountInCents: number, consent?: { gp
   if (!consentAllowed(consent)) { gaInFlight.delete(key); observeQueue(orderId, "ga4", "suppressed"); return; }
   try {
     if (typeof win.gtag !== "function") throw new Error("tag_unavailable");
-    win.gtag("event", "purchase", { transaction_id: orderId, value: amountInCents / 100, currency: "USD", items: [{ item_id: "sendmynotes-card", item_name: "Custom Folded Handwritten Card", price: amountInCents / 100, item_category: "Handwritten Card" }] });
+    win.gtag("event", "purchase", { transaction_id: orderId, value: amountInCents / 100, currency: "USD", items: [{ item_id: "sendmynotes-card", item_name: "Custom Folded Handwritten Card", price: amountInCents / 100 / itemCount, quantity: itemCount, item_category: "Handwritten Card" }] });
     memorySent.add(key);
     gaInFlight.delete(key);
     (gaTimers.get(key) || []).forEach(clearTimeout);
@@ -330,7 +330,7 @@ function queueGA4Purchase(orderId: string, amountInCents: number, consent?: { gp
   } catch { /* independent destination */ }
   if (!memorySent.has(key) && attempt < retryDelays.length) {
     if (attempt === 0) observeQueue(orderId, "ga4", "retrying");
-    const timer = setTimeout(() => queueGA4Purchase(orderId, amountInCents, consent, attempt + 1), retryDelays[attempt]);
+    const timer = setTimeout(() => queueGA4Purchase(orderId, amountInCents, consent, attempt + 1, itemCount), retryDelays[attempt]);
     gaTimers.set(key, [...(gaTimers.get(key) || []), timer]);
   } else if (!memorySent.has(key)) {
     gaInFlight.delete(key);

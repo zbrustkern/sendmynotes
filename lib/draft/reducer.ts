@@ -9,6 +9,7 @@ import {
   AttributionDraft,
   CustomGenerationState,
   PrivateUploadRecovery,
+  MultiSendDraft,
 } from "./types";
 import type { UploadSelection } from "@/lib/upload/contracts";
 
@@ -34,6 +35,9 @@ export type DraftAction =
   | { type: "UPLOAD_IDENTITY_CHANGED"; payload: string | null }
   | { type: "UPDATE_NOTE"; payload: Partial<NoteDraft> }
   | { type: "UPDATE_RECIPIENT"; payload: AddressDraft | null }
+  | { type: "SET_MULTI_SEND"; payload: MultiSendDraft | null }
+  | { type: "SET_MULTI_SEND_UNDO"; payload: MultiSendDraft | null }
+  | { type: "RESTORE_MULTI_SEND_UNDO" }
   | { type: "UPDATE_SENDER"; payload: AddressDraft | null }
   | { type: "UPDATE_SCHEDULE"; payload: ScheduleDraft | null }
   | { type: "SET_DISCOUNT_CODE"; payload: string | null }
@@ -220,6 +224,7 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
           ...state.note,
           ...action.payload,
         },
+        multiSend: state.multiSend ? { ...state.multiSend, note: { ...state.multiSend.note, ...action.payload } } : state.multiSend,
       };
     }
 
@@ -231,6 +236,16 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
         recipient: action.payload,
       };
     }
+
+    case "SET_MULTI_SEND": {
+      return { ...state, updatedAt: now, draftRevision: state.draftRevision + 1,
+        checkoutSnapshotId: null, appliedOffer: null,
+        ...(action.payload === null && state.multiSend ? { multiSendUndo: state.multiSend } : {}), multiSend: action.payload };
+    }
+    case "SET_MULTI_SEND_UNDO": return { ...state, multiSendUndo: action.payload, updatedAt: now };
+    case "RESTORE_MULTI_SEND_UNDO": return state.multiSendUndo
+      ? { ...state, multiSend: state.multiSendUndo, multiSendUndo: null, note: { ...state.note, ...state.multiSendUndo.note }, updatedAt: now, draftRevision: state.draftRevision + 1, checkoutSnapshotId: null, appliedOffer: null }
+      : state;
 
     case "UPDATE_SENDER": {
       return {

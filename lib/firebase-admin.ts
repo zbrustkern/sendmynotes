@@ -48,6 +48,8 @@ class MockDocRef<T = unknown> {
   get id() {
     return this._id;
   }
+  get parent() { return this._collection; }
+  collection(name: string): MockCollection { return this._collection.childCollection(this._id, name); }
   async get(): Promise<MockDocumentSnapshot<T>> {
     const data = this._collection.store.get(this._id);
     return new MockDocumentSnapshot<T>(this._id, data, this);
@@ -156,14 +158,28 @@ class MockQuery<T = Record<string, unknown>> {
       } else if (this.cursor.id) rows = rows.filter(([id]) => id > this.cursor!.id!);
     }
     if (this.maxResults !== undefined) rows = rows.slice(0, this.maxResults);
-    return new MockQuerySnapshot(rows.map(([id, data]) => new MockDocumentSnapshot<T>(id, data, this.collection.doc(id))));
+    return new MockQuerySnapshot(rows.map(([id, data]) => { const ref = this.collection.doc(id); return new MockDocumentSnapshot<T>(ref.id, data, ref); }));
   }
 }
 
 export class MockCollection<T = Record<string, unknown>> {
   public store = new Map<string, T>();
 
-  constructor(private firestore?: MockFirestore) {}
+  private children = new Map<string, MockCollection>();
+  constructor(private firestore?: MockFirestore, private collectionPath = "") {}
+  childCollection(documentId: string, name: string): MockCollection {
+    if (!name || name.includes("/") || documentId.includes("/")) throw new Error("Invalid nested collection identity.");
+    const path = `${this.collectionPath}/${documentId}/${name}`;
+    if (this.firestore) return this.firestore.collection(path);
+    if (!this.children.has(path)) this.children.set(path, new MockCollection(undefined, path));
+    return this.children.get(path)!;
+  }
+  get parent(): MockDocRef | null {
+    const segments = this.collectionPath.split("/");
+    if (!this.firestore || segments.length < 3) return null;
+    const parentId = segments[segments.length - 2];
+    return this.firestore.collection(segments.slice(0, -2).join("/")).doc(parentId);
+  }
   public notifyChanged() { this.firestore?.scheduleSave(); }
   doc(id?: string): MockDocRef<T> {
     const docId = id || `doc_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -234,9 +250,24 @@ class MockFirestore {
 
   collection(name: string) {
     if (!this.collections.has(name)) {
-      this.collections.set(name, new MockCollection(this));
+      this.collections.set(name, new MockCollection(this, name));
     }
     return this.collections.get(name)!;
+  }
+
+  collectionGroup(name: string): MockCollection {
+    const refs = new Map<string, MockDocRef<Record<string, unknown>>>();
+    const group = new class extends MockCollection {
+      doc(id?: string): MockDocRef<Record<string, unknown>> { if (!id || !refs.has(id)) throw new Error("Collection group is read-only."); return refs.get(id)!; }
+    }();
+    for (const [collectionPath, collection] of this.collections) {
+      if (collectionPath.split("/").at(-1) !== name) continue;
+      for (const [id, data] of collection.store) {
+        const key = `${collectionPath}/${id}`;
+        group.store.set(key, data); refs.set(key, collection.doc(id));
+      }
+    }
+    return group;
   }
 
   private transactionQueue: Promise<void> = Promise.resolve();

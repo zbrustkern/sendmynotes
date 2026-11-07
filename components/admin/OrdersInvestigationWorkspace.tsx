@@ -496,7 +496,7 @@ export function OrdersInvestigationWorkspace({
                         <tr>
                           <td colSpan={8} className="p-0 bg-stone-50">
                             <OrderJourneyDrawer
-                              order={order}
+                              order={{ ...order, ...(revealed ? { ...revealed, hasPrivateContentHidden: false } : {}) }}
                               onInspectProof={onInspectProof}
                               onRetryAddress={onRetryAddress}
                               onClose={() => setSelectedOrderId(null)}

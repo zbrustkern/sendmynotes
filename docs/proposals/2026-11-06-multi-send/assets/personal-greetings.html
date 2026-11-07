@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SendMyNotes · Personal greetings proposal</title>
+<style>
+@font-face{font-family:Note;src:url('../../../../public/fonts/hwDavid.ttf')}
+:root{color-scheme:light;--smn-ink:#242d28;--smn-muted:#62685f;--smn-green:#166347;--smn-cream:#faf8f5;--smn-line:#e0e2d9}
+*{box-sizing:border-box}body{margin:0;background:var(--smn-cream);color:var(--smn-ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}button,input,textarea,select{font:inherit}button,a{touch-action:manipulation}button{cursor:pointer}button:disabled{cursor:default;opacity:.55}button:focus-visible,a:focus-visible,summary:focus-visible{outline:3px solid #b56a20;outline-offset:3px}button{min-height:44px}a{color:var(--smn-green)}.reviewbar{padding:12px 24px;background:#28362f;color:#fff;display:flex;gap:18px;align-items:center;flex-wrap:wrap}.reviewbar p{margin:0;font-size:12px;max-width:290px}.reviewbar strong{display:block;font-size:13px}.reviewnav{display:flex;gap:5px;flex-wrap:wrap}.reviewnav button{background:transparent;color:#fff;border:1px solid #748078;border-radius:5px;padding:0 12px;font-size:12px}.reviewnav button[aria-pressed=true]{background:#f6f4eb;color:#26382c;border-color:#f6f4eb}.brandbar{max-width:1120px;padding:23px 32px;margin:auto;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--smn-line);gap:12px}.wordmark{font:26px Georgia,serif;letter-spacing:-1px}.quiet{color:var(--smn-muted);font-size:13px}.steps{display:flex;gap:19px;font-size:12px;color:var(--smn-muted)}.steps b{color:var(--smn-green);padding-bottom:4px;border-bottom:2px solid}.shell{max-width:1040px;margin:34px auto 0;padding:0 28px 45px}.eyebrow{text-transform:uppercase;letter-spacing:1.7px;font-size:10px;font-weight:700;color:var(--smn-green);margin:0 0 9px}h1{font:38px/1.15 Georgia,serif;letter-spacing:-.7px;margin:0 0 12px}h2{font-size:16px;margin:0}h3{font-size:14px;margin:0}p{margin:0 0 14px}.intro{color:var(--smn-muted);max-width:600px}.layout{display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);gap:32px;align-items:start;margin-top:27px}.surface{background:white;border:1px solid var(--smn-line);border-radius:15px;padding:24px;min-width:0}.surface+.surface{margin-top:18px}.sectionhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:7px}.link{border:0;background:transparent;padding:0 8px;color:var(--smn-green);font-weight:600;font-size:13px;min-height:44px}.row{display:flex;gap:12px;padding:17px 0;border-bottom:1px solid var(--smn-line);align-items:flex-start;min-width:0}.num{width:25px;height:25px;border:1px solid #d5ded3;border-radius:50%;text-align:center;line-height:23px;font-size:12px;color:var(--smn-green);flex-shrink:0}.rowbody{flex:1;min-width:0;overflow-wrap:anywhere}.address{font-size:13px;color:var(--smn-muted);line-height:1.6;margin-top:2px}.rowactions{display:flex;gap:9px;margin-top:4px}.rowactions .link{padding:0;min-width:44px}.rowactions .remove{color:#6d645f;font-weight:400}.add{background:transparent;color:var(--smn-green);border:1px dashed #9aad9d;border-radius:9px;width:100%;padding:13px;margin-top:18px;font-weight:600;font-size:14px}.pricehint{font-weight:400}.small{font-size:12px;color:var(--smn-muted)}.cap{margin:8px 0 0;text-align:center;font-size:12px;color:var(--smn-muted)}.sharedhint{margin-top:20px;padding:13px 15px;background:#f1f5ef;border-radius:9px;font-size:13px;color:#3a5543}.mini-preview{display:flex;gap:16px;align-items:center;margin-bottom:22px}.cover{width:112px;aspect-ratio:17/22;object-fit:cover;box-shadow:0 5px 12px #1d31251a;border-radius:2px;flex-shrink:0}.mini-preview h2{font:23px/1.2 Georgia,serif;margin-bottom:7px}.shared-note{font:28px/1.45 Note,'Bradley Hand',cursive;white-space:pre-wrap;overflow-wrap:anywhere;color:#263a56;margin:14px 0 18px}.previewtag{font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:var(--smn-muted);border-top:1px solid var(--smn-line);padding-top:17px}.notehint{font-size:12px;color:var(--smn-muted);line-height:1.5}.footer{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-top:22px}.primary{background:var(--smn-green);color:#fff;border:0;border-radius:10px;min-height:49px;padding:12px 20px;font-size:14px;font-weight:600}.secondary{background:#fff;border:1px solid var(--smn-line);border-radius:9px;padding:10px 16px;font-weight:600;font-size:13px}.totaltext{font-weight:600;white-space:nowrap}.totaltext small{display:block;font-size:11px;font-weight:400;color:var(--smn-muted)}.form{margin-top:18px;border-top:1px solid var(--smn-line);padding-top:18px}.form label{display:block;font-size:12px;font-weight:600;margin-top:12px}.form input,.form select,.form textarea,.email{display:block;width:100%;min-height:45px;padding:10px 11px;border:1px solid #cdd3c9;border-radius:8px;background:#fdfdfb;color:var(--smn-ink);font-size:16px;margin-top:5px}.form textarea{min-height:170px;resize:vertical}.citygrid{display:grid;grid-template-columns:1.5fr .7fr .8fr;gap:10px}.formactions{display:flex;gap:12px;margin-top:18px;align-items:center;flex-wrap:wrap}.error{color:#8f3028;background:#fff3ed;border:1px solid #e7b5a6;padding:10px 12px;border-radius:8px;font-size:13px;margin-top:12px}.undo{margin-top:10px;background:#f1f5ef;padding:6px 12px;font-size:13px;border-radius:7px}.money{display:flex;justify-content:space-between;gap:15px;font-size:14px;margin:11px 0}.money.total{border-top:1px solid var(--smn-line);padding-top:16px;margin-top:17px;font-size:21px;font-weight:600}.checkoutprimary{width:100%;margin-top:16px}.receiptlabel{display:block;font-size:13px;font-weight:600;margin-top:21px}.paymentbox{border:1px solid var(--smn-line);border-radius:9px;padding:14px;margin-top:15px;background:#fafbf8}.paymentbox p{font-size:13px;margin:0}.dummyfields{display:flex;justify-content:space-between;color:#777d74;padding-top:12px;font-size:12px;gap:8px}.center{text-align:center}.paycopy{font-size:12px;color:var(--smn-muted);text-align:center;margin:11px 0 0}.fulladdresses{margin:12px 0;font-size:13px}.fulladdresses summary{cursor:pointer;color:var(--smn-green);font-weight:600;min-height:44px;padding-top:12px}.fulladdresses p{padding-left:12px;border-left:2px solid #dfe7db;margin-top:12px}.status{display:inline-block;font-size:12px;color:var(--smn-green);margin-top:7px;background:#eef4ec;padding:4px 8px;border-radius:4px}.status.attention{color:#8a5423;background:#fbefdf}.statusnote{background:#fff7e9;border-left:3px solid #ba8544;padding:15px 18px;margin-bottom:21px;font-size:13px}.statushero{margin:15px 0 22px;color:var(--smn-green);font:28px Georgia,serif}.evidence{max-width:1040px;margin:0 auto;padding:0 28px 25px;color:var(--smn-muted);font-size:11px}.returnedit{margin-top:15px}.inline-note{margin-top:0}.hidden{display:none}.paired{display:flex;gap:8px;flex-wrap:wrap}.consistency{padding-top:9px;font-size:12px;color:var(--smn-green)}
+.layout.pay .aside{grid-column:1;grid-row:1}.layout.pay .main{grid-column:2;grid-row:1}
+@media(max-width:760px){.reviewbar{padding:12px 16px;gap:10px}.reviewbar p{max-width:none}.reviewnav{gap:5px}.reviewnav button{padding:0 9px;min-height:36px}.brandbar{padding:20px}.wordmark{font-size:23px}.brandbar>.quiet{display:none}.steps{gap:12px;font-size:11px}.shell{margin-top:27px;padding:0 18px 32px}h1{font-size:31px}.intro{font-size:14px}.layout{grid-template-columns:minmax(0,1fr);gap:19px;margin-top:23px}.surface{padding:19px}.aside{grid-row:2}.layout.pay .aside{grid-row:1;grid-column:1}.layout.pay .main{grid-row:2;grid-column:1}.footer{flex-direction:column;align-items:stretch;gap:12px}.totaltext{text-align:center}.primary{width:100%}.formactions .primary{width:auto}.mini-preview .cover{width:87px}.shared-note{font-size:27px}.evidence{padding:0 18px 25px}.citygrid{grid-template-columns:1fr 1fr}.citygrid label:first-child{grid-column:1/-1}.formactions{gap:8px}.surface+.surface{margin-top:16px}}
+@media(prefers-reduced-motion:no-preference){button{transition:background .12s}button:hover{filter:brightness(.96)}}
+.subtleadd{display:block;padding:4px 0;margin-top:10px;font-weight:400;text-align:left}.envelope{margin:18px 0;padding:20px;background:#faf8ee;border:1px solid #e4e0d1;border-radius:3px}.envelope-to{padding:32px 0 25px 15%;font-size:14px;overflow-wrap:anywhere}.baseline-existing{margin-top:18px;padding:15px 18px;background:#fff7e9;border:1px solid #ead8b9;border-radius:12px;font-size:13px}.baseline .aside{grid-row:1;grid-column:1}.baseline .main{grid-row:1;grid-column:2}@media(max-width:760px){.baseline .main{grid-row:1;grid-column:1}.baseline .aside{grid-row:2;grid-column:1}}
+
+/* Workbench stays left-preview / right-addresses before and after opting in. */
+.shell{max-width:1240px}.workbench{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:32px}.workbench>.aside{grid-column:1;grid-row:1;position:sticky;top:16px}.workbench>.main{grid-column:2;grid-row:1;min-width:0}.addressgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}.addressgrid>.surface{padding:18px;margin:0}.multi .recipientpanel,.multi .senderpanel{grid-column:1/-1}.citygrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.citygrid>label:first-child{grid-column:1/-1}.form select{padding-left:7px;padding-right:4px;min-width:0}.baseline-existing{margin:0 0 18px}.deferlabel{display:flex;align-items:start;gap:10px}.deferlabel input{width:20px;height:20px;flex:none;margin:3px 0}.apt{padding:4px 0;font-size:12px;margin-top:8px}.greetingreview{padding:12px;background:#f1f5ef;border-radius:8px;font-size:13px}.greetingreview p{margin:5px 0 0}.form .signoff{min-height:90px}.conflict,.household{padding:15px;background:#fff7e9;border:1px solid #e5c893;border-radius:10px;margin-top:14px}.conflict p{font-size:13px;margin-top:8px}.actionbar .primary{max-width:100%}.statusnote p{margin:9px 0}.senderpanel .form{padding-top:0;border:0}.workbench .mini-preview{flex-wrap:wrap}.workbench .mini-preview h2{font-size:21px}input,select,textarea{scroll-margin:120px}body.hasaction{padding-bottom:0}
+@media(min-width:768px) and (max-width:1023px){.workbench{grid-template-columns:1fr}.workbench>.aside{position:static;grid-column:1;grid-row:1}.workbench>.main{grid-column:1;grid-row:2}}
+@media(max-width:767px){.workbench{grid-template-columns:1fr}.workbench>.aside{position:static;grid-column:1;grid-row:1}.workbench>.main{grid-column:1;grid-row:2}.addressgrid{grid-template-columns:1fr}.actionbar{position:fixed;bottom:0;left:0;right:0;z-index:40;padding:12px 16px max(12px,env(safe-area-inset-bottom));background:#fff;border-top:1px solid var(--smn-line);margin:0;display:flex;flex-direction:row;gap:12px}.actionbar .totaltext{font-size:13px;text-align:left;white-space:normal}.actionbar .totaltext small{font-size:10px}.actionbar .primary{font-size:12px;padding:10px 12px;width:auto;flex-shrink:0}.payaction{position:fixed;bottom:0;left:0;right:0;padding:12px 16px max(12px,env(safe-area-inset-bottom));background:white;z-index:40;border-top:1px solid var(--smn-line)}.payaction button{margin:0}body.hasaction{padding-bottom:110px}.reviewnav button{min-height:44px}.multi .sharedpreview{margin-top:18px}}
+
+
+.greetingline{margin-top:10px;padding:10px 12px;background:#f5f6f1;border-radius:8px;font-size:13px;overflow-wrap:anywhere}.greetingline .link{padding:0;font-weight:400}.greetingvalue{display:block;font-family:Georgia,serif;font-size:17px;margin:4px 0}.greetingform{padding:14px;background:#f5f6f1;border:1px solid #b4c6b4;border-radius:10px;margin-top:12px}.greetingform.form{border-top:1px solid #b4c6b4}.greetingform label{margin-top:0}.greetingform .formactions{gap:8px}.greetingform .primary{padding:10px 14px}.greetingform .small{margin:8px 0}.previewselect{display:block;width:100%;padding:10px;border:1px solid #cdd3c9;border-radius:8px;background:white;font:inherit;margin:8px 0 16px}.greetingpay{border-bottom:1px solid var(--smn-line);padding:14px 0}.greetingpay .sectionhead{margin:0}.greetingpay .greetingvalue{font-size:20px}.greetingpay .link{flex-shrink:0}.greetingpay .quiet{margin-top:2px}.greetingform input{scroll-margin:150px}.sharedpreview .greetingreview{margin-bottom:10px}
+</style>
+</head>
+<body>
+<aside class="reviewbar" aria-label="Design review controls">
+<p><strong>Personal greetings · Proposed addition</strong>Fictional examples. Local interactions only.</p>
+<nav class="reviewnav" aria-label="Example states"><button data-scene="single">Unchanged default</button><button data-gscene="greetings">1 · Discover</button><button data-gscene="greetingedit">2 · Edit greeting</button><button data-gscene="greetingreview">3 · Review &amp; pay</button></nav></aside>
+<header class="brandbar"><div class="wordmark">SendMyNotes</div><nav class="steps" aria-label="Sending steps"><span>Card</span><span>Note</span><b id="addressstep">Address</b><span id="paystep">Pay</span></nav><span class="quiet">A little thought goes a long way.</span></header>
+<main class="shell" id="content"></main>
+<footer class="evidence">Design review, November 6, 2026. The card payment area is a placeholder; this prototype cannot charge or send cards. Limits and discount rules are proposed. <a href="../PERSONAL_GREETINGS.md">Read the greeting proposal</a>.</footer>
+<script>
+const US_STATES = [{"code": "AL", "name": "Alabama"}, {"code": "AK", "name": "Alaska"}, {"code": "AZ", "name": "Arizona"}, {"code": "AR", "name": "Arkansas"}, {"code": "CA", "name": "California"}, {"code": "CO", "name": "Colorado"}, {"code": "CT", "name": "Connecticut"}, {"code": "DE", "name": "Delaware"}, {"code": "DC", "name": "District of Columbia"}, {"code": "FL", "name": "Florida"}, {"code": "GA", "name": "Georgia"}, {"code": "HI", "name": "Hawaii"}, {"code": "ID", "name": "Idaho"}, {"code": "IL", "name": "Illinois"}, {"code": "IN", "name": "Indiana"}, {"code": "IA", "name": "Iowa"}, {"code": "KS", "name": "Kansas"}, {"code": "KY", "name": "Kentucky"}, {"code": "LA", "name": "Louisiana"}, {"code": "ME", "name": "Maine"}, {"code": "MD", "name": "Maryland"}, {"code": "MA", "name": "Massachusetts"}, {"code": "MI", "name": "Michigan"}, {"code": "MN", "name": "Minnesota"}, {"code": "MS", "name": "Mississippi"}, {"code": "MO", "name": "Missouri"}, {"code": "MT", "name": "Montana"}, {"code": "NE", "name": "Nebraska"}, {"code": "NV", "name": "Nevada"}, {"code": "NH", "name": "New Hampshire"}, {"code": "NJ", "name": "New Jersey"}, {"code": "NM", "name": "New Mexico"}, {"code": "NY", "name": "New York"}, {"code": "NC", "name": "North Carolina"}, {"code": "ND", "name": "North Dakota"}, {"code": "OH", "name": "Ohio"}, {"code": "OK", "name": "Oklahoma"}, {"code": "OR", "name": "Oregon"}, {"code": "PA", "name": "Pennsylvania"}, {"code": "RI", "name": "Rhode Island"}, {"code": "SC", "name": "South Carolina"}, {"code": "SD", "name": "South Dakota"}, {"code": "TN", "name": "Tennessee"}, {"code": "TX", "name": "Texas"}, {"code": "UT", "name": "Utah"}, {"code": "VT", "name": "Vermont"}, {"code": "VA", "name": "Virginia"}, {"code": "WA", "name": "Washington"}, {"code": "WV", "name": "West Virginia"}, {"code": "WI", "name": "Wisconsin"}, {"code": "WY", "name": "Wyoming"}];
+const samples = [
+  {id:'r1',name:'Maya Ellis',street:'123 Example Lane',unit:'',city:'Portland',state:'OR',zip:'97205'},
+  {id:'r2',name:'Jordan Lee',street:'456 Sample Street',unit:'Apt 2',city:'Chicago',state:'IL',zip:'60614'},
+  {id:'r3',name:'Sam Rivera',street:'789 Illustration Road',unit:'',city:'Austin',state:'TX',zip:'78701'}
+];
+const emptyAddress = () => ({name:'',street:'',unit:'',city:'',state:'',zip:''});
+const initialNote = {salutation:'Dear Maya,',text:'Wishing you a peaceful holiday season, full of good company and little moments of joy.\n\nSo grateful to have you in my life.',signOff:'With love,\nAlex'};
+let recipients=structuredClone(samples.slice(0,1)), sender={name:'Alex Morgan',street:'100 Demo Avenue',unit:'',city:'Indianapolis',state:'IN',zip:'46204'};
+let note=structuredClone(initialNote), noteBuffer=null, screen='address', editor=null, editBuffer=null;
+let removed=null, error='', household=null, showNote=false, discount=false, deferred=false, conflict=false, addAfterFirst=false, expanded=false, notice='';
+let unitOpen = new Set(), receipt='alex@example.com';
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const money=n=>'$'+(n/100).toFixed(2), total=()=>recipients.length*900-(discount?900:0);
+const multiActive=()=>expanded||recipients.length>1;
+const composed=()=>[note.salutation,note.text,note.signOff].filter(Boolean).join('\n\n');
+const addr=r=>`${esc(r.street)}${r.unit?', '+esc(r.unit):''}<br>${esc(r.city)}, ${esc(r.state)} ${esc(r.zip)}`;
+const readForm=id=>Object.fromEntries(new FormData($(id)));
+function stash(){
+  if($('#firstform')) recipients[0]={...recipients[0],...readForm('#firstform')};
+  if($('#returnform')) sender={...sender,...readForm('#returnform')};
+  if($('#recipientform')) editBuffer=readForm('#recipientform');
+  if($('#noteform')) noteBuffer=readForm('#noteform');
+  if($('#receipt')) receipt=$('#receipt').value;
+}
+function fields(r,prefix,nameLabel='Recipient name',nameOnly=false){
+  return `<label for="${prefix}name">${nameLabel}<input id="${prefix}name" name="name" autocomplete="section-${prefix} shipping name" value="${esc(r.name)}" required></label>${nameOnly?`<input type="hidden" name="street" value="${esc(r.street)}"><input type="hidden" name="unit" value="${esc(r.unit)}"><input type="hidden" name="city" value="${esc(r.city)}"><input type="hidden" name="state" value="${esc(r.state)}"><input type="hidden" name="zip" value="${esc(r.zip)}">`:`
+  <label for="${prefix}street">${prefix==='sender'?'Your street address':'Street address'}<input id="${prefix}street" name="street" autocomplete="section-${prefix} shipping address-line1" value="${esc(r.street)}" required></label>
+  ${unitOpen.has(prefix)||r.unit?`<label for="${prefix}unit">Apartment / unit <span class="small">(optional)</span><input id="${prefix}unit" name="unit" autocomplete="section-${prefix} shipping address-line2" value="${esc(r.unit)}"></label>`:`<input type="hidden" name="unit" value=""><button type="button" class="link apt" data-unit="${prefix}">+ Add Apt / Suite / Unit</button>`}
+  <div class="citygrid"><label for="${prefix}city">City<input id="${prefix}city" name="city" autocomplete="section-${prefix} shipping address-level2" value="${esc(r.city)}" required></label>
+  <label for="${prefix}state">State<select id="${prefix}state" name="state" autocomplete="section-${prefix} shipping address-level1" required><option value="">Select state</option>${US_STATES.map(s=>`<option value="${s.code}" ${r.state===s.code?'selected':''}>${s.code} - ${s.name}</option>`).join('')}</select></label>
+  <label for="${prefix}zip">ZIP Code<input id="${prefix}zip" name="zip" inputmode="numeric" autocomplete="section-${prefix} shipping postal-code" pattern="[0-9]{5}(-[0-9]{4})?" value="${esc(r.zip)}" required></label></div>`}`;
+}
+function envelope(){
+  const selected=recipients.find(r=>r.id===(editor&&editor!=='new'?editor:previewRecipient))||recipients[0];
+  return `<section class="surface envelopepanel"><h2>Your envelope</h2><div class="envelope"><div class="small">${esc(sender.name)}<br>${addr(sender)}</div><div class="envelope-to"><strong>${esc(selected.name)}</strong><br>${deferred?'Address to be added later':addr(selected)}</div></div><p class="small">Your return address appears on the envelope.</p>${multiActive()?`<p class="small">Preview for ${esc(selected.name)} · one envelope per recipient.</p>`:''}</section>`;
+}
+function deferral(){return `<section class="baseline-existing"><label class="deferlabel"><input type="checkbox" id="defer" ${deferred?'checked':''}><span><strong>Don’t have their street address handy? Lock in your card now &amp; add address later</strong><span class="small" style="display:block;margin-top:6px">We’ll hold your card and email you a link to enter the mailing address when you’re ready.</span></span></label></section>`}
+function preview(){
+  const multi=multiActive(), n=noteBuffer||note;
+  return `<section class="surface sharedpreview"><div class="mini-preview"><img class="cover" src="../../../../public/presets/holiday-evergreen.jpg" alt="Evergreen branches and red berries on the card front"><div><p class="eyebrow">${multi?'Your shared card':'Your card'}</p><h2>A little holiday warmth</h2><span class="quiet">Real pen and ink</span></div></div>
+  <div class="previewtag">${multi?'Inside · same message for everyone':'Inside'}</div>
+  ${showNote?`<form id="noteform" class="form"><label for="salutation">Greeting / salutation <span class="small">(optional)</span><input id="salutation" name="salutation" value="${esc(n.salutation)}"></label><p class="small">This greeting is written on every card. Check whether it names just one person.</p><label for="notetext">Message<textarea id="notetext" name="text" required>${esc(n.text)}</textarea></label><label for="signoff">Sign-off / your name<textarea id="signoff" class="signoff" name="signOff">${esc(n.signOff)}</textarea></label><div class="formactions"><button class="primary" type="submit">Save ${multi?'shared note':'note'}</button><button class="link" type="button" data-action="cancelnote">Cancel</button></div></form>`:`<p class="shared-note">${esc(composed())}</p>`}
+  ${multi?`<div class="greetingreview"><strong>Greeting on every card:</strong> ${note.salutation?esc(note.salutation):'No greeting'}<p class="small">Everyone receives this exact message, including the greeting.</p></div>`:''}
+  ${!['paid','attention','uncertain'].includes(screen)?`<button class="link" data-action="editnote">Edit ${multi?'shared note':'note'}</button>`:''}
+  <p class="small">Preview representation · A2 folded portrait</p></section>`;
+}
+function returnSection(){return `<section class="surface senderpanel"><h2>${multiActive()?'Your return address':'From you'}</h2>${multiActive()?'<p class="small">Used on every envelope.</p>':''}<form id="returnform" class="form">${fields(sender,'sender','Your name',deferred&&!multiActive())}</form></section>`}
+function list(){return recipients.map((r,i)=>`<div class="row"><span class="num">${i+1}</span><div class="rowbody"><strong>${esc(r.name)}</strong><div class="address">${r.street?addr(r):'Address needed'}</div><div class="rowactions"><button class="link" data-edit="${r.id}" aria-label="Edit ${esc(r.name)}">Edit</button>${recipients.length>1?`<button class="link remove" data-remove="${r.id}" aria-label="Remove ${esc(r.name)}">Remove</button>`:''}</div></div></div>`).join('')}
+function addressForm(){return `<form id="recipientform" class="form"><h3>${addAfterFirst?'Complete the first recipient’s address':editor==='new'?'Add recipient '+(recipients.length+1):'Edit recipient'}</h3>${fields(editBuffer,'rec')}${error?`<p class="error" role="alert">${esc(error)}</p>`:''}${household?`<div class="household" role="alert"><p>Another card is already going to this address. Send one to ${esc(household.name)} too?</p><div class="formactions"><button class="primary" type="button" data-action="confirmhousehold">Send a separate card</button><button class="link" type="button" data-action="cancelhousehold">Edit this address</button></div></div>`:''}<div class="formactions"><button class="primary" type="submit">${editor==='new'?'Save recipient':'Save changes'}</button><button class="link" type="button" data-action="canceledit">Cancel</button></div><p class="small">One card to this address · $9.00 including mailing</p></form>`}
+function conflictBox(){return `<div class="conflict" role="alert"><strong>Multi-send needs complete addresses.</strong><p>Enter all mailing addresses before payment. These cards will be sent as soon as they’re prepared.</p><div class="formactions"><button class="primary" data-action="resolveconflict">Enter addresses and send when ready</button><button class="link" data-action="keepone">Keep one recipient</button></div></div>`}
+function actionBar(){return `<div class="footer actionbar"><div class="totaltext" aria-live="polite">${multiActive()?`${recipients.length} ${recipients.length===1?'card':'cards'} · `:''}${money(total())}${multiActive()?'':' total'}<small>USPS mailing included${discount?' · offer applied':''}</small></div><button class="primary" data-action="continue">Review &amp; pay (${money(total())}) →</button></div>`}
+function addressScreen(){
+  const multi=multiActive();
+  return `<p class="eyebrow">Step 3 of 4 · Address</p><h1>Where should we mail it?</h1><p class="intro">Mailed directly to your ${multi?'recipients':'recipient'} via USPS First-Class Mail.</p>
+  <div class="layout workbench ${multi?'multi':'baseline'}"><aside class="aside">${multi?'':deferral()}${envelope()}${multi?preview():''}</aside><div class="main"><div class="addressgrid">
+  <section class="surface recipientpanel"><h2>${multi?`Recipients (${recipients.length})`:'Send to'}</h2>
+  ${multi?`<p class="quiet">A separate card and envelope for each person.</p>${list()}${editor?addressForm():recipients.length<25?'<button class="add" data-action="add">+ Add another recipient <span class="pricehint">· $9 each</span></button>':'<p class="sharedhint">25 recipients added — this is the limit for one order.</p>'}<p class="cap">Up to 25 recipients · U.S. addresses</p><div class="sharedhint">Same card, message and sign-off. You can personalize each opening greeting.</div>`:`<form id="firstform" class="form" novalidate>${fields(recipients[0],'first','Recipient name',deferred)}<button class="link subtleadd" type="submit">+ Add another recipient</button></form>`}
+  ${removed?'<div class="undo" role="status">Recipient removed. <button class="link" data-action="undo">Undo</button></div>':''}
+  ${conflict?conflictBox():''}${error&&!editor?`<p class="error" role="alert">${esc(error)}</p>`:''}</section>${returnSection()}</div>${actionBar()}</div></div>`;
+}
+function paymentScreen(){const multi=recipients.length>1;return `<p class="eyebrow">Step 4 of 4 · Pay</p><h1>Review &amp; Pay</h1><p class="intro">${multi?`Review your ${recipients.length} recipients and shared message, then pay once.`:'Review your card and mailing address.'}</p><div class="layout pay"><aside class="aside">${preview()}</aside><div class="main"><section class="surface"><div class="sectionhead"><h2>${multi?`Sending to ${recipients.length} people`:'Send to'}</h2><button class="link" data-action="back">Edit ${multi?'recipients':'address'}</button></div>${recipients.map(r=>`<div class="money"><strong>${esc(r.name)}</strong><span class="quiet">${esc(r.city)}, ${esc(r.state)}</span></div>`).join('')}<details class="fulladdresses"><summary>Review ${multi?'all addresses':'address'}</summary>${recipients.map(r=>`<p><strong>${esc(r.name)}</strong><br>${addr(r)}</p>`).join('')}<p><strong>Return · ${esc(sender.name)}</strong><br>${addr(sender)}</p></details><div class="previewtag">Your total</div><div class="money"><span>${multi?`${recipients.length} cards × $9.00`:'Your card'}</span><span>${money(recipients.length*900)}</span></div><div class="money"><span>Mailing</span><span>Included</span></div>${discount?'<div class="money"><span>ONECARD · applies to one card</span><span>−$9.00</span></div>':''}<div class="money total"><span>Total <small class="small">USD</small></span><span>${money(total())}</span></div><button class="link" data-action="discount">${discount?'Remove example offer':'Preview a one-free-card offer'}</button><p class="small">Offer control shown for design review only.</p><label class="receiptlabel" for="receipt">Email for your receipt</label><input class="email" id="receipt" type="email" required value="${esc(receipt)}"><div class="paymentbox"><strong>Card payment</strong><span class="small"> · preview placeholder</span><div class="dummyfields"><span>Card number</span><span>MM / YY &nbsp; CVC</span></div></div>${error?`<p class="error" role="alert">${esc(error)}</p>`:''}<div class="payaction"><button class="primary checkoutprimary" data-action="pay">Pay ${money(total())}${multi?` · Send ${recipients.length} cards`:''}</button></div><p class="paycopy">${multi?'One payment. Each card is mailed separately.':'Your card, written in real pen and ink.'}</p></section></div></div>`}
+function statusScreen(){
+  const uncertain=screen==='uncertain', rejected=screen==='attention', last=recipients[recipients.length-1];
+  return `<p class="eyebrow">Order received · Example SMN-1042</p><h1>${rejected?'One card needs your attention.':uncertain?'We’re checking one card.':`Your ${recipients.length} cards are in motion.`}</h1><p class="intro">Payment received · ${money(total())}</p><div class="layout pay"><aside class="aside">${preview()}</aside><div class="main"><section class="surface">${rejected||uncertain?`<div class="statusnote"><strong>${recipients.length-1} cards are being prepared. 1 ${uncertain?'is being checked':'needs attention'}.</strong><p>${uncertain?`We’re checking ${esc(last.name)}’s card. You don’t need to pay or send it again. We’ll email you if we need anything.`:`${esc(last.name)}’s card was not accepted because of an address issue. Contact us to correct the address or arrange a refund for this card. Your other cards are being prepared.`}</p>${rejected?'<button class="secondary" data-action="support">Contact support about this card</button>':''}</div>`:''}<h2>Each card, at a glance</h2>${recipients.map((r,i)=>`<div class="row"><span class="num">${i+1}</span><div class="rowbody"><strong>${esc(r.name)}</strong><div class="address">${esc(r.city)}, ${esc(r.state)}</div><span class="status ${(rejected||uncertain)&&i===recipients.length-1?'attention':''}">${i===recipients.length-1&&uncertain?'Checking this card':i===recipients.length-1&&rejected?'Needs attention · not sent':screen==='paid'?'Preparing your card':'Being prepared'}</span></div></div>`).join('')}<div class="money total"><span>Paid</span><span>${money(total())}</span></div><p class="small">One receipt sent to ${esc(receipt)}.<br>We’ll email when there’s a mailing update.</p>${notice?`<p class="sharedhint" role="status">${esc(notice)}</p>`:''}</section></div></div>`;
+}
+function render(){
+  document.body.classList.toggle('hasaction',screen==='address'||screen==='payment');
+  $('#content').innerHTML=screen==='address'?addressScreen():screen==='payment'?paymentScreen():statusScreen();
+  $('#addressstep').style.borderBottom=screen==='address'?'2px solid':'0';
+  $('#paystep').style.fontWeight=screen==='payment'?'700':'400';
+  const selected=screen==='address'?(deferred?'deferred':editor?'add':recipients.length===1?'single':'address'):screen;
+  document.querySelectorAll('[data-scene]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.scene===selected)));
+}
+function focusEditor(){const field=$('#recipientform input:not([type=hidden])');field?.focus({preventScroll:true});field?.scrollIntoView({block:'center'});}
+function beginEditor(id){
+  if(editor){error='Save or cancel this address before editing another.';render();focusEditor();return}
+  editor=id;editBuffer=structuredClone(id==='new'?emptyAddress():recipients.find(r=>r.id===id));expanded=true;error='';household=null;removed=null;unitOpen.delete('rec');render();focusEditor();
+}
+function beginMulti(){
+  if(deferred){conflict=true;error='';render();$('.conflict').scrollIntoView({block:'center'});return}
+  if($('#firstform')&&!$('#firstform').reportValidity())return;
+  beginEditor('new');
+}
+function saveRecipient(data){
+  const id=editor;
+  if(id==='new')recipients.push({...data,id:'r'+Date.now()});else recipients[recipients.findIndex(r=>r.id===id)]={...recipients.find(r=>r.id===id),...data,id};
+  editor=null;editBuffer=null;household=null;error='';removed=null;
+  if(addAfterFirst){addAfterFirst=false;beginEditor('new');return}
+  expanded=recipients.length>1;render();$('.add')?.focus();
+}
+const normalize=s=>String(s||'').trim().toLowerCase().replace(/[.,]/g,'').replace(/\s+/g,' ');
+const addressKey=r=>[r.street,r.unit,r.city,r.state,r.zip].map(normalize).join('|');
+function scene(name){
+  recipients=structuredClone(['single','deferred'].includes(name)?samples.slice(0,1):samples);
+  screen=['single','deferred','add','address'].includes(name)?'address':name;
+  editor=null;editBuffer=null;note=structuredClone(initialNote);noteBuffer=null;removed=null;error='';household=null;showNote=false;discount=false;conflict=false;addAfterFirst=false;notice='';unitOpen.clear();
+  deferred=name==='deferred';expanded=recipients.length>1;
+  if(deferred)recipients[0]={...emptyAddress(),id:'r1',name:'Maya Ellis'};
+  render();if(name==='add')beginEditor('new');window.scrollTo(0,0);
+}
+document.addEventListener('input',e=>{if(e.target.closest('#recipientform')){household=null;$('.household')?.remove();}});
+document.addEventListener('change',e=>{if(e.target.id==='defer'){stash();deferred=e.target.checked;error='';conflict=false;render();}});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.scene){scene(b.dataset.scene);return}
+  stash();
+  if(b.dataset.unit){unitOpen.add(b.dataset.unit);render();$('#'+b.dataset.unit+'unit')?.focus();return}
+  if(b.dataset.edit){beginEditor(b.dataset.edit);return}
+  if(b.dataset.remove){if(editor){error='Save or cancel this address before removing a recipient.';render();focusEditor();return}const index=recipients.findIndex(r=>r.id===b.dataset.remove);removed={r:recipients[index],index};recipients.splice(index,1);expanded=recipients.length>1;render();return}
+  switch(b.dataset.action){
+    case 'add':beginEditor('new');return;
+    case 'canceledit':editor=null;editBuffer=null;household=null;error='';addAfterFirst=false;expanded=recipients.length>1;break;
+    case 'undo':recipients.splice(removed.index,0,removed.r);removed=null;expanded=recipients.length>1;break;
+    case 'keepone':conflict=false;break;
+    case 'resolveconflict':deferred=false;conflict=false;expanded=true;if(!recipients[0].street||!recipients[0].city||!recipients[0].state||!recipients[0].zip){addAfterFirst=true;beginEditor(recipients[0].id)}else beginEditor('new');return;
+    case 'confirmhousehold':if(household)saveRecipient(household);return;
+    case 'cancelhousehold':household=null;break;
+    case 'continue':
+      if(editor){error='Save or cancel this address before continuing.';render();focusEditor();return}
+      if(conflict){$('.conflict').scrollIntoView({block:'center'});return}
+      if($('#firstform')&&!$('#firstform').reportValidity())return;
+      if($('#returnform')&&!$('#returnform').reportValidity())return;
+      if(showNote){error='Save or cancel your shared note before continuing.';render();$('#salutation').focus();return}
+      screen='payment';removed=null;error='';break;
+    case 'back':screen='address';error='';break;
+    case 'editnote':showNote=true;noteBuffer=structuredClone(note);break;
+    case 'cancelnote':showNote=false;noteBuffer=null;break;
+    case 'discount':discount=!discount;break;
+    case 'pay':if(showNote){error='Save or cancel your shared note before paying.';render();$('#salutation').focus();return}if(!$('#receipt').reportValidity())return;screen='paid';error='';break;
+    case 'support':notice='Design preview: opens a support request for this recipient only. No request was sent.';break;
+    default:return;
+  }
+  render();
+  if(b.dataset.action==='editnote'){$('#salutation').focus({preventScroll:true});$('#salutation').scrollIntoView({block:'center'});}
+  if(['continue','back','pay'].includes(b.dataset.action))window.scrollTo(0,0);
+});
+document.addEventListener('submit',e=>{
+  e.preventDefault();stash();
+  if(e.target.id==='firstform'){beginMulti();return}
+  if(e.target.id==='noteform'){note={...noteBuffer};showNote=false;noteBuffer=null;error='';render();return}
+  if(e.target.id==='returnform')return;
+  if(e.target.id!=='recipientform')return;
+  const data={...editBuffer};Object.keys(data).forEach(k=>data[k]=data[k].trim());
+  const others=recipients.filter(r=>r.id!==editor);
+  if(others.some(r=>addressKey(r)===addressKey(data)&&normalize(r.name)===normalize(data.name))){error='This recipient is already on your list. Edit the existing address instead.';household=null;render();focusEditor();return}
+  if(others.some(r=>addressKey(r)===addressKey(data))){household=data;error='';render();$('.household').scrollIntoView({block:'center'});return}
+  saveRecipient(data);
+});
+
+// Exploration only: per-recipient greetings. Original approved mockup remains separate.
+let greetingEditor=null, greetingDraft='', previewRecipient='r1';
+const effectiveGreeting=r=>Object.hasOwn(r,'greetingOverride')?r.greetingOverride:note.salutation;
+const originalList=list, originalPreview=preview, originalPayment=paymentScreen, originalRender=render, originalScene=scene;
+function greetingEditorMarkup(r){return `<form id="greetingform" class="form greetingform"><label for="personalGreeting">Inside greeting for ${esc(r.name)}<input id="personalGreeting" name="greeting" value="${esc(greetingDraft)}" aria-describedby="greetinghelp" autocomplete="off"></label><p class="small" id="greetinghelp">Only this opening line changes. Message and sign-off stay the same. Leave blank for no greeting.</p><div class="formactions"><button class="primary" type="submit">Save greeting</button><button class="link" type="button" data-gaction="cancel">Cancel</button></div><button class="link" type="button" data-gaction="reset">Use default greeting</button><p class="small">Default: ${note.salutation?esc(note.salutation):'No greeting'}</p><p class="small" id="greetingerror" role="alert"></p></form>`}
+list=()=>recipients.map((r,i)=>`<div class="row"><span class="num">${i+1}</span><div class="rowbody"><strong>${esc(r.name)}</strong><div class="address">${r.street?addr(r):'Address needed'}</div><div class="rowactions"><button class="link" data-edit="${r.id}" aria-label="Edit ${esc(r.name)}">Edit address</button>${recipients.length>1?`<button class="link remove" data-remove="${r.id}" aria-label="Remove ${esc(r.name)}">Remove</button>`:''}</div>${greetingEditor===r.id?greetingEditorMarkup(r):`<div class="greetingline"><span class="small">Inside greeting · ${Object.hasOwn(r,'greetingOverride')?'Personalized':'Default'}</span><span class="greetingvalue">${effectiveGreeting(r)?esc(effectiveGreeting(r)):'No greeting'}</span><button class="link" data-greeting="${r.id}">${Object.hasOwn(r,'greetingOverride')?'Edit greeting':'Personalize greeting'}</button></div>`}</div></div>`).join('');
+preview=()=>{
+  if(!multiActive())return originalPreview();
+  const r=recipients.find(r=>r.id===previewRecipient)||recipients[0];
+  const g=greetingEditor===r.id?greetingDraft:effectiveGreeting(r);
+  let html=originalPreview().replace('Your shared card','Your card').replace('Inside · same message for everyone',`Inside · ${esc(r.name)}`);
+  html=html.replace(/<p class="shared-note">[\s\S]*?<\/p>/,`<p class="shared-note" id="personalPreview">${esc([g,note.text,note.signOff].filter(Boolean).join('\n\n'))}</p>`);
+  html=html.replace(/<div class="greetingreview">[\s\S]*?<\/div>/,`<div class="greetingreview">${greetingEditor===r.id?'Unsaved greeting preview. ':''}Same message and sign-off on every card.</div>`);
+  html=html.replace('<div class="previewtag">',`<label class="small" for="previewRecipient">Preview card for</label><select id="previewRecipient" class="previewselect">${recipients.map(x=>`<option value="${x.id}" ${x.id===r.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select><div class="previewtag">`);
+  html=html.replace('Greeting / salutation','Default greeting').replace('This greeting is written on every card. Check whether it names just one person.','Used by recipients marked Default. Personalized greetings stay unchanged.').replace('Edit shared note','Edit default greeting &amp; shared note');
+  return html;
+};
+paymentScreen=()=>{
+  let html=originalPayment();if(recipients.length<2)return html;
+  html=html.replace('Review your '+recipients.length+' recipients and shared message, then pay once.','Check each greeting, then pay once. Your message and sign-off stay the same.');
+  const old=recipients.map(r=>`<div class="money"><strong>${esc(r.name)}</strong><span class="quiet">${esc(r.city)}, ${esc(r.state)}</span></div>`).join('');
+  const rows=recipients.map(r=>`<div class="greetingpay"><div class="sectionhead"><strong>${esc(r.name)}</strong><button class="link" data-greeting="${r.id}">Edit greeting<span class="sr-only"></span></button></div><p class="quiet">${esc(r.city)}, ${esc(r.state)}</p><span class="small">Inside greeting · ${Object.hasOwn(r,'greetingOverride')?'Personalized':'Default'}</span><span class="greetingvalue">${effectiveGreeting(r)?esc(effectiveGreeting(r)):'No greeting'}</span><button class="link" data-gpreview="${r.id}">Preview this card</button></div>`).join('');
+  return html.replace(old,rows);
+};
+render=()=>{if(greetingEditor&&!recipients.some(r=>r.id===greetingEditor))greetingEditor=null;originalRender();};
+scene=name=>{greetingEditor=null;greetingDraft='';previewRecipient='r1';originalScene(name);};
+function focusGreeting(){const el=$('#personalGreeting');el?.focus({preventScroll:true});el?.scrollIntoView({block:'center'});}
+function guardGreeting(){if(!greetingEditor)return false;$('#greetingerror').textContent='Save or cancel this greeting before continuing.';focusGreeting();return true;}
+function greetingScene(name){
+  scene(name==='greetingreview'?'payment':'address');
+  note.salutation='Dear friends,';
+  if(name!=='greetings'){recipients[0].greetingOverride='Dear Maya,';recipients[1].greetingOverride='Dear Jordan & Chris,';previewRecipient='r2';}
+  if(name==='greetingedit'){greetingEditor='r2';greetingDraft='Dear Jordan & Chris,';}
+  render();window.scrollTo(0,0);
+}
+document.addEventListener('input',e=>{if(e.target.id!=='personalGreeting')return;greetingDraft=e.target.value;const p=$('#personalPreview');if(p&&previewRecipient===greetingEditor)p.textContent=[greetingDraft,note.text,note.signOff].filter(Boolean).join('\n\n');$('#greetingerror').textContent='';},true);
+document.addEventListener('change',e=>{if(e.target.id==='previewRecipient'){stash();previewRecipient=e.target.value;render();$('#previewRecipient')?.focus();}},true);
+document.addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.gscene){e.stopImmediatePropagation();greetingScene(b.dataset.gscene);return;}
+  if(b.dataset.gaction){e.stopImmediatePropagation();stash();const r=recipients.find(r=>r.id===greetingEditor);if(b.dataset.gaction==='reset')delete r.greetingOverride;const id=greetingEditor;greetingEditor=null;render();$(`[data-greeting="${id}"]`)?.focus();return;}
+  if(b.dataset.greeting){
+    e.stopImmediatePropagation();stash();if(guardGreeting())return;
+    if(editor){error='Save or cancel this address before editing a greeting.';render();focusEditor();return;}
+    if(showNote){error='Save or cancel your shared note first.';render();$('#salutation').focus();return;}
+    greetingEditor=b.dataset.greeting;previewRecipient=greetingEditor;greetingDraft=effectiveGreeting(recipients.find(r=>r.id===greetingEditor));screen='address';render();focusGreeting();return;
+  }
+  if(b.dataset.gpreview){e.stopImmediatePropagation();stash();previewRecipient=b.dataset.gpreview;render();$('.sharedpreview').scrollIntoView({block:'start'});$('#previewRecipient').focus({preventScroll:true});return;}
+  if(greetingEditor&&!b.dataset.scene&&!(b.type==='submit'&&b.closest('#greetingform'))){e.stopImmediatePropagation();guardGreeting();return;}
+},true);
+document.addEventListener('submit',e=>{if(e.target.id!=='greetingform')return;e.preventDefault();e.stopImmediatePropagation();stash();const id=greetingEditor;recipients.find(r=>r.id===id).greetingOverride=greetingDraft.trim();greetingEditor=null;render();$(`[data-greeting="${id}"]`)?.focus();},true);
+// Open with discovery; the baseline remains available in review controls.
+greetingScene('greetings');
+
+</script>
+</body></html>

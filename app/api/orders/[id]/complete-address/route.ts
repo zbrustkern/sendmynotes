@@ -22,10 +22,12 @@ export async function POST(
     if (!order) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
-
     // Verify view token
     if (!token || order.viewToken !== token) {
       return NextResponse.json({ error: "Invalid or expired access token" }, { status: 401 });
+    }
+    if (order.multiSend?.kind === "parent") {
+      return NextResponse.json({ error: "Recipient address recovery is managed per batch delivery.", code: "MULTI_SEND_CHILD_REQUIRED" }, { status: 409 });
     }
 
     // This public token endpoint may complete only an unpaid-address workflow's already-paid

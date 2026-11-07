@@ -1,0 +1,80 @@
+const {chromium}=require(process.env.PLAYWRIGHT_MODULE_PATH || 'playwright');
+const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
+const output=__dirname;
+(async()=>{const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});try{
+ const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('**/*',r=>{const u=new URL(r.request().url());return ['127.0.0.1','localhost'].includes(u.hostname)||u.protocol==='data:'?r.continue():r.abort()});
+ await page.addInitScript(()=>{const now=Date.now();if(!sessionStorage.getItem('sendmynotes_draft_v1'))sessionStorage.setItem('sendmynotes_draft_v1',JSON.stringify({schemaVersion:1,createdAt:now,updatedAt:now,draftRevision:5,experienceVersion:'candidate_v1',entryContext:'general',selectedDesign:{presetId:'holiday-evergreen',imageUrl:'/presets/holiday-evergreen.jpg',title:'Holiday Evergreen',source:'preset',accepted:true},note:{salutation:'Dear Maya,',text:'Wishing you a peaceful holiday season.',signOff:'With love,\nAlex',style:'hwDavid'},recipient:{name:'Maya Ellis',addressLine1:'123 Example Lane',city:'Portland',state:'OR',zip:'97205',country:'US'},sender:{name:'Alex Morgan',addressLine1:'100 Demo Avenue',city:'Indianapolis',state:'IN',zip:'46204',country:'US'},schedule:null,discountCode:null,attribution:null,customGeneration:{status:'idle'},checkoutSnapshotId:null,checkoutContact:{email:'',choice:'omitted'},currentStep:'address'}))});
+ await page.goto(process.argv[2]||'http://127.0.0.1:3110/preview/entry',{waitUntil:'networkidle'});await page.getByRole('heading',{name:'Where should we mail it?'}).waitFor({timeout:60000});await page.evaluate(()=>document.fonts.ready);
+
+ await page.setViewportSize({width:1280,height:900});
+ await page.getByRole('button',{name:'+ Add another recipient',exact:true}).click();
+ await page.getByRole('region',{name:'Multiple recipients'}).getByRole('button',{name:'Cancel',exact:true}).click();
+ assert.equal(await page.getByRole('region',{name:'Multiple recipients'}).count(),0,'cancel first addition restores baseline');
+ await page.getByRole('button',{name:'+ Add another recipient',exact:true}).click();
+ const section=page.getByRole('region',{name:'Multiple recipients'});
+ await section.getByRole('heading',{name:'New recipient'}).waitFor();
+ assert.equal(await section.getByRole('heading',{name:'Recipients (1)',exact:true}).count(),1);
+ await section.getByLabel('Recipient name',{exact:true}).fill('Jordan Example');
+ await section.getByLabel('Street address',{exact:true}).fill('200 Sample Avenue');
+ await section.getByLabel('City',{exact:true}).fill('Seattle');
+ await section.locator('select').last().selectOption('WA');
+ await section.getByLabel('ZIP Code',{exact:true}).fill('98101');
+ await section.getByRole('button',{name:'Save recipient',exact:true}).click();
+ await section.getByRole('heading',{name:'Recipients (2)',exact:true}).waitFor();
+ await section.getByRole('button',{name:'Personalize greeting',exact:true}).nth(1).click();
+ await section.getByRole('textbox',{name:'Inside greeting for Jordan Example'}).fill('Dear Jordan & Chris,');
+ await page.reload({waitUntil:'networkidle'});
+ await section.getByRole('textbox',{name:'Inside greeting for Jordan Example'}).waitFor();
+ assert.equal(await section.getByRole('textbox',{name:'Inside greeting for Jordan Example'}).inputValue(),'Dear Jordan & Chris,','unsaved greeting survives reload');
+
+ assert.equal(await section.locator('select').first().locator('option:checked').textContent(),'Jordan Example','editing selects matching preview');
+ await page.getByRole('button',{name:'Review & pay',exact:true}).last().click();
+ await page.getByText('Save or cancel the open recipient editor before continuing.',{exact:true}).waitFor();
+ assert.equal(await page.evaluate(()=>document.activeElement?.tagName),'TEXTAREA');
+ await section.locator('select').first().selectOption({label:'Maya Ellis'});
+ assert.equal(await section.getByRole('textbox',{name:'Inside greeting for Jordan Example'}).inputValue(),'Dear Jordan & Chris,','preview changes retain draft');
+ assert.equal(await section.getByText('Unsaved preview',{exact:true}).count(),0,'other recipient preview not contaminated');
+ await section.locator('select').first().selectOption({label:'Jordan Example'});
+ await section.getByRole('button',{name:'Save greeting',exact:true}).click();
+ assert.equal(await section.getByText('Dear Jordan & Chris,',{exact:true}).count()>0,true);
+ for(const width of [320,390,768,1280]){await page.setViewportSize({width,height:900});await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:path.join(output,`implemented-multi-address-${width}.png`),fullPage:true});const size=await page.evaluate(()=>({w:document.documentElement.clientWidth,scroll:document.documentElement.scrollWidth}));assert(size.scroll<=size.w,`overflow at ${width}`);}
+
+ await page.setViewportSize({width:390,height:900});
+ await page.getByRole('button',{name:'Review & pay',exact:true}).last().click();
+ await page.getByRole('region',{name:'Cards in this order'}).waitFor({timeout:60000});
+ const pay=page.getByRole('region',{name:'Cards in this order'});
+ assert((await pay.innerText()).includes('Dear Jordan & Chris,'));
+ await page.evaluate(()=>window.scrollTo(0,0));await page.screenshot({path:path.join(output,'implemented-multi-pay-390.png'),fullPage:true});
+ await pay.getByRole('button',{name:'Edit greeting',exact:true}).nth(1).click();
+ await section.getByRole('textbox',{name:'Inside greeting for Jordan Example'}).waitFor();
+ assert.equal(await section.locator('select').first().locator('option:checked').textContent(),'Jordan Example','pay returns to selected card');
+ await section.getByRole('textbox',{name:'Inside greeting for Jordan Example'}).fill('');
+ await section.getByRole('button',{name:'Save greeting',exact:true}).click();
+ await page.getByRole('button',{name:'Review & pay',exact:true}).last().click();
+ await pay.waitFor({timeout:60000});assert((await pay.innerText()).includes('No greeting'));
+ await pay.getByRole('button',{name:'Edit greeting',exact:true}).nth(1).click();
+ await section.getByRole('button',{name:'Cancel',exact:true}).click();
+ let confirmations=[];page.on('dialog',async dialog=>{confirmations.push(dialog.message());await dialog.accept()});
+ async function add(name){await section.getByRole('button',{name:'+ Add another recipient',exact:true}).click();await section.getByLabel('Recipient name',{exact:true}).fill(name);await section.getByLabel('Street address',{exact:true}).fill('200 Sample Avenue');await section.getByLabel('City',{exact:true}).fill('Seattle');await section.locator('select').last().selectOption('WA');await section.getByLabel('ZIP Code',{exact:true}).fill('98101');await section.getByRole('button',{name:'Save recipient',exact:true}).click()}
+ await add('Nia Example');await add('Rory Example');
+ assert.equal(confirmations.length,2);assert(confirmations[1].includes('Jordan Example')&&confirmations[1].includes('Nia Example'));
+ await section.getByRole('heading',{name:'Recipients (4)',exact:true}).waitFor();
+ await section.getByRole('button',{name:'Remove',exact:true}).last().click();
+ await section.getByRole('heading',{name:'Recipients (3)',exact:true}).waitFor();
+ await section.getByRole('button',{name:'Undo recipient removal',exact:true}).click();
+ await section.getByRole('heading',{name:'Recipients (4)',exact:true}).waitFor();
+ await section.getByRole('button',{name:'Remove',exact:true}).last().click();await section.getByRole('button',{name:'Remove',exact:true}).last().click();
+ await page.setViewportSize({width:1280,height:900});await page.evaluate(()=>document.documentElement.style.zoom='2');
+ await section.getByRole('button',{name:'Edit greeting',exact:true}).click();
+ await page.getByRole('button',{name:'Review & pay',exact:true}).last().click();
+ assert.equal(await page.evaluate(()=>document.activeElement?.tagName),'TEXTAREA');
+ const bounds=await page.evaluate(()=>{const r=document.activeElement.getBoundingClientRect();return {top:r.top,bottom:r.bottom,h:innerHeight,w:document.documentElement.scrollWidth,c:document.documentElement.clientWidth}});assert(bounds.top>=0&&bounds.bottom<bounds.h,'zoomed focus visible');assert(bounds.w<=bounds.c,'no overflow at 200% CSS zoom');
+ await page.screenshot({path:path.join(output,'implemented-greeting-zoom200.png')});
+ await section.getByRole('button',{name:'Cancel',exact:true}).click();await page.evaluate(()=>document.documentElement.style.zoom='1');
+ await section.getByRole('button',{name:'Remove',exact:true}).first().click();assert.equal(await section.count(),0);
+ await page.getByRole('button',{name:'Undo recipient change',exact:true}).click();
+ await section.getByRole('heading',{name:'Recipients (2)',exact:true}).waitFor();assert((await section.innerText()).includes('No greeting'));
+ fs.writeFileSync(path.join(output,'implemented-multi-browser.json'),JSON.stringify({errors,body:await page.locator('body').innerText()},null,2));assert.deepEqual(errors,[]);console.log('Recipient add/cancel, counts, greeting refresh, custom/blank greetings, household confirmations, undo, 200% CSS zoom, four widths and payment review passed.');
+
+}finally{await browser.close()}})().catch(e=>{console.error(e);process.exitCode=1});

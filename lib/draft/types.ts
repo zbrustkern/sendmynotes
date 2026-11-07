@@ -55,6 +55,25 @@ export interface AddressDraft {
   country?: string;
 }
 
+/** A recipient-specific opening line; custom empty text explicitly means none. */
+export type GreetingChoice = { mode: "inherit" } | { mode: "custom"; text: string };
+
+/** Opt-in multi-send draft. The legacy `recipient` remains the single-send source. */
+export interface MultiSendRecipientDraft {
+  id: string;
+  address: AddressDraft;
+  greeting: GreetingChoice;
+  householdAcknowledgedWith?: Array<{ id: string; addressKey: string }>;
+}
+
+export interface MultiSendDraft {
+  version: 1;
+  checkoutId: string;
+  originWasDeferred?: boolean;
+  note: NoteDraft;
+  recipients: MultiSendRecipientDraft[];
+}
+
 export interface ScheduleDraft {
   sendDate?: string;
   isScheduled: boolean;
@@ -95,6 +114,7 @@ export interface DraftRequiredContent {
   selectedDesign: SelectedDesign | null;
   note: NoteDraft;
   recipient: AddressDraft | null;
+  multiSend?: MultiSendDraft | null;
   sender: AddressDraft | null;
 }
 
@@ -139,6 +159,8 @@ export interface DraftState {
   coverChoiceRequired?: boolean;
   note: NoteDraft;
   recipient: AddressDraft | null;
+  multiSend?: MultiSendDraft | null;
+  multiSendUndo?: MultiSendDraft | null;
   sender: AddressDraft | null;
 
   // Optional preferences fields
@@ -175,6 +197,8 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "coverChoiceRequired",
   "note",
   "recipient",
+  "multiSend",
+  "multiSendUndo",
   "sender",
   "schedule",
   "discountCode",

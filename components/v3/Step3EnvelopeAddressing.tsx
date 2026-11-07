@@ -6,6 +6,7 @@ import {
   Plus,
 } from "lucide-react";
 import { EnvelopePreview } from "@/components/flow/EnvelopePreview";
+import { CardPreview } from "@/components/CardPreview";
 
 export const US_STATES = [
   { code: "AL", name: "Alabama" },
@@ -86,6 +87,11 @@ export function isInternationalCountry(country?: string): boolean {
 }
 
 interface Step3EnvelopeAddressingProps {
+  onAddAnotherRecipient?: () => void;
+  multiSendEnabled?: boolean;
+  multiSendMode?: boolean;
+  previewRecipient?: AddressData;
+  multiSendCardPreview?: { coverUrl: string; title: string; message: string; fontStyleId: string; occasion: string; unsaved?: boolean };
   recipientTools?: React.ReactNode;
   recipient: AddressData;
   onChangeRecipient: (field: keyof AddressData, value: string) => void;
@@ -183,6 +189,11 @@ export function Step3EnvelopeAddressing({
   onUseUSAddress,
   displayTotalCents = 900,
   recipientTools,
+  onAddAnotherRecipient,
+  multiSendEnabled = false,
+  multiSendMode = false,
+  previewRecipient,
+  multiSendCardPreview,
 }: Step3EnvelopeAddressingProps) {
   const [showRecipientApt, setShowRecipientApt] = useState(Boolean(recipient.street2));
   const [showSenderApt, setShowSenderApt] = useState(Boolean(sender.street2));
@@ -326,7 +337,7 @@ export function Step3EnvelopeAddressing({
         {/* LEFT COLUMN: lg:col-span-5 lg:sticky lg:top-6 — Live Envelope & Deferral */}
         <div className="lg:col-span-5 space-y-4 lg:sticky lg:top-6">
           {/* 1. TOP UNMISTAKABLE ADDRESS DEFERRAL CARD */}
-          {!isInternational && <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
+          {!multiSendMode && !isInternational && <div className="p-4 bg-gradient-to-r from-amber-50 to-orange-50/70 rounded-2xl border-2 border-amber-300 shadow-xs space-y-2.5">
             <div className="flex items-start gap-3">
               <input
                 id="defer-address-toggle"
@@ -354,12 +365,13 @@ export function Step3EnvelopeAddressing({
           {/* 2. STICKY LIVE ENVELOPE PREVIEW */}
           <LiveEnvelopeCard
             sender={sender}
-            recipient={recipient}
+            recipient={previewRecipient || recipient}
             fontClass={fontClass}
             isAddressDeferred={isAddressDeferred}
             isInternational={isInternational}
             countryName={countries.find((item) => item.countryCode === recipient.country)?.countryName}
           />
+          {multiSendMode && multiSendCardPreview && <div className="rounded-2xl border border-stone-200 bg-white p-3"><p className="mb-2 text-xs font-semibold text-stone-700">Card preview · {multiSendCardPreview.title}{multiSendCardPreview.unsaved ? " · Unsaved greeting" : ""}</p><CardPreview coverUrl={multiSendCardPreview.coverUrl} printedGreeting="" handwrittenNote={multiSendCardPreview.message} fontStyleId={multiSendCardPreview.fontStyleId} occasion={multiSendCardPreview.occasion} currentStep={2} initialView="rightPage" /></div>}
 
           <p className="text-xs leading-relaxed text-stone-600">Your return address appears on the envelope.</p>
         </div>
@@ -367,7 +379,7 @@ export function Step3EnvelopeAddressing({
         {/* RIGHT COLUMN: lg:col-span-7 — Sub-Grid (Send to & From you) */}
         <div className="lg:col-span-7 space-y-4">
           {/* FORM SECTIONS: RECIPIENT ("Send to") & SENDER ("From you") LEAD FIRST */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className={`grid grid-cols-1 ${multiSendMode ? "md:grid-cols-1" : "md:grid-cols-2"} gap-5`}>
         {/* SECTION 1: RECIPIENT ("Send to") */}
         <div className="bg-white rounded-2xl p-5 border border-stone-200/90 shadow-2xs space-y-4">
           <div className="flex items-center justify-between border-b border-stone-100 pb-2.5">
@@ -382,6 +394,8 @@ export function Step3EnvelopeAddressing({
           </div>
 
           {recipientTools}
+
+          <div className={multiSendMode ? "hidden" : "space-y-4"}>
 
           {isInternational ? (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-3">
@@ -549,6 +563,13 @@ export function Step3EnvelopeAddressing({
           )}
           </>
           )}
+          {multiSendEnabled && onAddAnotherRecipient && !isInternational && (
+            <button type="button" onClick={() => onAddAnotherRecipient()} disabled={isBusy}
+              className="min-h-11 w-full text-left text-sm font-semibold text-emerald-800 hover:text-emerald-950 disabled:opacity-50">
+              + Add another recipient
+            </button>
+          )}
+          </div>
         </div>
 
         {/* SECTION 2: SENDER ("From you") */}

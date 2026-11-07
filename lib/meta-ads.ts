@@ -270,6 +270,7 @@ export function trackMetaAddPaymentInfo(params: {
 export function trackMetaPurchase(params: {
   orderId: string;
   value?: number;
+  itemCount?: number;
   currency?: string;
   customerEmail?: string;
   customerName?: string;
@@ -319,11 +320,11 @@ export function trackMetaPurchase(params: {
       contents: [
         {
           id: params.orderId,
-          quantity: 1,
-          item_price: purchaseValue,
+          quantity: params.itemCount || 1,
+          item_price: purchaseValue / (params.itemCount || 1),
         },
       ],
-      num_items: 1,
+      num_items: params.itemCount || 1,
     },
     { eventID: eventId } // Enables 1:1 deduplication with Conversions API (CAPI)
   );

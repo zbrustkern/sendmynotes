@@ -40,6 +40,8 @@ import { TELEMETRY_COLLECTION } from "./telemetry";
 import { getWindowBounds, evaluateCohortAndFunnelReport } from "./reporting-engine";
 import { classifyAttributionProperties } from "./attribution-classifier";
 import { Order, OrderStatus, MailingAddress } from "./types";
+import { listMultiSendDeliveries } from "./multi-send/orders";
+import { projectMultiSendView, type MultiSendView } from "./multi-send/presentation";
 import { normalizeCountryCode, validateMailingAddress } from "./mailing-destinations";
 
 export const ADMIN_AUDIT_LOG_COLLECTION = "admin_audit_log";
@@ -106,6 +108,7 @@ export interface InvestigationOrderSummary {
   discountCode?: string;
   occasion?: string;
   hasPrivateContentHidden: boolean;
+  multiSendQuantity?: number;
   frontImageUrl?: string;
 }
 
@@ -470,6 +473,7 @@ export async function revealOrderPiiWithAudit(params: {
   handwrittenNote?: string;
   printedMessage?: string;
   auditId: string;
+  multiSendView?: MultiSendView;
 }> {
   const { orderId, operatorId, reason } = params;
   if (!orderId) throw new Error("Missing orderId for PII reveal");
@@ -490,7 +494,7 @@ export async function revealOrderPiiWithAudit(params: {
     orderId,
     operatorId: operatorId || "system_operator",
     reason: reason.trim(),
-    fields: params.fields || ["customerEmail", "recipientAddress", "handwrittenNote"],
+    fields: params.fields || ["customerEmail", "recipientAddress", "handwrittenNote", ...(order.multiSend ? ["multiSend.recipients"] : [])],
     timestamp: Date.now(),
   };
 
@@ -510,6 +514,7 @@ export async function revealOrderPiiWithAudit(params: {
     handwrittenNote: order.handwrittenNote,
     printedMessage: order.printedMessage,
     auditId,
+    ...(order.multiSend ? { multiSendView: projectMultiSendView(order, await listMultiSendDeliveries(orderId), true) } : {}),
   };
 }
 
@@ -883,8 +888,9 @@ export async function queryOrdersEvidence(params: {
       orderId: order.id,
       occurredAt: (order as any).createdAt || (order as any).occurredAt || Date.now(),
       customerEmail: maskEmail(order.customerEmail),
-      recipientName: maskName(recipientName),
-      recipientAddressSummary: recipientSummary,
+      recipientName: order.multiSend ? `${order.multiSend.recipients.length} recipients` : maskName(recipientName),
+      recipientAddressSummary: order.multiSend ? "Multiple delivery addresses" : recipientSummary,
+      ...(order.multiSend ? { multiSendQuantity: order.multiSend.recipients.length } : {}),
       amountInCents: order.amountInCents || 0,
       status: order.status,
       channel: order.attribution?.utmMedium || order.attribution?.utmSource || "direct",
