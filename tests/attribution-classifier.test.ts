@@ -14,6 +14,13 @@ for (const fixture of fixtures) {
   for (const [key, value] of Object.entries(fixture.expected)) assert.equal(result[key as keyof typeof result], value, `${fixture.name}: ${key}`);
 }
 
+for (const medium of ["constructor", "__proto__", "toString", "valueOf", "hasOwnProperty", "CONSTRUCTOR"]) {
+  const result = classifyAttributionEvidence({ source: "google", medium, entryObservation: "complete" });
+  assert.equal(result.channel, "other_campaign", `${medium} is an unrecognized campaign medium, not an inherited channel`);
+  assert.equal(adaptLegacyAttribution({ source: "google", medium }).channel, "other_campaign");
+  assert.equal(classifyAttributionProperties({ attributionV2: { schemaVersion: 2, currentSessionTouch: { source: "google", medium, provenance: "utm" } } }).channel, "other_campaign");
+}
+
 const organic = classifyAttributionEvidence({ source: "google", medium: "organic", entryObservation: "complete" });
 assert.deepEqual(classifyAttributionEvidence({ source: "google", medium: "organic", entryObservation: "complete" }), organic, "classification is deterministic");
 assert.equal(classifyAttributionEvidence({ entryObservation: "complete", referrerHost: "www.google.com" }).channel, "organic_search");

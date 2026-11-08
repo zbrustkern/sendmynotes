@@ -72,7 +72,10 @@ export function classifyAttributionEvidence(input: AttributionClassifierInput): 
     paid_search: "paid_search", paidsearch: "paid_search", paid_social: "paid_social", paidsocial: "paid_social",
     display: "paid_other", banner: "paid_other", cpv: "paid_other", cpm: "paid_other", paid: "paid_unknown",
   };
-  let explicitPaid = paidMediums[med];
+  // UTM labels are untrusted strings. Object prototype names are not channels.
+  let explicitPaid = Object.prototype.hasOwnProperty.call(paidMediums, med)
+    ? paidMediums[med]
+    : undefined;
   if (med === "cpc" || med === "ppc") explicitPaid = googleSource ? "paid_search" : metaSource ? "paid_social" : "paid_unknown";
   if (["paid_social", "paidsocial"].includes(med) && metaSource) explicitPaid = "paid_social";
   const organic = med === "organic" || med === "seo";

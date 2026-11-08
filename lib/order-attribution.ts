@@ -168,14 +168,21 @@ export function prepareCheckoutOrderAttribution(
     globalPrivacyControl?: boolean;
   } = {},
 ): OrderAttribution | undefined {
-  const serverNowMs = Number.isFinite(options.serverNowMs) ? options.serverNowMs as number : Date.now();
-  const flat = sanitizeOrderAttribution(raw, serverNowMs);
-  const enabled = options.v2Enabled ?? isAttributionV2Enabled();
-  if (!enabled) return flat;
-  const restricted = options.globalPrivacyControl === true || flat?.gpc === true || flat?.optOut === true;
-  const restrictedReason = options.globalPrivacyControl === true || flat?.gpc === true ? "gpc_restricted" : "consent_denied";
-  const attributionV2 = buildAttributionSnapshotV2(raw, options.sessionId, serverNowMs, restricted, restrictedReason);
-  return { ...(flat ?? {}), attributionV2 };
+  let flat: OrderAttribution | undefined;
+  try {
+    const serverNowMs = Number.isFinite(options.serverNowMs) ? options.serverNowMs as number : Date.now();
+    flat = sanitizeOrderAttribution(raw, serverNowMs);
+    const enabled = options.v2Enabled ?? isAttributionV2Enabled();
+    if (!enabled) return flat;
+    const restricted = options.globalPrivacyControl === true || flat?.gpc === true || flat?.optOut === true;
+    const restrictedReason = options.globalPrivacyControl === true || flat?.gpc === true ? "gpc_restricted" : "consent_denied";
+    const attributionV2 = buildAttributionSnapshotV2(raw, options.sessionId, serverNowMs, restricted, restrictedReason);
+    return { ...(flat ?? {}), attributionV2 };
+  } catch {
+    // Attribution is best effort: discard failed V2 enrichment, never block a
+    // payment. Only already-sanitized legacy fields may survive this boundary.
+    return flat;
+  }
 }
 
 /** Existing frozen order attribution wins on retries or later order updates. */
