@@ -171,7 +171,16 @@ export function prepareCheckoutOrderAttribution(
   let flat: OrderAttribution | undefined;
   try {
     const serverNowMs = Number.isFinite(options.serverNowMs) ? options.serverNowMs as number : Date.now();
-    flat = sanitizeOrderAttribution(raw, serverNowMs);
+    // Consent is not campaign evidence and does not expire with its timestamps.
+    // Preserve strict privacy flags even when legacy evidence is rejected.
+    const source = raw && typeof raw === "object" && !Array.isArray(raw) ? raw as Record<string, unknown> : {};
+    const privacy: OrderAttribution = {
+      ...(source.gpc === true || options.globalPrivacyControl === true ? { gpc: true } : {}),
+      ...(source.optOut === true ? { optOut: true } : {}),
+    };
+    flat = Object.keys(privacy).length ? privacy : undefined;
+    const legacy = sanitizeOrderAttribution(raw, serverNowMs);
+    if (legacy) flat = { ...legacy, ...privacy };
     const enabled = options.v2Enabled ?? isAttributionV2Enabled();
     if (!enabled) return flat;
     const restricted = options.globalPrivacyControl === true || flat?.gpc === true || flat?.optOut === true;
