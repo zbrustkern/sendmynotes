@@ -10,7 +10,6 @@ import { CardFrontPreview } from "../CardFrontPreview";
 // Personal occasions supported per builder plan §3 & seasonal relevance
 export const PERSONAL_OCCASIONS = [
   "All",
-  "Halloween",
   "Christmas & Holidays",
   "Birthday",
   "Thank You",
@@ -79,17 +78,24 @@ export function EntryCardStep({
 
   // Filter cards by selected occasion, prioritizing timely seasonal cards and excluding off-season cards
   const filteredPresets = useMemo(() => {
-    // Current season: Fall/Winter. Exclude off-season Spring/Easter from customer catalog for now
-    const seasonalActive = CARD_PRESETS.filter((p) => p.occasion !== "Easter & Spring");
+    // Current season: Holiday/Winter. Exclude off-season Spring/Easter and passed Halloween from customer catalog
+    const seasonalActive = CARD_PRESETS.filter(
+      (p) => p.occasion !== "Easter & Spring" && p.occasion !== "Halloween"
+    );
     if (activeOccasion === "All") {
-      // Prioritize currently timely seasonal cards (Halloween, then Christmas) near the front
-      const timely = seasonalActive.filter(
-        (p) => p.occasion === "Halloween" || p.occasion === "Christmas & Holidays"
+      // Feature two timely holiday cards up top to signal the season without drowning out core everyday occasions
+      const holidayCards = seasonalActive.filter(
+        (p) => p.occasion === "Christmas & Holidays"
       );
-      const evergreen = seasonalActive.filter(
-        (p) => p.occasion !== "Halloween" && p.occasion !== "Christmas & Holidays"
+      const coreOccasions = seasonalActive.filter(
+        (p) => p.occasion !== "Christmas & Holidays"
       );
-      return [...timely, ...evergreen];
+
+      const featuredHoliday = holidayCards.slice(0, 2);
+      const remainingHoliday = holidayCards.slice(2);
+
+      // 2 holiday cards up top -> core everyday occasions -> remaining holiday cards
+      return [...featuredHoliday, ...coreOccasions, ...remainingHoliday];
     }
     return seasonalActive.filter((p) => p.occasion === activeOccasion);
   }, [activeOccasion]);
