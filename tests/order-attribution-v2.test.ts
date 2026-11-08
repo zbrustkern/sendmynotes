@@ -157,6 +157,23 @@ function testFrozenRetryAndNoFinancialFacts() {
   assert.equal("fulfillmentStatus" in (second ?? {}), false);
 }
 
+function testMalformedEvidenceCannotBlockCheckout() {
+  for (const medium of ["constructor", "__proto__", "toString", "valueOf", "hasOwnProperty"]) {
+    const input = { ...raw, attributionV2: { ...raw.attributionV2, currentSessionTouch: { ...raw.attributionV2.currentSessionTouch, medium } } };
+    const result = prepareCheckoutOrderAttribution(input, { sessionId, serverNowMs: now, v2Enabled: true });
+    assert.equal(result?.attributionV2?.currentSessionTouch?.channel, "other_campaign", `${medium} does not interrupt checkout`);
+    assert.equal(result?.gclid, raw.gclid, "valid legacy fields survive unusual V2 evidence");
+  }
+
+  const brokenV2 = { ...raw, get attributionV2(): never { throw new Error("simulated enrichment failure"); } };
+  const fallback = prepareCheckoutOrderAttribution(brokenV2, { sessionId, serverNowMs: now, v2Enabled: true });
+  assert.equal(fallback?.gclid, raw.gclid, "unexpected V2 failure preserves sanitized legacy attribution");
+  assert.equal(fallback?.attributionV2, undefined, "failed enrichment is never retained");
+  const brokenLegacy = { get capturedAt(): never { throw new Error("simulated legacy failure"); } };
+  assert.equal(prepareCheckoutOrderAttribution(brokenLegacy, { sessionId, serverNowMs: now, v2Enabled: true }), undefined, "even an unexpected legacy failure cannot block payment");
+}
+
+testMalformedEvidenceCannotBlockCheckout();
 testGatedServerSnapshotAndLegacyCompatibility();
 testMismatchConsentAndUnknownIdentity();
 testFrozenRetryAndNoFinancialFacts();
