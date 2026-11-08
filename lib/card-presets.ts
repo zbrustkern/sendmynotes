@@ -257,7 +257,12 @@ export const OCCASION_MESSAGE_BANK: Record<string, MessageInspiration[]> = {
     {
       tone: "warm",
       tag: "Heartfelt",
-      handwritten: "Warmest holiday wishes! May your home be blessed with peace, laughter, and cozy moments this season. Here is to a healthy, joyous new year ahead!",
+      handwritten: "Merry Christmas! Wishing you and your loved ones a season filled with warmth, wonder, and beautiful memories gathered around the tree. Warmest love from our home to yours!",
+    },
+    {
+      tone: "warm",
+      tag: "Togetherness",
+      handwritten: "May your home be blessed with the warm glow of good company, sweet memories, and peaceful moments this holiday season. Warmest wishes to you and yours!",
     },
     {
       tone: "funny",
@@ -268,6 +273,11 @@ export const OCCASION_MESSAGE_BANK: Record<string, MessageInspiration[]> = {
       tone: "poetic",
       tag: "Literary",
       handwritten: "In the quiet chill of winter, may your hearth be warm and your heart full of contentment. Wishing you the sacred blessings and wonder of the season.",
+    },
+    {
+      tone: "short",
+      tag: "Brief",
+      handwritten: "Warmest holiday wishes! May your season be bright and the coming year be filled with health, joy, and peace.",
     },
   ],
   Halloween: [
@@ -478,6 +488,60 @@ export const CARD_PRESETS: CardPreset[] = [
   },
 
   // --- Seasonal & Holidays ---
+  {
+    id: "preset-holiday-tree",
+    occasion: "Christmas & Holidays",
+    title: "The Heirloom Tree",
+    prompt: "Full-bleed oil and gouache painting of a magnificent balsam fir Christmas tree in a warm living room with glowing lights, vintage glass ornaments, red velvet bows, wrapped gifts on Persian rug, hearth, and snow outside window",
+    imageUrl: "/presets/holiday-tree.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Merry Christmas! Wishing you and your loved ones a season filled with warmth, wonder, and beautiful memories gathered around the tree. Warmest love from our home to yours!",
+  },
+  {
+    id: "preset-holiday-nutcracker",
+    occasion: "Christmas & Holidays",
+    title: "The Holiday Nutcracker",
+    prompt: "Nostalgic watercolor and gouache illustration of a traditional hand-painted wooden Christmas Nutcracker soldier standing proud in a scarlet and gold uniform, framed by botanical evergreen pine, dark green holly leaves, bright red berries, and pinecones on warm cream paper",
+    imageUrl: "/presets/holiday-nutcracker.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Wishing you a classic, magical Christmas filled with beloved traditions, cozy evenings, and lots of joy! Thinking of you with warmth this holiday season.",
+  },
+  {
+    id: "preset-holiday-hearth",
+    occasion: "Christmas & Holidays",
+    title: "Warm Hearth & Cedar",
+    prompt: "Full-bleed oil and gouache painting of a rustic stone fireplace with glowing amber fire, lush cedar and pine garland with dried oranges and cinnamon bundles, glowing candlesticks, and cozy armchair",
+    imageUrl: "/presets/holiday-hearth.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Merry Christmas! May your home be blessed with the warm glow of good company, sweet memories, and peaceful moments this holiday season. Warmest wishes to you and yours!",
+  },
+  {
+    id: "preset-holiday-cardinals",
+    occasion: "Christmas & Holidays",
+    title: "Winter Cardinals",
+    prompt: "Full-bleed fine-art oil and gouache painting of a pair of northern cardinals perched together on a snow-laden pine branch surrounded by scarlet holly berries, pinecones, and misty winter pine forest",
+    imageUrl: "/presets/holiday-cardinals.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Sending you loving holiday wishes across the miles! So thankful for your friendship and thinking of you with fond memories as we welcome the season.",
+  },
+  {
+    id: "preset-holiday-wreath",
+    occasion: "Christmas & Holidays",
+    title: "Gilded Juniper Wreath",
+    prompt: "Circular botanical holiday wreath on warm textured ivory cardstock with frosted blue spruce, juniper berries, eucalyptus, gold bay laurel, white snowberries, and emerald velvet bow",
+    imageUrl: "/presets/holiday-wreath.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Warmest holiday wishes and blessings for a joyful, healthy, and prosperous New Year! Thinking of you with gratitude and affection.",
+  },
+  {
+    id: "preset-holiday-cottage",
+    occasion: "Christmas & Holidays",
+    title: "Snowy Cottage at Twilight",
+    prompt: "Full-bleed fine-art oil and gouache landscape of a snow-blanketed stone cottage in an evergreen pine forest at winter twilight with glowing amber windows and starry indigo sky",
+    imageUrl: "/presets/holiday-cottage.jpg",
+    defaultPrintedMessage: "",
+    defaultHandwrittenNote: "Wishing you peaceful, cozy winter nights wrapped up in warmth and surrounded by the people you love most. Have a wonderful Christmas!",
+  },
   {
     id: "preset-holiday-evergreen",
     occasion: "Christmas & Holidays",
