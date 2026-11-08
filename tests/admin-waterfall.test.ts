@@ -3,6 +3,7 @@ import {
   aggregateWaterfallReport,
   chicagoMidnight,
   classifyChannel,
+  classifyOrderAttributionSnapshot,
   classifyDevice,
   isBotEvent,
   isFounderEvent,
@@ -18,6 +19,19 @@ import {
   WaterfallScope,
   WaterfallTelemetryEventInput,
 } from "../lib/contracts/admin-waterfall";
+
+const attributionV2Touch = (touchId: string, sessionId: string, fields: Record<string, unknown>) => ({
+  touchId, sessionId, observedAtClientMs: Date.now(), expiresAt: Date.now() + 86400000, clockQuality: "client_unanchored", ...fields,
+});
+const firstVsCurrentSnapshot = {
+  schemaVersion: 2,
+  classifierVersion: "2026-11-05.1",
+  persistence: "persistent",
+  firstObservedTouch: attributionV2Touch("touch_first_456", "sess_first_456", { source: "google", medium: "cpc", campaign: "spring", channel: "paid_search", group: "paid", provenance: "utm", reason: "explicit_paid_medium" }),
+  currentSessionTouch: attributionV2Touch("touch_current_456", "sess_current_456", { channel: "direct_observed", group: "direct_observed", provenance: "observed_no_referrer", reason: "direct_observed" }),
+};
+assert.equal(classifyChannel({ attributionV2: firstVsCurrentSnapshot, sessionId: "sess_current_456" }).group, "direct_observed", "session evidence uses the current-session touch");
+assert.equal(classifyOrderAttributionSnapshot(firstVsCurrentSnapshot, "sess_current_456")?.group, "paid", "order campaign evidence uses the first observed touch");
 
 async function runAdminWaterfallTests() {
   console.log("=================================================");
@@ -80,6 +94,7 @@ async function runAdminWaterfallTests() {
     fixedClock
   );
   assert.strictEqual(unknownAttributionScope.channel, "unknown", "Unknown attribution must be a selectable, filterable channel");
+  assert.strictEqual(normalizeWaterfallScope(new URLSearchParams({ window: "last7", channel: "google_paid" }), fixedClock).channel, "paid", "legacy channel aliases resolve into the six groups");
 
   // 1g. Custom Range
   const scopeCustom = normalizeWaterfallScope(
@@ -136,6 +151,7 @@ async function runAdminWaterfallTests() {
       timestamp: tsNow,
       utmSource: "direct",
       utmMedium: "none",
+      utmCampaign: "(direct/organic)",
       deviceType: "mobile",
     },
     {
@@ -243,6 +259,102 @@ async function runAdminWaterfallTests() {
   assert.strictEqual(allTrafficReport.deviceBreakdown.ownerQaSessionCount, 1, "Owner QA is visible as a separate comparison");
   assert.strictEqual(allTrafficReport.kpis.uniqueSessions, custReport.kpis.uniqueSessions, "QA toggle must not change customer session KPI");
   assert.strictEqual(allTrafficReport.kpis.paidCustomerOrders, custReport.kpis.paidCustomerOrders, "QA toggle must not change customer orders");
+
+  // V2 referral entry data must remain in the same channel when owner QA
+  // comparison applies the dashboard's channel filter.
+  const qaReferralSession = "sess_qa_referral";
+  const qaReferralTouch = attributionV2Touch("touch_qa_referral", qaReferralSession, {
+    source: "example",
+    medium: "referral",
+    campaign: "synthetic_launch",
+    referrerHost: "example.com",
+    channel: "referral",
+    group: "social_referral",
+    provenance: "utm",
+    reason: "referral_campaign",
+  });
+  const qaReferralEvent: WaterfallTelemetryEventInput = {
+    eventId: "event_qa_referral",
+    sessionId: qaReferralSession,
+    eventName: "landing_viewed",
+    timestamp: tsNow,
+    source: "example",
+    medium: "referral",
+    campaign: "synthetic_launch",
+    classification: { role: "founder", reason: "qa_cookie" },
+    metadata: {
+      attributionV2: {
+        schemaVersion: 2,
+        classifierVersion: "2026-11-05.1",
+        persistence: "persistent",
+        firstObservedTouch: qaReferralTouch,
+        currentSessionTouch: qaReferralTouch,
+      },
+    },
+  };
+  const earlierLegacyDirectQaEvent: WaterfallTelemetryEventInput = {
+    eventId: "event_qa_referral_legacy_early",
+    sessionId: qaReferralSession,
+    eventName: "session_start",
+    timestamp: tsNow - 1_000,
+    source: "direct",
+    medium: "none",
+    campaign: "(direct/organic)",
+    classification: { role: "founder", reason: "qa_cookie" },
+  };
+  const qaReferralEvents = [earlierLegacyDirectQaEvent, qaReferralEvent];
+  const referralQaReport = aggregateWaterfallReport({
+    asOf: fixedClock,
+    scope: { ...baseScope, channel: "social_referral", audience: "all_traffic" },
+    orders: [],
+    telemetry: qaReferralEvents,
+  });
+  const nonReferralQaReport = aggregateWaterfallReport({
+    asOf: fixedClock,
+    scope: { ...baseScope, channel: "email_other", audience: "all_traffic" },
+    orders: [],
+    telemetry: qaReferralEvents,
+  });
+  const staleLegacyChannelQaReport = aggregateWaterfallReport({
+    asOf: fixedClock,
+    scope: { ...baseScope, channel: "direct_observed", audience: "all_traffic" },
+    orders: [],
+    telemetry: qaReferralEvents,
+  });
+  assert.strictEqual(referralQaReport.deviceBreakdown.ownerQaSessionCount, 1, "V2 referral QA is visible under Social & Referral");
+  assert.strictEqual(referralQaReport.deviceBreakdown.founderFilteredCount, 1, "V2 referral QA remains excluded from customer results");
+  assert.strictEqual(nonReferralQaReport.deviceBreakdown.ownerQaSessionCount, 0, "V2 referral QA does not leak into Email & Other");
+  assert.strictEqual(staleLegacyChannelQaReport.deviceBreakdown.ownerQaSessionCount, 0, "an earlier legacy direct sentinel cannot override the session-bound V2 referral");
+  assert.strictEqual(referralQaReport.kpis.uniqueSessions, 0, "owner QA does not enter the customer session denominator");
+  assert.strictEqual(referralQaReport.kpis.paidCustomerOrders, 0, "owner QA does not enter paid customer orders");
+
+  const customerReferralSession = "sess_customer_referral";
+  const customerReferralTouch = attributionV2Touch("touch_customer_referral", customerReferralSession, {
+    source: "example",
+    medium: "referral",
+    campaign: "synthetic_launch",
+    referrerHost: "example.com",
+    channel: "referral",
+    group: "social_referral",
+    provenance: "utm",
+    reason: "referral_campaign",
+  });
+  const customerReferralReport = aggregateWaterfallReport({
+    asOf: fixedClock,
+    scope: { ...baseScope, channel: "social_referral", audience: "customers" },
+    orders: [],
+    telemetry: [
+      { ...earlierLegacyDirectQaEvent, eventId: "event_customer_referral_legacy_early", sessionId: customerReferralSession, classification: { role: "customer", reason: "standard_visitor_session" } },
+      {
+        ...qaReferralEvent,
+        eventId: "event_customer_referral_v2",
+        sessionId: customerReferralSession,
+        classification: { role: "customer", reason: "standard_visitor_session" },
+        metadata: { attributionV2: { schemaVersion: 2, classifierVersion: "2026-11-05.1", persistence: "persistent", firstObservedTouch: customerReferralTouch, currentSessionTouch: customerReferralTouch } },
+      },
+    ],
+  });
+  assert.strictEqual(customerReferralReport.kpis.uniqueSessions, 1, "customer sessions also use V2 when an earlier legacy event disagrees");
 
   console.log("   ✓ Bot and founder sessions and orders are strictly filtered in 'customers' mode");
 
@@ -363,6 +475,7 @@ async function runAdminWaterfallTests() {
       timestamp: tsNow,
       utmSource: "direct",
       utmMedium: "none",
+      utmCampaign: "(direct/organic)",
       deviceType: "desktop",
     },
   ];
@@ -402,16 +515,16 @@ async function runAdminWaterfallTests() {
   const matrix = originReport.originMatrix;
   assert.ok(matrix.length >= 3, "Matrix must have at least 3 origin rows");
 
-  const metaRow = matrix.find((r) => r.channel === "meta");
-  const googleRow = matrix.find((r) => r.channel === "google");
-  const directRow = matrix.find((r) => r.channel === "direct");
+  const metaRow = matrix.find((r) => r.channel === "social_referral");
+  const googleRow = matrix.find((r) => r.channel === "paid");
+  const directRow = matrix.find((r) => r.channel === "direct_observed");
 
   assert.ok(metaRow, "Must have Meta origin row");
   assert.ok(googleRow, "Must have Google origin row");
   assert.ok(directRow, "Must have Direct origin row");
 
   assert.strictEqual(metaRow!.source, "meta");
-  assert.strictEqual(metaRow!.medium, "paid_social");
+  assert.strictEqual(metaRow!.medium, "unknown", "a Meta click ID must not invent a paid-social medium");
   assert.strictEqual(metaRow!.campaign, "fall_special");
   assert.strictEqual(metaRow!.paidOrders, 1);
   assert.strictEqual(metaRow!.capturedRevenueCents, 900);
@@ -419,7 +532,7 @@ async function runAdminWaterfallTests() {
   assert.strictEqual(originReport.coverage.unmatchedPaidOrders, 1);
 
   assert.strictEqual(googleRow!.source, "google");
-  assert.strictEqual(googleRow!.medium, "cpc");
+  assert.strictEqual(googleRow!.medium, "unknown", "a Google click ID must not invent a paid-search medium");
   assert.strictEqual(googleRow!.campaign, "brand_search");
   assert.strictEqual(googleRow!.sessions, 1);
   assert.strictEqual(googleRow!.paidOrders, 0);
@@ -466,6 +579,10 @@ async function runAdminWaterfallTests() {
 
   assert.strictEqual(reportWithSpend.kpis.recordedAdSpendCents, 4500, "Must sum recorded ad spend (4500 cents)");
   assert.strictEqual(reportWithSpend.kpis.cpaCents, 4500, "CPA must be $45.00 for 1 order ($45 / 1)");
+  const paidSpendOnly = aggregateWaterfallReport({ asOf: fixedClock, scope: { ...baseScope, channel: "paid" }, orders: [], telemetry: [], adSpendRecords: spendRecords });
+  assert.strictEqual(paidSpendOnly.kpis.recordedAdSpendCents, 4500, "Meta ad spend belongs to the Paid filter");
+  const organicSpendOnly = aggregateWaterfallReport({ asOf: fixedClock, scope: { ...baseScope, channel: "organic_search" }, orders: [], telemetry: [], adSpendRecords: spendRecords });
+  assert.strictEqual(organicSpendOnly.kpis.recordedAdSpendCents, null, "Meta ad spend does not leak into Organic Search");
 
   console.log("   ✓ Zero fake COGS or fabricated margins; ad spend and CPA strictly recorded or null");
 

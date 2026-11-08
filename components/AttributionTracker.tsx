@@ -9,8 +9,58 @@ import { mayStoreGoogleClientId } from "@/lib/order-attribution";
 import { trackMetaPageView, getMetaBrowserCookie, buildMetaFbcString } from "@/lib/meta-ads";
 import { sanitizeUrlOrPath, sanitizeAttribution } from "@/lib/telemetry-schema";
 import { observeFollowupLink } from "@/lib/post-purchase/link-client";
+import { getOrCreateJourneyIdentity, resolveConsentState } from "@/lib/journey-identity";
+import { captureAttributionSnapshotV2, getAttributionStorageForBrowser, readAttributionSnapshotV2 } from "@/lib/attribution-capture";
+import { FIRST_OBSERVED_TOUCH_STORAGE_KEY, SESSION_TOUCH_STORAGE_KEY } from "@/lib/attribution-contract";
 
 export const SMN_ATTRIBUTION_KEY = "smn_attribution";
+export const ATTRIBUTION_V2_ENABLED = process.env.NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED === "true";
+let consentRestrictionVersion = 0;
+let v2PurgePending = false;
+let observedOptOut = false;
+let observedGrant = false;
+
+function currentAttributionConsent(): ReturnType<typeof resolveConsentState> {
+  const consent = resolveConsentState();
+  if (consent === "denied") { observedOptOut = true; observedGrant = false; }
+  if (consent === "granted") { observedOptOut = false; observedGrant = true; }
+  // Storage becoming unavailable is not an explicit regrant of a known opt-out.
+  return consent === "not_required" && observedOptOut ? "denied" : consent;
+}
+
+function clearCapturedV2(consentState: "denied" | "gpc_restricted"): void {
+  // The restricted capture path clears both dedicated storage and its private
+  // memory fallback without reading identity or collecting new evidence.
+  void captureAttributionSnapshotV2({ url: "/", pathname: "/", documentEntry: false, consentState })
+    .catch(() => { /* The returned payload is still gated if storage is blocked. */ });
+  if (inMemoryAttribution) delete inMemoryAttribution.attributionV2;
+  v2PurgePending = false;
+  for (const key of ["sessionStorage", "localStorage"] as const) {
+    try {
+      const storage = window[key];
+      storage.removeItem(FIRST_OBSERVED_TOUCH_STORAGE_KEY);
+      storage.removeItem(SESSION_TOUCH_STORAGE_KEY);
+      const raw = storage.getItem(SMN_ATTRIBUTION_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as OrderAttribution;
+        if (parsed?.attributionV2) {
+          delete parsed.attributionV2;
+          storage.setItem(SMN_ATTRIBUTION_KEY, JSON.stringify(parsed));
+        }
+      }
+    } catch { v2PurgePending = true; }
+  }
+}
+
+let documentReferrerWasRead = false;
+let documentReferrerAtEntry: string | undefined;
+
+function readDocumentReferrerOnce(): string | undefined {
+  if (documentReferrerWasRead) return documentReferrerAtEntry;
+  documentReferrerWasRead = true;
+  try { documentReferrerAtEntry = typeof document !== "undefined" ? document.referrer || undefined : undefined; } catch { /* privacy mode */ }
+  return documentReferrerAtEntry;
+}
 function persistAttribution(attribution: OrderAttribution): void {
   inMemoryAttribution = attribution;
   try { sessionStorage.setItem(SMN_ATTRIBUTION_KEY, JSON.stringify(attribution)); } catch { /* in-memory fallback */ }
@@ -89,18 +139,77 @@ function safeSetStorage(key: string, value: string): void {
  */
 export function getStoredAttribution(): OrderAttribution | null {
   if (typeof window === "undefined") return null;
+  // Retry a blocked purge before regrant can read previously inaccessible caches.
+  if (v2PurgePending) clearCapturedV2("denied");
+  let consentState = currentAttributionConsent();
+  let restricted = consentState === "denied" || consentState === "gpc_restricted";
+  const honorCachedConsent = (value: OrderAttribution | null): void => {
+    if (value?.optOut && consentState !== "granted" && !observedGrant) {
+      observedOptOut = true;
+      if (consentState === "not_required") consentState = "denied";
+      restricted = true;
+    }
+  };
+  const attachV2 = (value: OrderAttribution | null): OrderAttribution | null => {
+    honorCachedConsent(value);
+    // The consent flags travel with legacy fields too: the server must not infer
+    // permission from a snapshot or flags captured before the preference changed.
+    const current = value || restricted ? {
+      ...(value ?? {}),
+      optOut: consentState === "denied" || observedOptOut,
+      gpc: consentState === "gpc_restricted",
+    } : null;
+    if (restricted) {
+      consentRestrictionVersion++;
+      clearCapturedV2(consentState === "gpc_restricted" ? "gpc_restricted" : "denied");
+      if (current) {
+        delete current.attributionV2;
+        // Purge the legacy cache as well, so regrant cannot revive its V2 copy.
+        // Write each store independently; either may be the next read fallback.
+        if (value) persistAttribution(current);
+      }
+      return current;
+    }
+    if ((consentState === "granted" || observedGrant) && current) {
+      // Regrant must update the caches too, otherwise a later unavailable
+      // preference read would adopt their superseded opt-out again. Remembered
+      // grant also retries clearing old flags after a previously blocked write.
+      if (value?.optOut || value?.gpc || inMemoryAttribution?.optOut || inMemoryAttribution?.gpc) {
+        persistAttribution(current);
+      } else {
+        inMemoryAttribution = current;
+      }
+    }
+    if (v2PurgePending) {
+      if (current) delete current.attributionV2;
+      return current;
+    }
+    if (!ATTRIBUTION_V2_ENABLED) return current;
+    try {
+      const { storage } = getAttributionStorageForBrowser();
+      const sessionId = getOrCreateJourneyIdentity().sessionId;
+      const snapshot = readAttributionSnapshotV2(storage, sessionId);
+      if (snapshot) return { ...(current ?? {}), attributionV2: snapshot };
+    } catch { /* V2 is additive and may remain unavailable when identity/storage is blocked. */ }
+    return current;
+  };
   try {
     const raw = safeGetStorage(SMN_ATTRIBUTION_KEY);
-    if (!raw) return inMemoryAttribution;
+    if (!raw) return attachV2(inMemoryAttribution);
 
     const parsed = JSON.parse(raw) as OrderAttribution;
+    // Campaign expiry is not consent expiry. Preserve a known opt-out before
+    // dropping expired evidence, including when the preference store is blocked.
+    honorCachedConsent(parsed);
     const expiresAt = parsed.expiresAt || (parsed.capturedAt ? parsed.capturedAt + 90 * 24 * 60 * 60 * 1000 : 0);
     if (!expiresAt || expiresAt <= Date.now()) {
       try { sessionStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
       try { localStorage.removeItem(SMN_ATTRIBUTION_KEY); } catch { /* storage unavailable */ }
       inMemoryAttribution = null;
-      return null;
+      return attachV2(null);
     }
+
+    if (restricted || (parsed.optOut && consentState !== "granted")) return attachV2(parsed);
 
     // Check if _fbp or _fbc became available after the initial attribution was saved
     let changed = false;
@@ -127,9 +236,9 @@ export function getStoredAttribution(): OrderAttribution | null {
       persistAttribution(parsed);
     }
 
-    return parsed;
+    return attachV2(parsed);
   } catch {
-    return inMemoryAttribution;
+    return attachV2(inMemoryAttribution);
   }
 }
 
@@ -144,6 +253,8 @@ function AttributionTrackerInner() {
   // retain safe UTM/click evidence, while bearer tokens and private routes do not.
   const acquisitionCaptureBlocked = isPrivatePaymentPath || pathname === "/email/unsubscribe" || searchParams.has("token");
   const isFirstRender = useRef(true);
+  const legacyDocumentEntry = useRef(true);
+  const v2DocumentEntry = useRef(true);
 
   useEffect(() => {
     if (!followupReference || typeof window === "undefined") return;
@@ -196,6 +307,8 @@ function AttributionTrackerInner() {
   }, [isPrivateTrackingPath, pathname]);
 
   useEffect(() => {
+    const isDocumentEntry = legacyDocumentEntry.current;
+    legacyDocumentEntry.current = false;
     if (typeof window === "undefined") return;
     if (acquisitionCaptureBlocked) return;
 
@@ -233,8 +346,9 @@ function AttributionTrackerInner() {
         fbc = buildMetaFbcString(fbclid) || undefined;
       }
 
-      const cleanReferrer = sanitizeUrlOrPath(document.referrer) || undefined;
+      const cleanReferrer = isDocumentEntry ? sanitizeUrlOrPath(readDocumentReferrerOnce()) || undefined : undefined;
       const cleanLandingPath = sanitizeUrlOrPath(pathname || window.location.pathname) || "/";
+      const existingAttribution = getStoredAttribution();
 
       // If user landed with campaign parameters, overwrite or set attribution
       if (hasCampaignParams) {
@@ -255,8 +369,8 @@ function AttributionTrackerInner() {
           fbclid,
           fbp: fbp || undefined,
           fbc: fbc || undefined,
-          referrer: cleanReferrer,
-          landingPath: cleanLandingPath,
+          referrer: cleanReferrer || existingAttribution?.referrer,
+          landingPath: isDocumentEntry ? cleanLandingPath : existingAttribution?.landingPath || cleanLandingPath,
           googleClientId: isGpcActive ? undefined : getGoogleClientId(),
           googleClientIdNormalized: isGpcActive ? undefined : normalizedClientIdFromCookie(),
           gpc: isGpcActive || undefined,
@@ -298,8 +412,12 @@ function AttributionTrackerInner() {
         }
       }
 
+      // The document referrer belongs to the page load that created this
+      // component. An SPA route transition is not a fresh arrival.
+      if (!isDocumentEntry) return;
+
       // First time visitor without UTMs: classify referrer
-      const ref = document.referrer;
+      const ref = cleanReferrer || "";
       let detectedSource = "direct";
       let detectedMedium = "none";
 
@@ -363,6 +481,39 @@ function AttributionTrackerInner() {
     } catch (e) {
       console.warn("[Attribution Tracker] Non-fatal capture notice:", e);
     }
+  }, [acquisitionCaptureBlocked, searchParams, pathname]);
+
+  useEffect(() => {
+    const isDocumentEntry = v2DocumentEntry.current;
+    v2DocumentEntry.current = false;
+    if (!ATTRIBUTION_V2_ENABLED || typeof window === "undefined" || acquisitionCaptureBlocked) return;
+    let active = true;
+    const consentState = currentAttributionConsent();
+    const captureRestrictionVersion = consentRestrictionVersion;
+    void captureAttributionSnapshotV2({
+      url: window.location.pathname + window.location.search,
+      pathname: pathname || window.location.pathname,
+      documentReferrer: isDocumentEntry ? readDocumentReferrerOnce() : undefined,
+      documentEntry: isDocumentEntry,
+      consentState,
+      origin: window.location.origin,
+    }).then((snapshot) => {
+      // Capture can finish after a preference change (for example while waiting
+      // on a browser lock). Never attach a result from a superseded consent state.
+      const currentConsent = currentAttributionConsent();
+      if (currentConsent === "denied" || currentConsent === "gpc_restricted") {
+        // An older capture may have written storage before its promise settled.
+        getStoredAttribution();
+        return;
+      }
+      if (captureRestrictionVersion !== consentRestrictionVersion || currentConsent !== consentState) {
+        clearCapturedV2("denied");
+        return;
+      }
+      if (!active) return;
+      inMemoryAttribution = { ...(inMemoryAttribution ?? {}), attributionV2: snapshot };
+    }).catch(() => { /* V2 capture must not interrupt checkout or telemetry. */ });
+    return () => { active = false; };
   }, [acquisitionCaptureBlocked, searchParams, pathname]);
 
   // Keep the historical raw _ga value intact; store Google's normalized client ID separately.

@@ -4,6 +4,7 @@ import { FieldPath } from "firebase-admin/firestore";
 import { firestoreDb, isFirestoreMock } from "@/lib/firebase-admin";
 import { ReportOrderInput, ReportReconciliationEntry, SourceCoverage } from "@/lib/contracts/admin-measurement-report";
 import { REPORT_PRIVATE_COLLECTION_PATH } from "@/lib/admin-measurement-reconciliation";
+import { sanitizeAttributionSnapshot } from "@/lib/attribution-classifier";
 
 export const ORDER_CAP = 2000;
 export const TELEMETRY_CAP = 500;
@@ -12,7 +13,7 @@ const DEADLINE_MS = 6500;
 
 export interface MeasurementSources {
   orders: ReportOrderInput[];
-  telemetry: Array<{ eventId: string; sessionKey?: string; eventName?: string; source?: string; medium?: string; campaign?: string; hasGoogleClick: boolean; hasMetaClick: boolean }>;
+  telemetry: Array<{ eventId: string; sessionKey?: string; eventName?: string; source?: string; medium?: string; campaign?: string; hasGoogleClick: boolean; hasMetaClick: boolean; attributionV2?: unknown }>;
   reconciliations: ReportReconciliationEntry[];
   coverage: { orders: SourceCoverage; telemetry: SourceCoverage; reconciliation: SourceCoverage };
   dataEnvironment: "live" | "synthetic" | "unavailable";
@@ -83,17 +84,17 @@ export async function readMeasurementSources(startUtc: string | null, endUtc: st
 
   const ordersTask = (async () => {
     const db = testOptions?.db ?? firestoreDb;
-    const fields = ["createdAt", "amountInCents", "stripePaymentId", "paymentMode", "paymentMethod", "isTest", "isFounderTest", "isComp", "origin", "commercialKind", "purchaseMeasurement", "refundStatus", "refundedAmountInCents", "disputeStatus", "campaignId", "source", "attribution.utmSource", "attribution.utmMedium", "attribution.utmCampaign", "attribution.gclid", "attribution.wbraid", "attribution.gbraid", "attribution.fbclid"];
+    const fields = ["createdAt", "sessionId", "amountInCents", "stripePaymentId", "paymentMode", "paymentMethod", "isTest", "isFounderTest", "isComp", "origin", "commercialKind", "purchaseMeasurement", "refundStatus", "refundedAmountInCents", "disputeStatus", "campaignId", "source", "attribution.utmSource", "attribution.utmMedium", "attribution.utmCampaign", "attribution.gclid", "attribution.wbraid", "attribution.gbraid", "attribution.fbclid", "attribution.attributionV2"];
     const snap: any = await timed(db.collection("orders").select(...fields).orderBy(FieldPath.documentId()).limit(ORDER_CAP + 1).get(), testOptions?.deadlineMs ?? DEADLINE_MS);
-    return { rows: snap.docs.slice(0, ORDER_CAP).map((doc: any) => ({ id: doc.id, ...doc.data(), attribution: normalizeAttribution(doc.data()?.attribution) })), coverage: boundedSourceCoverage(snap.size, ORDER_CAP) };
+    return { rows: snap.docs.slice(0, ORDER_CAP).map((doc: any) => { const data = doc.data() ?? {}; return { id: doc.id, ...data, attribution: normalizeAttribution(data?.attribution, data?.sessionId), sessionId: safeSessionKey(data?.sessionId) }; }), coverage: boundedSourceCoverage(snap.size, ORDER_CAP) };
   })();
   const telemetryTask = (async () => {
     const db = testOptions?.db ?? firestoreDb;
-    let query: any = db.collection("telemetry_events").select("eventName", "sessionId", "timestamp", "utmSource", "utmMedium", "utmCampaign", "gclid", "wbraid", "gbraid", "fbclid");
+    let query: any = db.collection("telemetry_events").select("eventName", "sessionId", "timestamp", "utmSource", "utmMedium", "utmCampaign", "gclid", "wbraid", "gbraid", "fbclid", "metadata.attributionV2");
     if (startUtc) query = query.where("timestamp", ">=", Date.parse(startUtc));
     if (endUtc) query = query.where("timestamp", "<", Date.parse(endUtc));
     const snap: any = await timed(query.orderBy("timestamp", "asc").limit(TELEMETRY_CAP + 1).get(), testOptions?.deadlineMs ?? DEADLINE_MS);
-    return { rows: snap.docs.slice(0, TELEMETRY_CAP).map((doc: any) => { const d = doc.data() ?? {}; return { eventId: doc.id, sessionKey: safeSessionKey(d.sessionId), eventName: typeof d.eventName === "string" ? d.eventName.slice(0, 80) : undefined, source: safeText(d.utmSource), medium: safeText(d.utmMedium), campaign: safeText(d.utmCampaign), hasGoogleClick: !!(d.gclid || d.wbraid || d.gbraid), hasMetaClick: !!d.fbclid }; }), coverage: boundedSourceCoverage(snap.size, TELEMETRY_CAP) };
+    return { rows: snap.docs.slice(0, TELEMETRY_CAP).map((doc: any) => { const d = doc.data() ?? {}; return { eventId: doc.id, sessionKey: safeSessionKey(d.sessionId), eventName: typeof d.eventName === "string" ? d.eventName.slice(0, 80) : undefined, source: safeText(d.utmSource), medium: safeText(d.utmMedium), campaign: safeText(d.utmCampaign), hasGoogleClick: !!(d.gclid || d.wbraid || d.gbraid), hasMetaClick: !!d.fbclid, attributionV2: sanitizeAttributionSnapshot(d.metadata?.attributionV2, safeSessionKey(d.sessionId)) }; }), coverage: boundedSourceCoverage(snap.size, TELEMETRY_CAP) };
   })();
 
   // The private collection must be selected only after its deployed read/write rules are verified.
@@ -127,11 +128,12 @@ function safeSessionKey(value: unknown): string | undefined {
   return typeof value === "string" && value.length <= 200 ? value : undefined;
 }
 
-function normalizeAttribution(value: any): ReportOrderInput["attribution"] {
+function normalizeAttribution(value: any, sessionId?: unknown): ReportOrderInput["attribution"] {
   if (!value || typeof value !== "object") return undefined;
   return {
     source: safeText(value.utmSource), medium: safeText(value.utmMedium), campaign: safeText(value.utmCampaign),
     gclid: safeText(value.gclid), wbraid: safeText(value.wbraid), gbraid: safeText(value.gbraid), fbclid: safeText(value.fbclid),
+    attributionV2: sanitizeAttributionSnapshot(value.attributionV2, safeSessionKey(sessionId)),
   };
 }
 function safeText(value: unknown): string | undefined {

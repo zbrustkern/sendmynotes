@@ -32,6 +32,7 @@ import {
   WATERFALL_CHANNELS,
   WATERFALL_WINDOWS,
 } from "@/lib/contracts/admin-waterfall";
+import { ATTRIBUTION_GROUP_LABELS } from "@/lib/attribution-contract";
 
 export interface AdminWaterfallConsoleProps {
   initialWindow?: WaterfallWindow;
@@ -94,13 +95,7 @@ const WINDOW_LABELS: Record<WaterfallWindow, string> = {
 
 const CHANNEL_LABELS: Record<WaterfallChannel, string> = {
   all: "All Channels",
-  meta: "Meta (Facebook / IG)",
-  google: "Google Ads (CPC)",
-  direct: "Direct Traffic",
-  unknown: "Unknown Attribution",
-  organic: "Organic Search",
-  email: "Email Marketing",
-  referral: "Referral / Affiliate",
+  ...ATTRIBUTION_GROUP_LABELS,
 };
 
 export function AdminWaterfallConsole({

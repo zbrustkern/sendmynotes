@@ -12,6 +12,7 @@
 
 import { DEFAULT_ADMIN_TIMEZONE, GlobalReportScope } from "./contracts/admin-overhaul";
 import type { ExecutiveReportingOverview } from "./reporting-engine";
+import type { AttributionGroup } from "./attribution-contract";
 
 export type { ExecutiveReportingOverview, ExecutiveReportingOverview as ExecutiveOverviewReport };
 
@@ -106,7 +107,7 @@ export interface AdminGlobalScope {
   to?: string;
   comparePrevious: boolean;
   mode: "customer_reporting" | "operational_all";
-  channel: "all" | "paid" | "google_cpc" | "meta_paid" | "organic_direct";
+  channel: "all" | AttributionGroup | "google_cpc" | "meta_paid" | "organic_direct";
   device: "all" | "mobile" | "desktop" | "tablet";
   inAppBrowserOnly: boolean;
   drilldownMetric?: string;
@@ -223,7 +224,7 @@ export function parseAdminGlobalScope(
   // 4. Channel filter
   const rawChannel = (getParam("channel") || "all").toLowerCase().trim();
   let channel: AdminGlobalScope["channel"] = "all";
-  if (rawChannel === "paid") channel = "paid";
+  if (["paid", "organic_search", "social_referral", "email_other", "direct_observed", "unknown"].includes(rawChannel)) channel = rawChannel as AttributionGroup;
   else if (rawChannel === "google_cpc" || rawChannel === "google cpc") channel = "google_cpc";
   else if (rawChannel === "meta_paid" || rawChannel === "meta paid") channel = "meta_paid";
   else if (rawChannel === "organic_direct") channel = "organic_direct";

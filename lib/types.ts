@@ -1,4 +1,5 @@
 import type { UploadOrderMaster } from "./upload/contracts";
+import type { AttributionSnapshotV2 } from "./attribution-contract";
 export interface MailingAddress {
   firstName: string;
   lastName: string;
@@ -73,6 +74,8 @@ export interface SavedAddress extends MailingAddress {
 }
 
 export interface OrderAttribution {
+  /** Additive V2 touch model; legacy flat fields below remain unchanged. */
+  attributionV2?: AttributionSnapshotV2;
   utmSource?: string;
   utmMedium?: string;
   utmCampaign?: string;

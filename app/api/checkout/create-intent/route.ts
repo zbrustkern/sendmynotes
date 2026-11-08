@@ -17,7 +17,7 @@ import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
 import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout, isStagingInternationalPreview, isProductionInternationalEnabled } from "@/lib/mailing-destinations";
 import { calculateOrderQuote } from "@/lib/order-pricing";
-import { sanitizeOrderAttribution } from "@/lib/order-attribution";
+import { prepareCheckoutOrderAttribution } from "@/lib/order-attribution";
 
 export async function POST(req: NextRequest) {
   const operationId = resolveOperationId(req, "checkout");
@@ -47,7 +47,12 @@ export async function POST(req: NextRequest) {
     } = body;
 
     const isAddressDeferred = Boolean(body.addressDeferred || body.address_deferred);
-    const attribution = sanitizeOrderAttribution(rawAttribution);
+    const checkoutStartedAtServerMs = Date.now();
+    const attribution = prepareCheckoutOrderAttribution(rawAttribution, {
+      sessionId,
+      serverNowMs: checkoutStartedAtServerMs,
+      globalPrivacyControl: req.headers.get("sec-gpc") === "1",
+    });
     const postPurchaseLinkObservation = await validateFollowupLinkForCheckout(body.followupLink, req.headers.get("sec-gpc") !== "1" && !attribution?.gpc && !attribution?.optOut);
     let isFounderTest = req.cookies.get("smn_founder_device")?.value === "1";
     if (!isFounderTest && typeof sessionId === "string") {

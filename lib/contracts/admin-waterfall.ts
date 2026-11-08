@@ -54,25 +54,16 @@ export const WATERFALL_WINDOWS: WaterfallWindow[] = [
   "custom",
 ];
 
-export type WaterfallChannel =
-  | "all"
-  | "meta"
-  | "google"
-  | "direct"
-  | "unknown"
-  | "organic"
-  | "email"
-  | "referral";
+export type WaterfallChannel = "all" | "paid" | "organic_search" | "social_referral" | "email_other" | "direct_observed" | "unknown";
 
 export const WATERFALL_CHANNELS: WaterfallChannel[] = [
   "all",
-  "meta",
-  "google",
-  "direct",
+  "paid",
+  "organic_search",
+  "social_referral",
+  "email_other",
+  "direct_observed",
   "unknown",
-  "organic",
-  "email",
-  "referral",
 ];
 
 export type WaterfallAudience = "customers" | "all_traffic";
@@ -238,6 +229,7 @@ export interface WaterfallOrderInput {
     gbraid?: string;
     fbclid?: string;
     emailClickId?: string;
+    attributionV2?: unknown;
   };
   source?: string;
 }

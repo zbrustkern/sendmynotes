@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { aggregateMeasurementReport, InvalidReportScope, normalizeReportScope } from "@/lib/admin-measurement-report";
 import { SourceCoverage } from "@/lib/contracts/admin-measurement-report";
 import { reconciliationApplyTargetError, reconciliationManifestHash, toReconciliationEntries, validateReconciliationManifest, ReconciliationManifest } from "@/lib/admin-measurement-reconciliation";
+import { ATTRIBUTION_GROUP_LABELS } from "@/lib/attribution-contract";
+import { classifyChannel } from "@/lib/admin-waterfall-report";
 
 const complete = (cap = 2000): SourceCoverage => ({ status: "complete", count: 0, cap });
 
@@ -15,6 +17,58 @@ function testChicagoBoundaries() {
   assert.throws(() => normalizeReportScope(new URLSearchParams("period=custom&start=2026-02-30&end=2026-03-01")), InvalidReportScope);
   assert.throws(() => normalizeReportScope(new URLSearchParams("period=custom&start=2026-03-02&end=2026-03-01")), InvalidReportScope);
   assert.throws(() => normalizeReportScope(new URLSearchParams("period=wat")), InvalidReportScope);
+}
+
+function testAttributionGroupFiltersAndSharedClassification() {
+  const labels = ATTRIBUTION_GROUP_LABELS;
+  assert.deepEqual(Object.values(labels), ["Paid", "Organic Search", "Social & Referral", "Email & Other Campaign", "Direct / No Referrer", "Unknown"]);
+  const groups = Object.keys(labels);
+  assert.deepEqual(groups, ["paid", "organic_search", "social_referral", "email_other", "direct_observed", "unknown"]);
+  for (const [legacy, expected] of Object.entries({ google_paid: "paid", email: "email_other", organic: "organic_search", social_meta: "social_referral", referral: "social_referral", direct: "direct_observed", unknown: "unknown" })) {
+    const scope = normalizeReportScope(new URLSearchParams(`period=all&channel=${legacy}`));
+    assert.equal(scope.channel, expected);
+  }
+  const evidence = { source: "google", medium: "organic", campaign: "spring", observedEntry: true };
+  const fromMeasurement = aggregateMeasurementReport({ asOf: new Date(), scope: normalizeReportScope(new URLSearchParams("period=all&records=all")),
+    orders: [{ id: "legacy-google-organic", createdAt: "2026-10-20T12:00:00Z", source: evidence.source, attribution: { source: evidence.source, medium: evidence.medium, campaign: evidence.campaign } }],
+    orderCoverage: complete(), telemetryCoverage: complete(500), reconciliationCoverage: complete(100) });
+  const waterfallClassification = classifyChannel(evidence);
+  assert.equal(fromMeasurement.orderDiagnostics[0].campaign.channel, waterfallClassification.channel);
+  assert.equal(fromMeasurement.orderDiagnostics[0].campaign.group, waterfallClassification.group);
+  assert.equal(waterfallClassification.group, "organic_search");
+  assert.equal(classifyChannel({ source: "direct", medium: "none", campaign: "(direct/organic)" }).group, "direct_observed", "the exact legacy direct sentinel remains direct");
+  assert.equal(classifyChannel({ source: "direct", medium: "none" }).group, "unknown", "ambiguous direct/none rows remain unknown");
+  assert.equal(classifyChannel({ source: "google", medium: "organic" }).group, "organic_search", "Google organic sentinel remains organic search");
+  assert.equal(classifyChannel({}).group, "unknown", "empty legacy evidence remains unknown");
+  const sameCampaignDifferentSource = aggregateMeasurementReport({ asOf: new Date(), scope: normalizeReportScope(new URLSearchParams("period=all&records=all")),
+    orders: ["google", "bing"].map((source, index) => ({ id: `src-${index}`, createdAt: "2026-10-20T12:00:00Z", source, attribution: { source, medium: "organic", campaign: "spring" } })),
+    orderCoverage: complete(), telemetryCoverage: complete(500), reconciliationCoverage: complete(100) });
+  assert.equal(new Set(sameCampaignDifferentSource.orderDiagnostics.map((row) => row.campaign.key)).size, 2, "the same campaign label under separate sources remains separate");
+  const empty = aggregateMeasurementReport({ asOf: new Date(), scope: normalizeReportScope(new URLSearchParams("period=all&records=all")),
+    orders: [{ id: "empty", createdAt: "2026-10-20T12:00:00Z", attribution: {} }],
+    orderCoverage: complete(), telemetryCoverage: complete(500), reconciliationCoverage: complete(100) });
+  assert.equal(empty.orderDiagnostics[0].campaign.group, "unknown");
+}
+
+function testV2FirstTouchAndCheckoutSessionStayDistinct() {
+  const touch = (touchId: string, sessionId: string, fields: Record<string, unknown>) => ({
+    touchId, sessionId, observedAtClientMs: 1792890000000, expiresAt: 1800666000000, clockQuality: "client_unanchored", ...fields,
+  });
+  const snapshot = {
+    schemaVersion: 2,
+    classifierVersion: "2026-11-05.1",
+    persistence: "persistent",
+    firstObservedTouch: touch("touch_first_123", "sess_first_123", { source: "google", medium: "cpc", campaign: "spring_launch", channel: "paid_search", group: "paid", provenance: "utm", reason: "explicit_paid_medium" }),
+    currentSessionTouch: touch("touch_current_123", "sess_current_123", { channel: "direct_observed", group: "direct_observed", provenance: "observed_no_referrer", reason: "direct_observed" }),
+  };
+  const order = { id: "v2_order", sessionId: "sess_current_123", createdAt: "2026-10-24T12:00:00Z", amountInCents: 900, stripePaymentId: "pi_v2", paymentMode: "stripe_live", paymentMethod: "STRIPE", attribution: { attributionV2: snapshot }, purchaseMeasurement: { version: 1, transactionId: "v2_order", amountInCents: 900, currency: "USD", verifiedAt: 1792843200000, eligible: true, reason: "eligible" } };
+  const event = { eventId: "v2_event", sessionKey: "sess_current_123", eventName: "landing_viewed", attributionV2: snapshot };
+  const scope = normalizeReportScope(new URLSearchParams("period=all&records=all"));
+  const report = aggregateMeasurementReport({ asOf: new Date("2026-10-26T18:00:00Z"), scope, orders: [order], orderCoverage: complete(2000), telemetryCoverage: complete(500), reconciliationCoverage: complete(100), telemetry: [event] });
+  assert.equal(report.orderDiagnostics[0].campaign.group, "paid", "order campaign diagnosis uses first observed acquisition touch");
+  assert.equal(report.orderDiagnostics[0].campaign.campaign, "spring_launch");
+  assert.ok(report.campaigns.some((row) => row.group === "direct_observed"), "session activity keeps the distinct checkout-session touch");
+  assert.equal(report.activity.observedSessions, 1);
 }
 
 function testPaymentClassificationAndTelemetrySeparation() {
@@ -38,7 +92,7 @@ function testPaymentClassificationAndTelemetrySeparation() {
   assert.equal(report.exceptions.filter((e) => e.code === "payment_intent_collision").length, 2);
   assert.equal(report.activity.observedSessions, 1);
   assert.equal(report.activity.eventCounts?.step_navigated, 1);
-  assert.equal(report.campaigns.find((x) => x.key === "google|cpc|launch")?.observedSessions, 1);
+  assert.equal(report.campaigns.find((x) => x.source === "google" && x.medium === "cpc" && x.campaign === "launch")?.observedSessions, 1);
   assert.equal(JSON.stringify(report).includes("raw-private-click"), false);
   const customerView = aggregateMeasurementReport({ asOf: new Date("2026-10-26T18:00:00Z"), scope: { ...scope, records: "customers" }, orders,
     orderCoverage: { status: "complete", count: 6, cap: 2000 }, telemetryCoverage: { status: "complete", count: 1, cap: 500 }, reconciliationCoverage: complete(100), telemetry: [event, event] });
@@ -76,7 +130,7 @@ function testCampaignLabelsArePrivacySanitized() {
   assert.equal(serialized.includes("founder@example.test"), false);
   assert.equal(serialized.includes("312) 555-0199"), false);
   assert.equal(serialized.includes("owner@example.test"), false);
-  assert.ok(report.campaigns.some((row) => row.label === "[redacted]"));
+  assert.ok(report.campaigns.every((row) => !row.label.includes("@")), "unsafe campaign labels are omitted before they reach the report");
 }
 
 function testRefundGrossAndUncertainty() {
@@ -160,6 +214,8 @@ function testReconciliationManifestSafety() {
 }
 
 testChicagoBoundaries();
+testAttributionGroupFiltersAndSharedClassification();
+testV2FirstTouchAndCheckoutSessionStayDistinct();
 testPaymentClassificationAndTelemetrySeparation();
 testIncompleteSourcesSuppressOnlyAffectedTotals();
 testCampaignLabelsArePrivacySanitized();

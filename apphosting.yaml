@@ -11,6 +11,14 @@ runConfig:
 # Environment variables and Cloud Secret Manager bindings
 # Secrets are managed via Google Cloud Secret Manager and never committed to git.
 env:
+  # Enable the accepted attribution capture and checkout snapshot rollout.
+  - variable: NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED
+    value: "true"
+    availability: [BUILD, RUNTIME]
+  - variable: ATTRIBUTION_V2_ENABLED
+    value: "true"
+    availability: [RUNTIME]
+
   # Sensitive Server-Only Secrets (Backed by Google Cloud Secret Manager)
   - variable: STRIPE_SECRET_KEY
     secret: stripe-secret-key

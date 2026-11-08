@@ -18,6 +18,8 @@ import {
   WATERFALL_CHANNELS,
   WATERFALL_WINDOWS,
 } from "./contracts/admin-waterfall";
+import type { AttributionClassification } from "./attribution-contract";
+import { adaptLegacyAttribution, attributionCampaignKey, classifyAttributionProperties, matchesAttributionGroup } from "./attribution-classifier";
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -97,8 +99,11 @@ export function normalizeWaterfallScope(
     ? (rawWindow as WaterfallWindow)
     : "last7";
 
+  const legacy: Record<string, WaterfallChannel> = { google: "paid", google_cpc: "paid", google_paid: "paid", meta: "social_referral", social_meta: "social_referral", email: "email_other", organic: "organic_search", referral: "social_referral", direct: "direct_observed" };
   const channel: WaterfallChannel = WATERFALL_CHANNELS.includes(rawChannel as WaterfallChannel)
     ? (rawChannel as WaterfallChannel)
+    : legacy[rawChannel]
+      ? legacy[rawChannel]
     : "all";
 
   const audience: WaterfallAudience = WATERFALL_AUDIENCES.includes(rawAudience as WaterfallAudience)
@@ -258,29 +263,36 @@ export function classifyChannel(params: {
   wbraid?: string;
   gbraid?: string;
   emailClickId?: string;
-}): WaterfallChannel {
-  const source = (params.source || "").toLowerCase().trim();
-  const medium = (params.medium || "").toLowerCase().trim();
+  attributionV2?: unknown;
+  sessionId?: string;
+}): AttributionClassification {
+  if (params.attributionV2) return classifyAttributionProperties({ attributionV2: params.attributionV2 }, params.sessionId);
+  return adaptLegacyAttribution({ source: params.source, medium: params.medium, campaign: params.campaign,
+    observedEntry: Boolean(params.source || params.medium || params.campaign), hasMetaClickId: Boolean(params.fbclid),
+    hasGoogleClickId: Boolean(params.gclid || params.wbraid || params.gbraid), hasEmailClickId: Boolean(params.emailClickId) });
+}
 
-  if (params.fbclid || ["facebook", "instagram", "meta"].some((s) => source.includes(s)) || medium === "paid_social" || medium === "social") {
-    return "meta";
-  }
-  if (params.gclid || params.wbraid || params.gbraid || source.includes("google") || ["cpc", "ppc", "paid", "paidsearch"].includes(medium)) {
-    return "google";
-  }
-  if (params.emailClickId || ["email", "e-mail"].includes(medium)) {
-    return "email";
-  }
-  if (medium === "organic") {
-    return "organic";
-  }
-  if (["referral", "affiliate"].includes(medium)) {
-    return "referral";
-  }
-  if (source === "direct" || ["none", "direct"].includes(medium)) {
-    return "direct";
-  }
-  return "unknown";
+export function classifyOrderAttributionSnapshot(value: unknown, sessionId?: string): AttributionClassification | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const snapshot = value as { firstObservedTouch?: unknown; currentSessionTouch?: unknown };
+  if (snapshot.firstObservedTouch) return classifyAttributionProperties({ attributionV2: value }, undefined, "first");
+  if (snapshot.currentSessionTouch && sessionId) return classifyAttributionProperties({ attributionV2: value }, sessionId, "current");
+  return undefined;
+}
+
+function classifyAdSpendChannel(value?: string): AttributionClassification {
+  const key = value?.trim().toLowerCase().replace(/[\s-]+/g, "_") ?? "";
+  const paidSource: Record<string, [string, string]> = {
+    google: ["google", "paid"], google_ads: ["google", "paid"], google_paid: ["google", "paid"], google_cpc: ["google", "cpc"],
+    meta: ["meta", "paid_social"], meta_ads: ["meta", "paid_social"], facebook: ["meta", "paid_social"], facebook_ads: ["meta", "paid_social"], instagram: ["meta", "paid_social"],
+  };
+  const known = paidSource[key];
+  if (known) return classifyChannel({ source: known[0], medium: known[1] });
+  if (key === "direct" || key === "direct_observed") return classifyChannel({ source: "direct", medium: "none", campaign: "(direct/organic)" });
+  if (key === "organic" || key === "organic_search") return classifyChannel({ source: "google", medium: "organic" });
+  if (key === "email" || key === "email_other") return classifyChannel({ source: "email", medium: "email" });
+  if (key === "social_referral") return classifyChannel({ source: "social", medium: "social" });
+  return classifyChannel({ source: key || undefined });
 }
 
 export function classifyDevice(deviceType?: string, userAgent?: string): "mobile" | "desktop" | "tablet" {
@@ -489,16 +501,40 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     }
   }
 
-  const sessionAttribution = new Map<string, { source: string; medium: string; campaign: string }>();
+  const sessionAttribution = new Map<string, {
+    source: string;
+    medium: string;
+    campaign: string;
+    classification: AttributionClassification;
+  }>();
   for (const [sessionId, events] of sessionEvents) {
     const ordered = [...events].sort((a, b) => (timestampMillis(a.timestamp ?? a.createdAt) ?? 0) - (timestampMillis(b.timestamp ?? b.createdAt) ?? 0));
+    // V2 is the canonical session-bound attribution snapshot. A legacy flat
+    // event can be emitted before the snapshot is available (or carry an old
+    // direct sentinel), so prefer the earliest V2 snapshot when the session
+    // has one and only use flat fields as a compatibility fallback.
     const event = ordered.find((candidate) => Boolean(
-      candidate.utmSource || candidate.source || candidate.utmMedium || candidate.medium || candidate.utmCampaign || candidate.campaign || candidate.gclid || candidate.wbraid || candidate.gbraid || candidate.fbclid || candidate.emailClickId
+      candidate.metadata?.attributionV2 || candidate.metadata?.attribution_v2
+    )) ?? ordered.find((candidate) => Boolean(
+      candidate.metadata?.attributionV2 || candidate.utmSource || candidate.source || candidate.utmMedium || candidate.medium || candidate.utmCampaign || candidate.campaign || candidate.gclid || candidate.wbraid || candidate.gbraid || candidate.fbclid || candidate.emailClickId
     ));
+    const classification = classifyChannel({
+      source: event?.utmSource || event?.source,
+      medium: event?.utmMedium || event?.medium,
+      campaign: event?.utmCampaign || event?.campaign,
+      fbclid: event?.fbclid,
+      gclid: event?.gclid,
+      wbraid: event?.wbraid,
+      gbraid: event?.gbraid,
+      emailClickId: event?.emailClickId,
+      attributionV2: event?.metadata?.attributionV2 ?? event?.metadata?.attribution_v2,
+      sessionId,
+    });
     sessionAttribution.set(sessionId, {
-      source: event?.utmSource || event?.source || (event?.gclid || event?.wbraid || event?.gbraid ? "google" : event?.fbclid ? "meta" : "unknown"),
-      medium: event?.utmMedium || event?.medium || (event?.gclid || event?.wbraid || event?.gbraid ? "cpc" : event?.fbclid ? "paid_social" : "unknown"),
-      campaign: event?.utmCampaign || event?.campaign || "unknown",
+      source: event?.utmSource || event?.source || (event?.gclid || event?.wbraid || event?.gbraid ? "google" : event?.fbclid ? "meta" : classification.source || "unknown"),
+      medium: event?.utmMedium || event?.medium || (event?.gclid || event?.wbraid || event?.gbraid ? "cpc" : event?.fbclid ? "paid_social" : classification.medium || "unknown"),
+      campaign: event?.utmCampaign || event?.campaign || classification.campaign || "unknown",
+      classification,
     });
   }
 
@@ -558,18 +594,13 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
 
       const rawCampaign = attr.campaign || attr.utmCampaign || order.campaignId || linkedAttribution?.campaign || "unknown";
 
-      const orderChannel = classifyChannel({
-        source: rawSource,
-        medium: rawMedium,
-        campaign: rawCampaign,
-        fbclid: attr.fbclid,
-        gclid: attr.gclid,
-        wbraid: attr.wbraid,
-        gbraid: attr.gbraid,
-        emailClickId: attr.emailClickId,
-      });
+      const orderClassification = classifyOrderAttributionSnapshot(attr.attributionV2, order.sessionId) ?? adaptLegacyAttribution({ source: attr.source || attr.utmSource || order.source || null, medium: attr.medium || attr.utmMedium || null, campaign: attr.campaign || attr.utmCampaign || order.campaignId || linkedAttribution?.campaign || null,
+          referrer: (attr as typeof attr & { referrer?: string }).referrer ?? null,
+          observedEntry: Boolean(attr.source || attr.utmSource || attr.medium || attr.utmMedium || attr.campaign || attr.utmCampaign || order.source || order.campaignId),
+          hasGoogleClickId: hasGoogle, hasMetaClickId: hasFb, hasEmailClickId: hasEmail });
+      const orderChannel = orderClassification.group;
 
-      if (scope.channel !== "all" && orderChannel !== scope.channel) {
+      if (scope.channel !== "all" && !matchesAttributionGroup(scope.channel, orderClassification)) {
         continue;
       }
 
@@ -593,10 +624,10 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
         heldOrFailedOrders++;
       }
 
-      const sourceClean = (rawSource || "unknown").toLowerCase().trim();
-      const mediumClean = (rawMedium || "unknown").toLowerCase().trim();
-      const campaignClean = (rawCampaign || "unknown").toLowerCase().trim();
-      const originKey = `${sourceClean}|${mediumClean}|${campaignClean}`;
+      const sourceClean = (orderClassification.source || "unknown").toLowerCase().trim();
+      const mediumClean = (orderClassification.medium || "unknown").toLowerCase().trim();
+      const campaignClean = (orderClassification.campaign || "unknown").toLowerCase().trim();
+      const originKey = attributionCampaignKey(orderClassification);
 
       validPaidCustomerOrders.push({
         order,
@@ -651,16 +682,16 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const hasBot = events.some(isBotEvent);
     if (hasBot) {
       const botAttribution = sessionAttribution.get(sessionId);
-      const botChannel = classifyChannel({ source: botAttribution?.source, medium: botAttribution?.medium, campaign: botAttribution?.campaign });
-      if (scope.channel === "all" || botChannel === scope.channel) botFilteredCount++;
+      const botChannel = botAttribution?.classification ?? classifyChannel({ source: botAttribution?.source, medium: botAttribution?.medium, campaign: botAttribution?.campaign });
+      if (scope.channel === "all" || matchesAttributionGroup(scope.channel, botChannel)) botFilteredCount++;
       continue;
     }
 
     const hasFounder = events.some(isFounderEvent);
     if (hasFounder) {
       const qaAttribution = sessionAttribution.get(sessionId);
-      const qaChannel = classifyChannel({ source: qaAttribution?.source, medium: qaAttribution?.medium, campaign: qaAttribution?.campaign });
-      if (scope.channel === "all" || qaChannel === scope.channel) {
+      const qaChannel = qaAttribution?.classification ?? classifyChannel({ source: qaAttribution?.source, medium: qaAttribution?.medium, campaign: qaAttribution?.campaign });
+      if (scope.channel === "all" || matchesAttributionGroup(scope.channel, qaChannel)) {
         founderFilteredCount++;
         ownerQaSessionCount++;
       }
@@ -671,51 +702,16 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const primaryEvent = events[0];
     const device = classifyDevice(primaryEvent?.deviceType, primaryEvent?.userAgent);
 
-    // Determine attribution from earliest event carrying UTM or click IDs
-    let sessionChannel: WaterfallChannel = "unknown";
-    let sessionSource = "unknown";
-    let sessionMedium = "unknown";
-    let sessionCampaign = "unknown";
+    // Use the same canonical selection for customer sessions, owner QA, and
+    // orders so a prior legacy event cannot put one journey in another channel.
+    const attribution = sessionAttribution.get(sessionId);
+    const sessionClassification: AttributionClassification = attribution?.classification ?? adaptLegacyAttribution({ observedEntry: false });
+    const sessionSource = sessionClassification.source ?? "unknown";
+    const sessionMedium = sessionClassification.medium ?? "unknown";
+    const sessionCampaign = sessionClassification.campaign ?? "unknown";
+    const sessionChannel = sessionClassification.group;
 
-    for (const ev of events) {
-      const src = ev.utmSource || ev.source;
-      const med = ev.utmMedium || ev.medium;
-      const cmp = ev.utmCampaign || ev.campaign;
-      const ch = classifyChannel({
-        source: src,
-        medium: med,
-        campaign: cmp,
-        fbclid: ev.fbclid,
-        gclid: ev.gclid,
-        wbraid: ev.wbraid,
-        gbraid: ev.gbraid,
-        emailClickId: ev.emailClickId,
-      });
-
-      if (ev.fbclid) {
-        sessionChannel = "meta";
-        sessionSource = src || "meta";
-        sessionMedium = med || "paid_social";
-        sessionCampaign = cmp || "none";
-        break;
-      }
-      if (ev.gclid || ev.wbraid || ev.gbraid) {
-        sessionChannel = "google";
-        sessionSource = src || "google";
-        sessionMedium = med || "cpc";
-        sessionCampaign = cmp || "none";
-        break;
-      }
-      if (src || med || cmp || ev.gclid || ev.wbraid || ev.gbraid || ev.fbclid || ev.emailClickId) {
-        sessionChannel = ch;
-        sessionSource = src || (ev.gclid || ev.wbraid || ev.gbraid ? "google" : ev.fbclid ? "meta" : "unknown");
-        sessionMedium = med || (ev.gclid || ev.wbraid || ev.gbraid ? "cpc" : ev.fbclid ? "paid_social" : "unknown");
-        sessionCampaign = cmp || "unknown";
-        break;
-      }
-    }
-
-    if (scope.channel !== "all" && sessionChannel !== scope.channel) {
+    if (scope.channel !== "all" && !matchesAttributionGroup(scope.channel, sessionClassification)) {
       continue;
     }
 
@@ -739,7 +735,7 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
     const sourceClean = sessionSource.toLowerCase().trim();
     const mediumClean = sessionMedium.toLowerCase().trim();
     const campaignClean = sessionCampaign.toLowerCase().trim();
-    const originKey = `${sourceClean}|${mediumClean}|${campaignClean}`;
+    const originKey = attributionCampaignKey(sessionClassification);
 
     eligibleSessions.push({
       sessionId,
@@ -916,8 +912,8 @@ export function aggregateWaterfallReport(input: WaterfallAggregateInput): AdminW
       if (scope.endDate && rec.date > scope.endDate) continue;
 
       if (scope.channel !== "all" && rec.channel) {
-        const ch = classifyChannel({ source: rec.channel });
-        if (ch !== scope.channel) continue;
+        const ch = classifyAdSpendChannel(rec.channel);
+        if (!matchesAttributionGroup(scope.channel, ch)) continue;
       }
 
       spendSum += rec.amountCents;

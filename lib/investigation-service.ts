@@ -38,6 +38,7 @@ import { FINANCIAL_FACTS_COLLECTION } from "./financial-ledger";
 import { TELEMETRY_V2_COLLECTION } from "./telemetry-v2";
 import { TELEMETRY_COLLECTION } from "./telemetry";
 import { getWindowBounds, evaluateCohortAndFunnelReport } from "./reporting-engine";
+import { classifyAttributionProperties } from "./attribution-classifier";
 import { Order, OrderStatus, MailingAddress } from "./types";
 import { normalizeCountryCode, validateMailingAddress } from "./mailing-destinations";
 
@@ -1041,11 +1042,16 @@ export async function queryJourneysEvidence(params: {
     const observedChannel = classifyAcquisitionChannel({ utmSource: attribution.utmSource || attribution.utm_source, utmMedium: attribution.utmMedium || attribution.utm_medium, utmCampaign: attribution.utmCampaign || attribution.utm_campaign, referrer: attribution.referrer });
     const channel = attribution.channel || (attribution.attribution_observed || attribution.utmSource || attribution.utm_source || attribution.referrer ? observedChannel.channel : "Unattributed");
     if (scope.channel && scope.channel !== "all") {
+      const group = firstEv.session_id ? classifyAttributionProperties(attribution, firstEv.session_id).group : "unknown";
+      if (["paid", "organic_search", "social_referral", "email_other", "direct_observed", "unknown"].includes(scope.channel)) {
+        if (group !== scope.channel) continue;
+      } else {
       const ch = channel.toLowerCase();
       if (scope.channel === "google_cpc" && !ch.includes("google")) continue;
       if (scope.channel === "meta_paid" && !ch.includes("meta")) continue;
       if (scope.channel === "paid" && !ch.includes("paid") && !ch.includes("cpc")) continue;
       if (scope.channel === "organic_direct" && (ch.includes("cpc") || ch.includes("paid"))) continue;
+      }
     }
 
     // Device check

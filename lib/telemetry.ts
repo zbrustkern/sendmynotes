@@ -430,7 +430,8 @@ export async function trackEventV2(
           utmSource: attribution?.utmSource,
           utmMedium: attribution?.utmMedium,
           utmCampaign: attribution?.utmCampaign,
-          referrer: sanitizeUrlOrPath(attribution?.referrer || document.referrer),
+          attributionV2: attribution?.attributionV2,
+          referrer: sanitizeUrlOrPath(attribution?.referrer),
           device_category: getDeviceType(),
           ...eventProperties,
         } : eventProperties),
@@ -511,7 +512,7 @@ export async function trackEvent(
     const screenResolution = getScreenResolution();
     const inApp = isInAppBrowser();
 
-    const rawReferrer = attr?.referrer || (document.referrer ? document.referrer : undefined);
+    const rawReferrer = attr?.referrer;
     const cleanReferrer = sanitizeUrlOrPath(rawReferrer);
     const cleanPath = sanitizeUrlOrPath(window.location.pathname) || "/";
     const cleanLandingPath = sanitizeUrlOrPath(attr?.landingPath || window.location.pathname) || "/";
@@ -532,6 +533,7 @@ export async function trackEvent(
       ...(founder ? { is_founder: true, isFounder: true } : {}),
       metadata: attributionAllowed ? {
         in_app_browser: inApp,
+        attributionV2: attr?.attributionV2,
         ...(founder ? { is_founder: true, isFounder: true } : {}),
         ...sanitizeMetadata(eventName, metadata || {}).sanitized,
       } : {},

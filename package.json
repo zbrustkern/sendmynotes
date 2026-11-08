@@ -43,7 +43,7 @@
     "test:staging-polish": "tsx tests/staging-polish.test.tsx",
     "test:sprint-0019": "tsx tests/sprint-0019-ux.test.ts",
     "test:root-auto-select": "tsx tests/root-auto-select.test.tsx",
-    "test:all": "npm run test:target && npm run test:security && npm run test:flags && npm run test:ads && npm run test:scenario-draft && npm run test:meta && npm run test:sync && npm run test:intent && npm run test:payment-mode && npm run test:sender-validation && npm run test:telemetry-ingestion && npm run test:telemetry-reliability && npm run test:delivery-estimate && npm run test:draft && npm run test:remediation && npm run test:artwork && npm run test:art-fixtures && npm run test:auto-select && npm run test:render-auto-select && npm run test:founder-filter && npm run test:email && npm run test:staging-polish && npm run test:root-auto-select",
+    "test:all": "npm run test:attribution && npm run test:target && npm run test:security && npm run test:flags && npm run test:ads && npm run test:scenario-draft && npm run test:meta && npm run test:sync && npm run test:intent && npm run test:payment-mode && npm run test:sender-validation && npm run test:telemetry-ingestion && npm run test:telemetry-reliability && npm run test:delivery-estimate && npm run test:draft && npm run test:remediation && npm run test:artwork && npm run test:art-fixtures && npm run test:auto-select && npm run test:render-auto-select && npm run test:founder-filter && npm run test:email && npm run test:staging-polish && npm run test:root-auto-select",
     "test": "npm run test:all",
     "test:international": "tsx tests/international-pricing.test.ts",
     "test:upload-creative": "node --import tsx tests/upload-creative.test.ts",
@@ -54,7 +54,8 @@
     "test:post-purchase-cli": "node --import tsx tests/post-purchase-cli.test.ts",
     "test:post-purchase-operator": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-operator.test.ts",
     "test:post-purchase-dispatch": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-dispatch.test.ts",
-    "test:post-purchase-resend-webhook": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-resend-webhook.test.ts"
+    "test:post-purchase-resend-webhook": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-resend-webhook.test.ts",
+    "test:attribution": "node --import tsx tests/attribution-classifier.test.ts && node --import tsx tests/attribution-capture.test.ts && node --import tsx tests/order-attribution-v2.test.ts && node --import tsx tests/attribution-tracker-consent.test.ts && node --import tsx tests/attribution-checkout-route.test.ts"
   },
   "dependencies": {
     "@google-cloud/secret-manager": "^7.2.0",
