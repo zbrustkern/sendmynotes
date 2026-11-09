@@ -4,7 +4,7 @@
 
 ## Start here: canonical project context
 
-**Founder decisions established October 11, 2026.** All project participants
+**Founder decisions established October 11; business facts updated November 9, 2026.** All project participants
 should read the [canonical project brief](docs/CANONICAL_PROJECT_BRIEF.md) and
 [canonical product specifications](docs/CANONICAL_PRODUCT_SPECS.md) first.
 
@@ -14,10 +14,15 @@ should read the [canonical project brief](docs/CANONICAL_PROJECT_BRIEF.md) and
 - **Brand:** SendMyNotes serves the sender. Aster & Blanche is the recipient-facing
   stationery identity and landing page, with its small optional sending funnel.
   The intended redesign removes A&B from the SendMyNotes customer experience.
-- **Baseline:** zero independent customer conversions. The one paid order was the
-  founder's test. Apple Pay remains untested despite a successful Stripe payment.
+- **Traction:** six founder-confirmed purchases outside friends and family as of
+  November 9, 2026. This counts purchases, not assumed unique customers.
+- **Single-card economics:** $9.00 − $4.88 supplier − $0.56 Stripe = **$3.56**
+  before advertising and other operating costs, for an undiscounted domestic card.
+- **Payments:** Stripe card payments are established; Apple Pay end-to-end remains unverified.
 - **Verified format:** Handwrytten A2 folded portrait, **4.25 × 5.5 inches**.
-  Exact paper weight and complete supplier cost remain unconfirmed.
+  White envelope, real-pen message and USPS First-Class mailing; working stock
+  specification is 120 lb vellum by founder selection. See the canonical
+  specs for manufacturing detail sources and their scope.
 - **Photos:** authorized for marketing only after personal information is excluded
   or redacted and the exported asset is visually reviewed.
 
