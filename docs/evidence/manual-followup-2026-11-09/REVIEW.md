@@ -25,7 +25,9 @@ Before enabling manual production sending:
 - Keep `NEXT_PUBLIC_APP_URL` on the public HTTPS production origin. Existing unsubscribe routes handle visible and one-click opt-out.
 - Activate only the manual flag after setup; the first controlled inbox send is a separately performed operational check. No email was sent during implementation.
 
-No new Firestore composite index is needed: one deterministic document per order in `manual_followup_messages`, existing default single-field `resendId` lookup, and server-only rules already deny all browser collection access. No cron or automatic queue reads this collection. Durable documents include authenticated operator identity, revision, frozen destination/payload hash, provider key and outcome. Preserve them on rollback.
+The contact list requires a `COLLECTION`-scope index containing only `__name__ DESCENDING` for **both `user_feedback` and `users`**. Deploy the entries in `firestore.indexes.json` and wait for READY before checking the authenticated list. The initial local mock tests did not exercise Firestore's index requirement; production authenticated verification returned 503, and read-only live structured queries identified `FAILED_PRECONDITION` for these missing indexes. The Firestore API accepted their additive creation in production and staging on November 9. The readiness matcher now preserves direction for name-only indexes, rather than stripping the only field as if it were an implicit composite tiebreaker. Production/staging READY and hosted UI verification are recorded separately by the deployment operator.
+
+Draft lookup uses one deterministic document per source record in `manual_followup_messages`; provider reconciliation uses the existing default single-field `resendId` index. Server-only rules deny all browser collection access. No cron or automatic queue reads this collection. Durable documents include authenticated operator identity, revision, frozen destination/payload hash, provider key and outcome. Preserve them on rollback.
 
 ## Validation
 
@@ -59,3 +61,10 @@ Parent also provisioned independent signing/opt-out secrets with the same resour
 ## Final expanded validation
 
 The final regression run covers order/feedback/account source isolation, unpaid service follow-ups, changed destinations, feedback suppression, marketing opt-in, untouched source records, bounded/private contact pagination, safe feedback rendering, cross-source stale response races, and mounting the correct composer from both contact-list sources. Existing operator, dispatch, signed webhook and CLI suites pass. The production build also passes after the source extension. All provider activity in tests used fake transports with external network denial. `synthetic-feedback.jpg` verifies a fictional feedback contact, private context, neutral draft/preview and disabled sending in the actual React components; it does not demonstrate hosted authentication or inbox delivery.
+
+
+## Production verification and contact-index repair
+
+The parent verified production source `2e44b6a` is READY with 100% traffic. Anonymous admin endpoints return 401, unsigned webhook calls return 400, and a signed synthetic webhook for a nonexistent message returns 200 without sending mail. All sending flags remain false. See `production-rollout.json` and `production-smoke.json` for sanitized evidence.
+
+Authenticated contact-list verification exposed the missing descending name-only indexes described above. Their creation was accepted in both projects; at this handoff they are CREATING and the successful hosted contact-list UI recheck is still pending. The repair commit changes only the index manifest, readiness matching/tests, and evidence; it does not require an application runtime change. The offline readiness contract test passes (`contact-index-contract.txt`).

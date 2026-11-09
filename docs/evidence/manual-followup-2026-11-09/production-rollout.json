@@ -1,0 +1,224 @@
+{
+  "checkedAt": "2026-11-09T15:15:20.235Z",
+  "surfaces": [
+    {
+      "project": "sendmynotes-2a417",
+      "backend": "sendmynotes",
+      "builds": [
+        {
+          "name": "build-2026-11-09-002",
+          "state": "READY",
+          "source": "2e44b6a51c30e00bdbc6d78ded6aeef2a2a16244",
+          "createTime": "2026-11-09T15:11:08.258970297Z",
+          "configAvailable": true,
+          "image": "us-central1-docker.pkg.dev/sendmynotes-2a417/firebaseapphosting-images/sendmynotes:build-2026-11-09-002",
+          "keys": [
+            "name",
+            "state",
+            "image",
+            "config",
+            "source",
+            "buildLogsUri",
+            "createTime",
+            "updateTime",
+            "displayName",
+            "uid",
+            "etag",
+            "reconciling"
+          ],
+          "traffic": 100
+        }
+      ],
+      "latestRollouts": [
+        {
+          "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-11-09-002",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-11-09-002",
+          "createTime": "2026-11-09T15:11:08.338554316Z"
+        },
+        {
+          "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-11-09-001",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-11-09-001",
+          "createTime": "2026-11-09T14:52:34.845835840Z"
+        },
+        {
+          "name": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/rollouts/rollout-2026-11-08-002",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-2a417/locations/us-central1/backends/sendmynotes/builds/build-2026-11-08-002",
+          "createTime": "2026-11-08T14:10:03.709434090Z"
+        }
+      ],
+      "reconciling": false,
+      "flags": [
+        {
+          "name": "ACCOUNT_REMINDER_DELIVERY_ACTIVE",
+          "value": "false",
+          "secret": null
+        },
+        {
+          "name": "ATTRIBUTION_V2_ENABLED",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "MANUAL_FOLLOWUP_DELIVERY_ACTIVE",
+          "value": "false",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_URL",
+          "value": "https://sendmynotes.com",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "POST_PURCHASE_AUTO_ENROLL_ACTIVE",
+          "value": "false",
+          "secret": null
+        },
+        {
+          "name": "POST_PURCHASE_DELIVERY_ACTIVE",
+          "value": "false",
+          "secret": null
+        },
+        {
+          "name": "POST_PURCHASE_REPLY_TO",
+          "value": "zeke@sendmynotes.com",
+          "secret": null
+        },
+        {
+          "name": "POST_PURCHASE_SENDER_EMAIL",
+          "value": "zeke@sendmynotes.com",
+          "secret": null
+        },
+        {
+          "name": "UPLOAD_PRIVATE_BUCKET",
+          "value": "sendmynotes-2a417-upload-private",
+          "secret": null
+        }
+      ]
+    },
+    {
+      "project": "sendmynotes-staging",
+      "backend": "sendmynotes-staging",
+      "builds": [
+        {
+          "name": "build-2026-11-09-002",
+          "state": "READY",
+          "source": "23b49c7ff455c1c6e93ad894fb24ad0f54cc3774",
+          "createTime": "2026-11-09T14:52:48.484466934Z",
+          "configAvailable": true,
+          "image": "us-central1-docker.pkg.dev/sendmynotes-staging/firebaseapphosting-images/sendmynotes-staging:build-2026-11-09-002",
+          "keys": [
+            "name",
+            "state",
+            "image",
+            "config",
+            "source",
+            "buildLogsUri",
+            "createTime",
+            "updateTime",
+            "displayName",
+            "uid",
+            "etag",
+            "reconciling"
+          ],
+          "traffic": 100
+        }
+      ],
+      "latestRollouts": [
+        {
+          "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-11-09-002",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-11-09-002",
+          "createTime": "2026-11-09T14:52:48.601729013Z"
+        },
+        {
+          "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-11-09-001",
+          "state": "FAILED",
+          "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-11-09-001",
+          "createTime": "2026-11-09T14:46:42.318700089Z"
+        },
+        {
+          "name": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/rollouts/rollout-2026-11-08-002",
+          "state": "SUCCEEDED",
+          "build": "projects/sendmynotes-staging/locations/us-central1/backends/sendmynotes-staging/builds/build-2026-11-08-002",
+          "createTime": "2026-11-08T13:45:34.871437103Z"
+        }
+      ],
+      "reconciling": false,
+      "flags": [
+        {
+          "name": "ACCOUNT_REMINDER_DELIVERY_ACTIVE",
+          "value": "false",
+          "secret": null
+        },
+        {
+          "name": "ATTRIBUTION_V2_ENABLED",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "FIREBASE_PROJECT_ID",
+          "value": "sendmynotes-staging",
+          "secret": null
+        },
+        {
+          "name": "HANDWRYTTEN_TEST_MODE",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "INTERNATIONAL_MAILING_PREVIEW",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_APP_URL",
+          "value": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_FIREBASE_PROJECT_ID",
+          "value": "sendmynotes-staging",
+          "secret": null
+        },
+        {
+          "name": "NEXT_PUBLIC_STAGING_REVIEW_ONLY",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "POST_PURCHASE_AUTO_ENROLL_ACTIVE",
+          "value": "false",
+          "secret": null
+        },
+        {
+          "name": "POST_PURCHASE_DELIVERY_ACTIVE",
+          "value": "false",
+          "secret": null
+        },
+        {
+          "name": "STAGING_REVIEW_ONLY",
+          "value": "true",
+          "secret": null
+        },
+        {
+          "name": "UPLOAD_PRIVATE_BUCKET",
+          "value": "sendmynotes-staging-upload-private",
+          "secret": null
+        }
+      ]
+    }
+  ]
+}
