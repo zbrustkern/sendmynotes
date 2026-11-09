@@ -157,6 +157,42 @@ function testFrozenRetryAndNoFinancialFacts() {
   assert.equal("fulfillmentStatus" in (second ?? {}), false);
 }
 
+function testConsentOutlivesCampaignTimestamps() {
+  for (const flag of ["optOut", "gpc"] as const) {
+    for (const timing of [{ expiresAt: now - 1 }, { capturedAt: now + 10 * 60_000 }]) {
+      for (const v2Enabled of [true, false]) {
+        const result = prepareCheckoutOrderAttribution({ ...raw, ...timing, [flag]: true }, { sessionId, serverNowMs: now, v2Enabled });
+        assert.equal(result?.[flag], true, `${flag} survives rejected legacy timestamps, V2=${v2Enabled}`);
+        assert.equal(result?.utmSource, undefined, "expired/future campaign evidence is still discarded");
+        if (v2Enabled) {
+          assert.equal(result?.attributionV2?.currentSessionTouch, null);
+          assert.equal(result?.attributionV2?.firstObservedTouch, null);
+          assert.equal(result?.attributionV2?.currentSessionMissingReason, flag === "gpc" ? "gpc_restricted" : "consent_denied");
+        } else assert.equal(result?.attributionV2, undefined);
+      }
+    }
+  }
+  assert.equal(prepareCheckoutOrderAttribution(undefined, { v2Enabled: false, globalPrivacyControl: true })?.gpc, true, "header GPC survives even without campaign evidence");
+}
+
+function testMalformedEvidenceCannotBlockCheckout() {
+  for (const medium of ["constructor", "__proto__", "toString", "valueOf", "hasOwnProperty"]) {
+    const input = { ...raw, attributionV2: { ...raw.attributionV2, currentSessionTouch: { ...raw.attributionV2.currentSessionTouch, medium } } };
+    const result = prepareCheckoutOrderAttribution(input, { sessionId, serverNowMs: now, v2Enabled: true });
+    assert.equal(result?.attributionV2?.currentSessionTouch?.channel, "other_campaign", `${medium} does not interrupt checkout`);
+    assert.equal(result?.gclid, raw.gclid, "valid legacy fields survive unusual V2 evidence");
+  }
+
+  const brokenV2 = { ...raw, get attributionV2(): never { throw new Error("simulated enrichment failure"); } };
+  const fallback = prepareCheckoutOrderAttribution(brokenV2, { sessionId, serverNowMs: now, v2Enabled: true });
+  assert.equal(fallback?.gclid, raw.gclid, "unexpected V2 failure preserves sanitized legacy attribution");
+  assert.equal(fallback?.attributionV2, undefined, "failed enrichment is never retained");
+  const brokenLegacy = { get capturedAt(): never { throw new Error("simulated legacy failure"); } };
+  assert.equal(prepareCheckoutOrderAttribution(brokenLegacy, { sessionId, serverNowMs: now, v2Enabled: true }), undefined, "even an unexpected legacy failure cannot block payment");
+}
+
+testConsentOutlivesCampaignTimestamps();
+testMalformedEvidenceCannotBlockCheckout();
 testGatedServerSnapshotAndLegacyCompatibility();
 testMismatchConsentAndUnknownIdentity();
 testFrozenRetryAndNoFinancialFacts();
