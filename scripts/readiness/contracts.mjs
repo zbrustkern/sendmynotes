@@ -8,7 +8,11 @@ export function selectTarget(manifest, name, project) {
   return target;
 }
 export function indexSignature(index) {
-  return JSON.stringify({ queryScope: index.queryScope, fields: index.fields.filter(f => f.fieldPath !== '__name__').map(({ fieldPath, order, arrayConfig }) => ({fieldPath, order, arrayConfig})) });
+  // Ordinary composite responses append an implicit document-name tiebreaker.
+  // A name-only index is itself the query index, so its direction is essential.
+  const ordinaryFields = index.fields.filter(f => f.fieldPath !== '__name__');
+  const fields = ordinaryFields.length ? ordinaryFields : index.fields;
+  return JSON.stringify({ queryScope: index.queryScope, fields: fields.map(({ fieldPath, order, arrayConfig }) => ({fieldPath, order, arrayConfig})) });
 }
 export function matchIndex(wanted, existing) {
   return existing.find(index => index.name.includes(`/collectionGroups/${wanted.collectionGroup}/indexes/`) && indexSignature(index) === indexSignature(wanted));
