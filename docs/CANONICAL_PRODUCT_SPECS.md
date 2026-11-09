@@ -1,6 +1,6 @@
 # Send My Notes: canonical product specifications
 
-**Verified/reviewed: October 11, 2026.** Companion to the
+**Updated November 9, 2026.** October 11 API verification is retained; November 9 founder confirmation, supplier receipts and current supplier pages update the facts. Companion to the
 [canonical project brief](CANONICAL_PROJECT_BRIEF.md).
 
 Use this table for customer copy, preview geometry, payment descriptions, and
@@ -18,8 +18,8 @@ does not claim the current storefront has been corrected.
 | Cover | Customer-selected or generated artwork, uploaded as `type: "cover"`. | Printed artwork; source imagery is not evidence of a letterpress process. |
 | Interior | Message written by automated equipment holding real pens. | Supplier documentation; integration sends `message` and a handwriting `font_label`. |
 | Optional greeting | Concatenated with the note into the same pen-written message. | Current implementation does not send the optional greeting as a separate printed header. |
-| Paper weight, composition, finish | **Unconfirmed for our API-created A2 product.** | No stock-weight selection in the request or confirmation in the dimensions response. Do not assert either 100 lb or 120 lb, cotton, archival certification, or textured finish until confirmed for this SKU. Use “cardstock” meanwhile. |
-| Envelope specifications | Physical envelope; exact weight/finish unconfirmed. | Do not canonize the older 70 lb matching-envelope claim. |
+| Paper weight / finish | **120 lb vellum cardstock — founder-selected working specification, November 9.** | Handwrytten publishes #120 vellum for design-file printing. Founder is approximately 90% certain this is our stock and explicitly selected it. This is the adopted working spec, not independently verified API-SKU evidence; no cotton or archival certification claim. |
+| Envelope | **White envelope**, addressed and mailed by Handwrytten. | Supplier custom-card design specifications, rechecked November 9. No envelope basis-weight or special-finish claim is needed; the older 70 lb claim has no recorded source. |
 | Addressing | Request includes recipient and personal sender/return address. | Preserve personal return identity; verify the produced envelope before claiming exact preview parity. |
 | Postage | Supplier says First-Class USPS and a real stamp. | General supplier FAQ; no explicit stamp selection in current order payload. Do not promise a particular stamp design. |
 | Mailing origin | Supplier says Phoenix, Arizona postmark. | Do not imply the postmark is local to the sender or Lake Forest. |
@@ -27,7 +27,9 @@ does not claim the current storefront has been corrected.
 | Transit time | Supplier FAQ: typically **2–7 business days domestically**, may take longer. | Separate transit from preparation; estimate rather than guarantee. Another supplier article gives 1–5 days, so the FAQ's broader window is the interim guidance. |
 | Tracking | Order/fulfillment status is supported; actual tracking depends on service and returned data. | Do not promise tracked delivery or confirmed receipt for every stamped letter. |
 | Customer price | Current configured base price **$9 USD**, including mailing. | `CARD_FLAT_RATE_CENTS = 900`; supplied ads also say $9 including mailing. Existing discounts can alter payable amount. |
-| Actual supplier cost / margin | **Unconfirmed for our custom SKU.** | Catalog lists several prices, including $3.75 for many A2 designs; this is not the complete charge for our custom card. Older $4.88 COGS / $3.56 contribution figures are assumptions pending actual charges, postage, tax, and processing fees. |
+| Actual supplier charge | **$4.88 per single domestic card**, including **$3.75 card + $0.82 postage + $0.31 tax** in the reviewed orders. | Founder confirmation November 9 and actual Handwrytten order receipts dated November 4 and 7. These are actual observed charges, not catalog estimates; recheck if destination, taxes, pricing or product changes. |
+| Stripe fee | **$0.56 on an undiscounted $9.00 single-card charge.** | Founder-confirmed November 9. Do not apply this fixed amount to discounted, international or multi-card payments. |
+| Single-card contribution | **$3.56 / 39.6%** after the confirmed supplier and Stripe charges. | Arithmetic: $9.00 − $4.88 − $0.56. Before advertising, generation/hosting/support costs and refunds; not net profit. |
 | Handwriting styles | Five mapped styles verified available: Casual David, Charming Chase, Carefree Kate, Executive Adam, Dapper Will. | Authenticated `GET /v2/fonts/list`; do not equate font availability with verified physical line wrapping. |
 | Message fit | Safe limit not established by this audit. | Legacy UI permits 500 note characters plus a separate greeting; `/new` uses 450 combined. Neither alone proves physical fit across styles, line breaks, and margins. |
 | Apple Pay | **Unverified end to end.** | Founder tested a Stripe payment, not Apple Pay. Device-type labels do not verify a configured wallet. |
@@ -36,7 +38,7 @@ does not claim the current storefront has been corrected.
 ## Evidence and authority
 
 1. [Founder decisions](CANONICAL_PROJECT_BRIEF.md) establish product strategy and
-   the true customer-conversion baseline.
+   the November 9 purchase baseline. [Business evidence](evidence/business-facts-2026-11-09.md) records actual costs and their scope.
 2. Live authenticated catalog responses establish our selected format. The
    sanitized [dimensions evidence](evidence/handwrytten-dimensions-2026-10-11.json)
    and [supported-style evidence](evidence/handwrytten-styles-2026-10-11.json) contain
@@ -51,15 +53,23 @@ does not claim the current storefront has been corrected.
    and [customizer guide](https://cdn.handwrytten.com/www/2025/07/Card-Customizer-Quick-Guide-2025.pdf)
    distinguish folded A2 from flat 5 × 7 cards.
 
-## Closing the remaining supplier questions
+## Evidence updates and narrow remaining details
 
-Obtain written confirmation tied to **API-created dimension 4** of stock weight,
-composition/finish, envelope specifications, normal preparation schedule, any
-account-specific cutoff, stamp treatment, message-fit constraints, and complete
-per-order charges including postage/tax. Record the confirmation date and source
-here. Inspect the existing founder sample for envelope treatment and compare its
-invoice to the cost model. No new physical order is needed to complete the
-documentation audit.
+The November 9 [business evidence record](evidence/business-facts-2026-11-09.md)
+closes the supplier-cost question with actual receipts and records the founder's
+Stripe fee. Preparation, transit, postage, postmark, real-pen writing and white
+envelope facts are supported by current supplier documentation. No new order was
+placed to establish these facts.
+
+The founder selected **120 lb vellum** on November 9 after reviewing the supplier
+FAQ, with approximately 90% confidence that it is the stock for our product. This
+resolves the working specification choice; the public FAQ does not explicitly
+identify API dimension 4, so the verification scope stays visible. Record direct
+SKU confirmation if obtained; do not describe the choice as a measured or
+independently supplier-verified result. Envelope weight is not required product copy.
+A universal character limit or exact on-screen/physical line-wrap match also
+needs separate evidence. Supplier templates establish layout guidance, not a
+successful physical-fit test for every font and message.
 
 Supplier facts must be reverified if the dimension, product, account pricing, or
 fulfillment contract changes. Do not A/B test conflicting physical specifications
