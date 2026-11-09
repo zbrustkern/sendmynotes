@@ -14,7 +14,7 @@ The founder authorized staging deployment after an independent review. This supe
 
 Target: `sendmynotes-staging`, backend `sendmynotes-staging`, branch `staging`. The candidate includes the latest staging attribution fixes. `STAGING_REVIEW_ONLY=true`, `HANDWRYTTEN_TEST_MODE=true`, and public review-only advertising suppression remain enabled. Optional email delivery and enrollment remain disabled.
 
-The staging dispatch and supplier lookup indexes are ready. Dedicated worker and webhook secrets are pinned to staging Secret Manager version 1, with staging backend access. No production secrets or configuration were changed.
+The staging dispatch and supplier lookup indexes are ready. Dedicated worker and webhook secrets are pinned to staging Secret Manager version 2 (ASCII authentication tokens), with staging backend access. No production secrets or configuration were changed.
 
 ## Evidence status
 

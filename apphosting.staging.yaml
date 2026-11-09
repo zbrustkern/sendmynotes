@@ -45,10 +45,10 @@ env:
     value: "true"
     availability: [RUNTIME]
   - variable: MULTI_SEND_WORKER_SECRET
-    secret: multi-send-worker-secret@1
+    secret: multi-send-worker-secret@2
     availability: [RUNTIME]
   - variable: HANDWRYTTEN_WEBHOOK_SECRET
-    secret: handwrytten-webhook-secret@1
+    secret: handwrytten-webhook-secret@2
     availability: [RUNTIME]
 
   - variable: UPLOAD_PRIVATE_BUCKET
