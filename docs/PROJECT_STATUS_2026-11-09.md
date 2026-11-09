@@ -24,14 +24,17 @@ hidden from active merchandising). Account/Studio improvements and post-purchase
 tooling are also deployed. Post-purchase delivery, automatic enrollment and
 account reminder delivery all remain false.
 
-Multi-send staging work is active in the existing “Design minimal multi-send
-flow” chat. It owns the root checkout and staging release. Its fresh deployment
-and hosted acceptance report, when completed, supersedes the staging snapshot
-here. Do not deploy the unrelated local branch to production.
+Multi-send is now deployed and enabled on staging (November 9, source
+`23b49c7ff455c1c6e93ad894fb24ad0f54cc3774`). The owning “Design minimal multi-send
+flow” chat completed hosted greeting/layout/retry checks and a Stripe test
+payment. Physical fulfillment stays on hold. Multi-send is not released to production.
 
-A separate manual follow-up implementation is underway on
-`codex/manual-followup-20261109`: generate a draft for a captured sender email,
-preview/edit, then explicitly send one selected message. Automated programs stay
+A separate manual follow-up implementation on `codex/manual-followup-20261109`
+covers paid/unpaid order contacts, feedback-only contacts, and stored sender
+account emails: generate a draft, preview/edit, then explicitly send one selected
+message. Delivery remains disabled pending the full postal footer and reply-alias
+verification. The production Resend delivery-status webhook is configured; its
+signing-secret binding ships with the composer. The application key remains sending-only. Automated programs stay
 off. Founder/family paid orders can be used for deliberate testing without
 counting them as independent customer acquisition. No test email is sent by this
 status update.
@@ -64,7 +67,7 @@ release. They are not evidence that the deployed features are broken.
 | --- | --- | --- |
 | Signed-in account and ownership acceptance | Prove saved art, drafts, people and history work for their owner and stay inaccessible to another user. | Controlled two-user staging walkthrough, including refresh, import, reuse and checkout reset; save redacted results. |
 | Private-storage runtime checks | IAM configuration alone does not prove the running application can put/read/delete private objects correctly. | Disposable staging fixture using runtime identity, anonymous-denial check and indexed reads; no customer media. |
-| Cleanup schedule | Temporary upload/library artifacts need bounded cleanup that preserves saved and ordered artwork. | Inspect current scheduler; dry-run disposable fixtures and failure recovery before enabling a new job. Never delete customer objects as an audit check. |
+| Cleanup schedule | Staging has an enabled upload-cleanup job at 04:17 America/Chicago daily. Production Cloud Scheduler API is disabled. | Production scheduling remains open. Review bounded dry-run results and recovery before enabling cleanup; preserve saved/ordered artwork. No jobs were invoked by this audit. |
 | Manual privacy requests | The admin queue records requests; it does not itself export or erase all data. | Zeke is operator. Set a review routine, secure export channel and backup; rehearse inventory/partial-failure handling with synthetic data. |
 | Apple Pay and device acceptance | Card payments and simulated wallets do not prove Apple Pay through the real mobile journey. | A deliberate device payment check; record device/browser, observed wallet and payment result. No charge was made by this audit. |
 | Reminder delivery | Saved dates/reminders are distinct from sending reminder email. | Leave off until an opted-in controlled inbox, timing/unsubscribe and operator monitoring are verified. |
@@ -73,3 +76,5 @@ Historical sprint-ledger entries retain open acceptance where evidence is still
 missing. Production rollout does not imply every original acceptance test passed.
 Known facts should be updated in canonical docs; old audit claims should not be
 reopened without checking the current source and release evidence.
+
+Read-only November 9 operations inspection confirms the operational-job, privacy-request, and reminder composite indexes are READY in both environments; index provisioning is closed. The staging scheduler has a recorded November 9 attempt, which alone does not prove successful cleanup. [Sanitized operations evidence](evidence/operations-status-2026-11-09.json).

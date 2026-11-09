@@ -129,7 +129,7 @@ env:
     value: "false"
     availability: [RUNTIME]
 
-  # Manual per-order emails are independent of automated enrollment/delivery.
+  # Manual individual emails are independent of automated enrollment/delivery.
   - variable: MANUAL_FOLLOWUP_DELIVERY_ACTIVE
     value: "false"
     availability: [BUILD, RUNTIME]
@@ -145,4 +145,7 @@ env:
     availability: [RUNTIME]
   - variable: POST_PURCHASE_REPLY_TO
     value: "zeke@sendmynotes.com"
+    availability: [RUNTIME]
+  - variable: RESEND_WEBHOOK_SECRET
+    secret: resend-webhook-secret@1
     availability: [RUNTIME]

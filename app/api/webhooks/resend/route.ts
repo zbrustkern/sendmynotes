@@ -15,6 +15,14 @@ export async function POST(req: NextRequest) {
   let event: any;
   try { event = JSON.parse(raw); } catch { return response(400); }
   if (!event || typeof event.type !== "string" || !event.data || typeof event.data !== "object") return response(400);
+  // This provider account serves multiple products. Ignore explicitly foreign senders
+  // after signature verification, before recording any event metadata in our inbox.
+  if (event.data.from !== undefined) {
+    if (typeof event.data.from !== "string") return response(200);
+    const from = event.data.from.trim();
+    const address = (from.match(/<([^<>]+)>$/)?.[1] || from).trim();
+    if (!/^[^\s@<>]+@sendmynotes\.com$/i.test(address)) return response(200);
+  }
   try {
     const tagMessageId = readMessageTag(event.data.tags);
     const accepted = await acceptWebhookEvent({ provider: "resend", providerEventId: id, eventType: event.type, livemode: true, signatureVerified: true, payloadSummary: { resendMessageId: String(event.data.email_id || event.data.id || "").slice(0,160), messageId: tagMessageId, type: event.type.slice(0,100) } });

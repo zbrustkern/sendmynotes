@@ -1,0 +1,416 @@
+{
+  "checkedAt": "2026-11-09T15:00:36.532Z",
+  "readOnly": true,
+  "projects": [
+    {
+      "project": "sendmynotes-2a417",
+      "schedules": {
+        "status": 403,
+        "error": "PERMISSION_DENIED",
+        "message": "Cloud Scheduler API has not been used in project sendmynotes-2a417 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/cloudscheduler.googleapis.com/overview?project=sendmynotes-2a417 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry."
+      },
+      "indexes": {
+        "status": 200,
+        "items": [
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "ownerScope",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "occasionId",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "occurrenceDate",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_privacy_requests",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "status",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "createdAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "state",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "dueAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "state",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "leaseUntil",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "state",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "nextCheckAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "operational_job_runs",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "environment",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "updatedAt",
+                "order": "DESCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "DESCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_privacy_requests",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "ownerScope",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "createdAt",
+                "order": "DESCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "DESCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "state",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "dispatchStartedAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "ownerScope",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "dueAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "operational_job_runs",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "environment",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "job",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "updatedAt",
+                "order": "DESCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "DESCENDING"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "project": "sendmynotes-staging",
+      "schedules": {
+        "status": 200,
+        "items": [
+          {
+            "name": "upload-private-cleanup",
+            "schedule": "17 4 * * *",
+            "timeZone": "America/Chicago",
+            "state": "ENABLED",
+            "target": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/api/cron/upload-cleanup",
+            "lastAttemptTime": "2026-11-09T10:17:06.598747Z"
+          }
+        ]
+      },
+      "indexes": {
+        "status": 200,
+        "items": [
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "state",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "dispatchStartedAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "ownerScope",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "occasionId",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "occurrenceDate",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "state",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "leaseUntil",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "ownerScope",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "dueAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "operational_job_runs",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "environment",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "job",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "updatedAt",
+                "order": "DESCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "DESCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "state",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "nextCheckAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "operational_job_runs",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "environment",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "updatedAt",
+                "order": "DESCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "DESCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_privacy_requests",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "status",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "createdAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_reminder_occurrences",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "state",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "dueAt",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "ASCENDING"
+              }
+            ]
+          },
+          {
+            "collection": "account_privacy_requests",
+            "state": "READY",
+            "fields": [
+              {
+                "fieldPath": "ownerScope",
+                "order": "ASCENDING"
+              },
+              {
+                "fieldPath": "createdAt",
+                "order": "DESCENDING"
+              },
+              {
+                "fieldPath": "__name__",
+                "order": "DESCENDING"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
