@@ -2,7 +2,7 @@
 
 > Approved scope update, November 6, 2026: [Personal greetings per recipient](../proposals/2026-11-06-multi-send/PERSONAL_GREETINGS.md) are included in this sprint. [Greeting mockups](../proposals/2026-11-06-multi-send/assets/personal-greetings.html) govern greeting editing, previews and payment review; the base mockup remains the reference for other multi-send flows.
 
-Status: local implementation verified; staged acceptance pending · November 6, 2026 · No deployment or live external side effects.
+Status: deployed and verified in guarded staging · November 9, 2026 · Stripe test-mode acceptance passed; supplier and live-production gates remain open. See [staging review](evidence/SPRINT-0028/STAGING-REVIEW.md).
 
 Execution evidence: [combined review](evidence/SPRINT-0028/REVIEW.md), [operations and launch gates](evidence/SPRINT-0028/OPERATIONS.md). Three user-requested Luna agents implemented the work locally, with parent review and integration.
 

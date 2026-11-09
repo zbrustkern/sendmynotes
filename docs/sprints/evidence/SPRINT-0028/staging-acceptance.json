@@ -1,0 +1,94 @@
+{
+  "checkedAt": "2026-11-09T15:02:13.670Z",
+  "staging": {
+    "origin": "sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+    "source": "23b49c7ff455c1c6e93ad894fb24ad0f54cc3774",
+    "build": "build-2026-11-09-002",
+    "state": "READY",
+    "trafficPercent": 100,
+    "rollout": "SUCCEEDED",
+    "multiSendEnabled": true,
+    "reviewOnly": true,
+    "supplierTestMode": true,
+    "workerSecretVersion": 2,
+    "webhookSecretVersion": 2
+  },
+  "localSuites": [
+    "multi-send-contracts",
+    "multi-send-checkout-route",
+    "multi-send-payment-pipeline",
+    "multi-send-webhook",
+    "multi-send-presentation",
+    "multi-send-staging-safety",
+    "draft",
+    "sprint-0005-offer-engine",
+    "ordinary-quote-dispatch-safety",
+    "checkout-contact-route.integration",
+    "attribution-classifier",
+    "attribution-capture",
+    "order-attribution-v2",
+    "attribution-tracker-consent",
+    "attribution-checkout-route",
+    "handwrytten-batch-transport",
+    "multi-send-fulfillment"
+  ],
+  "localBrowserPassed": true,
+  "hostedBrowserPassed": true,
+  "hostedBrowserErrors": [],
+  "baseline": {
+    "results": [
+      {
+        "route": "/",
+        "baselineVisible": true,
+        "multiSendHidden": true
+      },
+      {
+        "route": "/new",
+        "baselineVisible": true,
+        "multiSendHidden": true
+      }
+    ],
+    "checkoutDenied": 503,
+    "errors": []
+  },
+  "checkout": {
+    "checkedAt": "2026-11-09T14:59:51.700Z",
+    "project": "sendmynotes-staging",
+    "origin": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+    "runtimeSafetyVerified": true,
+    "featureEnabled": true,
+    "allWritesStripeTestMode": true,
+    "checks": {
+      "httponlyCapabilityIssued": true,
+      "capabilityRequired": true,
+      "exactRetryReusedPaymentIntent": true,
+      "replacementCanceledOldIntent": true,
+      "paymentIntentQuoteVerified": true,
+      "noContactPreferencePersisted": true,
+      "confirmed": true,
+      "confirmationReplay": true,
+      "firestoreHeldWithoutChildren": true,
+      "authorizedProjectionShowsHold": true,
+      "frozenCustomAndBlankGreetingVerified": true,
+      "publicProjectionRedacted": true,
+      "workerRejectsUnauthorized": true,
+      "workerAuthorizedButHeld": true,
+      "webhookRejectsInvalidToken": true
+    },
+    "firstOrderId": "order_cfcd50a72ffcf1905cce02d57d65ba94",
+    "firstPaymentIntentId": "pi_3UZu32QRpUiJEWIA16q7dJjM",
+    "safeOrderId": "order_d787d28bf7b7fcf7408ab2b6b0815990",
+    "safePaymentIntentId": "pi_3UZu33QRpUiJEWIA0vHSuqW0",
+    "complete": true
+  },
+  "production": {
+    "mutationsByThisTask": 0,
+    "sourceBefore": "1a55f4fa234309a15e5b95d145762f38d7f82790",
+    "sourceAfter": "e43199a432549758e3985902f9b4f9dd9cbc4eb2",
+    "separateRelease": "PR #10 business-facts documentation merge by Zeke",
+    "configurationUnchanged": true,
+    "paymentConfigurationUnchanged": true,
+    "adsConfigurationUnchanged": true,
+    "firestoreRulesUnchanged": true
+  }
+}

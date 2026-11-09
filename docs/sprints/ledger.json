@@ -312,14 +312,16 @@
       "interactive_preview": "docs/proposals/2026-11-06-multi-send/assets/personal-greetings.html",
       "planning_notes": "docs/sprints/drafts/SPRINT-0028-PLANNING-NOTES.md",
       "status": "in_progress",
-      "implementation_status": "integrated_local_checks_passed",
+      "implementation_status": "staging_deployed_review_verified",
       "execution_method": "local_gpt-6-luna_agents_user_requested",
       "execution_base": "8940401",
       "execution_worktree": "/private/tmp/sendmynotes-sprint0028-8940401",
-      "authorization": "User approved personal greeting scope and requested Luna agents execute locally. No deployment or live provider side effects.",
-      "updated_at": "2026-11-06",
-      "acceptance_status": "local_verified_hosted_and_supplier_gates_pending",
-      "execution_review": "docs/sprints/evidence/SPRINT-0028/REVIEW.md"
+      "authorization": "User authorized staging after independent review. Stripe test-mode acceptance only; no live supplier, email, refund or production activation.",
+      "updated_at": "2026-11-09",
+      "acceptance_status": "staging_verified_supplier_and_live_gates_pending",
+      "execution_review": "docs/sprints/evidence/SPRINT-0028/REVIEW.md",
+      "staging_revision": "23b49c7ff455c1c6e93ad894fb24ad0f54cc3774",
+      "staging_review": "docs/sprints/evidence/SPRINT-0028/STAGING-REVIEW.md"
     }
   ]
 }
