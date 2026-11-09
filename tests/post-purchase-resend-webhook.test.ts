@@ -46,6 +46,14 @@ async function main() {
       assert.equal((await messageRef.get()).data()?.state, beforeForged.data()?.state);
       assert.equal(await getWebhookInboxRecord("evt-forged", "resend"), null, "invalid signatures must be rejected before inbox writes");
 
+      const foreignEvent = event("email.bounced", messageId, "other-product-provider-id");
+      Object.assign(foreignEvent.data,{from:"SendMyNotes <sender@another-product.example>"});
+      assert.equal((await resendWebhook(request("evt-other-product",foreignEvent))).status,200);
+      assert.equal(await getWebhookInboxRecord("evt-other-product","resend"),null,"other product events are ignored before persistence");
+      assert.equal((await messageRef.get()).data()?.state,"dispatching");
+      const ownEvent=event("email.sent",messageId,"re-synthetic-1");Object.assign(ownEvent.data,{from:"Zeke at SendMyNotes <zeke@sendmynotes.com>"});
+      assert.equal((await resendWebhook(request("evt-own-domain",ownEvent))).status,200);assert.ok(await getWebhookInboxRecord("evt-own-domain","resend"));
+
       const bounceEvent = event("email.bounced", messageId, "re-synthetic-1");
       assert.equal((await resendWebhook(request("evt-shared-id", bounceEvent))).status, 200);
       const afterBounce = (await messageRef.get()).data();
