@@ -87,6 +87,14 @@ async function main() {
   assert.ok(facts?.deliveryFacts?.complained && facts?.deliveryFacts?.delivered && facts?.deliveryFacts?.bounced,"concurrent delivery facts accumulate");
   assert.equal(facts?.deliveryOutcome,"complained","positive delivery cannot replace complaint");
 
+  const unpaid = await seed("unpaid-service");
+  await generateManualDraft(unpaid.id,actor);
+  const beforeUnpaid = count;
+  await sendManualDraft({orderId:unpaid.id,revision:1,reviewed:true},actor,{transport});
+  assert.equal(count,beforeUnpaid+1,"captured unpaid order can receive a deliberately selected service note");
+  assert.equal((await getOrdersCollection().doc(unpaid.id).get()).data()?.status,"PENDING_PAYMENT","manual follow-up does not mark an abandoned order paid");
+  assert.equal(await getEmailPreference(unpaid.customerEmail),null,"unpaid service note never implies marketing permission");
+
   assert.equal((await GET(new NextRequest("https://sendmynotes.com/api/admin/manual-followup?orderId=sympathy"))).status,401);
   assert.equal((await POST(new NextRequest("https://sendmynotes.com/api/admin/manual-followup",{method:"POST",body:JSON.stringify({action:"generate",orderId:"sympathy"})}))).status,401);
   const cookie=`${ADMIN_COOKIE_NAME}=${generateAdminSessionToken("zbrustkern@gmail.com")}`;

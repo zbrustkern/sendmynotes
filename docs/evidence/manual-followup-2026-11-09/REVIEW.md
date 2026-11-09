@@ -43,3 +43,12 @@ For `dispatching` or `uncertain`, inspect the existing provider history and sign
 Parent verified production sender/opt-out secrets exist and granted the backend access. The production manifest binds `post-purchase-sender-hmac-key@1` and `post-purchase-unsubscribe-secret@1`, and selects `zeke@sendmynotes.com` for sender/reply-to. All delivery/automatic flags remain false. No personal street address or city-only substitute is inserted.
 
 Activation remains blocked by the exact postal footer, confirmed receiving/forwarding for the reply mailbox, and Resend webhook setup. The existing Resend runtime key is sending-only: read-only domain/webhook inventory returned 401 `restricted_api_key`; the browser dashboard was not signed in. An authenticated dashboard or appropriate operator credential is needed to configure the subscription and obtain its signing secret. No nonexistent webhook secret is bound by this change. These setup gaps do not prevent drafting/editing/preview in the deployed admin.
+
+
+## Captured-email coverage
+
+The composer supports all persisted orders with a usable sender email, including unpaid/abandoned checkout orders; no paid-status gate is applied. In Orders, use **Unpaid / In Cart**, open the order journey, then generate a personal email. The service regression explicitly verifies an unpaid, unknown-permission order can be manually sent using a synthetic transport without changing payment state or creating marketing permission. Checkout contact capture writes to the order before payment. The existing contact policy continues to honor an explicitly cleared/no-email choice.
+
+A separate `/api/feedback` endpoint stores optional contact emails in `user_feedback` without requiring an order. Feedback-only contacts are not reachable through this order-based composer. No separate lead/newsletter capture collection was found in the code audit. Supporting feedback-only contacts requires a standalone contact/source selector and service-reply copy; this release must not be described as covering every email address in every collection.
+
+Parent also provisioned independent signing/opt-out secrets with the same resource names and version in `sendmynotes-staging` and granted its backend access, so inherited production manifest bindings will resolve on future merges. No staging deployment or sending was performed by this patch.
