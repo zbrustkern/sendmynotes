@@ -44,6 +44,12 @@ env:
   - variable: HANDWRYTTEN_TEST_MODE
     value: "true"
     availability: [RUNTIME]
+  - variable: MULTI_SEND_WORKER_SECRET
+    secret: multi-send-worker-secret@1
+    availability: [RUNTIME]
+  - variable: HANDWRYTTEN_WEBHOOK_SECRET
+    secret: handwrytten-webhook-secret@1
+    availability: [RUNTIME]
 
   - variable: UPLOAD_PRIVATE_BUCKET
     value: sendmynotes-staging-upload-private

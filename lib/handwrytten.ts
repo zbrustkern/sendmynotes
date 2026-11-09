@@ -492,22 +492,39 @@ export async function prepareHandwryttenCustomCard(params: Pick<HandwryttenOrder
   }
 }
 
+function hasExplicitSupplierSystemicFailure(value: unknown): boolean {
+  if (typeof value !== "string") return false;
+  const message = value.trim();
+  if (!message) return false;
+  const authFailure = /\b(?:unauthorized|forbidden|access denied|permission denied|authentication failed|invalid (?:api|access) key|(?:api|access) key (?:is )?(?:invalid|expired))\b/i;
+  const billingFailure = /\binsufficient\s+(?:(?:account|wholesale)\s+)?(?:balance|funds|credit)\b|\b(?:account|wholesale|credit)\s+(?:balance|funds)\s+(?:is\s+)?(?:check\s+)?(?:low|insufficient|empty|zero|unavailable|failed)\b|\bpayment(?:\s+method)?\s+(?:was\s+)?(?:declined|failed|unavailable|expired)\b|\bbilling\s+account\s+(?:disabled|suspended|unavailable|failed)\b/i;
+  return authFailure.test(message) || billingFailure.test(message);
+}
+
 /** Submits one recipient against the already prepared, shared custom card. */
-export async function submitPreparedHandwryttenOrder(params: HandwryttenOrderParams, cardId: string): Promise<HandwryttenOrderResult> {
-  if (process.env.STAGING_REVIEW_ONLY === "true" || process.env.HANDWRYTTEN_TEST_MODE === "true") return { success: false, error: "Live batch dispatch is disabled in staging or supplier test mode." };
+export async function submitPreparedHandwryttenOrder(params: HandwryttenOrderParams, cardId: string, fetchImpl: typeof fetch = fetch): Promise<HandwryttenOrderResult> {
+  if (process.env.STAGING_REVIEW_ONLY === "true" || process.env.HANDWRYTTEN_TEST_MODE === "true") return { success: false, error: "Live batch dispatch is disabled in staging or supplier test mode.", details: { providerSystemicFailure: true, providerOutcome: "not_sent" } };
   const apiKey = process.env.HANDWRYTTEN_API_KEY || process.env["handwrytten-api-key"];
   if (!apiKey) return { success: false, error: "Supplier credentials are unavailable; no recipient was submitted.", details: { providerSystemicFailure: true, providerOutcome: "not_sent" } };
   let payload: Record<string, unknown>;
   try { payload = buildSingleStepOrderPayload({ ...params, exactMessage: true }, cardId, false); }
-  catch (error) { return { success: false, error: error instanceof Error ? error.message : "Unsupported supplier destination." }; }
+  catch (error) { return { success: false, error: error instanceof Error ? error.message : "Unsupported supplier destination.", details: { providerRejected: true, providerOutcome: "not_sent" } }; }
   try {
-    const response = await fetch("https://api.handwrytten.com/v2/orders/singleStepOrder", { method: "POST", headers: { Authorization: apiKey, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(20_000) });
-    const data: any = await response.json();
+    const response = await fetchImpl("https://api.handwrytten.com/v2/orders/singleStepOrder", { method: "POST", headers: { Authorization: apiKey, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(20_000) });
+    // These exact authorization responses reject the request before order creation.
+    // Do not use body text to infer that billing/auth failures were not submitted.
     if (response.status === 401 || response.status === 403) return { success: false, error: "Supplier authentication or authorization failed; dispatch paused.", details: { providerSystemicFailure: true, providerOutcome: "not_sent", providerStatusCode: response.status } };
-    if (data.status === "error" && (response.ok || (response.status >= 400 && response.status < 500))) {
-      return { success: false, error: data.message || "Supplier explicitly rejected recipient order", details: { providerRejected: true, providerStatus: data.status } };
+    // Billing status is systemic, but without a documented order-creation guarantee
+    // the result remains ambiguous and must not be retried automatically.
+    if (response.status === 402) return { success: false, error: "Supplier billing response requires account review; request outcome is unconfirmed.", details: { providerSystemicFailure: true, providerOutcome: "unknown", providerStatusCode: response.status } };
+    let data: any;
+    try { data = await response.json(); }
+    catch { return { success: false, error: "Supplier response was unreadable; request outcome is unconfirmed.", details: { providerOutcome: "unknown", providerStatusCode: response.status } }; }
+    if (!response.ok || !data?.order_id || data.status === "error") {
+      const errorText = typeof data?.message === "string" ? data.message : typeof data?.error === "string" ? data.error : "";
+      const systemic = data?.status === "error" && hasExplicitSupplierSystemicFailure(errorText);
+      return { success: false, error: systemic ? "Supplier account billing or authentication issue requires review; request outcome is unconfirmed." : "Supplier response did not establish acceptance or non-submission.", details: { ...(systemic ? { providerSystemicFailure: true } : {}), providerOutcome: "unknown", providerStatusCode: response.status } };
     }
-    if (!response.ok || !data.order_id) return { success: false, error: "Supplier response did not establish acceptance or rejection.", details: { providerOutcome: "unknown" } };
     return { success: true, order_id: String(data.order_id), details: data };
   } catch (error) {
     // Any exception after crossing the request boundary is ambiguous.

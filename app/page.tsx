@@ -1,12 +1,14 @@
 import React, { Suspense } from "react";
 import { redirect } from "next/navigation";
-import { isReworkV3Enabled } from "@/lib/feature-flags";
+import { getFeatureFlagsState, isReworkV3Enabled } from "@/lib/feature-flags";
 import { ExperienceRouter } from "@/components/ExperienceRouter";
 import { RootAutoSelectRedirect } from "@/components/RootAutoSelectRedirect";
 
 interface PageProps {
   searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
+
+export const dynamic = "force-dynamic";
 
 export default async function Home({ searchParams }: PageProps) {
   const resolvedParams = searchParams ? await searchParams : {};
@@ -37,6 +39,7 @@ export default async function Home({ searchParams }: PageProps) {
   }
 
   const isV3 = await isReworkV3Enabled({ searchParams: resolvedParams });
+  const flags = await getFeatureFlagsState();
 
   return (
     <Suspense
@@ -54,6 +57,7 @@ export default async function Home({ searchParams }: PageProps) {
       <RootAutoSelectRedirect />
       <ExperienceRouter
         initialIsV3={isV3}
+        initialMultiSendEnabled={flags.flags.multiSendEnabled === true}
         embedded={false}
         initialStep="card"
       />

@@ -1,5 +1,8 @@
 import { Suspense } from "react";
 import { EntryPrototypeClient } from "@/app/preview/entry/client";
+import { getFeatureFlagsState } from "@/lib/feature-flags";
+
+export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Send a Real Handwritten Card Online | SendMyNotes",
@@ -7,7 +10,8 @@ export const metadata = {
     "Curated greeting cards written in real ballpoint pen ink. Mailed via USPS First-Class with your return address for $9.00 total.",
 };
 
-export default function NewCardPage() {
+export default async function NewCardPage() {
+  const flags = await getFeatureFlagsState();
   return (
     <Suspense
       fallback={
@@ -21,7 +25,7 @@ export default function NewCardPage() {
         </div>
       }
     >
-      <EntryPrototypeClient />
+      <EntryPrototypeClient multiSendEnabled={flags.flags.multiSendEnabled === true} />
     </Suspense>
   );
 }

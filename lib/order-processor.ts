@@ -392,14 +392,16 @@ export async function processPaidOrder(
       const snap = await tx.get(parentRef); if (!snap.exists) throw new Error("Order disappeared during payment convergence.");
       const current = snap.data() as Order;
       const stillBatchProgressed = isMultiSendOrder(current) && ["MULTI_SEND_READY", "MULTI_SEND_PARTIAL", "MULTI_SEND_CHECKING", "MULTI_SEND_COMPLETE", "MULTI_SEND_HELD", "MULTI_SEND_PREPARATION_UNCERTAIN", "MULTI_SEND_PREPARATION_REJECTED", "MULTI_SEND_INVALID_HOLD"].includes(current.fulfillmentStatus || "");
+      const environmentHold = !isLivePayment || localMockAllowed || Boolean(authorityOrder.isTest || authorityOrder.isFounderTest || authorityOrder.isComp) || process.env.STAGING_REVIEW_ONLY === "true" || process.env.HANDWRYTTEN_TEST_MODE === "true";
       const nextStatus = stillBatchProgressed ? current.status : "QUEUED_FOR_FULFILLMENT";
+      const nextFulfillmentStatus = stillBatchProgressed ? current.fulfillmentStatus : environmentHold ? "MULTI_SEND_HELD" : (current.fulfillmentStatus || "MULTI_SEND_QUEUED");
       tx.update(parentRef, {
         status: nextStatus, stripePaymentId: paymentIntentId,
         paymentMode: localMockAllowed ? "local_mock" : (isLivePayment ? "live" : "stripe_test"),
-        isTest: !isLivePayment, fulfillmentStatus: stillBatchProgressed ? current.fulfillmentStatus : (current.fulfillmentStatus || "MULTI_SEND_QUEUED"),
-        ...(stillBatchProgressed ? {} : { fulfillmentError: undefined }), updatedAt: Date.now(),
+        isTest: !isLivePayment, fulfillmentStatus: nextFulfillmentStatus,
+        ...(!stillBatchProgressed ? { fulfillmentError: environmentHold ? "Paid multi-send is held because this payment is non-live or the environment is review-only." : undefined } : {}), updatedAt: Date.now(),
       });
-      return { progressed: stillBatchProgressed, status: nextStatus };
+      return { progressed: stillBatchProgressed, status: nextStatus, fulfillmentStatus: nextFulfillmentStatus };
     });
     return { success: true, status: convergence.status, alreadyProcessed: convergence.progressed };
   }

@@ -156,7 +156,7 @@ async function dispatchMultiSendChildrenLocked(orderId: string, limit = 5, optio
   const parentTotal = order.multiSend.quote.totalCents;
   if (!capture.exists || captureData?.provider !== "stripe" || captureData?.providerObjectId !== order.stripePaymentId || captureData?.livemode !== true || captureData?.orderId !== orderId || captureData?.amountCents !== parentTotal || captureData?.currency !== "usd" || parentTotal !== (order.finalAmountInCents ?? order.amountInCents) || parentTotal !== order.multiSend.recipients.reduce((sum, row) => sum + row.amountInCents, 0)) throw new Error("A matching live Stripe capture, currency, total, and child allocations are required before child dispatch.");
   if (await isOperationalControlPaused("fulfillment")) throw new Error("Supplier submission is paused.");
-  let accepted = 0, rejected = 0, uncertain = 0;
+  let accepted = 0, rejected = 0, uncertain = 0, systemicFailure = false;
   const children = await listMultiSendDeliveries(orderId);
   for (const child of children.filter((entry) => entry.state === "DISPATCHING" && Date.now() - (entry.dispatchStartedAt || 0) > 5 * 60_000)) {
     await firestoreDb.runTransaction(async (tx: any) => {
@@ -203,15 +203,18 @@ async function dispatchMultiSendChildrenLocked(orderId: string, limit = 5, optio
       });
       if (updated) accepted++;
     } else {
-      const isUncertain = (result as any).details?.providerRejected !== true;
       const systemic = (result as any).details?.providerSystemicFailure === true;
+      const knownNotSent = (result as any).details?.providerOutcome === "not_sent";
+      const remainPending = systemic && knownNotSent;
+      const isUncertain = (result as any).details?.providerRejected !== true && !remainPending;
       const updated = await firestoreDb.runTransaction(async (tx: any) => {
         const snap = await tx.get(ref); if (!snap.exists) return false; const current = snap.data() as Delivery;
         if (current.state !== "DISPATCHING" || current.dispatchAttemptId !== attemptId || current.stateVersion !== child.stateVersion + 1) return false;
-        tx.update(ref, { state: isUncertain ? "DISPATCH_UNCERTAIN" : "REJECTED", outcome: isUncertain ? "unknown" : "rejected", error: result.error || "Supplier rejected recipient", stateVersion: current.stateVersion + 1, updatedAt: Date.now() }); return true;
+        tx.update(ref, { state: remainPending ? "PENDING" : isUncertain ? "DISPATCH_UNCERTAIN" : "REJECTED", outcome: remainPending ? undefined : isUncertain ? "unknown" : "rejected", dispatchAttemptId: undefined, dispatchStartedAt: undefined, error: result.error || (remainPending ? "Supplier is paused; no recipient order was submitted." : "Supplier outcome needs reconciliation."), stateVersion: current.stateVersion + 1, updatedAt: Date.now() }); return true;
       });
-      if (updated) { if (isUncertain) uncertain++; else rejected++; }
+      if (updated) { if (isUncertain) uncertain++; else if (!remainPending) rejected++; }
       if (systemic) {
+        systemicFailure = true;
         await updateOperationalControl({ name: "fulfillment", paused: true, reason: `Supplier systemic failure for batch ${orderId}; reconcile provider access before resuming.`, actor: "multi-send-worker" });
         break;
       }
@@ -221,7 +224,7 @@ async function dispatchMultiSendChildrenLocked(orderId: string, limit = 5, optio
   const pending = after.filter((entry) => entry.state === "PENDING").length;
   const hasUncertain = after.some((entry) => entry.state === "DISPATCH_UNCERTAIN" || entry.state === "DISPATCHING");
   const allDone = after.length === order.multiSend.recipients.length && after.every((entry) => ["ACCEPTED", "REJECTED", "MAILED", "REFUNDED"].includes(entry.state));
-  await updateOrderStatus(orderId, { status: "QUEUED_FOR_FULFILLMENT", fulfillmentStatus: hasUncertain ? "MULTI_SEND_CHECKING" : allDone ? "MULTI_SEND_COMPLETE" : "MULTI_SEND_PARTIAL", fulfillmentError: hasUncertain ? "At least one recipient outcome is uncertain; reconcile that child before any resend." : undefined } as any);
+  await updateOrderStatus(orderId, { status: "QUEUED_FOR_FULFILLMENT", fulfillmentStatus: systemicFailure ? "MULTI_SEND_HELD" : hasUncertain ? "MULTI_SEND_CHECKING" : allDone ? "MULTI_SEND_COMPLETE" : "MULTI_SEND_PARTIAL", fulfillmentError: systemicFailure ? "Systemic supplier failure paused batch dispatch; pending children remain unsent and ambiguous children require reconciliation." : hasUncertain ? "At least one recipient outcome is uncertain; reconcile that child before any resend." : undefined } as any);
   return { accepted, rejected, uncertain, pending };
 }
 

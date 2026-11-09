@@ -5,6 +5,7 @@ import { recordPaymentCaptureFact } from "../lib/financial-ledger";
 import { dispatchMultiSendChildren, listMultiSendDeliveries, preparePaidMultiSend, resumeHeldMultiSend } from "../lib/multi-send/orders";
 import { reconcileMultiSendRefund, refundMultiSendDelivery } from "../lib/multi-send/refunds";
 import { getOperationalControls, updateOperationalControl } from "../lib/operational-controls";
+import { submitPreparedHandwryttenOrder } from "../lib/handwrytten";
 import type { Order } from "../lib/types";
 
 const address = (firstName: string) => ({ firstName, lastName: "Friend", street1: "1 Main St", city: "Chicago", state: "IL", zip: "60601", country: "US" });
@@ -151,12 +152,38 @@ async function main() {
     await assert.rejects(reconcileMultiSendRefund({ orderId: reconcileParent.id, recipientId: "r1", actor: "operator@example.invalid", retrieve: async () => ({ id: "re_found", payment_intent: reconcileParent.stripePaymentId, amount: 450, currency: "eur", livemode: true, status: "succeeded" }) }), /currency, or mode/);
     const systemicParent = await addBatch("batch-systemic-provider", ["PENDING", "PENDING"]);
     let systemicCalls = 0;
-    const systemicResult = await dispatchMultiSendChildren(systemicParent.id, 2, { submit: async () => { systemicCalls++; return { success: false, error: "authentication failed", details: { providerSystemicFailure: true, providerOutcome: "not_sent" } } as any; } });
-    assert.equal(systemicCalls, 1, "systemic supplier failure stops dispatch before another sibling");
-    assert.equal(systemicResult.uncertain, 1);
+    const authDenied = await dispatchMultiSendChildren(systemicParent.id, 2, { submit: async (params, cardId) => {
+      systemicCalls++;
+      return submitPreparedHandwryttenOrder(params, cardId, async () => new Response("unauthorized", { status: 401 }));
+    } });
+    assert.equal(systemicCalls, 1, "systemic auth failure stops dispatch before another sibling");
+    assert.equal(authDenied.uncertain, 0, "an exact 401 response keeps the provably unsent child pending");
+    assert.equal(authDenied.rejected, 0);
+    assert.equal(authDenied.pending, 2);
+    let systemicChildren = await listMultiSendDeliveries(systemicParent.id);
+    assert.deepEqual(systemicChildren.map((row) => row.state), ["PENDING", "PENDING"], "auth-denied child can safely be retried after operator recovery");
+    assert.equal((await getOrdersCollection().doc(systemicParent.id).get()).data()?.fulfillmentStatus, "MULTI_SEND_HELD");
     assert.equal((await getOperationalControls()).fulfillment.paused, true, "systemic supplier failure pauses fulfillment globally");
 
     await updateOperationalControl({ name: "fulfillment", paused: false, reason: "synthetic provider recovered", actor: "test" });
+    await (await import("../lib/multi-send/orders")).resumeHeldMultiSend({ orderId: systemicParent.id, reason: "Synthetic credentials restored", idempotencyKey: "resume_systemic_auth_retry", actor: "operator@example.invalid" });
+    const recovered = await dispatchMultiSendChildren(systemicParent.id, 1, { submit: async (params) => { assert.equal(params.handwrittenMessage, "Dear Maya,\n\nUnique body for Maya.\n\nLove, Sam"); return { success: true, order_id: "hw_after_auth_recovery" }; } });
+    assert.equal(recovered.accepted, 1, "known-not-sent child safely dispatches after explicit pause recovery");
+    systemicChildren = await listMultiSendDeliveries(systemicParent.id);
+    assert.equal(systemicChildren[0].state, "ACCEPTED");
+    assert.equal(systemicChildren[0].attempts, 2, "recovery creates a new fenced attempt for the unsent child");
+    assert.equal(systemicChildren[1].state, "PENDING", "other pending sibling remains isolated for the next bounded worker tick");
+
+    const ambiguousBillingParent = await addBatch("batch-ambiguous-billing", ["PENDING", "PENDING"]);
+    const billingResult = await dispatchMultiSendChildren(ambiguousBillingParent.id, 2, { submit: async (params, cardId) => submitPreparedHandwryttenOrder(params, cardId, async () => new Response(JSON.stringify({ status: "error", message: "billing balance" }), { status: 402, headers: { "content-type": "application/json" } })) });
+    assert.equal(billingResult.uncertain, 1, "billing HTTP response pauses system but keeps post-request outcome uncertain");
+    assert.equal(billingResult.pending, 1, "unsubmitted siblings stay pending after systemic stop");
+    const billingRows = await listMultiSendDeliveries(ambiguousBillingParent.id);
+    assert.equal(billingRows[0].state, "DISPATCH_UNCERTAIN");
+    assert.equal(billingRows[1].state, "PENDING");
+    assert.equal((await getOrdersCollection().doc(ambiguousBillingParent.id).get()).data()?.fulfillmentStatus, "MULTI_SEND_HELD");
+
+    await updateOperationalControl({ name: "fulfillment", paused: false, reason: "Synthetic billing hold reviewed", actor: "test" });
     const resumeParent = await addBatch("batch-safe-resume", ["DISPATCH_UNCERTAIN", "PENDING"]);
     await getOrdersCollection().doc(resumeParent.id).update({ fulfillmentStatus: "MULTI_SEND_HELD", fulfillmentError: "Manual credential hold" });
     await updateOperationalControl({ name: "fulfillment", paused: true, reason: "synthetic pause for recovery test", actor: "test" });

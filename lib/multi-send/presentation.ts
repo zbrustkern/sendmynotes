@@ -26,7 +26,11 @@ export function projectMultiSendView(order: Order, children: Delivery[], authori
   if (!authorized) return { quantity, redacted: true, deliveries: [] };
   return { quantity, redacted: false, deliveries: order.multiSend.recipients.map(recipient => {
     const child = children.find(row => row.parentOrderId === order.id && row.recipientId === recipient.id);
-    const status = order.status === 'PENDING_PAYMENT' ? {label: 'Awaiting payment', needsSupport: false} : deliveryStatus(child?.state || 'PENDING');
+    const status = order.status === 'PENDING_PAYMENT'
+      ? {label: 'Awaiting payment', needsSupport: false}
+      : order.fulfillmentStatus === 'MULTI_SEND_HELD' && (!child || child.state === 'PENDING')
+        ? {label: 'On hold', needsSupport: false}
+        : deliveryStatus(child?.state || 'PENDING');
     return { id: recipient.id, name: [recipient.address.firstName, recipient.address.lastName].filter(Boolean).join(' '),
       address: child?.correctedAddress || child?.address || recipient.address, greeting: recipient.resolvedGreeting,
       message: recipient.printedMessage, status: status.label, needsSupport: status.needsSupport };

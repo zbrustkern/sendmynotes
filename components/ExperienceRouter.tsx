@@ -7,6 +7,7 @@ import { VendingMachineBuilder } from "@/components/VendingMachineBuilder";
 
 export interface ExperienceRouterProps {
   initialIsV3?: boolean;
+  initialMultiSendEnabled?: boolean;
   initialOccasion?: string;
   initialCoverUrl?: string;
   initialPrintedGreeting?: string;
@@ -20,6 +21,7 @@ export interface ExperienceRouterProps {
 
 export function ExperienceRouter({
   initialIsV3 = true,
+  initialMultiSendEnabled,
   initialOccasion,
   initialCoverUrl,
   initialPrintedGreeting,
@@ -67,6 +69,7 @@ export function ExperienceRouter({
         scenarioTitle={scenarioTitle}
         embedded={effectiveEmbedded}
         initialStep={effectiveInitialStep}
+        multiSendEnabled={initialMultiSendEnabled}
       />
     );
   }
