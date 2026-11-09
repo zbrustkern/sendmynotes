@@ -100,6 +100,16 @@ async function main() {
   assert.equal((await POST(new NextRequest("https://sendmynotes.com/api/admin/manual-followup",{method:"POST",body:JSON.stringify({action:"generate",orderId:"sympathy"})}))).status,401);
   const cookie=`${ADMIN_COOKIE_NAME}=${generateAdminSessionToken("zbrustkern@gmail.com")}`;
   const forbidden = await POST(new NextRequest("https://sendmynotes.com/api/admin/manual-followup",{method:"POST",headers:{cookie,origin:"https://evil.invalid"},body:JSON.stringify({action:"send",orderId:"sympathy"})}));assert.equal(forbidden.status,403);
+  const proxyOrder=await seed("proxy-origin");
+  const proxyRequest=(origin:string,forwardedHost="sendmynotes.com")=>new NextRequest("http://0.0.0.0:8080/api/admin/manual-followup",{method:"POST",headers:{cookie,origin,"x-forwarded-host":forwardedHost,"x-forwarded-proto":"https"},body:JSON.stringify({action:"generate",orderId:proxyOrder.id})});
+  const proxyResult=await POST(proxyRequest("https://sendmynotes.com"));
+  assert.equal(proxyResult.status,200,"configured public origin works behind the App Hosting internal URL");
+  assert.equal((await manualOrderView(proxyOrder.id)).draft?.state,"draft");
+  assert.equal((await POST(proxyRequest("https://evil.invalid","evil.invalid"))).status,403,"forwarded host cannot grant trust to an attacker origin");
+  assert.equal((await POST(proxyRequest("http://0.0.0.0:8080"))).status,403,"internal request origin is not a second public allowlist entry");
+  process.env.NEXT_PUBLIC_APP_URL="not-a-valid-url";
+  assert.equal((await POST(proxyRequest("https://sendmynotes.com"))).status,403,"invalid configured origin fails closed");
+  process.env.NEXT_PUBLIC_APP_URL="https://sendmynotes.com";
   const response=await GET(new NextRequest("https://sendmynotes.com/api/admin/manual-followup?orderId=sympathy",{headers:{cookie}}));assert.equal(response.status,200);const data=JSON.stringify(await response.json());assert.ok(!data.includes(sympathy.customerEmail));assert.ok(!data.includes("DO NOT READ"));
   // Separate source namespaces prevent an order and feedback document with the same ID from sharing a draft.
   const sameOrder = await seed("same-source-id");

@@ -1,0 +1,7 @@
+
+> sendmynotes@0.1.0 test:manual-followup
+> env NODE_ENV=test SMN_TEST_DATA_DIR="$(mktemp -d)" node --import tsx tests/manual-followup.test.ts && node --import tsx tests/manual-followup-ui-race.test.ts
+
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Manual follow-up contracts, concurrent send, suppression, unchanged classification, webhook recovery, auth, and privacy passed.
+Manual composer ignores old-order generate/save responses after switching orders.

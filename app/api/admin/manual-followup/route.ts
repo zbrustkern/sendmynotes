@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAuthenticatedAdminActor, verifyAdminAuth } from "@/lib/admin-auth";
 import { generateManualDraft, manualOrderView, saveManualDraft, sendManualDraft, type ManualSourceType } from "@/lib/post-purchase/manual";
 const json = (body: unknown, status = 200) => NextResponse.json(body, { status, headers: { "Cache-Control": "no-store" } });
+function hasTrustedOrigin(req: NextRequest): boolean {
+  const supplied = req.headers.get("origin");
+  // Authenticated non-browser operators may omit Origin, as before.
+  if (!supplied) return true;
+  const configured = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (!configured && process.env.NODE_ENV === "production") return false;
+  try {
+    // App Hosting presents an internal request URL. Only deployment configuration,
+    // never caller-controlled forwarding headers, defines the public browser origin.
+    const trusted = new URL(configured || req.nextUrl.origin);
+    if (trusted.username || trusted.password || !["https:", "http:"].includes(trusted.protocol)) return false;
+    if (process.env.NODE_ENV === "production" && trusted.protocol !== "https:") return false;
+    return supplied === trusted.origin;
+  } catch { return false; }
+}
 function contactSource(input: { sourceType?: unknown; sourceId?: unknown; orderId?: unknown }) {
   const sourceType = input.sourceType ?? "order";
   if (sourceType !== "order" && sourceType !== "feedback" && sourceType !== "account") throw new Error("Unknown contact source.");
@@ -15,7 +30,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   if (!verifyAdminAuth(req)) return json({ error: "Unauthorized" }, 401);
   const actor = getAuthenticatedAdminActor(req); if (!actor) return json({ error: "Unauthorized actor" }, 403);
-  if (req.headers.get("origin") && req.headers.get("origin") !== req.nextUrl.origin) return json({ error: "Invalid origin" }, 403);
+  if (!hasTrustedOrigin(req)) return json({ error: "Invalid origin" }, 403);
   try {
     const input = await req.json(); const { orderId, sourceType } = contactSource(input);
     if (input.action === "generate") return json({ data: await generateManualDraft(orderId, actor, sourceType) });

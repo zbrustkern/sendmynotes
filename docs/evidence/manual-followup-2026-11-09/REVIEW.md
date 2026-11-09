@@ -67,4 +67,11 @@ The final regression run covers order/feedback/account source isolation, unpaid 
 
 The parent verified production source `2e44b6a` is READY with 100% traffic. Anonymous admin endpoints return 401, unsigned webhook calls return 400, and a signed synthetic webhook for a nonexistent message returns 200 without sending mail. All sending flags remain false. See `production-rollout.json` and `production-smoke.json` for sanitized evidence.
 
-Authenticated contact-list verification exposed the missing descending name-only indexes described above. Their creation was accepted in both projects; at this handoff they are CREATING and the successful hosted contact-list UI recheck is still pending. The repair commit changes only the index manifest, readiness matching/tests, and evidence; it does not require an application runtime change. The offline readiness contract test passes (`contact-index-contract.txt`).
+Authenticated contact-list verification exposed the missing descending name-only indexes described above. Their creation was accepted in both projects. The parent subsequently confirmed the indexes READY and authenticated feedback/account contact lists loading successfully. The repair commit changes only the index manifest, readiness matching/tests, and evidence; it does not require an application runtime change. The offline readiness contract test passes (`contact-index-contract.txt`).
+
+
+## App Hosting origin repair
+
+The authenticated production Generate action then exposed a separate reverse-proxy mismatch: browser Origin was the public site, while `req.nextUrl.origin` represented the internal App Hosting request URL. Manual POST validation now compares Origin to the explicitly configured `NEXT_PUBLIC_APP_URL` origin. It never derives trust from caller-controlled forwarding headers. Production requires a configured HTTPS origin; malformed configuration fails closed. Existing authenticated non-browser calls without Origin retain their previous behavior.
+
+The route regression constructs a request URL of `http://0.0.0.0:8080` with Origin `https://sendmynotes.com` and proves draft generation succeeds when that public origin is configured. It also proves that an attacker origin with a matching forged forwarded host, the internal request origin, and malformed configuration are rejected with 403. Full manual service/UI suites pass (`origin-regressions.txt`). Production build evidence is `origin-build.txt`. Hosted Generate/Save verification still requires rollout of this runtime fix; no email is sent by these tests.
