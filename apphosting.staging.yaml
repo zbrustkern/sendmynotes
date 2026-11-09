@@ -55,3 +55,8 @@ env:
 # Advertising is suppressed by NEXT_PUBLIC_STAGING_REVIEW_ONLY in the root layout
 # and STAGING_REVIEW_ONLY in the server conversions client. Keep inherited secret
 # references intact; use explicit review flags rather than empty env values.
+
+  # Manual per-order emails are independent of automated enrollment/delivery.
+  - variable: MANUAL_FOLLOWUP_DELIVERY_ACTIVE
+    value: "false"
+    availability: [BUILD, RUNTIME]

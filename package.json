@@ -55,7 +55,8 @@
     "test:post-purchase-operator": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-operator.test.ts",
     "test:post-purchase-dispatch": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-dispatch.test.ts",
     "test:post-purchase-resend-webhook": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-resend-webhook.test.ts",
-    "test:attribution": "node --import tsx tests/attribution-classifier.test.ts && node --import tsx tests/attribution-capture.test.ts && node --import tsx tests/order-attribution-v2.test.ts && node --import tsx tests/attribution-tracker-consent.test.ts && node --import tsx tests/attribution-checkout-route.test.ts"
+    "test:attribution": "node --import tsx tests/attribution-classifier.test.ts && node --import tsx tests/attribution-capture.test.ts && node --import tsx tests/order-attribution-v2.test.ts && node --import tsx tests/attribution-tracker-consent.test.ts && node --import tsx tests/attribution-checkout-route.test.ts",
+    "test:manual-followup": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/manual-followup.test.ts && node --import tsx tests/manual-followup-ui-race.test.ts"
   },
   "dependencies": {
     "@google-cloud/secret-manager": "^7.2.0",

@@ -128,3 +128,21 @@ env:
   - variable: POST_PURCHASE_AUTO_ENROLL_ACTIVE
     value: "false"
     availability: [RUNTIME]
+
+  # Manual per-order emails are independent of automated enrollment/delivery.
+  - variable: MANUAL_FOLLOWUP_DELIVERY_ACTIVE
+    value: "false"
+    availability: [BUILD, RUNTIME]
+
+  - variable: POST_PURCHASE_SENDER_HMAC_KEY
+    secret: post-purchase-sender-hmac-key@1
+    availability: [RUNTIME]
+  - variable: POST_PURCHASE_UNSUBSCRIBE_SECRET
+    secret: post-purchase-unsubscribe-secret@1
+    availability: [RUNTIME]
+  - variable: POST_PURCHASE_SENDER_EMAIL
+    value: "zeke@sendmynotes.com"
+    availability: [RUNTIME]
+  - variable: POST_PURCHASE_REPLY_TO
+    value: "zeke@sendmynotes.com"
+    availability: [RUNTIME]

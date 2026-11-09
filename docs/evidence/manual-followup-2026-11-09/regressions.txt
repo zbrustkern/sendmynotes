@@ -1,0 +1,10 @@
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Manual follow-up contracts, concurrent send, suppression, unchanged classification, webhook recovery, auth, and privacy passed.
+Manual composer ignores old-order generate/save responses after switching orders.
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Post-purchase operator read-only, masking, and synthetic preview checks passed.
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Post-purchase dispatch gates, acceptance/idempotency, opt-out, repeat-purchase suppression, and next-step scheduling passed with fake transport.
+[Firebase Admin] Using disk-persisted mock Firestore store (.data/mock-firestore.json).
+Signed Resend webhook forgery, idempotency, provider namespace, attribution, concurrent acceptance, and durable suppression tests passed.
+Post-purchase CLI argument safety checks passed.

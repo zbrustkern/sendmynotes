@@ -29,6 +29,7 @@ import {
   X,
 } from "lucide-react";
 import type { Order, MailingAddress } from "@/lib/types";
+import { ManualFollowupPanel } from "@/components/admin/ManualFollowupPanel";
 import { OrderFollowupPanel } from "@/components/admin/OrderFollowupPanel";
 import type {
   InvestigationOrderSummary,
@@ -509,7 +510,8 @@ export function OrderJourneyDrawer({
           <p className="text-[11px] text-stone-600 leading-tight">{recipientSummary}</p>
         </div>
       </div>
-      <OrderFollowupPanel orderId={orderId} />
+      <ManualFollowupPanel key={orderId} orderId={orderId} />
+      <details className="mt-4"><summary className="cursor-pointer text-sm text-stone-600">Optional automated follow-up sequence</summary><div className="mt-3"><OrderFollowupPanel orderId={orderId} /></div></details>
     </div>
   );
 }
