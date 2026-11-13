@@ -50,11 +50,27 @@ export function extractSenderName(signOff: string): string {
   if (/^(w|wa|war|warm|warmly|l|lo|lov|love|s|sin|sinc|sincerely|b|be|bes|best)$/i.test(trimmed)) {
     return "";
   }
-  let cleaned = trimmed.replace(
-    /^(warmly|love|with love|sincerely|best regards|regards|best|cheers|yours truly|yours|affectionately|fondly|all the best)[,:\s]+/i,
-    ""
-  );
-  cleaned = cleaned.replace(/[,!.:;]+$/, "").trim();
+  const lines = trimmed
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let candidate = trimmed;
+  if (
+    lines.length >= 2 &&
+    (/[,:]$/.test(lines[0]) ||
+      /^(warmly|with all our love|with love|lots of love|love always|much love|love|sincerely|warmest wishes|warm wishes|best wishes|best regards|kind regards|regards|all the best|best|cheers|yours truly|yours|affectionately|fondly|gratefully|with gratitude)[,:\s]*$/i.test(
+        lines[0]
+      ))
+  ) {
+    candidate = lines.slice(1).join(" ");
+  } else {
+    candidate = trimmed.replace(
+      /^(warmly|with all our love|with love|lots of love|love always|much love|love|sincerely|warmest wishes|warm wishes|best wishes|best regards|kind regards|regards|all the best|best|cheers|yours truly|yours|affectionately|fondly|gratefully|with gratitude)[,:\s]+/i,
+      ""
+    );
+  }
+  let cleaned = candidate.replace(/[,!.:;]+$/, "").trim();
   // Strip bracketed template placeholders (e.g. "[Your Name]")
   cleaned = cleaned.replace(/^\[.*\]$/, "").trim();
   if (cleaned.length < 2 || /^(warmly|love|sincerely|best|cheers)$/i.test(cleaned)) {

@@ -36,6 +36,13 @@ import { emitMilestoneOnce } from "@/lib/telemetry-milestones";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
 import { markGoogleAdsCheckoutActive, clearGoogleAdsCheckoutActive } from "@/lib/google-ads";
+import {
+  composeRecipientMessage,
+  normalizeBodyText,
+  normalizeGreetingText,
+  normalizeSignOffText,
+} from "@/lib/multi-send/contracts";
+import { resolveStep2PreviewMessage } from "@/lib/note-preview";
 
 export interface AppliedDiscountInfo {
   code: string;
@@ -195,6 +202,7 @@ function InnerPaymentForm({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [walletAvailable, setWalletAvailable] = useState(false);
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewInitialView, setPreviewInitialView] = useState<"cover" | "rightPage" | "spread" | "back">("cover");
 
   const [showPromoInput, setShowPromoInput] = useState(Boolean(appliedDiscount));
   const [promoInput, setPromoInput] = useState("");
@@ -603,8 +611,23 @@ function InnerPaymentForm({
     }
   }, []);
 
+  const isMultiSend = Boolean(multiSendRecipients && multiSendRecipients.length > 1);
   const selectedMultiRecipient = multiSendRecipients?.find((person) => person.id === multiSendSelectedRecipientId) || multiSendRecipients?.[0];
-  const recipientDisplayName = multiSendRecipients && multiSendRecipients.length > 1 ? `${multiSendRecipients.length} recipients` : recipient.fullName?.trim() || "Recipient";
+  const combinedPreviewMessage = useMemo(() => {
+    if (isMultiSend && selectedMultiRecipient) {
+      return composeRecipientMessage(
+        {
+          salutation: normalizeGreetingText(salutation),
+          text: normalizeBodyText(bodyNote),
+          signOff: normalizeSignOffText(signOff),
+          style: fontStyleId || "hwDavid",
+        },
+        { mode: "custom", text: selectedMultiRecipient.greeting }
+      );
+    }
+    return resolveStep2PreviewMessage(salutation, bodyNote, signOff);
+  }, [isMultiSend, selectedMultiRecipient, salutation, bodyNote, signOff, fontStyleId]);
+  const recipientDisplayName = isMultiSend && multiSendRecipients ? `${multiSendRecipients.length} recipients` : recipient.fullName?.trim() || "Recipient";
   const recipientLocation = useMemo(() => {
     if (!recipient.street1?.trim()) {
       return "Address Added Later";
@@ -658,11 +681,22 @@ function InnerPaymentForm({
 
       {multiSendRecipients && multiSendRecipients.length > 1 && <section className="mb-4 rounded-xl border border-stone-200 bg-white p-4" aria-label="Cards in this order">
         <h2 className="font-semibold text-stone-900">{multiSendRecipients.length} cards · ${((finalPriceCents || 0) / 100).toFixed(2)} total</h2>
-        <ul className="mt-3 divide-y divide-stone-100">{multiSendRecipients.map((person) => <li key={person.id} className="py-3 text-sm">
+        <ul className="mt-3 divide-y divide-stone-100">{multiSendRecipients.map((person, index) => <li key={person.id} className="py-3 text-sm">
           <div className="font-semibold">{person.name}<span className="font-normal text-stone-500">{person.city ? ` · ${person.city}${person.state ? `, ${person.state}` : ""}` : ""}</span></div>
           <div className="mt-1 text-stone-700">Inside greeting: {person.greeting || "No greeting"}</div>
           <button type="button" className="mt-1 text-xs font-semibold text-emerald-800 underline" onClick={() => onEditMultiGreeting?.(person.id)}>Edit greeting</button>
-          <button type="button" className="ml-3 mt-1 text-xs font-semibold text-emerald-800 underline" onClick={() => onPreviewMultiRecipient?.(person.id)}>Preview this card</button>
+          <button
+            type="button"
+            data-testid={`step4-preview-recipient-${index}`}
+            className="ml-3 mt-1 text-xs font-semibold text-emerald-800 underline"
+            onClick={() => {
+              onPreviewMultiRecipient?.(person.id);
+              setPreviewInitialView("rightPage");
+              setIsPreviewOpen(true);
+            }}
+          >
+            Preview this card
+          </button>
         </li>)}</ul>
       </section>}
 
@@ -757,7 +791,10 @@ function InnerPaymentForm({
                 </span>
                 <button
                   type="button"
-                  onClick={() => setIsPreviewOpen(true)}
+                  onClick={() => {
+                    setPreviewInitialView("cover");
+                    setIsPreviewOpen(true);
+                  }}
                   className="text-[11px] text-amber-800 hover:text-amber-950 font-medium underline underline-offset-2 flex items-center gap-0.5 cursor-pointer"
                 >
                   <Eye className="w-3 h-3" />
@@ -767,7 +804,10 @@ function InnerPaymentForm({
 
               <div className="flex gap-3.5 items-start">
                 <div
-                  onClick={() => setIsPreviewOpen(true)}
+                  onClick={() => {
+                    setPreviewInitialView("cover");
+                    setIsPreviewOpen(true);
+                  }}
                   title="Click to preview full card"
                   className="relative w-20 aspect-[17/22] rounded-xl overflow-hidden border border-stone-300 shadow-sm shrink-0 bg-stone-100 cursor-pointer group hover:shadow-md transition"
                 >
@@ -783,13 +823,27 @@ function InnerPaymentForm({
                   </div>
                 </div>
 
-                <div className="flex-1 min-w-0 bg-white/70 rounded-xl p-3 border border-stone-200/60 shadow-2xs">
-                  <div className={`text-[#1B3B6F] text-xs leading-relaxed ${fontClass || "font-David"}`}>
-                    {salutation && <p className="font-semibold mb-1 truncate">{salutation}</p>}
-                    <p className="line-clamp-4 text-stone-800 text-[11px] leading-relaxed">
-                      {bodyNote || "Your personal note written in real ballpoint ink..."}
-                    </p>
-                    {signOff && <p className="font-semibold mt-1 truncate">{signOff}</p>}
+                <div
+                  onClick={() => {
+                    setPreviewInitialView("rightPage");
+                    setIsPreviewOpen(true);
+                  }}
+                  className="flex-1 min-w-0 bg-white/70 rounded-xl p-3 border border-stone-200/60 shadow-2xs cursor-pointer"
+                >
+                  {isMultiSend && selectedMultiRecipient && (
+                    <div
+                      data-testid="step4-active-recipient-preview-label"
+                      className="text-[10px] font-semibold uppercase tracking-wide text-amber-900 mb-1.5"
+                    >
+                      Previewing card for {selectedMultiRecipient.name}
+                    </div>
+                  )}
+                  <div
+                    data-testid="step4-note-preview-text"
+                    style={{ color: "#1B3B6F" }}
+                    className={`text-[#1B3B6F] text-xs leading-relaxed whitespace-pre-wrap line-clamp-6 ${fontClass || "font-David"}`}
+                  >
+                    {combinedPreviewMessage || "Your personal note written in real ballpoint ink..."}
                   </div>
                 </div>
               </div>
@@ -1197,13 +1251,14 @@ function InnerPaymentForm({
       >
         <div className="py-2">
           <CardPreview
+            key={`${selectedMultiRecipient?.id || "single"}-${previewInitialView}`}
             coverUrl={cardUrl}
             printedGreeting=""
-            handwrittenNote={[selectedMultiRecipient?.greeting ?? salutation, bodyNote, signOff].filter(Boolean).join("\n\n")}
+            handwrittenNote={combinedPreviewMessage}
             fontStyleId={fontStyleId || "hwDavid"}
             occasion={occasion || "Greeting Card"}
             currentStep={4}
-            initialView="cover"
+            initialView={previewInitialView}
           />
         </div>
       </Sheet>

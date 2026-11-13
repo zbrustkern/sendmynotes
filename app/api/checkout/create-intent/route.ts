@@ -19,7 +19,7 @@ import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, au
 import { calculateOrderQuote } from "@/lib/order-pricing";
 import { prepareCheckoutOrderAttribution } from "@/lib/order-attribution";
 import { getFeatureFlags } from "@/lib/feature-flags";
-import { allocateTotalCents, composeRecipientMessage, normalizedMailingAddressKey, quoteMultiSend, validateMultiSendInput } from "@/lib/multi-send/contracts";
+import { allocateTotalCents, composeRecipientMessage, normalizedMailingAddressKey, quoteMultiSend, resolveGreeting, validateMultiSendInput } from "@/lib/multi-send/contracts";
 import { abortMultiSendCheckoutClaim, blockMultiSendCheckout, claimMultiSendCheckout, claimMultiSendRetry, finishMultiSendCheckout, multiSendCheckoutOwnerKey, resetMultiSendCheckoutAfterCanceledReplacement, recoverMultiSendCheckout, verifyMultiSendCheckoutOwner } from "@/lib/multi-send/checkout";
 
 export async function POST(req: NextRequest) {
@@ -235,7 +235,7 @@ export async function POST(req: NextRequest) {
       const frozenRecipients = multiSend.recipients.map((recipient: any, index: number) => ({
         ...recipient,
         address: { ...recipient.address, country: "US" },
-        resolvedGreeting: recipient.greeting.mode === "inherit" ? (multiSend.note.salutation || "") : recipient.greeting.text,
+        resolvedGreeting: resolveGreeting(multiSend.note.salutation || "", recipient.greeting),
         printedMessage: composeRecipientMessage(multiSend.note, recipient.greeting),
         amountInCents: allocations[index],
       }));

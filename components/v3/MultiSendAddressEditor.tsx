@@ -2,12 +2,13 @@
 import React, { useEffect, useState } from "react";
 import type { MultiSendDraft, MultiSendRecipientDraft, GreetingChoice, AddressDraft } from "@/lib/draft/types";
 import { US_STATES } from "./Step3EnvelopeAddressing";
-import { normalizedMailingAddressKey } from "@/lib/multi-send/contracts";
+import { normalizedMailingAddressKey, normalizeGreetingText, type MultiSendRecipientInput } from "@/lib/multi-send/contracts";
+import { findInheritedGreetingNameMismatches } from "@/lib/multi-send/greeting-guard";
 import { setHouseholdAcknowledgements } from "@/lib/multi-send/household";
 import { parseMultiSendEditorBuffer, type MultiSendEditorBuffer } from "@/lib/draft/multi-send-editor-buffer";
 
 function greetingFor(recipient: MultiSendRecipientDraft, fallback: string) {
-  return recipient.greeting.mode === "inherit" ? fallback : recipient.greeting.text;
+  return recipient.greeting.mode === "inherit" ? normalizeGreetingText(fallback) : normalizeGreetingText(recipient.greeting.text);
 }
 export function MultiSendAddressEditor({
   value, onChange, onRemove, onUndo, onUndoRemoval, hasUndoRemoval, defaultGreeting, bodyNote, signOff, onPreviewRecipient, onLivePreview, editRecipientId, onEditConsumed, unsavedGuard, openNewRecipient, onOpenNewConsumed, editAddressId, onAddressEditConsumed, selectedPreviewId,
@@ -32,9 +33,10 @@ export function MultiSendAddressEditor({
   const [previewId, setPreviewId] = useState(savedBuffer?.mode === "greeting" ? savedBuffer.recipientId : selectedPreviewId || value.recipients[0]?.id || "");
   useEffect(() => { if (selectedPreviewId && selectedPreviewId !== previewId) setPreviewId(selectedPreviewId); }, [selectedPreviewId]);
   const openAddress = (row: MultiSendRecipientDraft) => { setAddressId(row.id); setAddressDraft({ ...row.address }); setAptVisible(Boolean(row.address.addressLine2)); setRowError(""); };
+  const openGreeting = (row: MultiSendRecipientDraft) => { setGreetingId(row.id); setGreetingDraft(greetingFor(row, defaultGreeting)); setPreviewId(row.id); onPreviewRecipient?.(row.id); };
   const addressRef = React.useRef<HTMLInputElement>(null);
   const householdReviewRef = React.useRef<HTMLDivElement>(null);
-  const greetingRef = React.useRef<HTMLTextAreaElement>(null);
+  const greetingRef = React.useRef<HTMLInputElement>(null);
   const dirty = addressId !== null || greetingId !== null;
   useEffect(() => { if (householdReview) { householdReviewRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }); householdReviewRef.current?.focus(); } }, [householdReview]);
   useEffect(() => {
@@ -80,13 +82,30 @@ export function MultiSendAddressEditor({
     }
     setAddressId(null); setAddressDraft(null); setRowError(""); setHouseholdReview(null);
   };
-  const saveGreeting = () => { if (!greetingId) return; onChange({ ...value, recipients: value.recipients.map((r) => r.id === greetingId ? { ...r, greeting: { mode: "custom", text: greetingDraft } } : r) }); setGreetingId(null); };
+  const saveGreeting = () => { if (!greetingId) return; const cleanText = normalizeGreetingText(greetingDraft); onChange({ ...value, recipients: value.recipients.map((r) => r.id === greetingId ? { ...r, greeting: { mode: "custom", text: cleanText } } : r) }); setGreetingId(null); };
+  const recipientInputs: MultiSendRecipientInput[] = value.recipients.map((r) => ({
+    id: r.id,
+    address: {
+      firstName: r.address.name.trim().split(/\s+/)[0] || "",
+      lastName: r.address.name.trim().split(/\s+/).slice(1).join(" "),
+      street1: r.address.addressLine1,
+      street2: r.address.addressLine2 || undefined,
+      city: r.address.city,
+      state: r.address.state,
+      zip: r.address.zip,
+      country: r.address.country || "US",
+    },
+    greeting: r.greeting,
+  }));
+  const greetingMismatches = findInheritedGreetingNameMismatches(defaultGreeting, recipientInputs);
   const previewRecipient = value.recipients.find((r) => r.id === previewId) || value.recipients[0];
   useEffect(() => { if (previewRecipient) onLivePreview?.(previewRecipient.id, greetingId === previewRecipient.id ? greetingDraft : greetingFor(previewRecipient, defaultGreeting), greetingId === previewRecipient.id); }, [previewRecipient?.id, greetingId, greetingDraft, defaultGreeting]);
   return <section className="space-y-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4" aria-label="Multiple recipients">
     <header><h3 className="font-semibold text-stone-900">Recipients ({value.recipients.length})</h3><p className="text-xs text-stone-600">Each person gets the same card. Shared message, handwriting, and return address stay the same.</p></header>
     {previewRecipient && <section className="rounded-xl border border-stone-200 bg-[#FDFCF7] p-4"><label className="text-xs font-semibold">Preview card for<select className="ml-2 rounded border border-stone-300 p-1" value={previewRecipient.id} onChange={e=>{setPreviewId(e.target.value);onPreviewRecipient?.(e.target.value);}}>{value.recipients.map(r=><option key={r.id} value={r.id}>{r.address.name || "New recipient"}</option>)}</select></label>{greetingId === previewRecipient.id && <span className="ml-2 text-xs text-amber-800">Unsaved preview shown on card</span>}</section>}
-    {value.recipients.map((row, index) => <article key={row.id} className="rounded-xl border border-stone-200 bg-white p-4 space-y-3">
+    {value.recipients.map((row, index) => {
+      const greetingMismatch = greetingMismatches.find((m) => m.recipientId === row.id);
+      return <article key={row.id} className="rounded-xl border border-stone-200 bg-white p-4 space-y-3">
       <div className="flex items-start justify-between gap-3"><div><h4 className="text-sm font-semibold">{row.address.name || `Recipient ${index + 1}`}</h4><p className="text-xs text-stone-600">{[row.address.addressLine1, row.address.addressLine2, row.address.city, row.address.state, row.address.zip].filter(Boolean).join(", ") || "Address needed"}</p></div><div className="flex gap-3"><button type="button" disabled={dirty} className="text-xs underline disabled:opacity-50" onClick={() => openAddress(row)}>Edit address</button><button type="button" disabled={dirty} className="text-xs underline disabled:opacity-50" onClick={() => onRemove(row.id)}>Remove</button></div></div>
       {addressId === row.id && addressDraft && <div className="space-y-3 rounded-lg bg-stone-50 p-3">
         <label className="block text-xs font-semibold">Recipient name<input autoComplete={`section-recipient-${row.id} name`} ref={addressRef} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base font-normal" value={addressDraft.name} onChange={e=>change(row.id,"name",e.target.value)} autoFocus /></label>
@@ -97,9 +116,10 @@ export function MultiSendAddressEditor({
         {rowError && <p role="alert" className="text-xs text-red-700">{rowError}</p>}{householdReview && <div ref={householdReviewRef} tabIndex={-1} role="alert" aria-live="polite" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950"><p>This address is also used for {householdReview.names.join(", ")}. Send separate cards to everyone at this address?</p><div className="mt-3 flex flex-wrap gap-4"><button type="button" className="font-semibold underline" onClick={()=>saveAddress(true)}>Send separate cards</button><button type="button" className="underline" onClick={()=>setHouseholdReview(null)}>Keep editing</button></div></div>}<div className="flex gap-4"><button type="button" className="font-semibold text-sm underline" onClick={()=>saveAddress()}>Save address</button><button type="button" className="text-sm underline" onClick={()=>{setAddressId(null);setAddressDraft(null);setRowError("");setHouseholdReview(null);}}>Cancel</button></div>
       </div>}
       <div className="border-t pt-3"><p className="text-xs text-stone-600">Inside greeting · {row.greeting.mode === "inherit" ? "Default" : "Personalized"}</p><p className="whitespace-pre-wrap text-sm text-stone-900">{greetingFor(row, defaultGreeting) || "No greeting"}</p>
-        {greetingId === row.id ? <div className="mt-3 space-y-2"><label className="block text-xs font-semibold">Inside greeting for {row.address.name || `recipient ${index + 1}`}<textarea ref={greetingRef} autoFocus rows={2} value={greetingDraft} onChange={e=>setGreetingDraft(e.target.value)} className="mt-1 w-full rounded-lg border border-stone-300 p-3 text-base font-normal" /></label><p className="text-xs text-stone-600">Only this opening line changes. Message and sign-off stay the same. Leave blank for no greeting.</p><div className="flex flex-wrap gap-3"><button className="font-semibold text-sm underline" type="button" onClick={saveGreeting}>Save greeting</button><button className="text-sm underline" type="button" onClick={()=>setGreetingId(null)}>Cancel</button><button className="text-sm underline" type="button" onClick={()=>{onChange({...value,recipients:value.recipients.map(r=>r.id===row.id?{...r,greeting:{mode:"inherit"}}:r)});setGreetingId(null);}}>Use default greeting <span className="font-normal">({defaultGreeting || "No greeting"})</span></button></div></div> : <button disabled={addressId!==null || greetingId!==null} type="button" className="mt-2 text-sm font-semibold text-emerald-800 underline disabled:opacity-50" onClick={()=>{setGreetingId(row.id);setGreetingDraft(greetingFor(row,defaultGreeting));setPreviewId(row.id);onPreviewRecipient?.(row.id);}}>{row.greeting.mode === "inherit" ? "Personalize greeting" : "Edit greeting"}</button>}
+        {greetingId === row.id ? <div className="mt-3 space-y-2"><label className="block text-xs font-semibold">Inside greeting for {row.address.name || `recipient ${index + 1}`}<input type="text" ref={greetingRef} autoFocus value={greetingDraft} onChange={(e) => setGreetingDraft(e.target.value.replace(/[\r\n]+/g, " "))} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); saveGreeting(); } }} placeholder="Dear Maya," className="mt-2 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm text-stone-900 focus:border-[#1B4332] focus:outline-none font-normal" /></label><p className="text-xs text-stone-600">Only this opening line changes. Message and sign-off stay the same. Leave blank for no greeting.</p><div className="flex flex-wrap gap-3"><button className="font-semibold text-sm underline" type="button" onClick={saveGreeting}>Save greeting</button><button className="text-sm underline" type="button" onClick={()=>setGreetingId(null)}>Cancel</button><button className="text-sm underline" type="button" onClick={()=>{onChange({...value,recipients:value.recipients.map(r=>r.id===row.id?{...r,greeting:{mode:"inherit"}}:r)});setGreetingId(null);}}>Use default greeting <span className="font-normal">({defaultGreeting || "No greeting"})</span></button></div></div> : greetingMismatch ? <div data-testid={`multi-send-greeting-mismatch-${index}`} role="status" className="mt-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-950 space-y-2"><p><span className="font-semibold">Still says “{greetingMismatch.defaultGreeting}”</span> — This matches {greetingMismatch.matchedRecipientDisplayName}&apos;s name. Personalize the greeting for {greetingMismatch.recipientDisplayName}, or confirm keeping it.</p><div className="flex flex-wrap gap-3"><button type="button" data-testid={`multi-send-personalize-greeting-${index}`} disabled={addressId!==null || greetingId!==null} className="text-sm font-semibold text-emerald-800 underline disabled:opacity-50" onClick={() => openGreeting(row)}>Personalize greeting</button><button type="button" data-testid={`multi-send-keep-greeting-${index}`} disabled={addressId!==null || greetingId!==null} className="text-sm font-medium text-amber-900 underline disabled:opacity-50" onClick={() => onChange({ ...value, recipients: value.recipients.map((r) => r.id === row.id ? { ...r, greeting: { mode: "custom", text: normalizeGreetingText(defaultGreeting) } } : r) })}>Keep “{greetingMismatch.defaultGreeting}”</button></div></div> : <button disabled={addressId!==null || greetingId!==null} type="button" data-testid={`multi-send-personalize-greeting-${index}`} className="mt-2 text-sm font-semibold text-emerald-800 underline disabled:opacity-50" onClick={() => openGreeting(row)}>{row.greeting.mode === "inherit" ? "Personalize greeting" : "Edit greeting"}</button>}
       </div>
-    </article>)}
+    </article>;
+    })}
     {newRecipientId && addressDraft && <article className="rounded-xl border border-emerald-300 bg-white p-4 space-y-3"><h4 className="text-sm font-semibold">New recipient</h4>
       <label className="block text-xs font-semibold">Recipient name<input autoComplete={`section-recipient-${newRecipientId} name`} ref={addressRef} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base font-normal" value={addressDraft.name} onChange={e=>change(newRecipientId,"name",e.target.value)} autoFocus /></label>
       <label className="block text-xs font-semibold">Street address<input autoComplete={`section-recipient-${newRecipientId} address-line1`} className="mt-1 w-full rounded-lg border border-stone-300 px-3 py-2 text-base font-normal" value={addressDraft.addressLine1} onChange={e=>change(newRecipientId,"addressLine1",e.target.value)} /></label>

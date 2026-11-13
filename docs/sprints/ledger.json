@@ -322,6 +322,20 @@
       "execution_review": "docs/sprints/evidence/SPRINT-0028/REVIEW.md",
       "staging_revision": "23b49c7ff455c1c6e93ad894fb24ad0f54cc3774",
       "staging_review": "docs/sprints/evidence/SPRINT-0028/STAGING-REVIEW.md"
+    },
+    {
+      "id": "SPRINT-0029",
+      "title": "Personal stationery cadence, greeting guardrails and multi-send preview parity",
+      "path": "docs/sprints/SPRINT-0029.md",
+      "planning_notes": "docs/sprints/drafts/SPRINT-0029-PLANNING-NOTES.md",
+      "status": "active",
+      "implementation_status": "integrated_local_checks_passed",
+      "acceptance_status": "local_checks_passed_staging_ready",
+      "planning_method": "direct_antigravity_founder_review_for_hydrogen_execution",
+      "execution_method": "three_parallel_hydrogen_lanes",
+      "baseline_commit": "d656f3f",
+      "evidence": "docs/sprints/evidence/SPRINT-0029/VERIFICATION-REPORT.md",
+      "updated_at": "2026-11-12T17:06:00-06:00"
     }
   ]
 }

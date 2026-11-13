@@ -16,6 +16,7 @@ import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
 import { NoteInteriorPreview } from "@/components/NoteInteriorPreview";
 import { resolveHandwritingStyle, resolveStep2PreviewMessage } from "@/lib/note-preview";
+import { formatTwoLineSignOff, normalizeSignOffText } from "@/lib/multi-send/contracts";
 
 export interface StarterPrompt {
   label: string;
@@ -277,9 +278,7 @@ export function Step2NoteComposition({
   const previewMessage = useMemo(() => resolveStep2PreviewMessage(salutation, bodyNote, signOff), [salutation, bodyNote, signOff]);
 
   // Combined letter text for character measurement
-  const fullText = useMemo(() => {
-    return [salutation, bodyNote, signOff].filter(Boolean).join("\n\n");
-  }, [salutation, bodyNote, signOff]);
+  const fullText = previewMessage;
 
   const charCount = fullText.length;
   const MAX_CHARS = 450;
@@ -289,7 +288,7 @@ export function Step2NoteComposition({
 
   const applyInspirationText = (text: string) => {
     setPreviousBodyNote(bodyNote);
-    const projectedCombined = [salutation, text, signOff].filter(Boolean).join("\n\n");
+    const projectedCombined = resolveStep2PreviewMessage(salutation, text, signOff);
     if (projectedCombined.length > MAX_CHARS) {
       const allowedBodyLen = MAX_CHARS - (salutation.length + signOff.length + 4);
       onChangeBodyNote(text.slice(0, Math.max(10, allowedBodyLen)));
@@ -321,7 +320,7 @@ export function Step2NoteComposition({
   // Enforce 450 character hard cap when typing in body
   const handleBodyChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newBody = e.target.value;
-    const projectedCombined = [salutation, newBody, signOff].filter(Boolean).join("\n\n");
+    const projectedCombined = resolveStep2PreviewMessage(salutation, newBody, signOff);
 
     if (projectedCombined.length <= MAX_CHARS) {
       onChangeBodyNote(newBody);
@@ -511,7 +510,7 @@ export function Step2NoteComposition({
                 onFocus={handleGreetingFocus}
                 onChange={(e) => {
                   const val = e.target.value;
-                  const projected = [val, bodyNote, signOff].filter(Boolean).join("\n\n");
+                  const projected = resolveStep2PreviewMessage(val, bodyNote, signOff);
                   if (projected.length <= MAX_CHARS) {
                     onChangeSalutation(val);
                   }
@@ -519,7 +518,7 @@ export function Step2NoteComposition({
                     setBracketWarning(null);
                   }
                 }}
-                placeholder="e.g. Dear Sarah,"
+                placeholder={isMultiSend ? "e.g. Dear friends," : "e.g. Dear Sarah,"}
                 className={`w-full px-3.5 py-2.5 bg-stone-50 border rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans ${
                   bracketWarning && /\[.*?\]/.test(salutation)
                     ? "border-amber-400 bg-amber-50/40 ring-2 ring-amber-300"
@@ -527,7 +526,9 @@ export function Step2NoteComposition({
                 }`}
               />
               <p className="text-[11px] text-stone-500 mt-1">
-                We&apos;ll automatically pre-fill this name into the recipient address step.
+                {isMultiSend
+                  ? "Used for recipients without a personalized greeting. Personalized greetings stay unchanged."
+                  : "We'll automatically pre-fill this name into the recipient address step."}
               </p>
             </div>
 
@@ -640,27 +641,38 @@ export function Step2NoteComposition({
               <label className="block text-xs font-semibold text-stone-700 mb-1">
                 Sign-off / Your name
               </label>
-              <input
-                type="text"
+              <textarea
+                rows={2}
+                data-testid="note-signoff-input"
                 value={signOff}
                 onChange={(e) => {
-                  const val = e.target.value;
-                  const projected = [salutation, bodyNote, val].filter(Boolean).join("\n\n");
+                  const parts = e.target.value.replace(/\r\n?/g, "\n").split("\n");
+                  const nextVal = parts.length <= 2 ? parts.join("\n") : `${parts[0]}\n${parts.slice(1).join(" ")}`;
+                  const projected = resolveStep2PreviewMessage(salutation, bodyNote, nextVal);
                   if (projected.length <= MAX_CHARS) {
-                    onChangeSignOff(val);
+                    onChangeSignOff(nextVal);
                   }
-                  if (bracketWarning && !/\[.*?\]/.test(`${salutation} ${bodyNote} ${val}`)) {
+                  if (bracketWarning && !/\[.*?\]/.test(`${salutation} ${bodyNote} ${nextVal}`)) {
                     setBracketWarning(null);
                   }
                 }}
-                placeholder="e.g. Warmly, Ezekiel"
-                className={`w-full px-3.5 py-2.5 bg-stone-50 border rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans ${
+                onBlur={() => {
+                  const formatted = formatTwoLineSignOff(signOff);
+                  if (formatted !== signOff) {
+                    onChangeSignOff(formatted);
+                  }
+                }}
+                placeholder={"e.g. Warmly,\nEzekiel"}
+                className={`w-full px-3.5 py-2.5 bg-stone-50 border rounded-xl text-base text-stone-900 focus:outline-none focus:ring-2 focus:ring-emerald-600 focus:bg-white font-sans resize-none ${
                   bracketWarning && /\[.*?\]/.test(signOff)
                     ? "border-amber-400 bg-amber-50/40 ring-2 ring-amber-300"
                     : "border-stone-300"
                 }`}
               />
-              <p className="text-[11px] text-stone-500 mt-1">
+              <p className="text-[11px] text-stone-400 mt-1">
+                Tip: Put your closing (like “Warmly,”) on the first line and your name below it for a natural handwritten sign-off.
+              </p>
+              <p className="text-[11px] text-stone-500 mt-0.5">
                 We&apos;ll automatically pre-fill your name for your return address.
               </p>
             </div>

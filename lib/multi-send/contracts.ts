@@ -49,9 +49,55 @@ export interface MultiSendParentSnapshot {
   preparationEnvironment?: string;
 }
 
+const TWO_LINE_VALEDICTION_RE =
+  /^(warmly|with all our love|with love|lots of love|love always|much love|love|sincerely|warmest wishes|warm wishes|best wishes|best regards|kind regards|regards|all the best|best|cheers|yours truly|yours|affectionately|fondly|gratefully|with gratitude),\s+(.+)$/i;
+
+/** Collapse newlines/whitespace in a greeting to a single trimmed line; whitespace-only becomes "". */
+export function normalizeGreetingText(raw?: string | null): string {
+  if (!raw) return "";
+  return raw.replace(/[\r\n\s]+/g, " ").trim();
+}
+
+/** Normalize body line endings, strip trailing line spaces, cap consecutive blank lines at 1 (\n\n), and trim outer blank lines. */
+export function normalizeBodyText(raw?: string | null): string {
+  if (!raw) return "";
+  return raw
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+$/g, ""))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/** Normalize sign-off to at most 2 consecutive non-empty lines separated by a single \n. */
+export function normalizeSignOffText(raw?: string | null): string {
+  if (!raw) return "";
+  const lines = raw
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+/g, " ").trim())
+    .filter(Boolean);
+  if (lines.length === 0) return "";
+  if (lines.length === 1) return lines[0];
+  return `${lines[0]}\n${lines.slice(1).join(" ")}`;
+}
+
+/** Format a single-line "Warmly, Name" closing into a 2-line "Warmly,\nName" sign-off when applicable. */
+export function formatTwoLineSignOff(raw?: string | null): string {
+  const normalized = normalizeSignOffText(raw);
+  if (!normalized || normalized.includes("\n")) return normalized;
+  const match = normalized.match(TWO_LINE_VALEDICTION_RE);
+  if (!match) return normalized;
+  const [, closing, signature] = match;
+  const cleanSignature = signature.trim();
+  if (!cleanSignature) return normalized;
+  return `${closing},\n${cleanSignature}`;
+}
+
 /** Resolve the greeting without changing its text or interpreting recipient names. */
 export function resolveGreeting(defaultGreeting: string, choice: RecipientGreetingChoice): string {
-  return choice.mode === "inherit" ? defaultGreeting : choice.text;
+  return normalizeGreetingText(choice.mode === "inherit" ? defaultGreeting : choice.text);
 }
 
 /** Shared preview/checkout/fulfillment composition rule. */
@@ -60,7 +106,9 @@ export function composeRecipientMessage(
   choice: RecipientGreetingChoice,
 ): string {
   const greeting = resolveGreeting(note.salutation || "", choice);
-  return [greeting, note.text, note.signOff || ""].filter(Boolean).join("\n\n");
+  const body = normalizeBodyText(note.text);
+  const signOff = normalizeSignOffText(note.signOff || "");
+  return [greeting, body, signOff].filter(Boolean).join("\n\n");
 }
 
 export function validateMultiSendInput(value: unknown): value is MultiSendCheckoutInput {

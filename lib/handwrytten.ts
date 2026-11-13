@@ -4,6 +4,7 @@ import path from "path";
 import { HandwryttenOrderParams, HandwryttenOrderResult } from "./types";
 import { getSystemConfig, setSystemConfig } from "./firebase-admin";
 import { getSupplierCountry } from "./mailing-destinations";
+import { normalizeBodyText, normalizeGreetingText } from "./multi-send/contracts";
 
 const FONT_MAP: Record<string, string> = {
   "1": "Casual David",
@@ -36,11 +37,11 @@ export function buildSingleStepOrderPayload(
   const senderFirstName = (params.returnAddress.firstName || "").trim();
   const senderLastName = (params.returnAddress.lastName || "").trim();
   if (!senderFirstName) throw new Error("Personal sender name is required for supplier order.");
+  const normalizedGreeting = normalizeGreetingText(params.printedGreeting);
+  const normalizedBody = normalizeBodyText(params.handwrittenMessage);
   const fullMessage = params.exactMessage
-    ? params.handwrittenMessage
-    : params.printedGreeting?.trim()
-      ? `${params.printedGreeting.trim()}\n\n${params.handwrittenMessage.trim()}`
-      : params.handwrittenMessage.trim();
+    ? normalizedBody
+    : [normalizedGreeting, normalizedBody].filter(Boolean).join("\n\n");
   return {
     card_id: customCardId,
     font_label: FONT_MAP[params.fontId || "1"] || "Executive Adam",

@@ -15,7 +15,8 @@ import {
 import { Step2NoteComposition, HANDWRITING_STYLES } from "@/components/v3/Step2NoteComposition";
 import { Step3EnvelopeAddressing, AddressData, MailingOption, isInternationalCountry } from "@/components/v3/Step3EnvelopeAddressing";
 import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step4ReviewAndPayment";
-import { expectedMultiSendTotal } from "@/lib/multi-send/contracts";
+import { composeRecipientMessage, expectedMultiSendTotal, formatTwoLineSignOff, normalizeGreetingText } from "@/lib/multi-send/contracts";
+import { findInheritedGreetingNameMismatches } from "@/lib/multi-send/greeting-guard";
 import { MultiSendAddressEditor } from "@/components/v3/MultiSendAddressEditor";
 import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
@@ -441,6 +442,9 @@ export function EntryPrototypeClient({
     const first = value.recipients[0];
     if (first) { setRecipient(toAddressData(first.address)); dispatch({ type: "UPDATE_RECIPIENT", payload: first.address }); }
     dispatch({ type: "SET_MULTI_SEND", payload: value });
+    if (addressValidationError?.startsWith("Check the inside greeting for")) {
+      setAddressValidationError(null);
+    }
   };
   const undoMultiSend = () => {
     const batch = draft.multiSend;
@@ -1329,7 +1333,7 @@ export function EntryPrototypeClient({
     }
     setSalutation(newSalutation);
     dispatch({ type: "UPDATE_NOTE", payload: { salutation: newSalutation } });
-    if (!userCustomizedRecipientName) {
+    if (!userCustomizedRecipientName && !draft.multiSend) {
       const extracted = extractRecipientName(newSalutation);
       setRecipient((prev) => ({ ...prev, fullName: extracted }));
       dispatch({
@@ -1496,7 +1500,7 @@ export function EntryPrototypeClient({
     } else if (nextStep === "address") {
       // Auto-carry names from salutation and sign-off into recipient and sender
       const extractedRec = extractRecipientName(salutation);
-      if (extractedRec && (!recipient.fullName.trim() || recipient.fullName.toLowerCase() === "friend")) {
+      if (!draft.multiSend && extractedRec && (!recipient.fullName.trim() || recipient.fullName.toLowerCase() === "friend")) {
         setRecipient((prev) => ({ ...prev, fullName: extractedRec }));
         dispatch({
           type: "UPDATE_RECIPIENT",
@@ -1631,6 +1635,35 @@ export function EntryPrototypeClient({
         seen.set(key, { id: r.id, name: r.address.name.trim(), addressKey: key });
       }
       if (acknowledgementSaved) { setAddressValidationError("Household confirmation saved. Select Review & pay again to continue."); return; }
+      const greetingMismatches = findInheritedGreetingNameMismatches(
+        salutation || draft.note.salutation || "",
+        draft.multiSend.recipients.map((item) => ({
+          id: item.id,
+          address: {
+            firstName: item.address.name.trim().split(/\s+/)[0] || "",
+            lastName: item.address.name.trim().split(/\s+/).slice(1).join(" "),
+            street1: item.address.addressLine1,
+            street2: item.address.addressLine2 || undefined,
+            city: item.address.city,
+            state: item.address.state,
+            zip: item.address.zip,
+            country: item.address.country || "US",
+          },
+          greeting: item.greeting,
+        })),
+      );
+      if (greetingMismatches.length > 0) {
+        const m = greetingMismatches[0];
+        setMultiSendPreviewId(m.recipientId);
+        setAddressValidationError(
+          `Check the inside greeting for ${m.recipientDisplayName} — it still uses ${m.matchedRecipientDisplayName}'s name (“${m.defaultGreeting}”). Personalize their greeting or confirm keeping it before checkout.`
+        );
+        if (typeof document !== "undefined") {
+          const el = document.querySelector(`[data-testid="multi-send-greeting-mismatch-${m.recipientIndex}"]`) as HTMLElement | null;
+          el?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+        return;
+      }
     }
     if (!draft.multiSend && !recipient.fullName.trim()) {
       const err = "Please provide the recipient's full name.";
@@ -1777,9 +1810,10 @@ export function EntryPrototypeClient({
         isAddressDeferred,
       });
 
-      const fullHandwrittenMessage = [salutation, draft.note.text, signOff]
-        .filter(Boolean)
-        .join("\n\n");
+      const fullHandwrittenMessage = composeRecipientMessage(
+        { salutation, text: draft.note.text, signOff, style: draft.note.style || "hwDavid" },
+        { mode: "inherit" },
+      );
 
       const recParts = recipient.fullName.trim().split(/\s+/);
       const recipientFirstName = recParts[0] || "Friend";
@@ -2396,7 +2430,23 @@ export function EntryPrototypeClient({
               multiSendEnabled={isMultiSendFeatureEnabled && !draft.multiSend}
               multiSendMode={Boolean(draft.multiSend)}
               previewRecipient={draft.multiSend?.recipients.find(r => r.id === multiSendPreviewId) ? toAddressData(draft.multiSend.recipients.find(r => r.id === multiSendPreviewId)!.address) : undefined}
-              multiSendCardPreview={draft.multiSend ? { coverUrl: currentCard.imageUrl, title: currentCard.title, message: [multiSendPreviewGreeting !== null ? multiSendPreviewGreeting : salutation, draft.note.text, signOff].filter(Boolean).join("\n\n"), fontStyleId: draft.note.style || "hwDavid", occasion: currentCard.occasion, unsaved: multiSendPreviewUnsaved } : undefined}
+              multiSendCardPreview={draft.multiSend ? (() => {
+                const active = draft.multiSend.recipients.find(r => r.id === multiSendPreviewId) || draft.multiSend.recipients[0];
+                const greetingChoice = multiSendPreviewUnsaved && multiSendPreviewGreeting !== null
+                  ? { mode: "custom" as const, text: multiSendPreviewGreeting }
+                  : (active?.greeting || { mode: "inherit" as const });
+                return {
+                  coverUrl: currentCard.imageUrl,
+                  title: currentCard.title,
+                  message: composeRecipientMessage(
+                    { salutation, text: draft.note.text, signOff, style: draft.note.style || "hwDavid" },
+                    greetingChoice,
+                  ),
+                  fontStyleId: draft.note.style || "hwDavid",
+                  occasion: currentCard.occasion,
+                  unsaved: multiSendPreviewUnsaved,
+                };
+              })() : undefined}
               onAddAnotherRecipient={addAnotherRecipient}
               recipientTools={<>
                 <AccountRecipientPicker user={user} currentRecipient={accountContent.recipient||null} onChoose={(_address,contact)=>accountTools.chooseContact(contact)} disabled={paymentInFlight||isInitializingCheckout||isOrderConfirmed} />
@@ -2438,9 +2488,9 @@ export function EntryPrototypeClient({
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step4ReviewAndPayment
               onEditMultiGreeting={(id) => { setReviewEditGreetingId(id); setStep("address"); dispatch({ type: "SET_STEP", payload: "address" }); }}
-              onPreviewMultiRecipient={(id) => { setMultiSendPreviewId(id); setStep("address"); dispatch({ type: "SET_STEP", payload: "address" }); }}
+              onPreviewMultiRecipient={(id) => { setMultiSendPreviewId(id); }}
               multiSendSelectedRecipientId={multiSendPreviewId}
-              multiSendRecipients={draft.multiSend?.recipients.map((r) => ({ id: r.id, name: r.address.name, city: r.address.city, state: r.address.state, greeting: r.greeting.mode === "inherit" ? (draft.multiSend?.note.salutation || "") : r.greeting.text }))}
+              multiSendRecipients={draft.multiSend?.recipients.map((r) => ({ id: r.id, name: r.address.name, city: r.address.city, state: r.address.state, greeting: r.greeting.mode === "inherit" ? normalizeGreetingText(salutation || draft.multiSend?.note.salutation || "") : normalizeGreetingText(r.greeting.text) }))}
               isUpdatingCheckout={isInitializingCheckout}
               checkoutError={checkoutInitError}
               onRetryCheckout={() => { void initializeCheckout(); }}

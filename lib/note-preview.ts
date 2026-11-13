@@ -1,4 +1,5 @@
 import { ALL_FONT_CANDIDATES, type FontOption } from './card-presets';
+import { normalizeBodyText, normalizeGreetingText, normalizeSignOffText } from './multi-send/contracts';
 
 const FONT_ALIASES: Record<string, string> = {
   '1': 'hwDavid', '2': 'hwChase', '3': 'hwKate', '4': 'hwAdam', '5': 'hwWill',
@@ -16,14 +17,17 @@ export type ResolvedHandwritingStyle = {
 
 /** Mirrors buildSingleStepOrderPayload's trim-and-join behavior without changing fulfillment. */
 export function resolvePreviewMessage(printedMessage?: string | null, handwrittenNote?: string | null): string {
-  const greeting = (printedMessage || '').trim();
-  const note = (handwrittenNote || '').trim();
-  return greeting ? `${greeting}\n\n${note}` : note;
+  const greeting = normalizeGreetingText(printedMessage);
+  const note = normalizeBodyText(handwrittenNote);
+  return [greeting, note].filter(Boolean).join('\n\n');
 }
 
 /** Step 2 sends salutation as printedMessage and body/sign-off as handwrittenNote. */
 export function resolveStep2PreviewMessage(salutation: string, bodyNote: string, signOff: string): string {
-  return resolvePreviewMessage('', [salutation, bodyNote, signOff].filter(Boolean).join('\n\n'));
+  const greeting = normalizeGreetingText(salutation);
+  const body = normalizeBodyText(bodyNote);
+  const closing = normalizeSignOffText(signOff);
+  return [greeting, body, closing].filter(Boolean).join('\n\n');
 }
 
 /** Resolve both current IDs and the legacy values stored by older drafts/orders. */
