@@ -2,7 +2,7 @@
 import { checkoutDraftKey, clearCheckoutDraftKey, previousCheckoutProof } from "../../../lib/checkout-draft-client";
 import { getStoredFollowupLink } from "@/lib/post-purchase/link-client";
 
-import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef, useLayoutEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { CARD_PRESETS, OCCASIONS, CardPreset, matchOccasionToPreset, getTopPresetForOccasion, canonicalOccasion } from "@/lib/card-presets";
 import { useDraft, AddressDraft } from "@/lib/draft";
@@ -23,6 +23,12 @@ import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
 import { evaluateCheckoutInitTransition } from "@/lib/payment-mode";
 import { trackEventV2, getSessionId } from "@/lib/telemetry";
+import {
+  getCustomCoverAssignment,
+  recordCustomCoverEvent,
+  type CustomCoverAssignment,
+  type CustomCoverEntrySource,
+} from "@/lib/custom-cover-experiment";
 import { bindJourneyToDraft } from "@/lib/journey-identity";
 import { emitMilestoneOnce } from "@/lib/telemetry-milestones";
 import {
@@ -387,7 +393,18 @@ export function EntryPrototypeClient({
   }, [targetOccasionSlug]);
 
   // Custom AI drawer state
-  const [isCustomAiOpen, setIsCustomAiOpen] = useState(false);
+  const [customArtEntry, setCustomArtEntry] = useState<{
+    source: CustomCoverEntrySource;
+    occasion: string;
+  } | null>(null);
+  const customArtOpener = useRef<HTMLButtonElement | null>(null);
+  useLayoutEffect(() => {
+    if (customArtEntry || !customArtOpener.current) return;
+    if (customArtOpener.current.isConnected) customArtOpener.current.focus({ preventScroll: true });
+    customArtOpener.current = null;
+  }, [customArtEntry]);
+  const [coverAssignment, setCoverAssignment] = useState<CustomCoverAssignment | null>(null);
+  const generatedHere = useRef<{ imageUrl: string; source: CustomCoverEntrySource } | null>(null);
 
   // Card greeting and sign-off
   const [salutation, setSalutation] = useState(parsedScenario?.salutation || "");
@@ -1055,6 +1072,38 @@ export function EntryPrototypeClient({
     };
   }, [draft.selectedDesign, draft.coverChoiceRequired, initialPreset, occasionParam, uploadPreviewUrl, privatePreviewReady, accountTools.previewUrl, accountTools.previewTitle]);
 
+  const pickerEligible = isLoaded && historyReady && step === "card" && !isOrderConfirmed &&
+    !draft.lastCustomArtwork && !draft.uploadSelection && !draft.accountImage &&
+    !draft.privateUploadRecovery && !draft.coverChoiceRequired && !uploadHandoffLoading &&
+    !searchParams?.get("uploadDesign") && !searchParams?.get("accountDraft") &&
+    !searchParams?.get("recover_artwork") &&
+    (!draft.selectedDesign || draft.selectedDesign.source === "preset");
+
+  useEffect(() => {
+    if (!pickerEligible) return;
+    const sessionId = getSessionId();
+    const result = getCustomCoverAssignment(sessionId);
+    if (result.eligible) {
+      setCoverAssignment(result.assignment);
+      recordCustomCoverEvent(result.assignment, "custom_cover_assigned");
+    }
+  }, [pickerEligible]);
+
+  const recordTileImpression = useCallback(() => {
+    recordCustomCoverEvent(coverAssignment, "custom_cover_tile_impression");
+  }, [coverAssignment]);
+
+  const openCustomArt = (source: CustomCoverEntrySource, filter: string, opener: HTMLButtonElement) => {
+    customArtOpener.current = opener;
+    setCustomArtEntry({ source, occasion: filter === "All" ? currentCard.occasion : filter });
+    if (pickerEligible) recordCustomCoverEvent(coverAssignment, "custom_cover_drawer_opened", source);
+  };
+
+  const onGenerationOutcome = (outcome: "requested" | "completed" | "failed") => {
+    if (!coverAssignment || !customArtEntry || !pickerEligible) return;
+    recordCustomCoverEvent(coverAssignment, `custom_cover_generation_${outcome}`, customArtEntry.source);
+  };
+
   // Telemetry on initial load
   useEffect(() => {
     if (!isLoaded || initialTelemetryEmittedRef.current) return;
@@ -1260,6 +1309,10 @@ export function EntryPrototypeClient({
         auto_selected: false,
       });
     } else {
+      if (generatedHere.current?.imageUrl === art.imageUrl) {
+        recordCustomCoverEvent(coverAssignment, "custom_cover_accepted", generatedHere.current.source);
+        generatedHere.current = null;
+      }
       emitJourneyMilestone("cover_selected", {
         occasion: art.occasion,
         source: "custom_ai",
@@ -2309,7 +2362,9 @@ export function EntryPrototypeClient({
             onSelectDesign={handleSelectPreset}
             onAcceptAndContinue={() => handleStepTransition("note")}
             initialOccasion={occasionParam}
-            onOpenCustomArt={() => setIsCustomAiOpen(true)}
+            showCustomCoverTile={pickerEligible && coverAssignment?.variant === "treatment"}
+            onCustomCoverTileImpression={recordTileImpression}
+            onOpenCustomArt={openCustomArt}
             lastCustomArtwork={draft.lastCustomArtwork}
             onRestoreCustomArt={handleRestoreCustomArt}
             onEditPrivateArt={draft.uploadSelection && privatePreviewReady && verifiedUploadOwnerUid === user?.uid && !paymentInFlight ? () => { window.location.assign(`/create/upload?editDesign=${encodeURIComponent(draft.uploadSelection!.designId)}&returnTo=builder`); } : undefined}
@@ -2490,12 +2545,16 @@ export function EntryPrototypeClient({
 
       {/* 5. CUSTOM AI COMMISSION DRAWER */}
       <CustomAiCommissionDrawer
-        savedArtwork={draft.customGeneration.status === "completed" && draft.customGeneration.resultImageUrl ? { imageUrl: draft.customGeneration.resultImageUrl, prompt: draft.customGeneration.prompt || "", occasion: draft.selectedDesign?.occasion || currentCard.occasion } : null}
-        onArtworkGenerated={art => dispatch({ type: "SET_CUSTOM_GENERATION", payload: { status: "completed", resultImageUrl: art.imageUrl, prompt: art.prompt } })}
-        isOpen={isCustomAiOpen}
-        onClose={() => setIsCustomAiOpen(false)}
+        savedArtwork={draft.customGeneration.status === "completed" && draft.customGeneration.resultImageUrl ? { imageUrl: draft.customGeneration.resultImageUrl, prompt: draft.customGeneration.prompt || "", occasion: draft.customGeneration.occasion || draft.selectedDesign?.occasion || currentCard.occasion } : null}
+        onArtworkGenerated={art => {
+          generatedHere.current = customArtEntry && pickerEligible ? { imageUrl: art.imageUrl, source: customArtEntry.source } : null;
+          dispatch({ type: "SET_CUSTOM_GENERATION", payload: { status: "completed", resultImageUrl: art.imageUrl, prompt: art.prompt, occasion: art.occasion } });
+        }}
+        onGenerationOutcome={onGenerationOutcome}
+        isOpen={Boolean(customArtEntry)}
+        onClose={() => setCustomArtEntry(null)}
         onSelectCover={handleSelectCustomCover}
-        currentOccasion={currentCard.occasion}
+        currentOccasion={customArtEntry?.occasion || currentCard.occasion}
       />
     </div>
   );

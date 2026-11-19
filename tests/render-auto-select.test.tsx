@@ -1,5 +1,5 @@
 import React from "react";
-import { renderToString } from "react-dom/server";
+import { renderToStaticMarkup } from "react-dom/server";
 import { Step2NoteComposition } from "../components/v3/Step2NoteComposition";
 import { CARD_PRESETS, matchOccasionToPreset, getTopPresetForOccasion } from "../lib/card-presets";
 import { getScenario } from "../lib/seo-scenarios";
@@ -25,7 +25,7 @@ function assert(condition: boolean, message: string) {
 console.log("--- 1. Testing Step2NoteComposition Pill and Structure ---");
 
 const generalPreset = CARD_PRESETS[0];
-const htmlGeneral = renderToString(
+const htmlGeneral = renderToStaticMarkup(
   <Step2NoteComposition
     hideFixedActionBar={true}
     salutation=""
@@ -73,7 +73,7 @@ console.log("\n--- 2. Testing Pet Loss Sympathy Note Composition ---");
 const petLoss = getScenario("sympathy", "loss-of-pet");
 assert(!!petLoss, "Pet loss scenario resolved");
 
-const htmlPetLoss = renderToString(
+const htmlPetLoss = renderToStaticMarkup(
   <Step2NoteComposition
     hideFixedActionBar={true}
     salutation="Dear Sarah,"

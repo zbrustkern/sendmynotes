@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
-import { Check, Eye, Sparkles, AlertCircle } from "lucide-react";
+import React, { useState, useMemo, useEffect, useRef } from "react";
+import Image from "next/image";
+import { Check, Eye, Sparkles, AlertCircle, ArrowRight } from "lucide-react";
 import { CARD_PRESETS, CardPreset } from "@/lib/card-presets";
 import { SelectedDesign } from "@/lib/draft";
 import { Sheet } from "./Sheet";
@@ -30,10 +31,110 @@ interface EntryCardStepProps {
   onSelectDesign: (preset: CardPreset) => void;
   onAcceptAndContinue: () => void;
   initialOccasion?: string;
-  onOpenCustomArt?: () => void;
+  /** Parent owns drawer dismissal focus restoration; opener is the invoking control. */
+  onOpenCustomArt?: (source: "top_shortcut" | "grid_tile", occasion: string, opener: HTMLButtonElement) => void;
+  showCustomCoverTile?: boolean;
+  onCustomCoverTileImpression?: () => void;
   lastCustomArtwork?: SelectedDesign | null;
   onRestoreCustomArt?: () => void;
   onEditPrivateArt?: () => void;
+}
+
+function CustomCoverTile({
+  onOpen,
+  onImpression,
+}: {
+  onOpen: (opener: HTMLButtonElement) => void;
+  onImpression?: () => void;
+}) {
+  const tileRef = useRef<HTMLButtonElement>(null);
+  const callbackRef = useRef(onImpression);
+  const impressedRef = useRef(false);
+  callbackRef.current = onImpression;
+
+  useEffect(() => {
+    const tile = tileRef.current;
+    if (!tile || impressedRef.current || !callbackRef.current || !("IntersectionObserver" in window)) return;
+    let visibleSince: number | null = null;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let lastEntry: IntersectionObserverEntry | null = null;
+    const clearPending = () => {
+      visibleSince = null;
+      if (timer) clearTimeout(timer);
+      timer = null;
+    };
+    let observer: IntersectionObserver;
+    observer = new IntersectionObserver(([entry]) => {
+      lastEntry = entry;
+      if (document.visibilityState !== "visible" || !entry.isIntersecting || entry.intersectionRatio < 0.5) {
+        clearPending();
+        return;
+      }
+      if (visibleSince !== null) return;
+      visibleSince = Date.now();
+      timer = setTimeout(() => {
+        if (document.visibilityState === "visible" && visibleSince !== null && Date.now() - visibleSince >= 1000) {
+          impressedRef.current = true;
+          callbackRef.current?.();
+        }
+        timer = null;
+      }, 1000);
+    }, { threshold: [0, 0.5, 1] });
+    const onVisibility = () => {
+      if (document.visibilityState !== "visible") clearPending();
+      else if (lastEntry) {
+        observer.unobserve(tile);
+        observer.observe(tile);
+      }
+    };
+    observer.observe(tile);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVisibility);
+      clearPending();
+    };
+  }, []);
+
+  return (
+    <button
+      ref={tileRef}
+      type="button"
+      onClick={(event) => onOpen(event.currentTarget)}
+      aria-label="Create my cover. Describe a pet, place, or memory to make artwork with AI."
+      className="group [container-type:inline-size] flex min-w-0 flex-col overflow-hidden rounded-xl border border-[#a3b19d] bg-white text-left shadow-2xs transition hover:border-emerald-600 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700 focus-visible:ring-offset-2"
+    >
+      <span className="relative block w-full aspect-[17/22] overflow-hidden bg-[#edefe3]">
+        <span className="absolute inset-0 flex flex-col">
+          <span className="relative grid min-h-0 flex-1 place-items-center overflow-hidden bg-[radial-gradient(ellipse_at_28%_20%,#f7f5e8_0,transparent_60%),linear-gradient(145deg,#e8eddf,#dbe3ce)]">
+            <span className="absolute inset-[11%_21%_10%_10%] flex justify-center">
+              <span className="relative block h-full max-w-full aspect-[17/22]">
+              <Image
+                src="/sample-cat-cover.webp"
+                alt=""
+                fill
+                sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 25vw"
+                loading="lazy"
+                className="border-[3px] border-[#fffcf3] object-cover shadow-[2px_4px_8px_#33422940]"
+                style={{ transform: "rotate(-5deg)" }}
+              />
+              </span>
+            </span>
+            <span aria-hidden="true" className="absolute right-2 top-2 flex items-center gap-0.5 text-[11px] font-semibold tracking-wide text-[#405643]">
+              <Sparkles className="h-3.5 w-3.5 stroke-[1.6]" /> AI
+            </span>
+          </span>
+          <span className="bg-[#f0f1e8] px-[clamp(8px,4cqw,14px)] py-2 sm:py-3">
+            <span className="block text-balance text-[clamp(15px,8cqw,24px)] font-serif font-semibold leading-[1.08] tracking-tight text-[#2c382a]">Make a cover just for them</span>
+            <span className="mt-1 block text-[clamp(11px,5.5cqw,13px)] leading-snug text-[#495545]">Start with a pet, place, or memory.</span>
+          </span>
+        </span>
+      </span>
+      <span className="flex min-h-[38px] w-full items-center justify-between gap-2 px-2 py-2 text-xs font-semibold text-emerald-800 sm:px-2.5">
+        <span>Create my cover</span><ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" aria-hidden="true" />
+      </span>
+    </button>
+  );
 }
 
 export function EntryCardStep({
@@ -44,6 +145,8 @@ export function EntryCardStep({
   onAcceptAndContinue,
   initialOccasion,
   onOpenCustomArt,
+  showCustomCoverTile = false,
+  onCustomCoverTileImpression,
   lastCustomArtwork,
   onRestoreCustomArt,
   onEditPrivateArt,
@@ -60,6 +163,18 @@ export function EntryCardStep({
   const [activeOccasion, setActiveOccasion] = useState<PersonalOccasion>(normalizedInitial);
   const [previewPreset, setPreviewPreset] = useState<CardPreset | null>(null);
   const [isCustomSheetOpen, setIsCustomSheetOpen] = useState(false);
+  const customTileImpressionReportedRef = useRef(false);
+
+  const openCustomArt = (source: "top_shortcut" | "grid_tile", opener: HTMLButtonElement) => {
+    if (onOpenCustomArt) onOpenCustomArt(source, activeOccasion, opener);
+    else setIsCustomSheetOpen(true);
+  };
+
+  const reportCustomTileImpression = () => {
+    if (customTileImpressionReportedRef.current) return;
+    customTileImpressionReportedRef.current = true;
+    onCustomCoverTileImpression?.();
+  };
 
   // Sync if initialOccasion prop updates
   useEffect(() => {
@@ -99,6 +214,10 @@ export function EntryCardStep({
     }
     return seasonalActive.filter((p) => p.occasion === activeOccasion);
   }, [activeOccasion]);
+
+  const invitationAfterIndex = Math.min(5, filteredPresets.length) - 1;
+  const canInvite = showCustomCoverTile && !lastCustomArtwork &&
+    (!selectedDesign || selectedDesign.source === "preset");
 
   // Handle card click: decouple browsing from overwriting if custom art is currently active
   const handleCardClick = (preset: CardPreset) => {
@@ -195,9 +314,8 @@ export function EntryCardStep({
             {selectedDesign.source === "custom" ? (
               <button
                 type="button"
-                onClick={() => {
-                  if (onOpenCustomArt) onOpenCustomArt();
-                  else setIsCustomSheetOpen(true);
+                onClick={(event) => {
+                  openCustomArt("top_shortcut", event.currentTarget);
                 }}
                 className="text-xs font-semibold text-stone-700 hover:text-stone-900 bg-white border border-stone-200 hover:bg-stone-50 px-2.5 py-1.5 rounded-lg transition shrink-0 cursor-pointer shadow-2xs"
               >
@@ -208,12 +326,8 @@ export function EntryCardStep({
         ) : (
           <button
             type="button"
-            onClick={() => {
-              if (onOpenCustomArt) {
-                onOpenCustomArt();
-              } else {
-                setIsCustomSheetOpen(true);
-              }
+            onClick={(event) => {
+              openCustomArt("top_shortcut", event.currentTarget);
             }}
             className="w-full flex items-center justify-between gap-3 bg-stone-50 hover:bg-stone-100/90 active:bg-stone-200/70 border border-dashed border-stone-300 rounded-xl px-3.5 py-2.5 transition text-left cursor-pointer focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-600"
           >
@@ -326,8 +440,8 @@ export function EntryCardStep({
               const isFirstRow = index < 4;
 
               return (
+                <React.Fragment key={preset.id}>
                 <div
-                  key={preset.id}
                   onClick={() => handleCardClick(preset)}
                   className={`group relative flex flex-col rounded-xl overflow-hidden border transition-all text-left bg-white cursor-pointer select-none focus-within:ring-2 focus-within:ring-emerald-600 ${
                     isSelected
@@ -379,8 +493,16 @@ export function EntryCardStep({
                     </span>
                   </div>
                 </div>
+                {canInvite && index === invitationAfterIndex && (
+                  <CustomCoverTile
+                    onOpen={opener => openCustomArt("grid_tile", opener)}
+                    onImpression={reportCustomTileImpression}
+                  />
+                )}
+                </React.Fragment>
               );
             })}
+
           </div>
         )}
       </section>
