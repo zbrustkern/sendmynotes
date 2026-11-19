@@ -2,12 +2,13 @@ import { validateFollowupLinkForCheckout } from "@/lib/post-purchase/attribution
 import { resolveAccountOrderAssociation } from "@/lib/account/order-association";
 import { AccountError, accountError } from "@/lib/account/http";
 import { pinGeneratedOrderMaster } from "@/lib/account/order-front";
-import { pinUploadOrderMaster } from "@/lib/upload/order-master";
+import { pinUploadOrderMaster, verifyResumedOrderSelection } from "@/lib/upload/order-master";
 import { UploadError } from "@/lib/upload/contracts";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { saveOrder, getOrderById, getSystemConfig, updateOrderStatus } from "@/lib/firebase-admin";
+import { saveOrder, createOrderOnce, getOrderById, getSystemConfig, updateOrderStatus } from "@/lib/firebase-admin";
 import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS, getStripeClient } from "@/lib/stripe";
+import { checkoutBinding, checkoutSeed, CheckoutSeed, claimCheckout, resumeCheckout, CheckoutResumeError, legacyCheckoutSeed } from "@/lib/checkout-resume";
 import { PaymentModeConfigError, normalizeStripeSecretKey, resolvePaymentMode } from "@/lib/payment-mode";
 import { validatePersonalSender } from "@/lib/order-processor";
 import { issueOfferPriceQuote, reserveOfferForCheckout, releaseOfferReservation, getOfferReservationsCollection, verifyCheckoutQuoteIntegrity } from "@/lib/offer-engine";
@@ -16,7 +17,7 @@ import { logIncident } from "@/lib/incident-logger";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
 import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout, isStagingInternationalPreview, isProductionInternationalEnabled } from "@/lib/mailing-destinations";
-import { calculateOrderQuote } from "@/lib/order-pricing";
+import { calculateOrderQuote, ORDER_PRICE_VERSION } from "@/lib/order-pricing";
 import { prepareCheckoutOrderAttribution } from "@/lib/order-attribution";
 import { getFeatureFlags } from "@/lib/feature-flags";
 import { allocateTotalCents, composeRecipientMessage, normalizedMailingAddressKey, quoteMultiSend, resolveGreeting, validateMultiSendInput } from "@/lib/multi-send/contracts";
@@ -366,159 +367,80 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Generate unguessable 128-bit cryptographically secure Order ID and View Token
-    const orderId = `order_${crypto.randomBytes(16).toString("hex")}`;
-    const viewToken = `tok_${crypto.randomBytes(16).toString("hex")}`;
-
-    // Resolve private artwork before reserving a discount or creating payment.
     const accountAssociation = await resolveAccountOrderAssociation(req, body);
-    const uploadMaster = await pinUploadOrderMaster(req, body, orderId)
-      || (accountAssociation.userId ? await pinGeneratedOrderMaster(accountAssociation.userId, orderId, requestedFrontImageUrl) : undefined);
-    const frontImageUrl = uploadMaster ? "" : requestedFrontImageUrl;
-    const verifiedUserId = uploadMaster?.uid || accountAssociation.userId;
-
-    // Evaluate discount code if provided
-    let discountAmountInCents = 0;
-    let finalAmountInCents = CARD_FLAT_RATE_CENTS;
-    let appliedCode: string | undefined = undefined;
-    let quoteId: string | undefined = undefined;
-    let appliedOfferId: string | undefined = undefined;
-    let appliedOfferVersion: number | undefined = undefined;
-
-    if (rawDiscountCode && typeof rawDiscountCode === "string" && rawDiscountCode.trim()) {
-      const codeToLookup = rawDiscountCode.trim().toUpperCase();
-      const quoteResult = await issueOfferPriceQuote({
-        code: codeToLookup,
-        listPriceCents: CARD_FLAT_RATE_CENTS,
-        sessionId,
-        nowMs: Date.now(),
-      });
-
-      if (!quoteResult.valid) {
-        return NextResponse.json(
-          { error: quoteResult.error || "Invalid discount code." },
-          { status: 400 }
-        );
-      }
-
-      // Reserve slot transactionally
-      const reservation = await reserveOfferForCheckout({
-        code: codeToLookup,
-        orderId,
-        sessionId: sessionId || "sess_checkout",
-        quoteId: quoteResult.quote?.quoteId,
-      });
-
-      if (!reservation.reserved) {
-        return NextResponse.json(
-          { error: reservation.error || "This discount code has reached its maximum redemptions limit." },
-          { status: 400 }
-        );
-      }
-
-      appliedCode = quoteResult.offer?.code || codeToLookup;
-      discountAmountInCents = quoteResult.discountAmountInCents ?? 0;
-      finalAmountInCents = quoteResult.finalAmountInCents ?? CARD_FLAT_RATE_CENTS;
-      quoteId = quoteResult.quote?.quoteId;
-      appliedOfferId = quoteResult.offer?.offerId;
-      appliedOfferVersion = quoteResult.offer?.version;
+    const code = typeof rawDiscountCode === "string" ? rawDiscountCode.trim().toUpperCase() : "";
+    // Volatile attribution timestamps and session IDs can change on a return visit.
+    // Consent and authenticated ownership affect the order and must still match.
+    const snapshot = {
+      frontImageUrl: requestedFrontImageUrl || "", uploadDesign: body.uploadDesign, accountImage: body.accountImage,
+      printedMessage: printedMessage || "", handwrittenNote: handwrittenNote || "", fontStyleId,
+      recipientAddress: canonicalRecipientAddress, returnAddress: canonicalReturnAddress, occasion: occasion || undefined,
+      scheduledSendDate: scheduledSendDate || undefined, recipientOccasion: recipientOccasion || undefined,
+      ...accountAssociation, addressDeferred: isAddressDeferred, discountCode: code,
+      contactPolicyVersion: requestedContactPolicyVersion === 1 ? 1 : undefined,
+      customerEmail: requestedContactPolicyVersion === 1 ? undefined : customerEmail,
+      isFounderTest, isInternationalPreview, priceVersion: ORDER_PRICE_VERSION,
+      privacyRestricted: Boolean(attribution?.optOut || attribution?.gpc || req.headers.get("sec-gpc") === "1"),
+    };
+    const binding = checkoutBinding(body.checkoutDraftKey, snapshot);
+    const priorBinding = binding && await binding.get();
+    let seed = priorBinding?.data()?.orderId ? priorBinding.data() as CheckoutSeed : undefined;
+    if (!priorBinding?.exists && binding && body.previousCheckout) {
+      const previous = await legacyCheckoutSeed(body.previousCheckout, snapshot);
+      if (previous) seed = await claimCheckout(binding, previous);
     }
-
+    if (!seed) {
+      const result = code ? await issueOfferPriceQuote({ code, listPriceCents: CARD_FLAT_RATE_CENTS, sessionId }) : null;
+      if (result && (!result.valid || !result.quote))
+        return NextResponse.json({ error: result.error || "Invalid discount code." }, { status: 400 });
+      seed = await claimCheckout(binding, checkoutSeed(operationId, result?.quote || null));
+    }
+    const { orderId, viewToken, offer } = seed;
+    const appliedCode = offer?.code;
+    const quoteId = offer?.quoteId;
+    const appliedOfferId = offer?.offerId;
+    const appliedOfferVersion = offer?.offerVersion;
+    const discountAmountInCents = offer?.discountAmountCents || 0;
     const orderQuote = calculateOrderQuote({ countryCode: normalizedCountry, discountCents: discountAmountInCents });
-    // Existing offer engine remains the authority for eligible base discounts. The
-    // destination upgrade is added server-side and is never discounted.
-    finalAmountInCents = orderQuote.totalCents;
-
-    // If order total is completely free, complete without Stripe
-    if (finalAmountInCents === 0) {
-      const orderRecord: Order & Record<string, unknown> = {
-      id: orderId,
-      operationId,
-        customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
-        ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
-        ...accountAssociation,
-        ...(verifiedUserId ? { userId: verifiedUserId } : {}),
-        ...(uploadMaster ? { uploadMaster } : {}),
-        frontImageUrl,
-        printedMessage: printedMessage || "",
-        handwrittenNote: handwrittenNote || "",
-        fontStyleId,
-        ...(occasion ? { occasion } : {}),
-        recipientAddress: canonicalRecipientAddress as MailingAddress,
-        returnAddress: canonicalReturnAddress as MailingAddress,
-        ...(scheduledSendDate ? { scheduledSendDate } : {}),
-        ...(recipientOccasion ? { recipientOccasion: recipientOccasion as RecipientOccasion } : {}),
-        status: "PENDING_PAYMENT",
-        amountInCents: 0,
-        originalAmountInCents: CARD_FLAT_RATE_CENTS,
-        finalAmountInCents: 0,
-        quote: orderQuote,
-        ...(supplierDestination ? {
-          supplierCountryId: supplierDestination.supplierCountryId,
-          supplierCountryName: supplierDestination.supplierCountryName,
-          ...(isInternationalPreview ? { isInternationalPreview: true } : {}),
-        } : {}),
-        ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
-        discountCode: appliedCode,
-        discountAmountInCents,
-        paymentMethod: "PROMO_CODE",
-        ...(quoteId ? { quoteId } : {}),
-        ...(appliedOfferId ? { appliedOfferId } : {}),
-        ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
-        listPriceCents: CARD_FLAT_RATE_CENTS,
-        isFounderTest,
-        ...(attribution ? { attribution } : {}),
-      ...(postPurchaseLinkObservation ? { postPurchaseLinkObservation } : {}),
-        ...(sessionId ? { sessionId } : {}),
-        ...(experienceVersion ? { experienceVersion } : {}),
-        viewToken,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-
-      await saveOrder(orderRecord);
-
-      return withOperationId(NextResponse.json({
-        orderId,
-        operationId,
-        viewToken,
-        isFree: true,
-        amountInCents: 0,
-        originalAmountInCents: CARD_FLAT_RATE_CENTS,
-        finalAmountInCents: 0,
-        quote: orderQuote,
-        discountCode: appliedCode,
-        discountAmountInCents,
-        quoteId,
-        appliedOfferId,
-        appliedOfferVersion,
-        clientSecret: null,
-        paymentIntentId: null,
-        publishableKey: null,
-      }), operationId);
-    }
-
-    const resolvedMode = resolvePaymentMode();
+    const finalAmountInCents = orderQuote.totalCents;
+    const resolvedMode = finalAmountInCents === 0 ? null : resolvePaymentMode();
     const publishableKey =
       process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
       process.env["NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"] ||
       process.env.STRIPE_PUBLISHABLE_KEY ||
       process.env["stripe-publishable-key"] ||
       null;
-    if (resolvedMode !== "local_mock") {
+    if (resolvedMode && resolvedMode !== "local_mock") {
       const expectedPrefix = resolvedMode === "stripe_test" ? "pk_test_" : "pk_live_";
       if (!publishableKey || !publishableKey.startsWith(expectedPrefix)) {
         throw new PaymentModeConfigError(`A matching ${resolvedMode === "stripe_test" ? "test" : "live"} Stripe publishable key is not configured.`, 503, "STRIPE_PUBLISHABLE_KEY_MISMATCH");
       }
     }
 
+    const reply = (data: object) => withOperationId(
+      NextResponse.json(data, { headers: { "Cache-Control": "private, no-store" } }), seed.operationId);
+    const verifySelection = (order: Order) => verifyResumedOrderSelection(req, body, order);
+    if (binding) {
+      const saved = await resumeCheckout(binding, seed, resolvedMode, publishableKey, verifySelection);
+      if (saved) return reply(saved);
+    }
+    const uploadMaster = await pinUploadOrderMaster(req, body, orderId)
+      || (accountAssociation.userId ? await pinGeneratedOrderMaster(accountAssociation.userId, orderId, requestedFrontImageUrl) : undefined);
+    const frontImageUrl = uploadMaster ? "" : requestedFrontImageUrl;
+    const verifiedUserId = uploadMaster?.uid || accountAssociation.userId;
+    if (offer) {
+      const reservation = await reserveOfferForCheckout({ code: offer.code, orderId, sessionId: sessionId || "sess_checkout", quoteId });
+      if (!reservation.reserved) return NextResponse.json({ error: reservation.error || "This discount is unavailable." }, { status: 400 });
+    }
+
     // Create Stripe PaymentIntent for the discounted or standard amount. Receipt
     // email is committed later, after the sender's explicit choice is saved.
-    const paymentIntentResult = await createCardPaymentIntent({
+    const paymentIntentResult = finalAmountInCents === 0 ? null : await createCardPaymentIntent({
       orderId,
       amountInCents: finalAmountInCents,
+      idempotencyKey: "checkout-" + orderId,
       metadata: {
-        operationId,
+        operationId: seed.operationId,
         recipientCountryCode: normalizedCountry,
         quoteVersion: orderQuote.version,
         quotedTotalCents: String(orderQuote.totalCents),
@@ -537,13 +459,14 @@ export async function POST(req: NextRequest) {
     // Construct and persist draft Order to Firestore
     const orderRecord: Order & Record<string, unknown> = {
       id: orderId,
-      operationId,
-      stripePaymentId: paymentIntentResult.paymentIntentId,
+      operationId: seed.operationId,
+      ...(binding ? { checkoutResumeVersion: 1 } : {}),
+      ...(paymentIntentResult && resolvedMode ? { stripePaymentId: paymentIntentResult.paymentIntentId, paymentMode: resolvedMode } : {}),
       customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
       ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
       ...accountAssociation,
-        ...(verifiedUserId ? { userId: verifiedUserId } : {}),
-        ...(uploadMaster ? { uploadMaster } : {}),
+      ...(verifiedUserId ? { userId: verifiedUserId } : {}),
+      ...(uploadMaster ? { uploadMaster } : {}),
       frontImageUrl,
       printedMessage: printedMessage || "",
       handwrittenNote: handwrittenNote || "",
@@ -566,7 +489,7 @@ export async function POST(req: NextRequest) {
       ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
-      paymentMethod: "STRIPE",
+      paymentMethod: paymentIntentResult ? "STRIPE" : "PROMO_CODE",
       ...(quoteId ? { quoteId } : {}),
       ...(appliedOfferId ? { appliedOfferId } : {}),
       ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
@@ -581,16 +504,21 @@ export async function POST(req: NextRequest) {
       updatedAt: Date.now(),
     };
 
-    await saveOrder(orderRecord);
+    const created = await createOrderOnce(orderRecord);
+    if (!created) {
+      const saved = binding && await resumeCheckout(binding, seed, resolvedMode, publishableKey, verifySelection);
+      if (!saved) throw new CheckoutResumeError("Checkout is updating. Please retry.");
+      return reply(saved);
+    }
 
-    return withOperationId(NextResponse.json({
+    return reply({
       orderId,
-      operationId,
+      operationId: seed.operationId,
       viewToken,
-      clientSecret: paymentIntentResult.clientSecret,
-      paymentIntentId: paymentIntentResult.paymentIntentId,
-      publishableKey,
-      isMock: paymentIntentResult.isMock,
+      clientSecret: paymentIntentResult?.clientSecret || null,
+      paymentIntentId: paymentIntentResult?.paymentIntentId || null,
+      publishableKey: paymentIntentResult ? publishableKey : null,
+      isMock: paymentIntentResult?.isMock || false,
       amountInCents: finalAmountInCents,
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
       finalAmountInCents,
@@ -600,8 +528,8 @@ export async function POST(req: NextRequest) {
       quoteId,
       appliedOfferId,
       appliedOfferVersion,
-      isFree: false,
-    }), operationId);
+      isFree: !paymentIntentResult,
+    });
   } catch (error: unknown) {
     if (reservedMultiSendOrderId) {
       try { await releaseOfferReservation(reservedMultiSendOrderId, "payment_failed"); }
@@ -615,6 +543,11 @@ export async function POST(req: NextRequest) {
       try { await blockMultiSendCheckout(activeMultiSendClaim.checkoutId, activeMultiSendClaim.leaseId); }
       catch (claimError) { console.error("[Checkout] Failed to fail closed after multi-send error", claimError instanceof Error ? claimError.message : "unknown"); }
       activeMultiSendClaim = null;
+    }
+    if (error instanceof CheckoutResumeError) {
+      return withOperationId(NextResponse.json({ error: error.message,
+        ...(error.order ? { code: "CHECKOUT_ALREADY_IN_PROGRESS", orderId: error.order.id, viewToken: error.order.viewToken } : {}),
+      }, { status: 409, headers: { "Cache-Control": "private, no-store" } }), operationId);
     }
     if (error instanceof AccountError) return accountError(error);
     if (error instanceof UploadError) return NextResponse.json({error: error.message, code: error.code}, {status: error.status, headers: {"Cache-Control":"private, no-store"}});

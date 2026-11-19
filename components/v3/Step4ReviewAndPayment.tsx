@@ -313,7 +313,7 @@ function InnerPaymentForm({
         trackPaymentEvent("payment_failed", {
           attemptId,
           errorCategory: error.type || "wallet_error",
-          errorCode: error.code || "decline",
+          errorCode: error.code || "unknown",
         });
         setIsProcessing(false);
       } else if (paymentIntent && paymentIntent.status === "requires_action") {
@@ -530,7 +530,7 @@ function InnerPaymentForm({
         trackPaymentEvent("payment_failed", {
           attemptId,
           errorCategory: error.type || "card_error",
-          errorCode: error.code || "decline",
+          errorCode: error.code || "unknown",
         });
         setIsProcessing(false);
       } else if (paymentIntent && paymentIntent.status === "requires_action") {

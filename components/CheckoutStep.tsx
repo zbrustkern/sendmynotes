@@ -1,5 +1,6 @@
 "use client";
 
+import { trackEventV2 } from "@/lib/telemetry";
 import React, { useState } from "react";
 import {
   Elements,
@@ -226,6 +227,9 @@ function InnerPaymentForm({
       });
 
       if (error) {
+        trackEventV2("payment_failed", {
+          errorCategory: error.type || "card_error", errorCode: error.code || "unknown",
+        }, { orderId });
         setErrorMessage(error.message || "Payment failed. Please check your card info.");
         setIsProcessing(false);
       } else if (paymentIntent && paymentIntent.status === "succeeded") {

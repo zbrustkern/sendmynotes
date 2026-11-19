@@ -75,6 +75,7 @@ const childMocks = `
   import React from "react";
   export const Step2NoteComposition = () => null;
   export const HANDWRITING_STYLES = [{ id: "hwDavid", label: "David", fontClass: "font-David" }];
+  export const isInternationalCountry = (country) => Boolean(country && country !== "US" && country !== "USA");
   export const Step3EnvelopeAddressing = ({ onContinue, onBack }) => React.createElement("section", { "data-testid": "entry-address" }, React.createElement("button", { onClick: onContinue }, "Continue address"), React.createElement("button", { onClick: onBack }, "Back"));
   export const Step4ReviewAndPayment = (props) => window.__renderParentPayment(props);
   export const Step5Confirmation = () => React.createElement("div", null, "Confirmation");
@@ -86,7 +87,13 @@ const mockModules = {
   "next/image": `import React from "react"; export default (props) => React.createElement("img", props);`,
   "next/link": `import React from "react"; export default (props) => React.createElement("a", props, props.children);`,
   "@/lib/card-presets": `exports.CARD_PRESETS = [{ id: "test-card", title: "Test Card", imageUrl: "/test.png", occasion: "Birthday", defaultHandwrittenNote: "Hello" }]; exports.OCCASIONS = ["Birthday", "General"]; exports.FONT_OPTIONS = [{ id: "hwDavid", name: "David" }]; exports.matchOccasionToPreset = () => exports.CARD_PRESETS[0]; exports.getTopPresetForOccasion = () => exports.CARD_PRESETS[0]; exports.canonicalOccasion = (x) => String(x || "general").toLowerCase();`,
-  "@/lib/draft": `exports.useDraft = () => ({ draft: window.__draft || { selectedDesign: null, note: { text: "", style: "hwDavid", salutation: "", signOff: "" }, recipient: {}, sender: {}, discountCode: null, appliedOffer: null, currentStep: "pay", completed: false }, dispatch: () => {}, clearDraft: () => {}, isLoaded: true });`,
+  "@/lib/draft": `exports.useDraft = () => ({ draft: { createdAt: 123, customGeneration:{status:"idle"}, checkoutContact: {choice:"untouched",email:""}, ...(window.__draft || { selectedDesign: null, note: { text: "", style: "hwDavid", salutation: "", signOff: "" }, recipient: {}, sender: {}, discountCode: null, appliedOffer: null, currentStep: "pay", completed: false }) }, dispatch: () => {}, clearDraft: () => {}, isLoaded: true });`,
+  "@/lib/account/use-builder-account": `exports.useBuilderAccount = () => ({ready:true});`,
+  "@/components/account/AccountBuilderTools": `exports.AccountBuilderTools = exports.AccountBuilderActions = () => null;`,
+  "@/components/account/AccountRecipientPicker": `exports.AccountRecipientPicker = () => null;`,
+  "@/lib/post-purchase/link-client": `exports.getStoredFollowupLink = () => undefined;`,
+  "@/lib/telemetry-milestones": `exports.emitMilestoneOnce = () => {};`,
+  "@/lib/journey-identity": `exports.bindJourneyToDraft = () => {};`,
   "@/components/flow": flowMocks,
   "@/components/v3/Step2NoteComposition": childMocks,
   "@/components/v3/Step3EnvelopeAddressing": childMocks,
@@ -128,6 +135,7 @@ await build({
   stdin: { contents: browserEntry, resolveDir: sourceRoot, sourcefile: "payment-checkout-parent-entry.jsx", loader: "jsx" },
   bundle: true,
   platform: "browser",
+  define: { "process.env": "{}", "process.env.NODE_ENV": '"test"' },
   format: "iife",
   outfile: path.join(tempDir, "bundle.js"),
   jsx: "automatic",
@@ -197,7 +205,12 @@ try {
   assert.equal(await page.getByTestId("free-state").innerText(), "false", "failed repricing does not commit the new free/paid state");
   assert.match(await page.getByTestId("checkout-error").innerText(), /temporarily unavailable/, "failed repricing is visible and retryable");
   assert.equal(await page.getByTestId("updating-state").innerText(), "false", "failed repricing leaves the payment form unavailable, not stuck loading");
-  assert.equal(await page.evaluate(() => window.__calls.filter((call) => call.url === "/api/checkout/create-intent").length), 2);
+  const draftKeys = await page.evaluate(() => window.__calls
+    .filter(call => call.url === "/api/checkout/create-intent")
+    .map(call => call.body.checkoutDraftKey));
+  assert.equal(draftKeys.length, 2);
+  assert.match(draftKeys[0], /^[a-f0-9]{48}$/);
+  assert.equal(draftKeys[1], draftKeys[0], "repricing keeps the private draft key while the server compares the changed offer");
 
   // A restored pay draft validates a saved free code before creating one free intent and then stops.
   await reset({

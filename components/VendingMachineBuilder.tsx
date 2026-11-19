@@ -1,5 +1,6 @@
 "use client";
 
+import { checkoutDraftKey, clearCheckoutDraftKey } from "../lib/checkout-draft-client";
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -465,6 +466,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          checkoutDraftKey: checkoutDraftKey("legacy"),
           occasion,
           frontImageUrl: coverUrl,
           printedMessage: printedGreeting,
@@ -482,6 +484,10 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       });
 
       const data = await res.json();
+      if (res.status === 409 && data.code === "CHECKOUT_ALREADY_IN_PROGRESS" && data.orderId && data.viewToken) {
+        window.location.assign("/order/" + encodeURIComponent(data.orderId) + "?token=" + encodeURIComponent(data.viewToken));
+        return false;
+      }
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize checkout.");
       }
@@ -541,6 +547,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   };
 
   const handlePaymentSuccess = (completedOrderId: string) => {
+    clearCheckoutDraftKey("legacy");
     trackEvent("payment_succeeded", 4, { orderId: completedOrderId });
     const storedToken =
       typeof window !== "undefined"
