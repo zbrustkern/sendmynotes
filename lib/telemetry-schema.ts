@@ -151,6 +151,13 @@ export const ALLOWED_BROWSER_EVENT_NAMES = new Set<string>([
   "recovery_offer_viewed",
   "recovery_purchase_linked",
   "experiment_exposed",
+  "custom_cover_assigned",
+  "custom_cover_accepted",
+  "custom_cover_tile_impression",
+  "custom_cover_drawer_opened",
+  "custom_cover_generation_requested",
+  "custom_cover_generation_completed",
+  "custom_cover_generation_failed",
 ]);
 
 export type AllowedFieldType = "string" | "number" | "boolean";
@@ -192,6 +199,16 @@ export const COMMON_METADATA_RULES: Record<string, FieldRule> = {
  * Only primitive types (string, number, boolean) with explicit max lengths.
  * Unknown keys and non-primitives are dropped.
  */
+const COVER_EXPERIMENT_FIELDS: Record<string, FieldRule> = {
+  experimentId: { type: "string", pattern: /^custom-cover-picker$/ },
+  experimentVersion: { type: "string", pattern: /^v1$/ },
+  variantId: { type: "string", pattern: /^(control|treatment)$/ },
+};
+const COVER_ACTION_FIELDS: Record<string, FieldRule> = {
+  ...COVER_EXPERIMENT_FIELDS,
+  entrySource: { type: "string", pattern: /^(top_shortcut|grid_tile)$/ },
+};
+
 export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> = {
   checkout_failed: {
     httpStatus: { type: "number" },
@@ -555,6 +572,13 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     experimentId: { type: "string", maxLength: 50 },
     variantId: { type: "string", maxLength: 50 },
   },
+  custom_cover_assigned: COVER_EXPERIMENT_FIELDS,
+  custom_cover_tile_impression: COVER_EXPERIMENT_FIELDS,
+  custom_cover_drawer_opened: COVER_ACTION_FIELDS,
+  custom_cover_generation_requested: COVER_ACTION_FIELDS,
+  custom_cover_generation_completed: COVER_ACTION_FIELDS,
+  custom_cover_generation_failed: COVER_ACTION_FIELDS,
+  custom_cover_accepted: COVER_ACTION_FIELDS,
 };
 
 export const PROHIBITED_METADATA_KEYS = new Set<string>([

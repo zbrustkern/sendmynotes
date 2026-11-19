@@ -35,6 +35,7 @@ export interface CustomGenerationState {
   status: "idle" | "generating" | "completed" | "failed";
   prompt?: string;
   resultImageUrl?: string;
+  occasion?: string;
   error?: string;
 }
 

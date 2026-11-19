@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import { Sparkles, X, Wand2, Loader2, AlertCircle, Check, ArrowRight } from "lucide-react";
 import { OCCASIONS } from "@/lib/card-presets";
@@ -21,6 +21,7 @@ interface CustomAiCommissionDrawerProps {
     presetId?: string;
   }) => void;
   currentOccasion: string;
+  onGenerationOutcome?: (outcome: "requested" | "completed" | "failed") => void;
 }
 
 const QUICK_IDEAS: Record<string, string[]> = {
@@ -88,6 +89,7 @@ export function CustomAiCommissionDrawer({
   onClose,
   onSelectCover,
   currentOccasion,
+  onGenerationOutcome,
 }: CustomAiCommissionDrawerProps) {
   const [prompt, setPrompt] = useState("");
   const [occasion, setOccasion] = useState(currentOccasion || "Birthday");
@@ -114,6 +116,60 @@ export function CustomAiCommissionDrawer({
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   const [saveMessage, setSaveMessage] = useState('');
   const [saveRequestKey, setSaveRequestKey] = useState('');
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const previousOpenRef = useRef(false);
+  const occasionEditedRef = useRef(false);
+  const promptEditedRef = useRef(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Initialize a genuinely fresh draft from the picker chip. Edited inputs and
+  // saved/generated work survive dismissal and a later reopen.
+  useEffect(() => {
+    if (isOpen && !previousOpenRef.current && !prompt && !promptEditedRef.current && !occasionEditedRef.current && !generatedArt) {
+      setOccasion(OCCASIONS.includes(currentOccasion as typeof OCCASIONS[number]) ? currentOccasion : "Birthday");
+    }
+    previousOpenRef.current = isOpen;
+  }, [isOpen, currentOccasion, prompt, generatedArt]);
+
+  // Keep keyboard interaction inside the modal and prevent the page behind it
+  // from scrolling. Parent wiring owns focus restoration to the opener.
+  useEffect(() => {
+    if (!isOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const focusTimer = window.setTimeout(() => dialogRef.current?.focus({ preventScroll: true }), 0);
+    const onKeyDown = (event: KeyboardEvent) => {
+      const activeElement = document.activeElement;
+      const focusIsInNestedModal = activeElement instanceof HTMLElement &&
+        !dialogRef.current?.contains(activeElement) &&
+        Boolean(activeElement.closest('[role="dialog"][aria-modal="true"]'));
+      if (focusIsInNestedModal) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), textarea:not([disabled]), select:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      )).filter((element) => element.offsetParent !== null);
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !dialogRef.current.contains(document.activeElement))) {
+        event.preventDefault(); last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current.contains(document.activeElement))) {
+        event.preventDefault(); first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     if (savedArtwork?.imageUrl) {
@@ -137,6 +193,7 @@ export function CustomAiCommissionDrawer({
     setPolicyBlock(null);
     setPresetAlternative(null);
     setIsGenerating(true);
+    onGenerationOutcome?.("requested");
 
     try {
       const res = await fetch("/api/generate-cover", {
@@ -151,6 +208,7 @@ export function CustomAiCommissionDrawer({
       const data = await res.json();
 
       if (!res.ok) {
+        onGenerationOutcome?.("failed");
         // HTTP 422: Policy Refusal (IP / Trademark / Safety)
         if (res.status === 422 || data.code === "ART_REQUEST_BLOCKED") {
           setGeneratedArt(null);
@@ -200,11 +258,13 @@ export function CustomAiCommissionDrawer({
           saveCapability: typeof data.saveCapability === 'string' ? data.saveCapability : null,
         };
         setGeneratedArt(artwork);
+        onGenerationOutcome?.("completed");
         onArtworkGenerated?.(artwork);
         setSaveState('idle'); setSaveMessage('');
         setSaveRequestKey('');
-      }
+      } else onGenerationOutcome?.("failed");
     } catch (err) {
+      onGenerationOutcome?.("failed");
       const msg = err instanceof Error ? err.message : "Error generating custom art";
       setError(msg);
     } finally {
@@ -251,126 +311,77 @@ export function CustomAiCommissionDrawer({
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black/60 backdrop-blur-xs flex justify-end animate-in fade-in duration-200">
+    <div
+      className="fixed inset-0 z-50 flex justify-end overflow-hidden bg-[#222920]/55 backdrop-blur-[1px] animate-in fade-in duration-200"
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}
+    >
       <div
-        className="relative w-full max-w-lg bg-[#FCFAF7] h-full shadow-2xl flex flex-col overflow-y-auto border-l border-stone-200 animate-in slide-in-from-right duration-300"
+        ref={dialogRef}
+        className="relative flex h-full h-[100dvh] w-full max-w-[456px] flex-col overflow-y-auto overscroll-contain border-l border-stone-200 bg-[#faf9f6] shadow-2xl animate-in slide-in-from-right duration-300"
         role="dialog"
         aria-modal="true"
         aria-labelledby="ai-commission-title"
+        tabIndex={-1}
       >
-        {/* Header */}
-        <div className="p-5 border-b border-stone-200 bg-white sticky top-0 z-10 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-800">
-              <Sparkles className="w-4 h-4" />
-            </div>
-            <div>
-              <h2 id="ai-commission-title" className="font-serif text-lg font-bold text-stone-900 leading-tight">
-                Create Custom Artwork
-              </h2>
-              <p className="text-xs text-stone-500">
-                Describe your vision and we&apos;ll create custom cover artwork (~15 seconds)
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-stone-400 hover:text-stone-700 rounded-full hover:bg-stone-100 transition"
-            aria-label="Close commission drawer"
-          >
-            <X className="w-5 h-5" />
+        <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-stone-200 bg-white px-5 py-4">
+          <h2 id="ai-commission-title" className="font-serif text-2xl font-bold leading-tight tracking-tight text-stone-900">Create your cover</h2>
+          <button type="button" onClick={onClose} className="grid h-11 w-11 shrink-0 place-items-center rounded-full border border-stone-200 text-stone-600 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700" aria-label="Close commission drawer">
+            <X className="h-5 w-5" aria-hidden="true" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-5 space-y-5 flex-1">
-          {/* Occasion Selector */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
-              Card Occasion
-            </label>
-            <select
-              value={occasion}
-              onChange={(e) => setOccasion(e.target.value)}
-              className="w-full px-3.5 py-2.5 bg-white border border-stone-300 rounded-xl text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-amber-600 font-medium"
-            >
-              {OCCASIONS.map((occ) => (
-                <option key={occ} value={occ}>
-                  {occ}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {/* Prompt Textarea */}
-          <div>
-            <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
-              Artwork Vision &amp; Subject
-            </label>
-            <textarea
-              rows={3}
-              value={prompt}
-              onChange={(e) => {
-                setPrompt(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder="e.g., Warm watercolor bouquet of sunlit lavender and daisies in an artisan ceramic pitcher..."
-              className="w-full p-3.5 bg-white border border-stone-300 rounded-xl text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-amber-600"
-            />
-            <p className="text-[11px] text-stone-400 mt-1">
-              Tip: Mention lighting, medium (watercolor, gouache, oil painting), and specific favorite blooms or symbols.
-            </p>
-          </div>
-
-          {/* Quick Ideas */}
-          <div>
-            <span className="block text-xs font-semibold uppercase tracking-wider text-stone-500 mb-2">
-              Studio Inspiration Ideas
-            </span>
-            <div className="space-y-1.5">
-              {quickPicks.map((idea, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => {
-                    setPrompt(idea);
-                    if (error) setError(null);
-                  }}
-                  className="w-full text-left p-2.5 bg-white hover:bg-amber-50/70 border border-stone-200/80 hover:border-amber-300 rounded-lg text-xs text-stone-700 transition flex items-center justify-between group"
-                >
-                  <span className="line-clamp-1">{idea}</span>
-                  <span className="text-[10px] text-amber-700 font-semibold uppercase tracking-wider opacity-0 group-hover:opacity-100 transition shrink-0 ml-2">
-                    Use
-                  </span>
-                </button>
-              ))}
+        <div className="flex-1 space-y-5 p-5 sm:p-6">
+          <p className="text-[15px] leading-relaxed text-stone-800">Describe something they love. AI will turn your idea into cover art you can preview.</p>
+          <div className="flex items-center gap-3.5 rounded-xl bg-[#ecf0e5] p-3">
+            <div className="relative w-[58px] shrink-0 aspect-[17/22] rotate-[-4deg] border-2 border-white shadow-sm">
+              <Image src="/sample-cat-cover.webp" alt="Watercolor of a sleeping orange cat on a kitchen windowsill" fill sizes="58px" className="object-cover" />
+            </div>
+            <div>
+              <small className="text-xs text-stone-600">Example idea</small>
+              <p className="mt-0.5 font-serif text-base italic leading-snug text-stone-900">“Her orange cat, asleep in the kitchen window.”</p>
             </div>
           </div>
 
-          {/* Generate Action */}
-          <div>
-            <button
-              type="button"
-              onClick={handleGenerate}
-              disabled={isGenerating || !prompt.trim()}
-              className="w-full py-3 px-4 bg-stone-900 hover:bg-black disabled:bg-stone-300 text-white rounded-xl font-medium text-sm transition shadow-sm flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+          <label className="grid gap-1.5 text-[13px] font-semibold text-stone-800">
+            Occasion
+            <select
+              value={occasion}
+              onChange={(e) => { occasionEditedRef.current = true; setOccasion(e.target.value); }}
+              className="min-h-11 w-full rounded-lg border border-[#babeb2] bg-white px-3 text-base font-normal focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700"
             >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
-                  <span>Creating your artwork (~15s)...</span>
-                </>
-              ) : (
-                <>
-                  <Wand2 className="w-4 h-4 text-emerald-400" />
-                  <span>Create Custom Artwork</span>
-                </>
-              )}
+              {OCCASIONS.map((occ) => <option key={occ} value={occ}>{occ}</option>)}
+            </select>
+          </label>
+
+          <label className="grid gap-1.5 text-[13px] font-semibold text-stone-800">
+            Your cover idea
+            <textarea
+              rows={3}
+              value={prompt}
+              onChange={(e) => { promptEditedRef.current = true; setPrompt(e.target.value); if (error) setError(null); }}
+              placeholder="A favorite place, a pet, a memory you share..."
+              className="min-h-[78px] w-full resize-y rounded-lg border border-[#babeb2] bg-white px-3 py-2.5 text-base font-normal text-stone-900 placeholder:text-stone-500 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700"
+            />
+          </label>
+
+          <div>
+            <button type="button" onClick={handleGenerate} disabled={isGenerating || !prompt.trim()} className="flex min-h-[46px] w-full items-center justify-center gap-2 rounded-lg bg-[#095c46] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-900 disabled:cursor-not-allowed disabled:bg-[#e2e4da] disabled:text-stone-500">
+              {isGenerating ? <><Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /><span>Creating your artwork…</span></> : <><Wand2 className="h-4 w-4" aria-hidden="true" /><span>Create artwork</span><ArrowRight className="h-4 w-4" aria-hidden="true" /></>}
             </button>
           </div>
 
+          {/* Existing occasion ideas remain available as optional prompt starters. */}
+          <div className="space-y-1.5">
+            <span className="block text-xs font-semibold uppercase tracking-wider text-stone-500">More ideas</span>
+            {quickPicks.map((idea, idx) => (
+              <button key={idx} type="button" onClick={() => { promptEditedRef.current = true; setPrompt(idea); if (error) setError(null); }} className="group flex w-full items-center justify-between gap-2 rounded-lg border border-stone-200 bg-white p-2.5 text-left text-xs text-stone-700 hover:bg-stone-50 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-emerald-700">
+                <span className="line-clamp-1">{idea}</span><span className="shrink-0 text-[10px] font-semibold uppercase text-emerald-800">Use</span>
+              </button>
+            ))}
+          </div>
+
           {policyBlock && (
-            <div className="p-4 bg-amber-50/80 border border-amber-300 rounded-2xl space-y-2.5 text-xs text-amber-950">
+            <div role="alert" className="p-4 bg-amber-50/80 border border-amber-300 rounded-2xl space-y-2.5 text-xs text-amber-950">
               <div className="flex items-start gap-2">
                 <AlertCircle className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                 <div>
@@ -398,7 +409,7 @@ export function CustomAiCommissionDrawer({
           )}
 
           {error && (
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800">
+            <div role="alert" className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-start gap-2.5 text-xs text-rose-800">
               <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
               <span>{error}</span>
             </div>
@@ -467,7 +478,7 @@ export function CustomAiCommissionDrawer({
                 onClick={handleSelect}
                 className="w-full py-2.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-sm font-semibold transition flex items-center justify-center gap-1.5 shadow-sm cursor-pointer"
               >
-                <span>Select &amp; Write Note →</span>
+                <span>Use this cover and write my note →</span>
               </button>
               <button type="button" onClick={() => void saveGeneratedArt()} disabled={saveState === 'saving' || saveState === 'saved'} className="w-full py-2.5 border border-stone-300 hover:bg-stone-50 disabled:opacity-60 rounded-xl text-sm font-medium transition">
                 {saveState === 'saving' ? 'Saving to your images…' : saveState === 'saved' ? 'Saved to your images' : 'Save to my images'}
