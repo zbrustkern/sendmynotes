@@ -28,7 +28,7 @@ export async function refundMultiSendDelivery(input: { orderId: string; recipien
     if (allocations.length !== order.multiSend.recipients.length || allocations.reduce((sum: number, row: Delivery) => sum + row.amountInCents, 0) !== totalCents) throw new Error("Complete child allocations must equal the paid parent total.");
     if (!snap.exists) throw new Error("Delivery not found.");
     const child = snap.data() as Delivery & { refundIdempotencyKey?: string; refundRequestedBy?: string; refundReason?: string };
-    if (child.state === "REFUND_PENDING" && child.refundIdempotencyKey === input.idempotencyKey) return { ...child, duplicate: true };
+    if (["REFUND_PENDING", "REFUNDED"].includes(child.state) && child.refundIdempotencyKey === input.idempotencyKey) return { ...child, duplicate: true };
     if (allocations.some((row: any) => row.recipientId !== recipientId && row.state === "REFUND_PENDING")) throw new Error("Another refund is pending or uncertain; reconcile it before reserving a new refund.");
     if (child.state !== "REJECTED" || child.stateVersion !== input.expectedStateVersion) throw new Error("Only the current, known-rejected child can be refunded.");
     const unsettledReserved = allocations.reduce((sum: number, row: Delivery & { refundSettledCents?: number }) =>
@@ -40,7 +40,10 @@ export async function refundMultiSendDelivery(input: { orderId: string; recipien
     tx.update(parentRef, { multiSendRefundReservedCents: alreadyReserved + remainingChildCents, multiSendRefundVersion: Number(currentParent.multiSendRefundVersion || 0) + 1, updatedAt: Date.now() });
     return { ...child, state: "REFUND_PENDING", stateVersion: child.stateVersion + 1, refundAmountInCents: remainingChildCents, refundIdempotencyKey: input.idempotencyKey };
   });
-  if ((reserved as any).duplicate) return { refundId: (reserved as any).refundId, status: "pending", amountInCents: reserved.refundAmountInCents };
+  if ("duplicate" in reserved && reserved.duplicate) return {
+    refundId: reserved.refundId, status: reserved.state === "REFUNDED" ? "succeeded" : reserved.refundStatus || "pending",
+    amountInCents: reserved.refundAmountInCents,
+  };
   if (reserved.state !== "REFUND_PENDING" || reserved.refundIdempotencyKey !== input.idempotencyKey) throw new Error("Refund state reservation failed.");
   const adapter = input.adapter || ((args: any, options: any) => getStripeClient().refunds.create(args, options));
   let refund: any;

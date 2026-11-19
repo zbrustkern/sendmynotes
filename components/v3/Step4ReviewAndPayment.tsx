@@ -358,14 +358,14 @@ function InnerPaymentForm({
               orderId,
               paymentIntentId: paymentIntent.id,
               customerEmail,
+              viewToken,
               verifyOnly: true,
             }),
           });
           confirmData = await confirmRes.json();
-          if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation) {
-            setPriceReconfirmationRequired(true);
-            setErrorMessage(confirmData?.error || "Price changed or quote expired. Please reconfirm total before paying.");
+          if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation || confirmData?.offerRedemption?.status === "reconciliation_required") {
             setIsProcessing(false);
+            onPaymentSuccess(orderId, confirmData?.viewToken || viewToken, "RECONCILING");
             return;
           }
           if (confirmRes.ok && confirmData.success) {
@@ -378,6 +378,7 @@ function InnerPaymentForm({
                 orderId,
                 paymentIntentId: paymentIntent.id,
                 customerEmail,
+                viewToken,
               }),
             }).catch((bgErr) => console.warn("[Checkout] Background fulfillment notice:", bgErr));
 
@@ -391,7 +392,7 @@ function InnerPaymentForm({
 
         // Paid by customer, but server fulfillment delay or outage: transition to reconciling state
         setIsProcessing(false);
-        onPaymentSuccess(orderId, null, "RECONCILING");
+        onPaymentSuccess(orderId, viewToken, "RECONCILING");
       }
     } catch (err) {
       clearGoogleAdsCheckoutActive(orderId);
@@ -576,14 +577,14 @@ function InnerPaymentForm({
               orderId,
               paymentIntentId: paymentIntent.id,
               customerEmail,
+              viewToken,
               verifyOnly: true,
             }),
           });
           confirmData = await confirmRes.json();
-          if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation) {
-            setPriceReconfirmationRequired(true);
-            setErrorMessage(confirmData?.error || "Price changed or quote expired. Please reconfirm total before paying.");
+          if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation || confirmData?.offerRedemption?.status === "reconciliation_required") {
             setIsProcessing(false);
+            onPaymentSuccess(orderId, confirmData?.viewToken || viewToken, "RECONCILING");
             return;
           }
           if (confirmRes.ok && confirmData.success) {
@@ -596,6 +597,7 @@ function InnerPaymentForm({
                 orderId,
                 paymentIntentId: paymentIntent.id,
                 customerEmail,
+                viewToken,
               }),
             }).catch((bgErr) => console.warn("[Checkout] Background fulfillment notice:", bgErr));
 
@@ -609,7 +611,7 @@ function InnerPaymentForm({
 
         // Paid by customer, but server fulfillment delay or outage: transition to reconciling state
         setIsProcessing(false);
-        onPaymentSuccess(orderId, null, "RECONCILING");
+        onPaymentSuccess(orderId, viewToken, "RECONCILING");
       }
     } catch (err) {
       clearGoogleAdsCheckoutActive(orderId);

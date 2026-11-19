@@ -41,8 +41,8 @@ export async function recordOfferRefundOutcome(input: OfferRefundEvidence) {
     const prior = (await tx.get(refundRef)).data();
     if (prior) {
       if (prior.orderId !== orderId || prior.paymentIntentId !== input.paymentIntentId || prior.amountCents !== input.amountCents ||
-          (input.recipientId && prior.recipientId !== input.recipientId)) throw new Error("Conflicting provider refund replay.");
-      return true;
+          (input.recipientId && prior.recipientId && prior.recipientId !== input.recipientId)) throw new Error("Conflicting provider refund replay.");
+      if (prior.recipientId || !input.recipientId) return true;
     }
     const childRef = input.recipientId ? parentRef.collection("deliveries").doc(input.recipientId) : undefined;
     const child = childRef ? (await tx.get(childRef)).data() as (Delivery & { refundSettledCents?: number }) | undefined : undefined;
@@ -53,11 +53,14 @@ export async function recordOfferRefundOutcome(input: OfferRefundEvidence) {
     const redemptionRef = firestoreDb.collection("offer_redemptions").doc(`redemption_${orderId}`);
     const redemption = await tx.get(redemptionRef);
     const now = Date.now();
-    const parentRefunded = (order.refundSettledCents ?? 0) + input.amountCents;
+    const parentRefunded = (order.refundSettledCents ?? 0) + (prior ? 0 : input.amountCents);
     const childRefunded = (child?.refundSettledCents ?? 0) + input.amountCents;
     if (parentRefunded > amount || (childAmount !== undefined && childRefunded > childAmount)) throw new Error("Refund exceeds frozen parent or child net amount.");
-    tx.set(refundRef, sanitizeFirestoreData({ ...input, orderId, occurredAt: input.occurredAt ?? now }));
-    tx.update(parentRef, { refundSettledCents: parentRefunded, updatedAt: now });
+    if (prior) tx.update(refundRef, { recipientId: input.recipientId, allocatedAt: now });
+    else {
+      tx.set(refundRef, sanitizeFirestoreData({ ...input, orderId, occurredAt: input.occurredAt ?? now }));
+      tx.update(parentRef, { refundSettledCents: parentRefunded, updatedAt: now });
+    }
     if (child && childRef) {
       tx.update(childRef, {
         refundSettledCents: childRefunded, refundStatus: "succeeded", updatedAt: now,

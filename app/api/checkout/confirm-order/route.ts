@@ -241,14 +241,6 @@ export async function POST(req: NextRequest) {
 
     }
 
-    if (verifyOnly === true) {
-      const settlement = await processPaidOrder(orderId, verifiedPaymentIntentId, customerEmailFromStripe,
-        { isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent, captureObservedAt, settleOnly: true });
-      if (!settlement.success) {
-        return NextResponse.json({ success: false, status: settlement.status, error: settlement.error, offerRedemption: settlement.offerRedemption, requiresPriceReconfirmation: settlement.requiresPriceReconfirmation }, { status: 409 });
-      }
-    }
-
     const clientIp =
       req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
       req.headers.get("x-real-ip") ||
@@ -257,15 +249,19 @@ export async function POST(req: NextRequest) {
     const resolvedEmail = effectiveOrderEmail(order, customerEmail || customerEmailFromStripe);
 
     // Process and fulfill the verified paid order (atomic locking handled in order-processor)
-    const result = verifyOnly === true ? { success: true, status: "PAYMENT_RECEIVED" } : await processPaidOrder(
+    const result = await processPaidOrder(
       orderId,
       verifiedPaymentIntentId,
       resolvedEmail,
-      { clientIp, userAgent, isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent, captureObservedAt }
+      { clientIp, userAgent, isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent, captureObservedAt, settleOnly: verifyOnly === true }
     );
 
     if (!result.success && result.offerRedemption?.status === "reconciliation_required") {
       return NextResponse.json({ success: false, status: result.status, orderId, error: result.error, offerRedemption: result.offerRedemption }, { status: 409 });
+    }
+
+    if (result.requiresPriceReconfirmation || (verifyOnly === true && !result.success)) {
+      return NextResponse.json({ success: false, status: result.status, orderId, error: result.error, requiresPriceReconfirmation: result.requiresPriceReconfirmation, purchaseMeasurement }, { status: 409 });
     }
 
     if (result.success && serverVerifiedPaymentIntent) {
@@ -282,10 +278,6 @@ export async function POST(req: NextRequest) {
     purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
     if (verifyOnly === true) {
       return NextResponse.json({ success: true, status: "PAYMENT_RECEIVED", orderId, viewToken: order.viewToken, purchaseMeasurement });
-    }
-
-    if (result.requiresPriceReconfirmation) {
-      return NextResponse.json({ success: false, status: result.status, orderId, error: result.error, requiresPriceReconfirmation: true, purchaseMeasurement }, { status: 409 });
     }
 
     if (result.success && resolvedEmail) {
