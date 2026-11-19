@@ -1,9 +1,10 @@
 {
   "host": "staging.sendmynotes.com",
-  "observedAt": "2026-11-19T04:12:50.213Z",
+  "observedAt": "2026-11-19T04:38:16.426Z",
   "passed": [
     "discoverable from home and send, attribution retained",
     "blank guest project",
+    "keyboard navigation and distinct photo and address upload controls",
     "manual household",
     "personal greeting and shared approval",
     "personal override and reapproval",
@@ -11,8 +12,10 @@
     "private resume",
     "graduated review",
     "320px layout",
+    "mobile review remains readable at 200% browser magnification",
     "recovery on second device",
     "96 confirmed, four held and three international sample envelopes",
-    "100 households, 2 personal and 98 shared approvals; inherited-only invalidation"
+    "100 households, 2 personal and 98 shared approvals; inherited-only invalidation",
+    "keyboard approval moves focus to the next household and announces the saved card"
   ]
 }

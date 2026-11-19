@@ -2,7 +2,7 @@
 
 The guest writing exercise opens the staging homepage, follows **Thank-you notes** from the general sending page, and creates private synthetic projects through the same buttons available to a sender. Its receipts contain counts and outcomes. The screenshots show fictional households.
 
-| Exercise | Observed on staging build 012 |
+| Exercise | Observed result |
 | --- | --- |
 | Start and resume | A new project opened empty. A guest added an envelope and inside names, refreshed, and recovered the same approved card in a second browser context. The recovery page cleared the token from the address bar. |
 | Personal and shared writing | Two sample households received individual wording and approvals. One shared approval covered the other 98. A subsequent change to the shared body reopened those 98 and preserved the two individual approvals. |
@@ -14,12 +14,14 @@ The guest writing exercise opens the staging homepage, follows **Thank-you notes
 **Observed friction and retests**
 
 - On build 011, switching directly from a newly typed shared body into a personal edit could raise a concurrent-edit notice for the same sender. The editor now finishes saving the shared revision before opening an individual edit. The two-personal-plus-98-shared exercise passed on build 012.
-- Keyboard testing found that moving to the next household could return focus to the page body. The editor now focuses the new heading after React commits the household change. Local Chrome verified that Enter advances focus and announces the approval. The same run exercised separate photo and guest-list controls via keyboard and mobile review at 200% magnification.
+- Keyboard testing found that moving to the next household could return focus to the page body. The editor now focuses the new heading after React commits the household change. Chrome verified that Enter advances focus and announces the approval both locally and on staging build 015. Both runs exercised separate photo and guest-list controls via keyboard and mobile review at 200% magnification.
 
 **Records**
 
 - [Hosted writing receipt](hosted-ui/writing-checks.json), [two-recipient transfer receipt](hosted-ui/transfer-checks.json), [100-household desktop](hosted-ui/writing-100-households.png) and [320-pixel mobile review](hosted-ui/review-mobile.png).
 - [Local browser receipt](local-ui/writing-checks.json), [writing test](../../../../scripts/wedding/check-writing-ui.cjs) and [transfer test](../../../../scripts/wedding/check-transfer-ui.cjs).
 - [Private paid-card verification](hosted-paid-cover.json) and [resumable staging verifier](hosted-paid-cover.mjs). This separate V2 fixture captured one $9 Stripe test payment for held fulfillment.
+
+The 15 writing checks and the two-envelope transfer passed against staging build 015, revision `3d9d8ff`. The paid-card verification used build 012. The final browser retest did not initiate a purchase.
 
 The exercises automate Chrome with synthetic data. Founder and tester observation sessions remain a separate, pending usability milestone.

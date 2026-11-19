@@ -1,0 +1,60 @@
+{
+  "checkedAt": "2026-11-19T04:37:08.430Z",
+  "host": "staging.sendmynotes.com",
+  "checks": {
+    "pilot": {
+      "passed": true,
+      "uninvitedStatus": 403,
+      "invitedGuest": true
+    },
+    "structuredLists": {
+      "passed": true,
+      "namedGuests": 160,
+      "csvHouseholds": 100,
+      "persisted": 100,
+      "tsvHouseholds": 8,
+      "tsvMissingAddresses": 2,
+      "vcardHouseholds": 4,
+      "vcardMissingAddresses": 1,
+      "replayAdded": 0
+    },
+    "workbookAndProse": {
+      "passed": true,
+      "workbookSheets": 2,
+      "mailingRows": 10,
+      "giftRows": 12,
+      "unassignedGifts": 1,
+      "passages": 5,
+      "manualHouseholds": 3,
+      "onePassageDeferred": true,
+      "verbatimNotePreserved": true
+    },
+    "postal": {
+      "passed": true,
+      "controlledScenarios": 4
+    },
+    "cover": {
+      "passed": true,
+      "uploaded": true,
+      "composed": true,
+      "persistedAfterReload": true,
+      "format": "png",
+      "width": 1275,
+      "height": 1650
+    },
+    "resilience": {
+      "passed": true,
+      "invalidWorkbookStatus": 422,
+      "priorCoverAndRowsPreserved": true
+    },
+    "realAi": {
+      "passed": true,
+      "mode": "real",
+      "mappingSuggestions": 1,
+      "noteSuggestions": 1,
+      "explicitlyConsented": true,
+      "preservedSenderWords": true
+    }
+  },
+  "passed": true
+}

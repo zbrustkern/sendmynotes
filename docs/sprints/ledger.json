@@ -376,6 +376,7 @@
       "release_target": "staging",
       "status": "in_progress",
       "acceptance_status": "hosted_automated_acceptance_passed_human_usability_pending",
+      "staging_revision": "3d9d8ff47eb585c82c56e1d713b44bcecbd550e9",
       "execution_base": "88d01947e9f6ab0bfb132a1a47d1caa6bef9a91b",
       "updated_at": "2026-11-18",
       "implementation_status": "staging_deployed",
