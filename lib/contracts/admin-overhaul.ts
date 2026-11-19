@@ -154,6 +154,13 @@ export type EventV2Name =
   | "recovery_purchase_linked"
   // Change & governance
   | "experiment_exposed"
+  | "custom_cover_assigned"
+  | "custom_cover_accepted"
+  | "custom_cover_tile_impression"
+  | "custom_cover_drawer_opened"
+  | "custom_cover_generation_requested"
+  | "custom_cover_generation_completed"
+  | "custom_cover_generation_failed"
   | "control_changed"
   | "release_observed";
 

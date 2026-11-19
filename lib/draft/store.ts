@@ -181,6 +181,7 @@ export function sanitizeDraftState(raw: unknown): DraftState | null {
       customObj?.status === "failed"
         ? customObj.status
         : "idle",
+    occasion: typeof customObj?.occasion === "string" ? customObj.occasion : undefined,
     prompt: typeof customObj?.prompt === "string" ? customObj.prompt : undefined,
     resultImageUrl:
       typeof customObj?.resultImageUrl === "string" ? customObj.resultImageUrl : undefined,
