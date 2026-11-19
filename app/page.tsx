@@ -1,4 +1,5 @@
 import React, { Suspense } from "react";
+import { WeddingEntry } from "@/components/wedding/WeddingLink";
 import { redirect } from "next/navigation";
 import { getFeatureFlagsState, isReworkV3Enabled } from "@/lib/feature-flags";
 import { ExperienceRouter } from "@/components/ExperienceRouter";
@@ -55,6 +56,7 @@ export default async function Home({ searchParams }: PageProps) {
       }
     >
       <RootAutoSelectRedirect />
+      {process.env.NEXT_PUBLIC_WEDDING_PORTAL_ENABLED === "true" && <WeddingEntry />}
       <ExperienceRouter
         initialIsV3={isV3}
         initialMultiSendEnabled={flags.flags.multiSendEnabled === true}

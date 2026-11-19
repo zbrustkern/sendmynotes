@@ -18,6 +18,7 @@ import { Step3EnvelopeAddressing, AddressData, MailingOption, isInternationalCou
 import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step4ReviewAndPayment";
 import { composeRecipientMessage, expectedMultiSendTotal, formatTwoLineSignOff, normalizeGreetingText } from "@/lib/multi-send/contracts";
 import { findInheritedGreetingNameMismatches } from "@/lib/multi-send/greeting-guard";
+import { TransferToWedding, markWeddingTransferAttempt } from "@/components/wedding/TransferToWedding";
 import { MultiSendAddressEditor } from "@/components/v3/MultiSendAddressEditor";
 import { Step5Confirmation } from "@/components/v3/Step5Confirmation";
 import { CustomAiCommissionDrawer } from "@/components/v3/CustomAiCommissionDrawer";
@@ -1725,6 +1726,7 @@ export function EntryPrototypeClient({
     const privateCheckoutEpoch = privateRequestEpochRef.current;
     const privateCheckoutIsStale = () => privateCheckoutEpoch !== privateRequestEpochRef.current;
     const priorCheckoutBinding = { orderId, viewToken };
+    if (draft.multiSend && process.env.NEXT_PUBLIC_WEDDING_PORTAL_ENABLED === "true") markWeddingTransferAttempt(draft.multiSend.checkoutId);
     checkoutRequestInFlight.current = true;
     const requestedAddressRevision = addressRevision.current;
     setCheckoutInitError(null);
@@ -2445,6 +2447,9 @@ export function EntryPrototypeClient({
               recipientTools={<>
                 <AccountRecipientPicker user={user} currentRecipient={accountContent.recipient||null} onChoose={(_address,contact)=>accountTools.chooseContact(contact)} disabled={paymentInFlight||isInitializingCheckout||isOrderConfirmed} />
                 {showDeferredBatchPrompt && <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm"><p className="font-semibold">Multiple cards need complete addresses.</p><p className="mt-1 text-stone-700">Keep one recipient with the address link, or switch to entering complete addresses now.</p><div className="mt-3 flex flex-wrap gap-4"><button type="button" className="font-semibold underline" onClick={()=>setShowDeferredBatchPrompt(false)}>Keep one recipient</button><button type="button" className="font-semibold underline" onClick={()=>addAnotherRecipient(true)}>Switch to complete addresses</button></div></div>}
+                {process.env.NEXT_PUBLIC_WEDDING_PORTAL_ENABLED === "true" && draft.multiSend && <TransferToWedding
+                  draft={{...draft,note:{...draft.note,salutation,signOff},sender:{name:sender.fullName,addressLine1:sender.street1,addressLine2:sender.street2,city:sender.city,state:sender.state,zip:sender.zip,country:sender.country||"US"}}}
+                  proof={orderId && viewToken ? {orderId,viewToken}:undefined} disabled={paymentInFlight||isInitializingCheckout||isOrderConfirmed} editing={()=>multiSendUnsavedRef.current} />}
                 {draft.multiSend && <MultiSendAddressEditor value={draft.multiSend} onChange={updateMultiSend} onUndo={undoMultiSend}
                   onUndoRemoval={undoRecipientRemoval} hasUndoRemoval={Boolean(draft.multiSendUndo)}
                   onRemove={removeMultiRecipient} defaultGreeting={salutation} bodyNote={draft.note.text} signOff={signOff} onPreviewRecipient={setMultiSendPreviewId}

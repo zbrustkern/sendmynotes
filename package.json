@@ -56,7 +56,8 @@
     "test:post-purchase-operator": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-operator.test.ts",
     "test:post-purchase-dispatch": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-dispatch.test.ts",
     "test:post-purchase-resend-webhook": "env NODE_ENV=test SMN_TEST_DATA_DIR=\"$(mktemp -d)\" node --import tsx tests/post-purchase-resend-webhook.test.ts",
-    "test:attribution": "node --import tsx tests/attribution-classifier.test.ts && node --import tsx tests/attribution-capture.test.ts && node --import tsx tests/order-attribution-v2.test.ts && node --import tsx tests/attribution-tracker-consent.test.ts && node --import tsx tests/attribution-checkout-route.test.ts"
+    "test:attribution": "node --import tsx tests/attribution-classifier.test.ts && node --import tsx tests/attribution-capture.test.ts && node --import tsx tests/order-attribution-v2.test.ts && node --import tsx tests/attribution-tracker-consent.test.ts && node --import tsx tests/attribution-checkout-route.test.ts",
+    "test:wedding": "node scripts/wedding/test.mjs"
   },
   "dependencies": {
     "@google-cloud/secret-manager": "^7.2.0",
@@ -64,16 +65,20 @@
     "@stripe/stripe-js": "^5.6.0",
     "@types/sharp": "^0.32.0",
     "canvas-confetti": "^1.9.4",
+    "csv-parse": "7.0.3",
     "firebase": "^12.19.0",
     "firebase-admin": "^13.1.0",
+    "google-auth-library": "10.9.1",
     "lucide-react": "^0.475.0",
     "next": "^15.1.7",
     "opentype.js": "^2.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "resend": "^6.33.0",
+    "saxes": "6.0.0",
     "sharp": "^0.35.5",
-    "stripe": "^17.6.0"
+    "stripe": "^17.6.0",
+    "yauzl": "3.4.0"
   },
   "devDependencies": {
     "@types/canvas-confetti": "^1.9.0",

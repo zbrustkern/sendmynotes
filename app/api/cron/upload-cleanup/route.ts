@@ -3,6 +3,9 @@ import { cleanupExpiredUploads, previewExpiredUploads, assertUploadRuntime, uplo
 import { UploadError } from '@/lib/upload/contracts';
 import { cronAuthorized } from '@/lib/cron-auth';
 import { beginOperationalRun, finishOperationalRun } from '@/lib/operational-runs';
+import { cleanupWeddingArtworkPending } from '@/lib/wedding/artwork';
+import { cleanupWeddingDrafts, cleanupWeddingSourceRecords, cleanupWeddingDraftArtwork } from '@/lib/wedding/retention';
+import { cleanExpiredWeddingImports } from '@/lib/wedding/import-storage';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 const headers = { 'Cache-Control': 'private, no-store, max-age=0' };
@@ -15,7 +18,13 @@ export async function POST(req: NextRequest) {
     if (req.nextUrl.searchParams.get('dryRun') === 'true') return NextResponse.json({ data: { state: 'dry_run', preview: await previewExpiredUploads(Date.now(), 100) } }, { headers });
     run = await beginOperationalRun('upload-cleanup');
     if (!run.acquired) return NextResponse.json({ data: { state: 'already_running_or_complete' } }, { status: 202, headers });
-    const summary = await cleanupExpiredUploads();
+    const studio = await cleanupExpiredUploads();
+    const wedding = process.env.WEDDING_PROJECTS_ENABLED === 'true' && process.env.STAGING_REVIEW_ONLY === 'true'
+      ? {weddingImports:await cleanExpiredWeddingImports(), weddingArtwork:await cleanupWeddingArtworkPending(),
+        weddingDrafts:await cleanupWeddingDrafts(), weddingSources:await cleanupWeddingSourceRecords(),
+        weddingDraftArtwork:await cleanupWeddingDraftArtwork()}
+      : {};
+    const summary = { ...studio, ...wedding };
     await finishOperationalRun(run.id, run.attemptToken!, 'succeeded', summary);
     return NextResponse.json({ data: { state: 'succeeded', summary } }, { headers });
   } catch (error) {

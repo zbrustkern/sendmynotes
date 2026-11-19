@@ -1,0 +1,24 @@
+BEGIN:VCARD
+VERSION:3.0
+N:Quill;Mira;;;
+FN:Mira Quill
+ADR;TYPE=HOME:;;9001 Paper Sample Lane 2A;Specimen Bay;MA;02108;US
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Quill;Mira;;;
+FN:Mira Quill
+ADR;TYPE=HOME:;;9002 Paper Sample Lane;Specimen Bay;MA;02108;US
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Vale;Noor;;;
+FN:Noor Vale
+ADR;TYPE=HOME:;;9001 Paper Sample Lane 2A;Specimen Bay;MA;02108;US
+END:VCARD
+BEGIN:VCARD
+VERSION:3.0
+N:Brook;Léo;;;
+FN:Léo Brook
+ADR;TYPE=HOME:;;;Specimen Bay;MA;02108;US
+END:VCARD

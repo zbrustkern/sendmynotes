@@ -1,0 +1,102 @@
+import assert from "node:assert/strict";
+import {readFile} from "node:fs/promises";
+import path from "node:path";
+import {createHash} from "node:crypto";
+import {NextRequest} from "next/server";
+import {parseWeddingFile,readBoundedImport} from "../lib/wedding/import-runner";
+import {previewWeddingImport,inspectWeddingAddress} from "../lib/wedding/import-preview";
+import type {ImportFormat} from "../lib/wedding/import-contract";
+import {checkAndStageImport,cleanExpiredWeddingImports,restoreImport,claimImportAttempt} from "../lib/wedding/import-storage";
+import {prepareWeddingAiExcerpt} from "../lib/wedding/ai-schema";
+import { POST,GET } from "../app/api/wedding/import/route";
+import { createWeddingProject,redeemWeddingInvite } from "../lib/wedding/project";
+import { issueWeddingPilot,revokeWeddingPilot } from "../lib/wedding/pilot";
+import { requireWeddingActor } from "../lib/wedding/server";
+
+const dir=path.join(process.cwd(),"docs/proposals/2026-11-12-thank-you-portal/upload-fixtures");
+const sha=(v:Buffer)=>createHash("sha256").update(v).digest("hex");
+async function sample(name:string,format:ImportFormat) {
+  const bytes=await readFile(path.join(dir,name));
+  return previewWeddingImport(await parseWeddingFile(bytes,format),sha(bytes));
+}
+async function main() {
+  const csv=await sample("01-households-100.csv","csv");
+  assert.deepEqual(csv.counts,{households:100,guests:160,sourceRows:100,missingAddresses:0,alreadyThanked:0});
+  assert.equal(csv.rows[0].zip,"02108");assert.equal(csv.rows[0].lastName,"");
+  const tsv=await sample("02-planner-exceptions.tsv","tsv");
+  assert.equal(tsv.rows.length,8);assert.equal(tsv.counts.missingAddresses,2);assert.equal(tsv.counts.alreadyThanked,1);
+  assert.equal(tsv.rows.filter(r=>r.envelopeName==="Mira Quill").length,2);
+  assert.notEqual(tsv.rows[0].id,tsv.rows[2].id);
+  const vcf=await sample("03-phone-contacts.vcf","vcf");
+  assert.equal(vcf.counts.households,4);assert.equal(vcf.counts.missingAddresses,1);
+  const originals=await readFile(path.join(dir,"04-registry-and-addresses.xlsx"));
+  const worker = require("../lib/wedding/import-worker.cjs");
+  // Run the production checks with reduced budgets and the ordinary fixture.
+  await assert.rejects(worker.parseWorkbook(originals,{...worker.limits,sheets:1}),/ten sheets/);
+  await assert.rejects(worker.parseWorkbook(originals,{...worker.limits,inflated:20}),/expands/);
+  await assert.rejects(worker.parseWorkbook(originals,{...worker.limits,rows:3}),/data rows/);
+  const xlsx=await sample("04-registry-and-addresses.xlsx","xlsx");
+  assert.deepEqual(xlsx.sheets.map(s=>s.name),["Mailing households","Registry gifts"]);
+  assert.equal(xlsx.counts.households,10);assert.equal(xlsx.counts.sourceRows,22);
+  assert.equal(xlsx.rows.find(r=>r.sourceId==="H002")!.sources.length,3);
+  assert.equal(xlsx.rows.find(r=>r.sourceId==="H005")!.street1,"");
+  assert.equal(xlsx.rows.find(r=>r.sourceId==="H007")!.alreadyThanked,true);
+  assert.equal(xlsx.exceptions.length,1);assert.match(xlsx.exceptions[0].reason,/G12/);
+  assert.ok(xlsx.rows.every(r=>!r.street1.includes("Couple Sample")));
+  const txt=await sample("05-family-notes.txt","txt");
+  assert.equal(txt.excerpts.length,5);assert.equal(txt.rows.length,0);
+  assert.match(txt.excerpts[1],/We made your lemon pasta on Tuesday\./);
+  assert.match(txt.excerpts[2],/Anaïs/);assert.match(txt.excerpts[3],/Robin/);assert.match(txt.excerpts[4],/“M\.”/);
+  const minimized=prepareWeddingAiExcerpt(txt.excerpts[1]);assert.ok(!minimized.includes("Imaginary Orchard"));assert.ok(!minimized.includes("02108"));
+  const b=Buffer.from('Family,Words\n"Test, household","Thank you\nfor the book!"');
+  const parsed=await parseWeddingFile(b,"csv");
+  const patch={"Guest list":{"Family":"envelopeName","Words":"body"}} as const;
+  const reviewed=previewWeddingImport(parsed,sha(b),patch);
+  assert.equal(reviewed.rows[0].body,"Thank you\nfor the book!");assert.equal(reviewed.rows[0].country,"");
+  assert.equal(reviewed.rows[0].id,previewWeddingImport(parsed,sha(b),patch).rows[0].id);
+  assert.equal(inspectWeddingAddress({street1:"Example",city:"London",state:"",zip:"SW1A 1AA",country:"GB"}).complete,true);
+  assert.equal(inspectWeddingAddress({street1:"Example",city:"Toronto",state:"",zip:"M5V 1A1",country:"CA"}).complete,false);
+  assert.throws(()=>previewWeddingImport(parsed,sha(b),{"Guest list":{"Unknown":"gift"}}));
+  await assert.rejects(parseWeddingFile(Buffer.from("This is a text file"),"xlsx"));
+  await assert.rejects(parseWeddingFile(Buffer.from([0xff,0xbe]),"csv"));
+  await assert.rejects(parseWeddingFile(Buffer.from("A\n"+"e".repeat(16385)),"csv"),/16 KiB/);
+  await assert.rejects(parseWeddingFile(Buffer.alloc(5*1024**2+1),"csv"),/5 MiB/);
+  await assert.rejects(parseWeddingFile(b,"csv",1),/timed out/);
+  await assert.rejects(readBoundedImport(new Request("http://localhost",{method:"POST",body:"abcdef"}),3));
+  const data=await checkAndStageImport("fixture-a","csv",b), again=await checkAndStageImport("fixture-a","csv",b);
+  assert.equal(data.id,again.id);assert.deepEqual(await restoreImport("fixture-a",data.id),parsed);
+  await assert.rejects(restoreImport("fixture-b",data.id),/expired/);
+  const second=await checkAndStageImport("fixture-b","csv",b);assert.notEqual(second.id,data.id);
+  const lease1=await claimImportAttempt("fixture-a"),lease2=await claimImportAttempt("fixture-a");
+  await assert.rejects(claimImportAttempt("fixture-a"),/allowance/);await lease2();await lease1();
+  const global=await Promise.all(Array.from({length:6},(_,i)=>claimImportAttempt("other-"+i)));
+  await assert.rejects(claimImportAttempt("seventh"),/Several lists/);await Promise.all(global.map(release=>release()));
+  const request=new NextRequest("https://example.test/api/wedding/import?format=csv",{method:"POST",headers:{host:"example.test",origin:"https://example.test"},body:b.toString()});
+  assert.equal((await POST(request)).status,401);
+  const project=await createWeddingProject("fixture-browser");
+  const origin="https://example.test", standard={host:"example.test",origin,cookie:"smn_wedding_session="+project.token};
+  const upload=()=>new NextRequest(origin+"/api/wedding/import?format=csv",{method:"POST",headers:standard,body:b.toString()});
+  assert.equal((await POST(upload())).status,403);
+  const actor=await requireWeddingActor(upload());
+  const operator={uid:"fixture-admin",email:"example@example.invalid",admin:true,authTime:Date.now()};
+  const invite=await issueWeddingPilot(operator,actor.projectId);
+  await redeemWeddingInvite(invite.link.split("#wedding=")[1],actor);
+  const accepted=await POST(upload());assert.equal(accepted.status,200);assert.equal(accepted.headers.get("Cache-Control"),"private, no-store");
+  const uploadResult=await accepted.json();assert.equal(uploadResult.sheets[0].name,"Guest list");
+  const remapRequest=()=>new NextRequest(origin+"/api/wedding/import?action=map",{method:"POST",headers:standard,body:JSON.stringify({importId:uploadResult.importId,mappings:patch})});
+  const mapped=await POST(remapRequest());assert.equal(mapped.status,200);assert.equal((await mapped.json()).rows[0].body,"Thank you\nfor the book!");
+  const restored=await GET(new NextRequest(origin+"/api/wedding/import?id="+uploadResult.importId,{headers:standard}));
+  assert.equal(restored.status,200);
+  for(const scenario of ["valid","ambiguous","missing_unit","unavailable"]) {
+    const req=new NextRequest(origin+"/api/wedding/import?action=postal",{method:"POST",headers:standard,body:JSON.stringify({scenario,address:{street1:"123 Sample Rd",city:"Boston",state:"MA",zip:"02108",country:"US"}})});
+    const response=await POST(req);assert.equal(response.status,200);
+    const postal=await response.json();
+    if(process.env.STAGING_REVIEW_ONLY==="true") {assert.equal(postal.source,"staging_postal_fixture");assert.equal(postal.status,scenario);}
+  }
+  const badOrigin=await POST(new NextRequest(origin+"/api/wedding/import?format=csv",{method:"POST",headers:{...standard,origin:"https://unrelated.invalid"},body:"x"}));assert.equal(badOrigin.status,403);
+  await revokeWeddingPilot(operator,invite.inviteId);assert.equal((await POST(upload())).status,403);
+  assert.ok((await cleanExpiredWeddingImports(Date.now()+8*86400000))>=2);
+  await assert.rejects(restoreImport("fixture-a",data.id),/expired/);
+  console.log("Wedding imports passed all five fixture reconciliations, opt-in excerpt minimization, quotas, isolated parser budgets, privacy and cleanup.");
+}
+main().catch(e=>{console.error(e);process.exitCode=1;});

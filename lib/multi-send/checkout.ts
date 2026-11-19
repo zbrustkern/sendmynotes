@@ -1,8 +1,23 @@
 import crypto from "crypto";
 import { firestoreDb } from "../firebase-admin";
 
-type CheckoutGroup = { ownerKey: string; currentOrderId?: string; currentRevision?: string; state: "creating" | "active" | "replacing" | "blocked"; leaseId?: string; updatedAt: number };
+export type CheckoutGroup = { ownerKey: string; currentOrderId?: string; currentRevision?: string; state: "creating" | "active" | "replacing" | "blocked" | "transferring" | "transferred"; leaseId?: string; updatedAt: number;
+  weddingTransfer?: { inputHash: string; leaseUntil: number; projectId?: string; actorId?: string; sessionId?: string; copiedCount?: number; greetingReviewIds?: string[] };
+};
 const groupId = (checkoutId: string) => crypto.createHash("sha256").update(checkoutId).digest("hex");
+/** Transfer and v1 checkout must transact on the same owner/lease document. */
+export const multiSendCheckoutRef = (checkoutId: string) => firestoreDb.collection("multi_send_checkout_groups").doc(groupId(checkoutId));
+
+/** Read-only authorization for migrating the old /api/checkout-scoped cookie.
+ * A status token alone cannot authorize canceling or transferring an order. */
+export async function verifyMultiSendTransferProof(checkoutId:string,ownerKey:string,proof:{orderId:string;viewToken:string}):Promise<boolean> {
+  return firestoreDb.runTransaction(async (tx:any)=>{
+    const group=(await tx.get(multiSendCheckoutRef(checkoutId))).data() as CheckoutGroup|undefined;
+    if(!group||group.ownerKey!==ownerKey||group.currentOrderId!==proof.orderId)return false;
+    const order=(await tx.get(firestoreDb.collection('orders').doc(proof.orderId))).data();
+    return Boolean(order?.viewToken&&order.viewToken===proof.viewToken&&order.multiSend?.kind==='parent'&&order.multiSend.checkoutId===checkoutId);
+  });
+}
 
 export function multiSendCheckoutOwnerKey(input: { checkoutId: string; userId?: string; guestCapability?: string }): string {
   const owner = input.userId ? `user:${input.userId}` : input.guestCapability ? `guest-capability:${input.guestCapability}` : "";
@@ -19,6 +34,7 @@ export async function claimMultiSendCheckout(input: {
     const snap = await tx.get(ref);
     const group = snap.exists ? snap.data() as CheckoutGroup : undefined;
     if (group && group.ownerKey !== input.ownerKey) return { claimed: false, code: "MULTI_SEND_OWNER_MISMATCH" };
+    if (group?.state === "transferring" || group?.state === "transferred") return { claimed: false, code: "MULTI_SEND_TRANSFERRED" };
     if (group?.state === "creating" || group?.state === "replacing" || group?.state === "blocked") return { claimed: false, code: "MULTI_SEND_CHECKOUT_BUSY" };
     if (group?.currentRevision === input.contentRevision) return { claimed: false, code: "MULTI_SEND_CHECKOUT_RECOVERY_REQUIRED" };
     let previousOrderId: string | undefined;
@@ -39,7 +55,7 @@ export async function finishMultiSendCheckout(checkoutId: string, leaseId: strin
   await firestoreDb.runTransaction(async (tx: any) => {
     const snap = await tx.get(ref);
     const group = snap.exists ? snap.data() as CheckoutGroup : undefined;
-    if (!group || group.leaseId !== leaseId) throw new Error("Multi-send checkout claim was lost.");
+    if (!group || group.leaseId !== leaseId || !["creating", "replacing"].includes(group.state)) throw new Error("Multi-send checkout claim was lost.");
     tx.update(ref, { state: "active", leaseId: null, updatedAt: Date.now() });
   });
 }
@@ -58,7 +74,7 @@ export async function abortMultiSendCheckoutClaim(input: { checkoutId: string; l
   await firestoreDb.runTransaction(async (tx: any) => {
     const snap = await tx.get(ref);
     const group = snap.exists ? snap.data() as CheckoutGroup : undefined;
-    if (!group || group.leaseId !== input.leaseId) return;
+    if (!group || group.leaseId !== input.leaseId || !["creating", "replacing"].includes(group.state)) return;
     if (!input.previousOrderId) {
       tx.delete(ref);
       return;
@@ -107,7 +123,7 @@ export async function recoverMultiSendCheckout(checkoutId: string, ownerKey: str
   await firestoreDb.runTransaction(async (tx: any) => {
     const snap = await tx.get(ref);
     const group = snap.exists ? snap.data() as CheckoutGroup : undefined;
-    if (!group || group.ownerKey !== ownerKey || group.currentOrderId !== orderId || group.state === "blocked") throw new Error("Multi-send checkout recovery is not authorized.");
+    if (!group || group.ownerKey !== ownerKey || group.currentOrderId !== orderId || !["creating", "active"].includes(group.state)) throw new Error("Multi-send checkout recovery is not authorized.");
     tx.update(ref, { state: "active", leaseId: null, updatedAt: Date.now() });
   });
 }

@@ -108,6 +108,22 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ received: true, duplicate: true });
     }
 
+    const weddingMetadata = (event.data.object as { metadata?: Record<string,string> }).metadata;
+    const weddingPaymentEvent = event.type === "payment_intent.succeeded" ||
+      (event.type.startsWith("refund.") && Boolean(weddingMetadata?.weddingRefundId));
+    if (weddingMetadata?.weddingBatchId && weddingPaymentEvent) {
+      if (event.livemode !== false) throw new Error("A wedding test event had an unexpected mode.");
+      if (event.type === "payment_intent.succeeded") {
+        const { settleWeddingIntent } = await import("@/lib/wedding/checkout");
+        await settleWeddingIntent(event.data.object as Stripe.PaymentIntent);
+      } else if (event.type.startsWith("refund.") && weddingMetadata.weddingRefundId) {
+        const { applyWeddingRefund } = await import("@/lib/wedding/refunds");
+        await applyWeddingRefund(event.data.object as Stripe.Refund);
+      }
+      await markWebhookInboxProcessed(event.id);
+      return NextResponse.json({received:true,held:true});
+    }
+
     // 2. Handle Payment Intent Succeeded
     if (event.type === "payment_intent.succeeded") {
       const paymentIntent = event.data.object as Stripe.PaymentIntent;

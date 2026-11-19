@@ -364,6 +364,16 @@
       "evidence": "docs/sprints/evidence/SPRINT-0032/REVIEW.md",
       "production_revision": "2a9a891a2307219fc75451a0cd4468fc5dd3899a",
       "release_receipt": "docs/sprints/evidence/SPRINT-0032/RELEASE.json"
+    },
+    {
+      "id": "SPRINT-0031",
+      "title": "Wedding thank-you projects on staging",
+      "path": "docs/sprints/SPRINT-0031.md",
+      "release_target": "staging",
+      "status": "in_progress",
+      "acceptance_status": "implementation_in_progress",
+      "execution_base": "88d01947e9f6ab0bfb132a1a47d1caa6bef9a91b",
+      "updated_at": "2026-11-18"
     }
   ]
 }

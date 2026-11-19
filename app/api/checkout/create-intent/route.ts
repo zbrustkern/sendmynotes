@@ -1,4 +1,6 @@
 import { validateFollowupLinkForCheckout } from "@/lib/post-purchase/attribution";
+import { isSameOrigin } from "@/lib/upload/http";
+import { verifyMultiSendTransferProof } from "@/lib/multi-send/checkout";
 import { resolveAccountOrderAssociation } from "@/lib/account/order-association";
 import { AccountError, accountError } from "@/lib/account/http";
 import { pinGeneratedOrderMaster } from "@/lib/account/order-front";
@@ -34,6 +36,20 @@ export async function POST(req: NextRequest) {
       return withOperationId(NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again shortly.", code: "CHECKOUT_PAUSED", operationId }, { status: 503 }), operationId);
     }
     const body = await req.json();
+
+    // Old guest cookies cover /api/checkout only. This read-only bridge widens
+    // the same proven capability for the dedicated /api/wedding/transfer URL;
+    // it never creates, resumes, or returns a payment intent.
+    if (body?.action === "authorize-wedding-transfer") {
+      const id=body.checkoutId,proof=body.previousCheckout;
+      if (!isSameOrigin(req) || typeof id!=="string" || !/^[A-Za-z0-9_-]{1,128}$/.test(id) || typeof proof?.orderId!=="string" || !/^[A-Za-z0-9_-]{1,128}$/.test(proof.orderId) || typeof proof?.viewToken!=="string" || proof.viewToken.length>256) return NextResponse.json({error:"Checkout proof is required.",code:"TRANSFER_PAYMENT_PROOF_REQUIRED"},{status:403});
+      const account=await resolveAccountOrderAssociation(req,{}),capability=req.cookies.get(`smn_multi_send_${id}`)?.value;
+      const ownerKey=multiSendCheckoutOwnerKey({checkoutId:id,userId:account.userId,guestCapability:capability});
+      if (!ownerKey || !await verifyMultiSendTransferProof(id,ownerKey,proof)) return NextResponse.json({error:"Use the original checkout account or device.",code:"TRANSFER_OWNER_MISMATCH"},{status:403});
+      const response=NextResponse.json({authorized:true},{headers:{"Cache-Control":"private, no-store","Referrer-Policy":"no-referrer"}});
+      if(!account.userId&&capability) response.cookies.set(`smn_multi_send_${id}`,capability,{httpOnly:true,sameSite:"lax",secure:process.env.NODE_ENV==="production",path:"/api",maxAge:30*86400});
+      return response;
+    }
 
     // Fail closed until the multi-send quote/snapshot path is wired end to end.
     // This guard is server-side and cannot be bypassed by query or cookie values.
@@ -143,7 +159,7 @@ export async function POST(req: NextRequest) {
         activeMultiSendClaim = null;
         const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || null;
         const response = NextResponse.json({ orderId, operationId: existingOrder.operationId || operationId, viewToken: existingOrder.viewToken, clientSecret: existingPayment.clientSecret, paymentIntentId: existingPayment.paymentIntentId, publishableKey, isMock: existingPayment.isMock, amountInCents: existingOrder.amountInCents, finalAmountInCents: existingOrder.finalAmountInCents, quote: existingOrder.quote, isFree: false });
-        if (!accountAssociation.userId && guestCheckoutCapability) response.cookies.set(`smn_multi_send_${multiSend.checkoutId}`, guestCheckoutCapability, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api/checkout", maxAge: 60 * 60 * 24 * 30 });
+        if (!accountAssociation.userId && guestCheckoutCapability) response.cookies.set(`smn_multi_send_${multiSend.checkoutId}`, guestCheckoutCapability, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api", maxAge: 60 * 60 * 24 * 30 });
         return withOperationId(response, operationId);
       }
       let discountAmountInCents = 0;
@@ -279,7 +295,7 @@ export async function POST(req: NextRequest) {
         if (!publishableKey || !publishableKey.startsWith(prefix)) throw new PaymentModeConfigError("A matching Stripe publishable key is not configured.", 503, "STRIPE_PUBLISHABLE_KEY_MISMATCH");
       }
       const response = NextResponse.json({ orderId, operationId, viewToken, clientSecret: paymentIntentResult.clientSecret, paymentIntentId: paymentIntentResult.paymentIntentId, publishableKey, isMock: paymentIntentResult.isMock, amountInCents: quote.totalCents, finalAmountInCents: quote.totalCents, quote, isFree: false });
-      if (!accountAssociation.userId && guestCheckoutCapability) response.cookies.set(`smn_multi_send_${multiSend.checkoutId}`, guestCheckoutCapability, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api/checkout", maxAge: 60 * 60 * 24 * 30 });
+      if (!accountAssociation.userId && guestCheckoutCapability) response.cookies.set(`smn_multi_send_${multiSend.checkoutId}`, guestCheckoutCapability, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api", maxAge: 60 * 60 * 24 * 30 });
       return withOperationId(response, operationId);
     }
 

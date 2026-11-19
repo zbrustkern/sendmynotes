@@ -1,0 +1,36 @@
+.wed { color:#203c32; background:#faf8f1; font: 16px/1.5 Inter, system-ui, sans-serif; min-height:100vh; padding:0 max(18px,calc((100vw - 1080px)/2)) 60px; overflow-wrap:anywhere; }
+.wed * { box-sizing:border-box; min-width:0 }
+.wed-top,.wed-actions,.wed-progress,.wed-steps,.wed-pills { display:flex; align-items:center; flex-wrap:wrap; gap:.7rem; }
+.wed-top { justify-content:space-between; min-height:70px; border-bottom:1px solid #d9dcd1; }
+.wed-top>a { font:600 1.7rem/1.15 "Cormorant Garamond", Georgia, serif; letter-spacing:-.03em; text-decoration:none }
+.wed-top>span,.wed-meta,.wed small { font-size:.85rem;color:#4e665a }
+.wed h1,.wed h2,.wed h3 { font-family:"Cormorant Garamond",Georgia,serif; font-weight:600; line-height:1.12; letter-spacing:-.025em; color:#17372a; }
+.wed h1 { font-size:clamp(2.4rem,6vw,4.4rem); margin:.3em 0 .24em; }
+.wed h2 { font-size:clamp(1.65rem,3vw,2.25rem); margin:0 0 .5em; }
+.wed h3 { font-size:1.45rem; margin:.65em 0 .28em }
+.wed p { margin:.4rem 0 .9rem; } .wed p:last-child { margin-bottom:0 }
+.wed-landing,.wed-columns { display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,.85fr);gap:clamp(1.15rem,4vw,3.5rem);align-items:start; }
+.wed-landing { align-items:center; padding:clamp(32px,7vw,86px) 0; } .wed-landing p { color:#4a5b50;max-width:38em;font-size:1.06rem; }
+.wed-hero-card,.wed-front { aspect-ratio:17/22;object-fit:cover;background:#fffdf7;border:1px solid #d9d8c8;box-shadow:0 14px 32px #343c2716; }
+.wed-hero-card { width:75%;justify-self:center;transform:rotate(3deg); } .wed-front { width:min(100%,220px);margin:auto;display:block; }
+.wed-actions { margin:.8rem 0; } .wed button,.wed a.wed-primary,.wed a.wed-link,.wed a.wed-button { display:inline-flex;align-items:center;justify-content:center;padding:.58rem .86rem;border-radius:7px; border:1px solid #9ba99e; background:#fffef9;color:#203c32;min-height:44px;font:600 .9rem/1.3 Inter,system-ui,sans-serif;text-decoration:none;cursor:pointer; }
+.wed button:hover,.wed a.wed-link:hover {background:#f0f3e9;} .wed button.wed-primary,.wed a.wed-primary,.wed button[aria-pressed=true] {background:#214b38;color:#fff;border-color:#214b38}
+.wed button:disabled {opacity:.55;cursor:default} .wed :is(button,a,input,textarea,select,summary):focus-visible {outline:3px solid #a16620;outline-offset:3px}
+.wed label { display:grid;gap:5px; margin:.7rem 0; font-size:.92rem;font-weight:600; }
+.wed input:not([type=checkbox]):not([type=radio]),.wed select,.wed textarea { width:100%;padding:.55rem .7rem;border:1px solid #9aa79c;border-radius:5px;min-height:42px;background:white;color:#203c32;font:400 1rem/1.45 Inter,system-ui,sans-serif; }
+.wed textarea {resize:vertical} .wed label:has(>input[type=checkbox]),.wed label:has(>input[type=radio]) {display:flex;align-items:flex-start;gap:.55rem;}
+.wed input[type=checkbox],.wed input[type=radio] { width:1.1rem;height:1.1rem;flex-shrink:0;margin-top:.18rem;accent-color:#24533c; }
+.wed-steps { border-bottom:1px solid #cdd5c9;margin:.6rem 0 1.8rem;gap:0; }
+.wed .wed-steps button {border:none;border-radius:0;border-bottom:3px solid transparent;background:transparent;padding:.7rem .95rem;color:#53695a;}
+.wed .wed-steps button[aria-current=step] {border-color:#30583c;color:#203c32;font-weight:700;}
+.wed-panel,.wed-note,.wed-notice {padding:clamp(15px,2.6vw,29px);background:#fffefa;border:1px solid #d3d9cc;border-radius:10px;margin:.8rem 0;}
+.wed-note,.wed-notice {background:#f0f3e9;} .wed-notice {font-size:.93rem;padding:.65rem .9rem;} .wed [role=alert] {background:#fff4e4;border-color:#b58140;}
+.wed-letter {white-space:pre-wrap;overflow-wrap:anywhere;background:#fffefa;border:1px solid #d9d8c8;border-radius:3px;padding:20px;line-height:1.47;font-size:1.25rem;}
+.wed-progress {justify-content:space-between;margin:.8rem 0;padding:.6rem 0;border-block:1px solid #d3d9cc;} .wed-mini-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px;}
+.wed details {border-top:1px solid #d9dcd1;padding:.6rem 0;} .wed summary {cursor:pointer;font-weight:600;min-height:36px;align-content:center;}
+.wed-list {list-style:none;margin:.6rem 0;padding:0;} .wed-list li {padding:.55rem 0;border-bottom:1px solid #d9dcd1;} .wed-scroll {max-height:20rem;overflow:auto;padding:0 .4rem;}
+.wed table {width:100%;font-variant-numeric:tabular-nums;border-collapse:collapse;} .wed th,.wed td {padding:.42rem .25rem;text-align:left;border-bottom:1px solid #dadcd3}
+.wed fieldset {border:0;padding:0;} .wed fieldset legend {font-size:1.05rem;font-weight:600;} .wed .wed-thumbs {display:flex;flex-wrap:wrap;gap:8px;}
+.wed .wed-thumbs button {flex-direction:column;max-width:115px;gap:6px;} .wed .wed-thumbs img {width:65px;aspect-ratio:17/22;object-fit:cover;}
+@media(max-width:690px){.wed {padding-inline:15px;} .wed-landing,.wed-columns{grid-template-columns:1fr;} .wed-hero-card{max-width:145px;justify-self:start;}.wed-steps{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));} .wed .wed-steps button{font-size:.77rem;padding:.5rem .12rem;}.wed-mini-grid{grid-template-columns:1fr;}.wed-columns{gap:0}.wed-top{min-height:55px}.wed .wed-panel{padding:14px}.wed-actions button{max-width:100%;}}
+@media(prefers-reduced-motion:reduce){.wed *{scroll-behavior:auto!important;transition:none!important}}

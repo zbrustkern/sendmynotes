@@ -1,6 +1,21 @@
 # Selected only by the sendmynotes-staging backend environment name.
 # Staging is an admin review environment; live payments, mail and physical orders are blocked.
 env:
+  - variable: NEXT_PUBLIC_WEDDING_PORTAL_ENABLED
+    value: "true"
+    availability: [BUILD, RUNTIME]
+  - variable: WEDDING_PROJECTS_ENABLED
+    value: "true"
+    availability: [RUNTIME]
+  - variable: WEDDING_CHECKOUT_ENABLED
+    value: "false"
+    availability: [RUNTIME]
+  - variable: WEDDING_SCHEDULER_IDENTITY
+    value: wedding-reconciler@sendmynotes-staging.iam.gserviceaccount.com
+    availability: [RUNTIME]
+  - variable: WEDDING_SCHEDULER_AUDIENCE
+    value: https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/api/cron/wedding-reconcile
+    availability: [RUNTIME]
   # Explicit public test key; pairs with staging stripe-secret-key version 1.
   - variable: STRIPE_PUBLISHABLE_KEY
     value: pk_test_51UIUjfQRpUiJEWIAEBVsU9gEPGjYg84rOZRarlTUfW057pYo1YcbkHv00h288Bth0582JDovGyvz1ZfSPen6VSYP00u7h8Ve2Y

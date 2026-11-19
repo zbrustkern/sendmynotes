@@ -72,6 +72,7 @@ export function isVerifiedServerPaymentEvent(eventName: string, path?: string): 
  * Allowed client/browser event names.
  */
 export const ALLOWED_BROWSER_EVENT_NAMES = new Set<string>([
+  "wedding_portal_opened",
   "entry_viewed", "builder_engaged", "cover_loaded", "cover_selected",
   "generation_requested", "generation_completed", "generation_failed",
   "note_template_loaded", "note_edit_started", "note_confirmed",

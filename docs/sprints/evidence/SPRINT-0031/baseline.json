@@ -1,0 +1,24 @@
+{
+  "checkedAt": "2026-11-19T03:48:50.616Z",
+  "project": "sendmynotes-staging",
+  "builds": [
+    {
+      "id": "build-2026-11-19-010",
+      "state": "READY",
+      "sha": "3bb821c4a7f2b4bdbca21927e5a47f9b7c2398ae",
+      "percent": 100
+    }
+  ],
+  "latest": {
+    "id": "rollout-2026-11-19-010",
+    "state": "SUCCEEDED",
+    "buildState": "READY",
+    "sha": "3bb821c4a7f2b4bdbca21927e5a47f9b7c2398ae"
+  },
+  "flags": {
+    "INTERNATIONAL_MAILING_PREVIEW": "true",
+    "FIREBASE_PROJECT_ID": "sendmynotes-staging",
+    "STAGING_REVIEW_ONLY": "true",
+    "HANDWRYTTEN_TEST_MODE": "true"
+  }
+}

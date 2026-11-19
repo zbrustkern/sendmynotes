@@ -1,4 +1,5 @@
 import React, { Suspense } from "react";
+import { WeddingEntry } from "@/components/wedding/WeddingLink";
 import { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
@@ -81,6 +82,7 @@ export default async function SendCatalogPage({ searchParams }: PageProps) {
           </div>
         }
       >
+        {process.env.NEXT_PUBLIC_WEDDING_PORTAL_ENABLED === "true" && <WeddingEntry />}
         <ExperienceRouter
           initialIsV3={true}
           embedded={false}
@@ -151,6 +153,8 @@ export default async function SendCatalogPage({ searchParams }: PageProps) {
           </Link>
         </div>
       </header>
+
+      {process.env.NEXT_PUBLIC_WEDDING_PORTAL_ENABLED === "true" && <Suspense><WeddingEntry /></Suspense>}
 
       {/* HERO SECTION */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 pt-12 pb-8 text-center space-y-4">
