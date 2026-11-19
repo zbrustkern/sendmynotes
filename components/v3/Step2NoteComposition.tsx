@@ -525,11 +525,11 @@ export function Step2NoteComposition({
                     : "border-stone-300"
                 }`}
               />
-              <p className="text-[11px] text-stone-500 mt-1">
-                {isMultiSend
-                  ? "Used for recipients without a personalized greeting. Personalized greetings stay unchanged."
-                  : "We'll automatically pre-fill this name into the recipient address step."}
-              </p>
+              {isMultiSend && (
+                <p className="text-[11px] text-stone-500 mt-1">
+                  Used for recipients without a personalized greeting. Personalized greetings stay unchanged.
+                </p>
+              )}
             </div>
 
             {/* 3. YOUR MESSAGE TEXTAREA + STARTER INSPIRATION CHIPS + 1-TAP LIVE INK TOGGLE */}
@@ -671,9 +671,6 @@ export function Step2NoteComposition({
               />
               <p className="text-[11px] text-stone-400 mt-1">
                 Tip: Put your closing (like “Warmly,”) on the first line and your name below it for a natural handwritten sign-off.
-              </p>
-              <p className="text-[11px] text-stone-500 mt-0.5">
-                We&apos;ll automatically pre-fill your name for your return address.
               </p>
             </div>
 
