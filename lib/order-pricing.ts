@@ -35,12 +35,12 @@ export function isOrderQuoteValid(quote: OrderQuote | null | undefined): quote i
   if (!quote || quote.currency !== "USD") return false;
   if (!/^[A-Z]{2}$/.test(quote.countryCode)) return false;
   if (quote.version === "multi-send-900-v1") {
-    return quote.countryCode === "US" && Number.isSafeInteger(quote.basePriceCents) && quote.basePriceCents >= 1800 && quote.basePriceCents % BASE_PRICE_CENTS === 0 && Number.isSafeInteger(quote.discountCents) && quote.discountCents >= 0 && quote.discountCents <= BASE_PRICE_CENTS && quote.internationalSurchargeCents === 0 && quote.totalCents === quote.basePriceCents - quote.discountCents;
+    return quote.countryCode === "US" && Number.isSafeInteger(quote.basePriceCents) && quote.basePriceCents >= 1800 && quote.basePriceCents % BASE_PRICE_CENTS === 0 && Number.isSafeInteger(quote.discountCents) && quote.discountCents >= 0 && quote.discountCents <= quote.basePriceCents && quote.internationalSurchargeCents === 0 && quote.totalCents >= 50 && quote.totalCents === quote.basePriceCents - quote.discountCents;
   }
   if (quote.version !== ORDER_PRICE_VERSION) return false;
   if (!Number.isSafeInteger(quote.basePriceCents) || quote.basePriceCents !== BASE_PRICE_CENTS) return false;
-  if (!Number.isSafeInteger(quote.discountCents) || quote.discountCents < 0 || quote.discountCents > quote.basePriceCents) return false;
   const expectedSurcharge = quote.countryCode === "US" ? 0 : INTERNATIONAL_SURCHARGE_CENTS;
+  if (!Number.isSafeInteger(quote.discountCents) || quote.discountCents < 0 || quote.discountCents > quote.basePriceCents + expectedSurcharge) return false;
   return Number.isSafeInteger(quote.internationalSurchargeCents) && Number.isSafeInteger(quote.totalCents) &&
     quote.internationalSurchargeCents === expectedSurcharge &&
     quote.totalCents === quote.basePriceCents - quote.discountCents + expectedSurcharge;

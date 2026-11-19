@@ -26,6 +26,7 @@ type Quote = {
   id: string;
   count: number;
   previouslyPurchased: number;
+  promotion?: { savingsCents: number; remainingProjectUnits: number | null; remainingProjectCents?: number | null };
   baseCents: number;
   mailingCents: number;
   totalCents: number;
@@ -157,6 +158,8 @@ export function ReviewPanel({
   const [selection, setSelection] = useState<Set<string>>(
       () => new Set(ready.slice(0, 100).map((r) => r.id)),
     ),
+    [promotionCode, setPromotionCode] = useState(""),
+    [offerReference, setOfferReference] = useState(""),
     [preview, setPreview] = useState(""),
     [batch, setBatch] = useState<Batch | null>(null),
     [busy, setBusy] = useState(false),
@@ -179,6 +182,17 @@ export function ReviewPanel({
     return () => {
       mounted.current = false;
     };
+  }, []);
+  useEffect(() => {
+    let current = true;
+    const linked = window.smnLinkedOffer;
+    if (linked) void linked.then(reference => {
+      if (!current) return;
+      if (reference) { setOfferReference(reference); setBatch(null); }
+      else setError("This offer link is unavailable. You can still review regular pricing.");
+    });
+    else setPromotionCode(new URLSearchParams(location.search).get("discount") || "");
+    return () => { current = false; };
   }, []);
   const work = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -216,6 +230,8 @@ export function ReviewPanel({
     setBatch(
       await api("quote", {
         selection: selected.map((r) => ({ id: r.id, revision: r.revision })),
+        promotionCode: promotionCode.trim() || undefined,
+        offerReference: offerReference || undefined,
       }),
     );
   }
@@ -224,6 +240,8 @@ export function ReviewPanel({
     const b = await api("reserve", {
       quoteHash: batch.quote.id,
       selection: selected.map((r) => ({ id: r.id, revision: r.revision })),
+        promotionCode: promotionCode.trim() || undefined,
+        offerReference: offerReference || undefined,
     });
     await progress(b);
   }
@@ -329,6 +347,13 @@ export function ReviewPanel({
           Typical domestic transit is 2–7 business days after preparation.
           International delivery varies by country. Staging orders stay on hold.
         </p>
+        {!batch?.batchId && offerReference && <p>Linked offer saved. <button type="button" disabled={busy} onClick={() => { setOfferReference(""); setBatch(null); }}>Remove offer</button></p>}
+        {!batch?.batchId && !offerReference && (
+          <label>Offer code (optional)
+            <input value={promotionCode} disabled={busy} autoComplete="off" maxLength={128}
+              onChange={e => { setPromotionCode(e.target.value); setBatch(null); setError(""); }} />
+          </label>
+        )}
         {(!batch || !batch.batchId) && (
           <button
             disabled={busy || !selected.length}
@@ -351,6 +376,11 @@ export function ReviewPanel({
               + {dollars(batch.quote.mailingCents)} international mailing. Tax
               included.
             </p>
+            {batch.quote.promotion && <p>
+              Offer savings −{dollars(batch.quote.promotion.savingsCents)}.
+              {batch.quote.promotion.remainingProjectUnits !== null && ` Project credit remaining after this batch: ${batch.quote.promotion.remainingProjectUnits} envelopes.`}
+              {batch.quote.promotion.remainingProjectCents != null && ` Remaining credit: ${dollars(batch.quote.promotion.remainingProjectCents)}.`}
+            </p>}
             {batch.status === "preparing" && (
               <p role="status">
                 Preparing {batch.preparedCount || 0} of {batch.count} envelopes…

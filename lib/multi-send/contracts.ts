@@ -111,6 +111,8 @@ export function composeRecipientMessage(
   return [greeting, body, signOff].filter(Boolean).join("\n\n");
 }
 
+export const MAX_MULTI_SEND_RECIPIENTS = 25;
+
 export function validateMultiSendInput(value: unknown): value is MultiSendCheckoutInput {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<MultiSendCheckoutInput>;
@@ -118,7 +120,7 @@ export function validateMultiSendInput(value: unknown): value is MultiSendChecko
   if (!candidate.note || typeof candidate.note.text !== "string" || !candidate.note.text.trim() || typeof candidate.note.style !== "string" || !candidate.note.style.trim()) return false;
   if (candidate.note.salutation !== undefined && typeof candidate.note.salutation !== "string") return false;
   if (candidate.note.signOff !== undefined && typeof candidate.note.signOff !== "string") return false;
-  if (candidate.recipients.length < 2 || candidate.recipients.length > 25) return false;
+  if (candidate.recipients.length < 2 || candidate.recipients.length > MAX_MULTI_SEND_RECIPIENTS) return false;
   const ids = new Set<string>();
   return candidate.recipients.every((recipient) => {
     if (!recipient || typeof recipient !== "object" || typeof recipient.id !== "string" || !/^[A-Za-z0-9_-]{1,80}$/.test(recipient.id) || ids.has(recipient.id)) return false;

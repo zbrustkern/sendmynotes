@@ -41,6 +41,7 @@ export type DraftAction =
   | { type: "UPDATE_SENDER"; payload: AddressDraft | null }
   | { type: "UPDATE_SCHEDULE"; payload: ScheduleDraft | null }
   | { type: "SET_DISCOUNT_CODE"; payload: string | null }
+  | { type: "SET_OFFER_REFERENCE"; payload: string | null }
   | { type: "SET_APPLIED_OFFER"; payload: AppliedOfferDraft | null }
   | { type: "SET_ATTRIBUTION"; payload: AttributionDraft | null }
   | { type: "SET_CUSTOM_GENERATION"; payload: Partial<CustomGenerationState> }
@@ -274,12 +275,17 @@ export function draftReducer(state: DraftState, action: DraftAction): DraftState
       };
     }
 
+    case "SET_OFFER_REFERENCE": {
+      if (state.offerReference === action.payload) return state;
+      return { ...state, updatedAt: now, offerReference: action.payload };
+    }
+
     case "SET_APPLIED_OFFER": {
       return {
         ...state,
         updatedAt: now,
         appliedOffer: action.payload,
-        discountCode: action.payload?.code ?? (action.payload === null ? null : state.discountCode),
+
       };
     }
 

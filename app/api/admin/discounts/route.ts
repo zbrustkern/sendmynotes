@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getAllDiscountCodes,
-  saveDiscountCode,
-  deleteDiscountCode,
-  getDiscountCode,
-} from "@/lib/firebase-admin";
-import { verifyAdminAuth } from "@/lib/admin-auth";
-import { DiscountCode, DiscountType } from "@/lib/types";
-import {
-  computeOfferLifecycleStatus,
-  getOrSyncOfferVersion,
-  getOfferAnalyticsSummary,
-  getOfferVersionsCollection,
-} from "@/lib/offer-engine";
-import { OfferVersionRecord } from "@/lib/contracts/admin-overhaul";
+import { getAllDiscountCodes } from "@/lib/firebase-admin";
+import { getAuthenticatedAdminActor, verifyAdminAuth } from "@/lib/admin-auth";
+import type { OfferVersionRecord } from "@/lib/contracts/admin-overhaul";
+import { computeOfferLifecycleStatus, getOrSyncOfferVersion, getOfferAnalyticsSummary } from "@/lib/offer-engine";
+import { executeAuditedOfferChange } from "@/lib/promotions-and-growth-service";
+import { executePromotionAdminAction, getPromotionCampaignHistory, getPromotionCampaigns, isPromotionAdminAction } from "@/lib/promotions-v2-admin";
+import { adminInteger, adminObject, PromotionAdminError } from "@/lib/promotions-v2-policy";
+import { normalizePromotionCode } from "@/lib/promotions-v2-store";
+import { promotionAdminErrorResponse, promotionAdminJson, validatePromotionAdminEnvironment } from "@/lib/promotion-admin-http";
 
 export async function GET(req: NextRequest) {
   try {
@@ -22,6 +16,14 @@ export async function GET(req: NextRequest) {
     }
 
     const url = new URL(req.url);
+    validatePromotionAdminEnvironment(url.searchParams.get("environment"));
+    const view = url.searchParams.get("view");
+    if (view === "history") return promotionAdminJson({ success: true, ...await getPromotionCampaignHistory(url.searchParams.get("campaignId")) });
+    if (view === "campaigns" || view === "campaign") {
+      const id = url.searchParams.get("campaignId");
+      if (view === "campaign" && !id) throw new PromotionAdminError("Enter a campaign ID.");
+      return promotionAdminJson({ success: true, ...await getPromotionCampaigns(id ?? undefined) });
+    }
     const targetCode = url.searchParams.get("code");
     if (targetCode && url.searchParams.get("analytics") === "true") {
       const analytics = await getOfferAnalyticsSummary(targetCode);
@@ -90,202 +92,80 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error fetching discount codes";
-    console.error("[Admin Discounts GET Error]:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return promotionAdminErrorResponse(error);
   }
+}
+
+function legacyNumber(value: unknown, label: string, cents = false): number {
+  if (typeof value !== "number" && (typeof value !== "string" || !/^\d+(?:\.\d{1,2})?$/.test(value.trim()))) {
+    throw new PromotionAdminError(`Enter a valid ${label}.`);
+  }
+  const amount = Number(value);
+  if (cents) {
+    const scaled = amount * 100;
+    if (Math.abs(Math.round(scaled) - scaled) > 1e-8) throw new PromotionAdminError(`Enter ${label} to the nearest cent.`);
+    return adminInteger(Math.round(scaled), label);
+  }
+  return adminInteger(amount, label);
+}
+
+function legacyDate(value: unknown, label: string): number | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  if (typeof value !== "string") throw new PromotionAdminError(`Enter a valid ${label}.`);
+  return adminInteger(Date.parse(value), label, 0, 8_640_000_000_000_000);
 }
 
 export async function POST(req: NextRequest) {
   try {
-    if (!verifyAdminAuth(req)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!verifyAdminAuth(req)) return promotionAdminJson({ error: "Unauthorized" }, 401);
+
+    const body = adminObject(await req.json().catch(() => null), "discount request");
+    validatePromotionAdminEnvironment(body.environment ?? new URL(req.url).searchParams.get("environment"));
+    const actorEmail = getAuthenticatedAdminActor(req)!;
+    if (isPromotionAdminAction(body.action)) {
+      return promotionAdminJson({ success: true, ...await executePromotionAdminAction(body.action, body, actorEmail) });
     }
+    const code = normalizePromotionCode(body.code);
+    if (!code) throw new PromotionAdminError("Use 2–64 letters, numbers, underscores or hyphens for the code.");
+    if (body.action === "analytics") return promotionAdminJson({ success: true, analytics: await getOfferAnalyticsSummary(code) });
 
-    const body = await req.json();
-    const { action } = body;
-
-    if (action === "create") {
-      const rawCode = body.code?.trim().toUpperCase();
-      if (!rawCode || rawCode.length < 2) {
-        return NextResponse.json({ error: "Discount code must be at least 2 characters." }, { status: 400 });
-      }
-
-      // Check for code uniqueness
-      const existing = await getDiscountCode(rawCode);
-      if (existing) {
-        return NextResponse.json({ error: `Discount code "${rawCode}" already exists.` }, { status: 400 });
-      }
-
-      const type: DiscountType = body.type === "FIXED_AMOUNT" ? "FIXED_AMOUNT" : "PERCENTAGE";
-      const rawVal = Number(body.value);
-
-      if (isNaN(rawVal) || rawVal <= 0) {
-        return NextResponse.json({ error: "Please enter a valid positive discount value." }, { status: 400 });
-      }
-
-      // If percentage, clamp between 1 and 100
-      let value = rawVal;
-      if (type === "PERCENTAGE") {
-        if (rawVal > 100) {
-          return NextResponse.json({ error: "Percentage discount cannot exceed 100%." }, { status: 400 });
-        }
-        value = Math.round(rawVal);
-      } else {
-        // Stored in cents (e.g. $2.00 input -> 200 cents)
-        value = Math.round(rawVal * 100);
-      }
-
-      const maxUses = body.maxUses ? Math.max(1, parseInt(body.maxUses, 10)) : null;
-      let expiresAt: number | null = null;
-      if (body.expiresAt) {
-        const parsedExp = new Date(body.expiresAt).getTime();
-        if (!isNaN(parsedExp)) {
-          expiresAt = parsedExp;
-        }
-      }
-
-      const newCode: DiscountCode = {
-        id: rawCode,
-        code: rawCode,
-        type,
-        value,
-        description: body.description?.trim() || "",
-        isActive: true,
-        maxUses,
-        usedCount: 0,
-        totalDiscountGivenCents: 0,
-        expiresAt,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+    let action: Parameters<typeof executeAuditedOfferChange>[0]["action"];
+    let payload: Partial<OfferVersionRecord> | undefined;
+    if (body.action === "create") {
+      action = "create";
+      if (body.type !== "FIXED_AMOUNT" && body.type !== "PERCENTAGE") throw new PromotionAdminError("Choose a supported discount type.");
+      payload = {
+        discountType: body.type, discountValue: legacyNumber(body.value, "discount", body.type === "FIXED_AMOUNT"),
+        purpose: typeof body.description === "string" && body.description.trim() ? body.description : undefined,
+        destinationPath: typeof body.destinationPath === "string" && body.destinationPath.trim() ? body.destinationPath : undefined,
+        startsAt: legacyDate(body.startsAt, "start date"), endsAt: legacyDate(body.expiresAt, "expiry date"),
+        campaignId: typeof body.campaignId === "string" && body.campaignId.trim() ? body.campaignId : undefined,
+        maxUses: body.maxUses ? legacyNumber(body.maxUses, "use limit") : undefined,
+        dollarBudgetLimitCents: body.budgetCents ? legacyNumber(body.budgetCents, "budget cents") : undefined,
+        perCustomerLimit: body.perCustomerLimit ? legacyNumber(body.perCustomerLimit, "per-sender limit") : undefined,
       };
-
-      await saveDiscountCode(newCode);
-
-      // Create versioned offer record in offer_versions
-      const offerVersion: OfferVersionRecord = {
-        offerId: `offer_${rawCode}`,
-        version: 1,
-        code: rawCode,
-        purpose: body.description?.trim() || "Promotional Discount",
-        destinationPath: body.destinationPath?.trim() || "/",
-        discountType: type,
-        discountValue: value,
-        status: "active",
-        startsAt: body.startsAt ? new Date(body.startsAt).getTime() : undefined,
-        endsAt: expiresAt || undefined,
-        maxUses: maxUses || undefined,
-        dollarBudgetLimitCents: body.budgetCents ? Number(body.budgetCents) : undefined,
-        campaignId: body.campaignId?.trim() || undefined,
-        usedCount: 0,
-        reservedCount: 0,
-        totalDiscountGivenCents: 0,
-        stackingAllowed: false,
-        timezone: "UTC",
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
-      };
-
-      try {
-        await getOfferVersionsCollection().doc(`offer_${rawCode}_v1`).set(offerVersion);
-      } catch (e) {
-        console.warn("[Admin Discounts] Warning saving offer version:", e);
-      }
-
-      return NextResponse.json({
-        success: true,
-        code: newCode,
-        offerVersion,
-        message: `Discount code ${rawCode} created successfully.`,
-      });
+    } else if (body.action === "toggle") {
+      if (body.isActive !== undefined && typeof body.isActive !== "boolean") throw new PromotionAdminError("Choose whether to activate the code.");
+      const previous = await getOrSyncOfferVersion(code);
+      if (!previous) throw new PromotionAdminError("Discount code not found.", 404);
+      action = (body.isActive ?? (previous.status === "paused" || previous.status === "draft")) ? "activate" : "pause";
+    } else if (body.action === "archive" || body.action === "delete") {
+      action = body.action;
+    } else {
+      throw new PromotionAdminError("Choose a supported discount action.");
     }
-
-    if (action === "toggle") {
-      const rawCode = body.code?.trim().toUpperCase();
-      if (!rawCode) {
-        return NextResponse.json({ error: "Missing discount code" }, { status: 400 });
-      }
-
-      const existing = await getDiscountCode(rawCode);
-      if (!existing) {
-        return NextResponse.json({ error: "Discount code not found" }, { status: 404 });
-      }
-
-      const updatedStatus = body.isActive !== undefined ? Boolean(body.isActive) : !existing.isActive;
-      await saveDiscountCode({
-        ...existing,
-        isActive: updatedStatus,
-        updatedAt: Date.now(),
-      });
-
-      try {
-        const vRef = getOfferVersionsCollection().doc(`offer_${rawCode}_v1`);
-        const vSnap = await vRef.get();
-        if (vSnap.exists) {
-          await vRef.update({
-            status: updatedStatus ? "active" : "paused",
-            updatedAt: Date.now(),
-          });
-        }
-      } catch {
-        // Non-critical
-      }
-
-      return NextResponse.json({
-        success: true,
-        code: rawCode,
-        isActive: updatedStatus,
-      });
+    const result = await executeAuditedOfferChange({ code, action, payload, actorEmail, reason: typeof body.reason === "string" ? body.reason : undefined });
+    if (!result.success) return promotionAdminJson({ success: false, error: result.error }, result.status ?? 400);
+    if (action === "create" && result.offer) {
+      const offer = result.offer;
+      return promotionAdminJson({ success: true, code: {
+        id: code, code, type: offer.discountType, value: offer.discountValue, description: offer.purpose,
+        isActive: offer.status === "active", maxUses: offer.maxUses ?? null, expiresAt: offer.endsAt ?? null,
+        usedCount: offer.usedCount, totalDiscountGivenCents: offer.totalDiscountGivenCents, createdAt: offer.createdAt, updatedAt: offer.updatedAt,
+      }, offerVersion: offer, message: `Discount code ${code} created.` });
     }
-
-    if (action === "archive") {
-      const rawCode = body.code?.trim().toUpperCase();
-      if (!rawCode) {
-        return NextResponse.json({ error: "Missing discount code" }, { status: 400 });
-      }
-
-      try {
-        const vRef = getOfferVersionsCollection().doc(`offer_${rawCode}_v1`);
-        await vRef.set({ status: "archived", updatedAt: Date.now() }, { merge: true });
-      } catch {
-        // Non-critical
-      }
-
-      const existing = await getDiscountCode(rawCode);
-      if (existing) {
-        await saveDiscountCode({ ...existing, isActive: false, updatedAt: Date.now() });
-      }
-
-      return NextResponse.json({ success: true, message: `Offer ${rawCode} archived.` });
-    }
-
-    if (action === "analytics") {
-      const rawCode = body.code?.trim().toUpperCase();
-      if (!rawCode) {
-        return NextResponse.json({ error: "Missing discount code" }, { status: 400 });
-      }
-      const summary = await getOfferAnalyticsSummary(rawCode);
-      return NextResponse.json({ success: true, analytics: summary });
-    }
-
-    if (action === "delete") {
-      const rawCode = body.code?.trim().toUpperCase();
-      if (!rawCode) {
-        return NextResponse.json({ error: "Missing discount code" }, { status: 400 });
-      }
-
-      await deleteDiscountCode(rawCode);
-
-      return NextResponse.json({
-        success: true,
-        message: `Discount code ${rawCode} deleted.`,
-      });
-    }
-
-    return NextResponse.json({ error: `Unknown action: ${action}` }, { status: 400 });
+    return promotionAdminJson({ success: true, code, isActive: action === "activate" });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Error processing discount code action";
-    console.error("[Admin Discounts POST Error]:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return promotionAdminErrorResponse(error);
   }
 }

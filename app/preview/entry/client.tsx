@@ -16,7 +16,7 @@ import {
 import { Step2NoteComposition, HANDWRITING_STYLES } from "@/components/v3/Step2NoteComposition";
 import { Step3EnvelopeAddressing, AddressData, MailingOption, isInternationalCountry } from "@/components/v3/Step3EnvelopeAddressing";
 import { Step4ReviewAndPayment, AppliedDiscountInfo } from "@/components/v3/Step4ReviewAndPayment";
-import { composeRecipientMessage, expectedMultiSendTotal, formatTwoLineSignOff, normalizeGreetingText } from "@/lib/multi-send/contracts";
+import { composeRecipientMessage, formatTwoLineSignOff, normalizeGreetingText } from "@/lib/multi-send/contracts";
 import { findInheritedGreetingNameMismatches } from "@/lib/multi-send/greeting-guard";
 import { TransferToWedding, markWeddingTransferAttempt } from "@/components/wedding/TransferToWedding";
 import { MultiSendAddressEditor } from "@/components/v3/MultiSendAddressEditor";
@@ -49,7 +49,10 @@ import { getStoredAttribution } from "@/components/AttributionTracker";
 import { useAuth } from "@/context/AuthContext";
 import { AlertCircle } from "lucide-react";
 import { parseScenarioNote, mapScenarioFontId } from "@/lib/seo-scenarios";
-import { extractOfferCodeFromUrlParams } from "@/lib/discount";
+import { extractOfferCodeFromUrlParams } from "@/lib/offer-url";
+import { previewCheckoutPromotion, type CheckoutOfferSource, type CheckoutPriceInput, type CheckoutPromotionPreview } from "@/lib/checkout-promotion-client";
+import type { CheckoutPriceComponents } from "@/lib/checkout-promotion";
+import { AuthModal } from "@/components/AuthModal";
 import { restoreAccountDraft, inferAccountDraftResumeStep } from "@/lib/account/builder-state";
 import { useBuilderAccount } from "@/lib/account/use-builder-account";
 import { AccountRecipientPicker } from "@/components/account/AccountRecipientPicker";
@@ -101,7 +104,7 @@ export function EntryPrototypeClient({
       .catch(() => { if (active) setIsMultiSendFeatureEnabled(false); });
     return () => { active = false; };
   }, [multiSendEnabled]);
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, sendVerificationEmail, reloadUserAndRefreshToken } = useAuth();
 
   const occasionParam = initialOccasion || searchParams?.get("occasion") || undefined;
   const presetParam = initialPresetId || searchParams?.get("preset") || undefined;
@@ -557,11 +560,23 @@ export function EntryPrototypeClient({
   const checkoutRequestInFlight = React.useRef(false);
   const discountRequestInFlight = React.useRef(false);
   const addressRevision = React.useRef(0);
-  const currentDisplayTotalCents = draft.multiSend
-    ? expectedMultiSendTotal(draft.multiSend.recipients.length, appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900)
-    : isInternational
-      ? (appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900) + 500
-      : amountInCents;
+  const [checkoutPrice, setCheckoutPrice] = useState<CheckoutPriceComponents | null>(null);
+  const [offerNotice, setOfferNotice] = useState<CheckoutPromotionPreview | null>(null);
+  const [offerAuthOpen, setOfferAuthOpen] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const pendingOffer: CheckoutOfferSource | undefined = draft.offerReference ? { reference: draft.offerReference } : draft.discountCode ? { code: draft.discountCode } : undefined;
+  const currentDisplayTotalCents = checkoutPrice?.totalCents ?? amountInCents;
+  const previewBasket: CheckoutPriceInput = draft.multiSend ? {
+    workflow: "multisend", recipients: draft.multiSend.recipients.map((item) => ({ id: item.id, country: item.address.country || "US" })),
+  } : { country: isAddressDeferred ? "US" : recipient.country || (recipient.street1 ? "US" : null), addressDeferred: isAddressDeferred };
+  const previewBasketKey = JSON.stringify(previewBasket);
+  const linkedOfferRead = useRef(false);
+  const [linkedOfferReady, setLinkedOfferReady] = useState(false);
+  const verifiedOfferRefresh = useRef<string | null>(null);
+  const rememberOffer = (source?: CheckoutOfferSource) => {
+    dispatch({ type: "SET_DISCOUNT_CODE", payload: source?.code || null });
+    dispatch({ type: "SET_OFFER_REFERENCE", payload: source?.reference || null });
+  };
 
   const accountResumeStep = useRef<{uid:string;step:"note"|"address"}|null>(null);
   const [accountLinks, setAccountLinks] = useState<{contactId?:string;occasionId?:string}>({});
@@ -744,18 +759,7 @@ export function EntryPrototypeClient({
       });
     }
 
-    if (draft.appliedOffer) {
-      setAppliedDiscount({
-        code: draft.appliedOffer.code,
-        type: draft.appliedOffer.discountType,
-        value: draft.appliedOffer.discountValue,
-        discountAmountInCents: draft.appliedOffer.discountAmountInCents,
-        finalAmountInCents: draft.appliedOffer.finalAmountInCents,
-        isFree: Boolean(draft.appliedOffer.isFree),
-      });
-      setIsFreeOrder(Boolean(draft.appliedOffer.isFree));
-      setAmountInCents(draft.appliedOffer.finalAmountInCents);
-    }
+
   }, [
     isLoaded,
     draft.completed,
@@ -1132,14 +1136,6 @@ export function EntryPrototypeClient({
       });
     }
 
-    const promo = extractOfferCodeFromUrlParams(searchParams);
-    if (promo) {
-      emitJourneyMilestone("offer_viewed", {
-        promoCode: promo,
-        source: "url_param",
-      });
-    }
-
     trackGA4ViewItem({
       itemId: resolvedInitialPresetId || CARD_PRESETS[0].id,
       itemName: resolvedInitialPresetTitle || CARD_PRESETS[0].title,
@@ -1464,7 +1460,7 @@ export function EntryPrototypeClient({
     if (isInternational) setInternationalRecipient(recipient);
     const restored = { ...domesticRecipient, country: "US" };
     setRecipient(restored);
-    setAmountInCents(appliedDiscount?.finalAmountInCents ?? draft.appliedOffer?.finalAmountInCents ?? 900);
+    setCheckoutPrice(null);
     setIsAddressDeferred(false);
     setClientSecret(null);
     setOrderId("");
@@ -1712,8 +1708,7 @@ export function EntryPrototypeClient({
 
   // Initialize PaymentIntent when advancing from address to pay
   const initializeCheckout = async (
-    overrideDiscountCode?: string,
-    expectedAmountInCents?: number,
+    overrideOffer?: CheckoutOfferSource | null,
     allowDuringDiscountValidation = false
   ) => {
     if (draft.coverChoiceRequired || (draft.accountImage && !accountTools.ready) || (draft.uploadSelection && (uploadHandoffLoading || !privatePreviewReady || verifiedUploadDesignId !== draft.uploadSelection.designId || verifiedUploadOwnerUid !== user?.uid))) {
@@ -1725,7 +1720,7 @@ export function EntryPrototypeClient({
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
     const privateCheckoutEpoch = privateRequestEpochRef.current;
     const privateCheckoutIsStale = () => privateCheckoutEpoch !== privateRequestEpochRef.current;
-    const priorCheckoutBinding = { orderId, viewToken };
+    const priorCheckoutBinding = orderId && viewToken ? { orderId, viewToken } : previousCheckoutProof();
     if (draft.multiSend && process.env.NEXT_PUBLIC_WEDDING_PORTAL_ENABLED === "true") markWeddingTransferAttempt(draft.multiSend.checkoutId);
     checkoutRequestInFlight.current = true;
     const requestedAddressRevision = addressRevision.current;
@@ -1745,42 +1740,19 @@ export function EntryPrototypeClient({
 
     let checkoutHttpStatus: number | undefined;
     try {
-      const discountCodeToUse =
-        overrideDiscountCode !== undefined
-          ? overrideDiscountCode
-          : appliedDiscount?.code || draft.appliedOffer?.code || draft.discountCode || undefined;
-
-      let discountToApply =
-        discountCodeToUse && appliedDiscount?.code === discountCodeToUse
-          ? appliedDiscount
-          : null;
-      const shouldRevalidateDiscount = Boolean(
-        discountCodeToUse && draft.appliedOffer?.code === discountCodeToUse
-      );
-      if (discountCodeToUse && (!discountToApply || shouldRevalidateDiscount)) {
-        const validationResponse = await fetch("/api/discount/validate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code: discountCodeToUse }),
-        });
-        let validation: AppliedDiscountInfo & { valid?: boolean; error?: string };
-        try {
-          validation = await validationResponse.json();
-        } catch {
-          throw new Error("Unable to validate your saved discount code. Please retry checkout.");
+      let source = overrideOffer === undefined ? pendingOffer : overrideOffer || undefined;
+      let discountToApply: CheckoutPromotionPreview | null = null;
+      if (source && !priorCheckoutBinding && overrideOffer === undefined) {
+        const promotion = await previewCheckoutPromotion(previewBasket, source, user ? await user.getIdToken() : null);
+        source = promotion.source;
+        if (!promotion.result.valid) {
+          if (!promotion.result.price) throw new Error(promotion.result.error || "Your offer could not be checked. Please try again.");
+          setOfferNotice(promotion.result);
+          source = undefined;
+        } else {
+          setOfferNotice(null);
+          discountToApply = promotion.result;
         }
-        const definitiveInvalidCode =
-          (validationResponse.status >= 400 && validationResponse.status < 500) ||
-          (validationResponse.ok && validation.valid === false);
-        if (definitiveInvalidCode) {
-          dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
-          dispatch({ type: "SET_APPLIED_OFFER", payload: null });
-          throw new Error(validation.error || "Your saved discount code is no longer valid. Retry checkout to continue at the regular price.");
-        }
-        if (!validationResponse.ok || validation.valid !== true) {
-          throw new Error(validation.error || "Unable to validate your saved discount code. Please retry checkout.");
-        }
-        discountToApply = validation;
       }
 
       // An account/cover transition during discount validation must not submit
@@ -1789,7 +1761,7 @@ export function EntryPrototypeClient({
 
       trackJourneyEvent("checkout_requested", {
         amountInCents: currentDisplayTotalCents,
-        hasDiscount: Boolean(discountCodeToUse),
+        hasDiscount: Boolean(source),
         isAddressDeferred,
         isMultiSend: Boolean(draft.multiSend),
         recipientCount: draft.multiSend ? draft.multiSend.recipients.length : 1,
@@ -1810,13 +1782,13 @@ export function EntryPrototypeClient({
 
       const accountToken = user ? await user.getIdToken() : null;
       if (privateCheckoutIsStale()) return false;
-      const res = await fetch("/api/checkout/create-intent", {
+      const requestCheckout = (offer?: CheckoutOfferSource) => fetch("/api/checkout/create-intent", {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(accountToken ? { Authorization: `Bearer ${accountToken}` } : {}) },
         body: JSON.stringify({
           ...(!draft.multiSend ? {
             checkoutDraftKey: checkoutDraftKey("draft_" + draft.createdAt),
-            ...(wasRestored ? { previousCheckout: previousCheckoutProof() } : {}),
+            ...(wasRestored && priorCheckoutBinding ? { previousCheckout: priorCheckoutBinding } : {}),
           } : {}),
           occasion: currentCard.occasion,
           ...((draft.uploadSelection || draft.accountImage) ? {} : { frontImageUrl: currentCard.imageUrl }),
@@ -1843,7 +1815,8 @@ export function EntryPrototypeClient({
               },
               greeting: item.greeting,
             })),
-          }, ...(priorCheckoutBinding.orderId && priorCheckoutBinding.viewToken ? { replaces: priorCheckoutBinding } : {}) } : {}),
+          } } : {}),
+          ...(priorCheckoutBinding ? { replaces: priorCheckoutBinding } : {}),
           fontStyleId: draft.note.style || "hwDavid",
           addressDeferred: isAddressDeferred,
           address_deferred: isAddressDeferred,
@@ -1870,7 +1843,8 @@ export function EntryPrototypeClient({
           customerEmail,
           contactPolicyVersion: 1,
           ...(accountLinks.occasionId ? {accountOccasionId:accountLinks.occasionId,accountContactId:accountLinks.contactId} : {}),
-          discountCode: discountCodeToUse,
+          discountCode: offer?.code,
+          offerReference: offer?.reference,
           attribution: getStoredAttribution() || undefined,
           followupLink: getStoredFollowupLink(),
           sessionId: getSessionId(),
@@ -1882,8 +1856,18 @@ export function EntryPrototypeClient({
       // its response so it cannot restore the previous account's payment UI.
       if (privateCheckoutIsStale()) return false;
 
-      const data = await res.json();
+      let res = await requestCheckout(source);
+      let data = await res.json();
       if (privateCheckoutIsStale()) return false;
+      if (!res.ok && source && typeof data.reason === "string" && data.reason !== "rate_limit") {
+        setOfferNotice({ valid: false, reason: data.reason, error: data.error, price: data.price });
+        source = undefined;
+        discountToApply = null;
+        res = await requestCheckout();
+        data = await res.json();
+        if (privateCheckoutIsStale()) return false;
+      }
+      checkoutHttpStatus = res.status;
       if (res.status === 409 && data.code === "CHECKOUT_ALREADY_IN_PROGRESS" && data.orderId && data.viewToken) {
         window.location.assign("/order/" + encodeURIComponent(data.orderId) + "?token=" + encodeURIComponent(data.viewToken));
         return false;
@@ -1918,16 +1902,6 @@ export function EntryPrototypeClient({
         throw new Error(decision.errorMessage || "Unable to proceed to payment.");
       }
 
-      const expectedPrice = draft.multiSend
-        ? expectedMultiSendTotal(draft.multiSend.recipients.length, expectedAmountInCents ?? discountToApply?.finalAmountInCents ?? 900)
-        : expectedAmountInCents !== undefined
-        ? expectedAmountInCents + (isInternational ? 500 : 0)
-        : discountCodeToUse ? (discountToApply?.finalAmountInCents ?? 900) + (isInternational ? 500 : 0) : 900 + (isInternational ? 500 : 0);
-      const serverPrice = data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents;
-      if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
-        throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
-      }
-
       setOrderId(data.orderId);
       if (data.viewToken) {
         setViewToken(data.viewToken);
@@ -1950,25 +1924,18 @@ export function EntryPrototypeClient({
       setIsMockCheckout(Boolean(data.isMock));
       setIsFreeOrder(Boolean(data.isFree));
       setAmountInCents(data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900);
-      setAppliedDiscount(discountToApply);
-      if (discountToApply) {
-        dispatch({
-          type: "SET_APPLIED_OFFER",
-          payload: {
-            code: discountToApply.code,
-            quoteId: (discountToApply as any).quoteId,
-            offerId: (discountToApply as any).offerId,
-            offerVersion: (discountToApply as any).offerVersion,
-            discountType: discountToApply.type,
-            discountValue: discountToApply.value,
-            discountAmountInCents: discountToApply.discountAmountInCents,
-            finalAmountInCents: discountToApply.finalAmountInCents,
-            isFree: Boolean(discountToApply.isFree),
-            quoteExpiresAt: (discountToApply as any).quoteExpiresAt,
-            appliedAt: Date.now(),
-          },
-        });
-      }
+      setCheckoutPrice(data.price || null);
+      const applied = source && data.discountCode ? {
+        code: data.discountCode,
+        privateOffer: Boolean(source.reference),
+        type: discountToApply?.type || "FIXED_AMOUNT" as const,
+        value: discountToApply?.value || data.discountAmountInCents || 0,
+        discountAmountInCents: data.discountAmountInCents || 0,
+        finalAmountInCents: data.amountInCents,
+        isFree: Boolean(data.isFree),
+      } : null;
+      setAppliedDiscount(applied);
+      if (applied) setOfferNotice(null);
       setCheckoutInitError(null);
 
       emitJourneyMilestone("checkout_created", {
@@ -2017,76 +1984,29 @@ export function EntryPrototypeClient({
     }
   };
 
-  // Promo code validation
   const handleApplyDiscount = async (code: string) => {
     if (discountRequestInFlight.current || checkoutRequestInFlight.current) return { success: false, error: "Checkout is updating. Please try again." };
     discountRequestInFlight.current = true;
-    trackJourneyEvent("discount_apply_requested", {
-      promoCode: code.trim(),
-    });
+    trackJourneyEvent("discount_apply_requested", {});
     try {
-      const res = await fetch("/api/discount/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.valid) {
-        trackJourneyEvent("discount_rejected", {
-          promoCode: code.trim(),
-          rejectionReason: data.error || "invalid_code",
-        });
-        return { success: false, error: data.error || "Invalid promo code." };
+      const { result, source } = await previewCheckoutPromotion(previewBasket, { code }, user ? await user.getIdToken() : null);
+      if (!source || !result.price || result.reason === "unavailable") {
+        trackJourneyEvent("discount_rejected", { rejectionReason: result.reason || "unavailable" });
+        return { success: false, error: result.error || "This offer is unavailable." };
       }
-
-      const previousOrderId = orderId;
-      if (step === "pay" && !await initializeCheckout(data.code, data.finalAmountInCents, true)) {
-        return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
+      rememberOffer(source);
+      setOfferNotice(result.valid ? null : result);
+      if (step === "pay" && (result.valid || appliedDiscount)) {
+        if (!await initializeCheckout(result.valid ? source : null, true)) return { success: false, error: "Unable to update your payment. Retry checkout before paying." };
       }
-      if (step === "pay" && previousOrderId) {
-        await fetch("/api/discount/validate", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: previousOrderId }),
-        }).catch(() => {});
-      }
-      setAppliedDiscount(data);
-      // On the payment step initializeCheckout has already atomically created a
-      // new server-priced intent. Keep its authoritative international total
-      // and free-order status (a base-only 100% offer still owes the surcharge).
-      if (step !== "pay") {
-        setIsFreeOrder(Boolean(data.isFree));
-        setAmountInCents(data.finalAmountInCents ?? 900);
-      }
-      dispatch({ type: "SET_DISCOUNT_CODE", payload: data.code });
-      trackJourneyEvent("discount_applied", {
-        promoCode: data.code,
-        discountType: data.discountType || (data.isFree ? "free_order" : "percent_or_fixed"),
-        amountSavedInCents: 900 - (data.finalAmountInCents ?? 900),
-        finalAmountInCents: data.finalAmountInCents ?? 900,
-      });
-      dispatch({
-        type: "SET_APPLIED_OFFER",
-        payload: {
-          code: data.code,
-          quoteId: data.quoteId,
-          offerId: data.offerId,
-          offerVersion: data.offerVersion,
-          discountType: data.type || "PERCENTAGE",
-          discountValue: data.value || 0,
-          discountAmountInCents: data.discountAmountInCents || 0,
-          finalAmountInCents: data.finalAmountInCents ?? 900,
-          isFree: Boolean(data.isFree),
-          quoteExpiresAt: data.quoteExpiresAt,
-          appliedAt: Date.now(),
-        },
+      if (result.valid) trackJourneyEvent("discount_applied", {
+        discountType: result.type || "fixed_amount",
+        amountSavedInCents: result.price.discountCents,
+        finalAmountInCents: result.price.totalCents,
       });
       return { success: true };
     } catch {
-      trackJourneyEvent("discount_rejected", {
-        promoCode: code.trim(),
-        rejectionReason: "network_error",
-      });
+      trackJourneyEvent("discount_rejected", { rejectionReason: "network_error" });
       return { success: false, error: "Unable to apply promo code." };
     } finally {
       discountRequestInFlight.current = false;
@@ -2096,41 +2016,76 @@ export function EntryPrototypeClient({
   const handleRemoveDiscount = async () => {
     if (discountRequestInFlight.current || checkoutRequestInFlight.current) return;
     discountRequestInFlight.current = true;
-    const previousOrderId = orderId;
     try {
-      if (step === "pay" && !await initializeCheckout("", 900, true)) return;
-      if (step === "pay" && previousOrderId) {
-        await fetch("/api/discount/validate", {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ orderId: previousOrderId }),
-        }).catch(() => {});
-      }
+      if (step === "pay" && appliedDiscount && !await initializeCheckout(null, true)) return;
+      rememberOffer();
+      setOfferNotice(null);
+      setVerificationMessage("");
       setAppliedDiscount(null);
-      if (step !== "pay") {
-        setIsFreeOrder(false);
-        setAmountInCents(900);
-      }
-      dispatch({ type: "SET_DISCOUNT_CODE", payload: null });
-      dispatch({ type: "SET_APPLIED_OFFER", payload: null });
-      if (appliedDiscount) {
-        trackJourneyEvent("discount_removed", {
-          promoCode: appliedDiscount.code,
-        });
-      }
+      trackJourneyEvent("discount_removed", {});
     } finally {
       discountRequestInFlight.current = false;
     }
   };
 
-  // Destination-aware auto-apply: detect ?discount=, ?code=, or ?promo= on entry routes
   useEffect(() => {
-    if (!isLoaded) return;
-    const codeFromUrl = extractOfferCodeFromUrlParams(searchParams);
-    if (codeFromUrl && !appliedDiscount && !draft.appliedOffer) {
-      handleApplyDiscount(codeFromUrl);
+    if (!isLoaded || linkedOfferRead.current || typeof window === "undefined") return;
+    linkedOfferRead.current = true;
+    const link = window.smnLinkedOffer;
+    const code = extractOfferCodeFromUrlParams(new URL(window.location.href).searchParams);
+    if (!link && !code) { setLinkedOfferReady(true); return; }
+    if (code) {
+      const clean = new URL(window.location.href);
+      for (const parameter of ["discount", "code", "promo"]) clean.searchParams.delete(parameter);
+      window.history.replaceState(window.history.state, "", clean.pathname + clean.search + clean.hash);
     }
-  }, [isLoaded, searchParams]);
+    void (async () => {
+      const reference = link ? await link : null;
+      if (reference) rememberOffer({ reference });
+      else if (code) await handleApplyDiscount(code);
+      else {
+        rememberOffer();
+        setOfferNotice({ valid: false, reason: "unavailable", error: "This offer is unavailable." });
+      }
+      setLinkedOfferReady(true);
+    })();
+  }, [isLoaded]);
+
+  useEffect(() => {
+    if (!isLoaded || authLoading || step === "pay") return;
+    let active = true;
+    setCheckoutPrice(null);
+    void (async () => {
+      try {
+        const { result, source } = await previewCheckoutPromotion(previewBasket, pendingOffer, user ? await user.getIdToken() : null);
+        if (!active) return;
+        if (pendingOffer && source?.reference && source.reference !== pendingOffer.reference) rememberOffer(source);
+        if (pendingOffer) setOfferNotice(result.valid ? null : result);
+        if (result.price) setCheckoutPrice(result.price);
+      } catch { /* Payment review performs the authoritative priced request. */ }
+    })();
+    return () => { active = false; };
+  }, [isLoaded, authLoading, previewBasketKey, draft.discountCode, draft.offerReference, step, user?.uid, user?.emailVerified]);
+
+  const onVerifyOffer = async () => {
+    setVerificationMessage("");
+    if (!user) { setOfferAuthOpen(true); return; }
+    try {
+      const refreshed = await reloadUserAndRefreshToken();
+      if (refreshed.emailVerified) { verifiedOfferRefresh.current = refreshed.uid; await initializeCheckout(); return; }
+      await sendVerificationEmail(getStepUrl("pay"));
+      setVerificationMessage("Check your inbox for the verification link. You can return here to use the offer.");
+    } catch {
+      setVerificationMessage("Verification couldn’t be checked. Please try again.");
+    }
+  };
+
+  useEffect(() => {
+    const identityRequired = ["identity_required", "sender_required"].includes(offerNotice?.reason?.toLowerCase() || "");
+    if (step !== "pay" || !pendingOffer || !identityRequired || !user?.emailVerified || checkoutRequestInFlight.current || verifiedOfferRefresh.current === user.uid) return;
+    verifiedOfferRefresh.current = user.uid;
+    void initializeCheckout();
+  }, [step, offerNotice?.reason, user?.emailVerified, user?.uid, draft.discountCode, draft.offerReference, isInitializingCheckout]);
 
   // Payment success handler (server records verified telemetry)
   const handlePaymentSuccess = (
@@ -2245,6 +2200,7 @@ export function EntryPrototypeClient({
   useEffect(() => {
     if (
       isLoaded &&
+      linkedOfferReady &&
       step === "pay" &&
       !authLoading &&
       !draft.coverChoiceRequired &&
@@ -2263,7 +2219,7 @@ export function EntryPrototypeClient({
     ) {
       initializeCheckout();
     }
-  }, [isLoaded, authLoading, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.appliedOffer, draft.uploadSelection, draft.coverChoiceRequired, draft.accountImage, accountTools.ready, privatePreviewReady, uploadHandoffLoading, verifiedUploadDesignId, verifiedUploadOwnerUid, user?.uid]);
+  }, [isLoaded, linkedOfferReady, authLoading, step, orderId, isFreeOrder, clientSecret, isInitializingCheckout, checkoutInitError, isOrderConfirmed, appliedDiscount, draft.discountCode, draft.offerReference, draft.appliedOffer, draft.uploadSelection, draft.coverChoiceRequired, draft.accountImage, accountTools.ready, privatePreviewReady, uploadHandoffLoading, verifiedUploadDesignId, verifiedUploadOwnerUid, user?.uid]);
 
   // Check if address is valid for advancing
   const isAddressValid = isAddressDeferred
@@ -2378,7 +2334,7 @@ export function EntryPrototypeClient({
             <Step2NoteComposition
               isMultiSend={Boolean(draft.multiSend)}
               amountInCents={currentDisplayTotalCents}
-              discountApplied={Boolean(appliedDiscount)}
+              discountApplied={Boolean(checkoutPrice?.discountCents || appliedDiscount)}
               hideFixedActionBar={false}
               salutation={salutation}
               onChangeSalutation={handleSalutationChange}
@@ -2486,6 +2442,11 @@ export function EntryPrototypeClient({
         {step === "pay" && !draft.coverChoiceRequired && (!draft.accountImage || accountTools.ready) && (!draft.uploadSelection || (privatePreviewReady && !uploadHandoffLoading && verifiedUploadDesignId === draft.uploadSelection.designId && verifiedUploadOwnerUid === user?.uid)) && (
           <div className="max-w-6xl lg:max-w-7xl mx-auto px-4 sm:px-6 py-4 lg:py-6 pb-28 lg:pb-8">
             <Step4ReviewAndPayment
+              checkoutPrice={checkoutPrice}
+              offerNotice={offerNotice}
+              verificationMessage={verificationMessage}
+              onVerifyOffer={() => { void onVerifyOffer(); }}
+              onRefreshOffer={() => { void initializeCheckout(); }}
               onEditMultiGreeting={(id) => { setReviewEditGreetingId(id); setStep("address"); dispatch({ type: "SET_STEP", payload: "address" }); }}
               onPreviewMultiRecipient={(id) => { setMultiSendPreviewId(id); }}
               multiSendSelectedRecipientId={multiSendPreviewId}
@@ -2527,6 +2488,7 @@ export function EntryPrototypeClient({
             />
           </div>
         )}
+        <AuthModal isOpen={offerAuthOpen} onClose={() => setOfferAuthOpen(false)} title="Verify to use this offer" subtitle="Sign in with a verified email to use these savings. Your card and addresses stay here." />
         <AccountBuilderActions tools={accountTools} signedIn={Boolean(user)} disabled={paymentInFlight||isOrderConfirmed||isInitializingCheckout} addressStep={step==="address"} />
       </main>
 

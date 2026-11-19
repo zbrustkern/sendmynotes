@@ -1,16 +1,18 @@
-import crypto from "crypto";
 import { firestoreDb, getOrdersCollection } from "../firebase-admin";
 import type { Order } from "../types";
 import { getSenderKey } from "./preferences";
-import { GRANTS, type FollowupOfferGrant } from "./offers";
+import { GRANTS, GRANT_LOOKUP, legacyGrantLookupId, type FollowupOfferGrant } from "./offers";
 
 /** Operational association only. Never modifies acquisition or sends data to advertising services. */
 export async function recordPostPurchaseAttribution(order: Order): Promise<void> {
   if (!order.purchaseMeasurement?.eligible || order.isTest || order.isComp || order.isFounderTest) return;
   const senderKey = order.customerEmail ? getSenderKey(order.customerEmail) : undefined;
   const ref = getOrdersCollection().doc(order.id);
+  const redemptionRef = firestoreDb.collection("offer_redemptions").doc(`redemption_${order.id}`);
+  const promotionCodeId = (await redemptionRef.get()).data()?.codeId;
   const code = order.discountCode?.trim().toUpperCase();
-  const lookup = code ? await firestoreDb.collection("post_purchase_offer_lookup").doc(crypto.createHash("sha256").update(code).digest("hex")).get() : null;
+  const lookupId = typeof promotionCodeId === "string" ? promotionCodeId : code ? legacyGrantLookupId(code) : null;
+  const lookup = lookupId ? await firestoreDb.collection(GRANT_LOOKUP).doc(lookupId).get() : null;
   const grantSnap = lookup?.exists ? await firestoreDb.collection(GRANTS).doc(lookup.data()!.grantId).get() : null;
   const grant = grantSnap?.exists ? grantSnap.data() as FollowupOfferGrant : null;
   const source = grant ? await getOrdersCollection().doc(grant.sourceOrderId).get() : null;
@@ -22,7 +24,7 @@ export async function recordPostPurchaseAttribution(order: Order): Promise<void>
     const snap = await tx.get(ref); if (!snap.exists) return;
     const current = snap.data() as Order;
     const identity = current.postPurchaseSenderKey || senderKey;
-    const redemption = grant ? await tx.get(firestoreDb.collection("offer_redemptions").doc(`redemption_${order.id}`)) : null;
+    const redemption = grant ? await tx.get(redemptionRef) : null;
     const patch: Record<string, unknown> = {};
     if (identity && !current.postPurchaseSenderKey) patch.postPurchaseSenderKey = identity;
     // A clicked link or quoted discount is not a redemption or purchase.

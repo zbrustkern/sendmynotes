@@ -27,6 +27,7 @@
   "jobs": [
     {"id":"upload-cleanup","path":"/api/cron/upload-cleanup","schedule":"17 3 * * *","secret":"upload-cleanup-secret","activation":"after_fixture_review"},
     {"id":"account-library-cleanup","path":"/api/cron/account-library-cleanup","schedule":"47 3 * * *","secret":"upload-cleanup-secret","activation":"after_fixture_review"},
-    {"id":"account-reminders","path":"/api/cron/reminder-dispatch","schedule":"*/5 * * * *","secret":"reminder-worker-secret","activation":"separate_approval_and_inbox_proof"}
+    {"id":"account-reminders","path":"/api/cron/reminder-dispatch","schedule":"*/5 * * * *","secret":"reminder-worker-secret","activation":"separate_approval_and_inbox_proof"},
+    {"id":"offer-reconcile","path":"/api/cron/offer-reconcile","schedule":"*/5 * * * *","oidcServiceAccount":"offer-reconciler","activation":"after_offer_cutover_and_recovery_verification"}
   ]
 }

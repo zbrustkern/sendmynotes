@@ -50,7 +50,9 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/style.css'){res.setHeader('Content-Type','text/css');return res.end(css);}
  if(req.url==='/recovered.png'){res.setHeader('Content-Type','image/png');return res.end(art);}
  if(req.url.startsWith('/api/artwork/recover')){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({imageUrl:'/recovered.png',occasion:'Thank You',title:'Recovered custom artwork'}));}
- if(req.url.startsWith('/api/discount/validate')){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({valid:true,code:'LAUNCHVIP600',type:'FIXED_AMOUNT',value:300,discountAmountInCents:300,finalAmountInCents:600,isFree:false}));}
+ if(req.url.startsWith('/api/discount/validate')){
+  let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{const code=JSON.parse(body).code;const savings=code ? 300 : 0;res.setHeader('Content-Type','application/json');res.end(JSON.stringify({valid:true,code,type:'FIXED_AMOUNT',value:savings,isFree:false,price:{basePriceCents:900,discountCents:savings,internationalSurchargeCents:0,totalCents:900-savings,lines:[]}}));});return;
+ }
  if(req.url.startsWith('/api/mailing-options')){res.setHeader('Content-Type','application/json');return res.end(JSON.stringify({destinations:[],enabled:false}));}
  if(req.url.startsWith('/api/')){res.statusCode=500;return res.end('Unexpected API call');}
  if(/\.(png|jpg|webp|svg)/.test(req.url)){res.setHeader('Content-Type','image/png');return res.end(art);}

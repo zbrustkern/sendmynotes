@@ -135,6 +135,13 @@ export async function applyWeddingRefund(refund: Stripe.Refund) {
         refundReservedCents: b.refundReservedCents - j.cents,
       });
       if (succeeded) {
+        if (b.quote?.promotion) {
+          tx.update(firestoreDb.collection("offer_redemptions").doc("redemption_" + b.id), {
+            refunded: true,
+            refundAmountCents: b.refundedCents + j.cents,
+            refundRestoredUsage: false,
+          });
+        }
         tx.update(
           firestoreDb
             .collection("weddingProjects")

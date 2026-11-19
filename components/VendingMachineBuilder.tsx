@@ -48,6 +48,7 @@ import {
 } from "@/lib/meta-ads";
 import { useAuth } from "@/context/AuthContext";
 import { AuthModal } from "./AuthModal";
+import { previewCheckoutPromotion, type CheckoutOfferSource } from "@/lib/checkout-promotion-client";
 import { useDeviceWallet } from "@/lib/device-wallet";
 import { getStoredAttribution } from "./AttributionTracker";
 import Link from "next/link";
@@ -129,6 +130,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   // Checkout State
   const [customerEmail, setCustomerEmail] = useState<string>("");
   const [orderId, setOrderId] = useState<string>("");
+  const [viewToken, setViewToken] = useState<string | null>(null);
+  const [offerSource, setOfferSource] = useState<CheckoutOfferSource>();
   const [clientSecret, setClientSecret] = useState<string | null>(null);
   const [publishableKey, setPublishableKey] = useState<string | null>(null);
   const [isInitializingCheckout, setIsInitializingCheckout] = useState<boolean>(false);
@@ -145,6 +148,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
     discountAmountInCents: number;
     finalAmountInCents: number;
     description?: string;
+    privateOffer?: boolean;
     isFree: boolean;
   } | null>(null);
   const [isFreeOrder, setIsFreeOrder] = useState<boolean>(false);
@@ -288,9 +292,10 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       searchParams.get("code") ||
       searchParams.get("promo");
     if (promoParam) {
-      applyDiscountCode(promoParam).catch((err) =>
-        console.warn("Notice validating URL promo code:", err)
-      );
+      const cleanUrl = new URL(window.location.href);
+      for (const parameter of ["discount", "code", "promo"]) cleanUrl.searchParams.delete(parameter);
+      window.history.replaceState(window.history.state, "", cleanUrl.pathname + cleanUrl.search + cleanUrl.hash);
+      void applyDiscountCode(promoParam);
       didPrefill = true;
     }
 
@@ -407,20 +412,18 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
     if (discountRequestInFlight.current || checkoutRequestInFlight.current) return { success: false, error: "Checkout is updating. Please try again." };
     discountRequestInFlight.current = true;
     try {
-      const res = await fetch("/api/discount/validate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: codeToApply }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.valid) {
-        return { success: false, error: data.error || "Invalid discount code." };
+      const { result, source } = await previewCheckoutPromotion({ country: recipient.country || "US" }, { code: codeToApply }, user ? await user.getIdToken() : null);
+      if (!result.valid || !result.price || !source) {
+        return { success: false, error: result.error || "Invalid promo code." };
       }
-      if (currentStep === 4 && !await proceedToCheckout(data.code, data.finalAmountInCents, true)) {
+      if (currentStep === 4 && !await proceedToCheckout(source, true)) {
         return { success: false, error: "Unable to update your payment. Please retry checkout before paying." };
       }
-      setAppliedDiscount(data);
-      setIsFreeOrder(Boolean(data.isFree));
+      setOfferSource(source);
+      if (currentStep !== 4) {
+        setAppliedDiscount({ code: result.code || "Private offer", privateOffer: Boolean(source.reference), type: result.type || "FIXED_AMOUNT", value: result.value || 0, discountAmountInCents: result.price.discountCents, finalAmountInCents: result.price.totalCents, isFree: Boolean(result.isFree) });
+        setIsFreeOrder(Boolean(result.isFree));
+      }
 
       return { success: true };
     } catch {
@@ -434,7 +437,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
     if (discountRequestInFlight.current || checkoutRequestInFlight.current) return;
     discountRequestInFlight.current = true;
     try {
-      if (currentStep === 4 && !await proceedToCheckout("", 900, true)) return;
+      if (currentStep === 4 && !await proceedToCheckout(null, true)) return;
+      setOfferSource(undefined);
       setAppliedDiscount(null);
       setIsFreeOrder(false);
     } finally {
@@ -444,8 +448,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
   // Move to Step 4 and create PaymentIntent
   const proceedToCheckout = async (
-    overrideDiscountCode?: string | null,
-    expectedAmountInCents?: number,
+    overrideOffer?: CheckoutOfferSource | null,
     allowDuringDiscountValidation = false
   ) => {
     if (checkoutRequestInFlight.current || (discountRequestInFlight.current && !allowDuringDiscountValidation)) return false;
@@ -454,18 +457,15 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
     setCheckoutError(null);
     trackEvent("address_completed", 3);
 
-    const discountCodeToUse =
-      overrideDiscountCode === null
-        ? undefined
-        : overrideDiscountCode !== undefined
-        ? overrideDiscountCode
-        : appliedDiscount?.code;
+    const source = overrideOffer === undefined ? offerSource : overrideOffer || undefined;
 
     try {
+      const accountToken = user ? await user.getIdToken() : null;
       const res = await fetch("/api/checkout/create-intent", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(accountToken ? { Authorization: `Bearer ${accountToken}` } : {}) },
         body: JSON.stringify({
+          ...(orderId && viewToken ? { replaces: { orderId, viewToken } } : {}),
           checkoutDraftKey: checkoutDraftKey("legacy"),
           occasion,
           frontImageUrl: coverUrl,
@@ -477,7 +477,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
           customerEmail,
           userId: user?.uid,
           scheduledSendDate: scheduledSendDate || undefined,
-          discountCode: discountCodeToUse,
+          discountCode: source?.code,
+          offerReference: source?.reference,
           attribution: getStoredAttribution() || undefined,
           recipientOccasion: recipientOccasion || undefined,
         }),
@@ -490,12 +491,6 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       }
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize checkout.");
-      }
-
-      const expectedPrice = expectedAmountInCents ?? (discountCodeToUse ? appliedDiscount?.finalAmountInCents : 900);
-      const serverPrice = data.finalAmountInCents ?? data.amountInCents;
-      if (expectedPrice !== undefined && serverPrice !== expectedPrice) {
-        throw new Error("Your checkout total changed. Please retry checkout and reapply your code.");
       }
 
       // If user is logged in and opted to save recipient address to their address book
@@ -523,6 +518,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       setOrderId(data.orderId);
       if (data.viewToken && typeof window !== "undefined") {
         sessionStorage.setItem(`order_token_${data.orderId}`, data.viewToken);
+        setViewToken(data.viewToken);
       }
       setClientSecret(data.clientSecret);
       if (data.publishableKey) {
@@ -530,6 +526,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
       }
       setIsMockIntent(Boolean(data.isMock));
       setIsFreeOrder(Boolean(data.isFree));
+      setAppliedDiscount(source && data.discountCode ? { code: data.discountCode, privateOffer: Boolean(source.reference), type: "FIXED_AMOUNT", value: data.discountAmountInCents, discountAmountInCents: data.discountAmountInCents, finalAmountInCents: data.amountInCents, isFree: Boolean(data.isFree) } : null);
       trackEvent("checkout_initiated", 4, { orderId: data.orderId, amount: data.amountInCents });
       setCurrentStep(4);
       return true;
@@ -644,7 +641,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
             <span className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-amber-300 shrink-0" />
               <span>
-                Promo code <strong className="underline tracking-wider font-mono uppercase">{appliedDiscount.code}</strong> applied:{" "}
+                Promo code <strong className="underline tracking-wider font-mono uppercase">{appliedDiscount.privateOffer ? "Private offer" : appliedDiscount.code}</strong> applied:{" "}
                 {appliedDiscount.isFree
                   ? "100% Free Order!"
                   : appliedDiscount.type === "PERCENTAGE"
@@ -884,6 +881,7 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
               checkoutError={checkoutError}
               onRetryCheckout={() => { void proceedToCheckout(); }}
                 orderId={orderId}
+                viewToken={viewToken}
                 clientSecret={clientSecret}
                 publishableKey={publishableKey}
                 customerEmail={customerEmail}

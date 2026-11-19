@@ -651,6 +651,7 @@ export interface OfferVersionRecord {
   reservedCount: number;
   dollarBudgetLimitCents?: number;
   totalDiscountGivenCents: number;
+  heldDiscountCents?: number;
   perCustomerLimit?: number;
   stackingAllowed: boolean;
   createdAt: number;
@@ -669,6 +670,13 @@ export interface OfferPriceQuoteSnapshot {
   expiresAt: number;
   isStale: boolean;
   currency: string;
+  promotion?: {
+    basket: import("../promotions-v2").PromotionBasket;
+    evaluation: import("../promotions-v2").PromotionEvaluation;
+    campaignId: string;
+    codeId: string;
+    policyVersionId: string;
+  };
 }
 
 export interface OfferReservationRecord {

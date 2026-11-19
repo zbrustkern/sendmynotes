@@ -8,7 +8,8 @@ import {
   getOrderById,
   saveDiscountCode,
 } from "../lib/firebase-admin";
-import { Order, DiscountCode } from "../lib/types";
+import { Order } from "../lib/types";
+import { calculateOrderQuote } from "../lib/order-pricing";
 import { issueOfferPriceQuote, reserveOfferForCheckout } from "../lib/offer-engine";
 
 async function runSenderValidationTests() {
@@ -360,16 +361,19 @@ async function runSenderValidationTests() {
     if (!freeQuote.valid || !freeQuote.quote?.quoteId) {
       throw new Error(`Could not create authoritative free-order test quote: ${freeQuote.error || "missing quote"}`);
     }
-    await reserveOfferForCheckout({
+    const freeHold = await reserveOfferForCheckout({
       code: freeCode,
       orderId: defectiveFreeOrderId,
       sessionId: `session_${defectiveFreeOrderId}`,
       quoteId: freeQuote.quote.quoteId,
     });
+    if (!freeHold.reserved) throw new Error(freeHold.error || "Could not reserve the free-order fixture");
     await saveOrder({
       ...defectiveOrder,
       id: defectiveFreeOrderId,
       amountInCents: 0,
+      paymentMethod: "PROMO_CODE",
+      quote: calculateOrderQuote({ countryCode: "US", discountCents: 900 }),
       discountCode: freeCode,
       quoteId: freeQuote.quote.quoteId,
       finalAmountInCents: freeQuote.finalAmountInCents,

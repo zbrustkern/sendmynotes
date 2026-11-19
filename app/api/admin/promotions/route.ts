@@ -29,7 +29,9 @@ import {
   executeAuditedOfferChange,
 } from "@/lib/promotions-and-growth-service";
 import { OfferLifecycleStatus } from "@/lib/contracts/admin-overhaul";
-import { adminEnvironmentMatches } from "@/lib/admin-environment";
+import { executePromotionAdminAction, getPromotionCampaignHistory, getPromotionCampaigns, isPromotionAdminAction } from "@/lib/promotions-v2-admin";
+import { adminObject, PromotionAdminError } from "@/lib/promotions-v2-policy";
+import { promotionAdminErrorResponse, promotionAdminJson, validatePromotionAdminEnvironment } from "@/lib/promotion-admin-http";
 
 export async function GET(req: NextRequest) {
   try {
@@ -38,11 +40,14 @@ export async function GET(req: NextRequest) {
     }
 
     const { searchParams } = new URL(req.url);
-    const requestedEnvironment = searchParams.get("environment") || "production";
-    if (!adminEnvironmentMatches(requestedEnvironment as any)) {
-      return NextResponse.json({ error: "Requested environment is not available from this configured datastore.", requestedEnvironment }, { status: 409 });
-    }
+    validatePromotionAdminEnvironment(searchParams.get("environment"));
     const view = searchParams.get("view");
+    if (view === "history") return promotionAdminJson({ success: true, ...await getPromotionCampaignHistory(searchParams.get("campaignId")) });
+    if (view === "campaigns" || view === "campaign") {
+      const id = searchParams.get("campaignId");
+      if (view === "campaign" && !id) throw new PromotionAdminError("Enter a campaign ID.");
+      return promotionAdminJson({ success: true, ...await getPromotionCampaigns(id ?? undefined) });
+    }
 
     // 1. View Presets
     if (view === "presets") {
@@ -126,9 +131,7 @@ export async function GET(req: NextRequest) {
       count: offers.length,
     });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Internal promotions server error";
-    console.error("[Promotions Admin API GET Error]:", error);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return promotionAdminErrorResponse(error);
   }
 }
 
@@ -138,46 +141,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await req.json();
-    if (body.environment && !adminEnvironmentMatches(body.environment)) {
-      return NextResponse.json({ error: "Requested environment is not available from this configured datastore.", requestedEnvironment: body.environment }, { status: 409 });
+    const body = adminObject(await req.json().catch(() => null), "promotion request");
+    validatePromotionAdminEnvironment(body.environment ?? new URL(req.url).searchParams.get("environment"));
+    const actorEmail = getAuthenticatedAdminActor(req)!;
+    if (isPromotionAdminAction(body.action)) {
+      return promotionAdminJson({ success: true, ...await executePromotionAdminAction(body.action, body, actorEmail) });
     }
-    const { action, code, payload, reason, actorEmail } = body;
-
-    if (!code || typeof code !== "string" || code.trim().length < 2) {
-      return NextResponse.json(
-        { error: "A valid offer code of at least 2 characters is required." },
-        { status: 400 }
-      );
+    const action = body.action ?? "update";
+    if (action !== "create" && action !== "update" && action !== "pause" && action !== "activate" && action !== "archive" && action !== "delete") {
+      throw new PromotionAdminError("Choose a supported promotion action.");
     }
-
-    const effectiveActor = getAuthenticatedAdminActor(req)!;
     const result = await executeAuditedOfferChange({
-      actorEmail: effectiveActor,
-      action: action || "update",
-      code,
-      payload,
-      reason,
+      actorEmail, action, code: typeof body.code === "string" ? body.code : "",
+      payload: body.payload as Parameters<typeof executeAuditedOfferChange>[0]["payload"],
+      reason: typeof body.reason === "string" ? body.reason : undefined,
     });
-
-    if (!result.success) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: result.error,
-          action: result.action,
-        },
-        { status: 400 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      result,
-    });
+    if (!result.success) return promotionAdminJson({ success: false, error: result.error, action }, result.status ?? 400);
+    return promotionAdminJson({ success: true, result });
   } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : "Internal promotions mutation error";
-    console.error("[Promotions Admin API POST Error]:", error);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return promotionAdminErrorResponse(error);
   }
 }

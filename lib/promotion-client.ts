@@ -12,9 +12,9 @@ export interface OfferPreset {
   description: string; maxUses?: number; perCustomerLimit?: number;
 }
 export const OFFER_CREATION_PRESETS: Record<OfferPresetKey, OfferPreset> = {
-  welcome_2_off: { key: "welcome_2_off", name: "Welcome $2.00 Off", codeSuggestion: "WELCOME2", purpose: "First-time sender introductory gesture", discountType: "FIXED_AMOUNT", discountValue: 200, destinationPath: "/send", description: "Applies $2.00 off standard $9.00 card. Final price $7.00.", perCustomerLimit: 1 },
+  welcome_2_off: { key: "welcome_2_off", name: "Welcome $2.00 Off", codeSuggestion: "WELCOME2", purpose: "First-time sender introductory gesture", discountType: "FIXED_AMOUNT", discountValue: 200, destinationPath: "/send", description: "Applies $2.00 off standard $9.00 card. Final price $7.00." },
   launch_20_pct: { key: "launch_20_pct", name: "Launch 20% Off", codeSuggestion: "LAUNCH20", purpose: "Early adopter launch campaign", discountType: "PERCENTAGE", discountValue: 20, destinationPath: "/send", description: "20% off standard card. Final price $7.20 (subsidy $1.80)." },
-  vip_free_card: { key: "vip_free_card", name: "VIP 100% Free Card (Comp)", codeSuggestion: "VIPGIFT", purpose: "100% complimentary card gift", discountType: "PERCENTAGE", discountValue: 100, destinationPath: "/send", description: "100% off ($9.00 card becomes $0.00). Counted as free promo.", maxUses: 50, perCustomerLimit: 1 },
+  vip_free_card: { key: "vip_free_card", name: "VIP 100% Free Card (Comp)", codeSuggestion: "VIPGIFT", purpose: "100% complimentary card gift", discountType: "PERCENTAGE", discountValue: 100, destinationPath: "/send", description: "100% off ($9.00 card becomes $0.00). Counted as free promo.", maxUses: 50 },
   recovery_150_off: { key: "recovery_150_off", name: "Cart Recovery $1.50 Off", codeSuggestion: "FINISH150", purpose: "Gentle manual recovery incentive for high-intent abandoned drafts", discountType: "FIXED_AMOUNT", discountValue: 150, destinationPath: "/send", description: "Applies $1.50 off standard card. Final price $7.50." },
 };
 

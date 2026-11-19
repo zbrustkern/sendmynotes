@@ -33,10 +33,12 @@ export interface AppliedDiscountInfo {
   finalAmountInCents: number;
   description?: string;
   isFree: boolean;
+  privateOffer?: boolean;
 }
 
 interface CheckoutStepProps {
   orderId: string;
+  viewToken?: string | null;
   clientSecret: string | null;
   publishableKey?: string | null;
   customerEmail: string;
@@ -55,6 +57,7 @@ interface CheckoutStepProps {
 
 function InnerPaymentForm({
   orderId,
+  viewToken,
   customerEmail,
   onChangeCustomerEmail,
   onSuccess,
@@ -139,7 +142,7 @@ function InnerPaymentForm({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             orderId,
-            discountCode: appliedDiscount?.code,
+            viewToken,
             customerEmail,
           }),
         });
@@ -302,7 +305,7 @@ function InnerPaymentForm({
           <div className="flex items-center justify-between p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-xs">
             <div className="flex items-center gap-2">
               <span className="font-mono font-bold text-emerald-800 uppercase px-2 py-0.5 bg-emerald-100/80 rounded border border-emerald-300">
-                {appliedDiscount.code}
+                {appliedDiscount.privateOffer ? "Private offer" : appliedDiscount.code}
               </span>
               <span className="text-emerald-700 font-medium">
                 {appliedDiscount.isFree
@@ -365,7 +368,7 @@ function InnerPaymentForm({
           </div>
           <p className="text-xs text-emerald-800 leading-relaxed">
             Your card, real pen handwriting, and USPS postage are completely covered by voucher{" "}
-            <strong className="font-mono">{appliedDiscount?.code}</strong>. No payment card or billing information is required.
+            <strong className="font-mono">{appliedDiscount?.privateOffer ? "Private offer" : appliedDiscount?.code}</strong>. No payment card or billing information is required.
           </p>
           <div className="pt-2 flex items-center gap-1.5 text-[11px] text-emerald-700 font-medium">
             <ShieldCheck className="w-3.5 h-3.5" />
@@ -465,7 +468,7 @@ function InnerPaymentForm({
           <div className="flex justify-between text-xs text-emerald-700 font-semibold pt-1 border-t border-amber-200/40">
             <span className="flex items-center gap-1">
               <Tag className="w-3 h-3" />
-              Discount ({appliedDiscount?.code})
+              Discount ({appliedDiscount?.privateOffer ? "Private offer" : appliedDiscount?.code})
             </span>
             <span>-${(discountCents / 100).toFixed(2)}</span>
           </div>

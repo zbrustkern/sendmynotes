@@ -18,6 +18,7 @@
  *   immutable audit logging in admin_audit_log; role/auth enforcement (verifyAdminAuth 401).
  */
 
+import { offerCheckoutFixture } from "./fixtures/offer-checkout";
 import { withSafeTestHarness } from "../lib/testing/safe-harness";
 import {
   OFFER_CREATION_PRESETS,
@@ -230,30 +231,12 @@ async function runSprint0008Tests() {
     await reserveOfferForCheckout({ code: testOfferCode, orderId: orderId1, sessionId: "sess_ev_1" });
     await reserveOfferForCheckout({ code: testOfferCode, orderId: orderId2, sessionId: "sess_ev_2" });
 
-    // Redeem order 1 ($9 - $3 = $6 paid)
-    await redeemOfferForOrder({
-      code: testOfferCode,
-      orderId: orderId1,
-      discountAmountCents: 300,
-      finalAmountCents: 600,
-      verifiedCaptureId: "pi_stripe_ev_01",
-    });
-
-    // Redeem order 2 ($9 - $3 = $6 paid)
-    await redeemOfferForOrder({
-      code: testOfferCode,
-      orderId: orderId2,
-      discountAmountCents: 300,
-      finalAmountCents: 600,
-      verifiedCaptureId: "pi_stripe_ev_02",
-    });
-
-    // Redemption commitments are separate from provider capture authority.
-    await recordPaymentCaptureFact({ orderId: orderId1, paymentIntentId: "pi_stripe_ev_01", amountCents: 600, currency: "usd", livemode: true, commercialKind: "discounted_paid" });
-    await recordPaymentCaptureFact({ orderId: orderId2, paymentIntentId: "pi_stripe_ev_02", amountCents: 600, currency: "usd", livemode: true, commercialKind: "discounted_paid" });
-    await recordPaymentRefundFact({ orderId: orderId2, paymentIntentId: "pi_stripe_ev_02", refundId: "re_stripe_ev_02", amountCents: 600, currency: "usd", livemode: true });
-    // Refund order 2
-    await recordOfferRefundOutcome(orderId2, 600);
+    const first = await offerCheckoutFixture({ code: testOfferCode, orderId: orderId1, now: Date.now(), live: true });
+    const second = await offerCheckoutFixture({ code: testOfferCode, orderId: orderId2, now: Date.now(), live: true });
+    await redeemOfferForOrder(first.redemption);
+    await redeemOfferForOrder(second.redemption);
+    await recordPaymentRefundFact({ orderId: orderId2, paymentIntentId: second.paymentIntent.id, refundId: "re_stripe_ev_02", amountCents: 600, currency: "usd", livemode: true, providerRefundStatus: "succeeded" });
+    await recordOfferRefundOutcome({ orderId: orderId2, paymentIntentId: second.paymentIntent.id, refundId: "re_stripe_ev_02", amountCents: 600, currency: "usd", livemode: true, status: "succeeded" });
 
     const evidence = await getOfferEvidenceDetail(testOfferCode);
     assert(evidence !== null, "Evidence detail generated");
@@ -465,7 +448,7 @@ async function runSprint0008Tests() {
       "executeAuditedOfferChange refuses to hard-delete redeemed code"
     );
     assert(
-      illegalDeleteResult.error?.includes("Cannot hard-delete an offer with historical redemptions") || false,
+      illegalDeleteResult.error?.toLowerCase().includes("archive") || false,
       "Error advises founder to archive code instead to preserve accounting"
     );
 

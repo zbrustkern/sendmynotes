@@ -21,6 +21,11 @@
  */
 
 import { firestoreDb } from "./firebase-admin";
+import { configuredAdminEnvironment } from "./admin-environment";
+import { offerBalanceRef, offerCutoverRef } from "./offer-balances";
+import { normalizePromotionCode, promotionCodeReferences, readPromotionBalance } from "./promotions-v2-store";
+import { isSupportedPromotionPayable } from "./promotions-v2";
+import { adminInteger, adminObject, withoutUndefined, PromotionAdminError } from "./promotions-v2-policy";
 import { readBoundedCollection, readBoundedQuery, boundedCoverage } from "./bounded-admin-read";
 import {
   OfferLifecycleStatus,
@@ -98,7 +103,6 @@ export const OFFER_CREATION_PRESETS: Record<OfferPresetKey, OfferPreset> = {
     discountValue: 200, // 200 cents ($2.00)
     destinationPath: "/send",
     description: "Applies $2.00 off standard $9.00 card. Final price $7.00.",
-    perCustomerLimit: 1,
   },
   launch_20_pct: {
     key: "launch_20_pct",
@@ -120,7 +124,6 @@ export const OFFER_CREATION_PRESETS: Record<OfferPresetKey, OfferPreset> = {
     destinationPath: "/send",
     description: "100% off ($9.00 card becomes $0.00). Counted as free promo.",
     maxUses: 50,
-    perCustomerLimit: 1,
   },
   recovery_150_off: {
     key: "recovery_150_off",
@@ -203,6 +206,7 @@ export interface AuditedOfferChangeInput {
 export interface AuditedOfferChangeResult {
   success: boolean;
   error?: string;
+  status?: number;
   auditId?: string;
   offer?: OfferVersionRecord;
   action: string;
@@ -550,164 +554,139 @@ export async function previewConsequentialOfferChange(
 export async function executeAuditedOfferChange(
   input: AuditedOfferChangeInput
 ): Promise<AuditedOfferChangeResult> {
-  const normalized = (input.code || "").trim().toUpperCase();
-  if (!normalized || normalized.length < 2) {
-    return {
-      success: false,
-      error: "Valid offer code of at least 2 characters is required.",
-      action: input.action,
-      actorEmail: input.actorEmail,
-      timestamp: Date.now(),
-    };
-  }
-
-  const preview = await previewConsequentialOfferChange(normalized, input.action, input.payload);
-
-  // Guard against illegal hard deletion
-  if (input.action === "delete" && !preview.canHardDelete) {
-    return {
-      success: false,
-      error: preview.reasonBlockHardDelete || "Cannot hard-delete an offer with historical redemptions.",
-      action: input.action,
-      actorEmail: input.actorEmail,
-      timestamp: Date.now(),
-    };
-  }
-
-  const existingOffer = await getOrSyncOfferVersion(normalized);
-  const nowMs = Date.now();
-  const versionRef = getOfferVersionsCollection().doc(`offer_${normalized}_v1`);
-
-  let finalOffer: OfferVersionRecord | undefined;
-
-  if (input.action === "delete") {
-    await versionRef.delete();
-    // Also remove from legacy discount_codes collection if present
-    try {
-      await firestoreDb.collection("discount_codes").doc(normalized).delete();
-    } catch {
-      // Non-fatal
+  const now = Date.now();
+  const result = { action: input.action, actorEmail: input.actorEmail, timestamp: now };
+  try {
+    const code = normalizePromotionCode(input.code);
+    if (!code) throw new PromotionAdminError("Use 2–64 letters, numbers, underscores or hyphens for the code.");
+    if (!["create", "update", "pause", "activate", "archive", "delete"].includes(input.action)) {
+      throw new PromotionAdminError("Choose a supported discount action.");
     }
-  } else if (input.action === "archive") {
-    const updated: OfferVersionRecord = {
-      ...(existingOffer || {
-        offerId: `offer_${normalized}`,
-        version: 1,
-        code: normalized,
-        purpose: "Archived Offer",
-        destinationPath: "/",
-        discountType: "FIXED_AMOUNT",
-        discountValue: 0,
-        usedCount: 0,
-        reservedCount: 0,
-        totalDiscountGivenCents: 0,
-        stackingAllowed: false,
-        timezone: "UTC",
-        createdAt: nowMs,
-      }),
-      status: "archived",
-      updatedAt: nowMs,
-    };
-    await versionRef.set(updated, { merge: true });
-    finalOffer = updated;
-  } else if (input.action === "pause") {
-    const updated: OfferVersionRecord = {
-      ...(existingOffer || {
-        offerId: `offer_${normalized}`,
-        version: 1,
-        code: normalized,
-        purpose: "Promotional Offer",
-        destinationPath: "/",
-        discountType: "FIXED_AMOUNT",
-        discountValue: 0,
-        usedCount: 0,
-        reservedCount: 0,
-        totalDiscountGivenCents: 0,
-        stackingAllowed: false,
-        timezone: "UTC",
-        createdAt: nowMs,
-      }),
-      status: "paused",
-      updatedAt: nowMs,
-    };
-    await versionRef.set(updated, { merge: true });
-    finalOffer = updated;
-  } else if (input.action === "activate") {
-    const updated: OfferVersionRecord = {
-      ...(existingOffer || {
-        offerId: `offer_${normalized}`,
-        version: 1,
-        code: normalized,
-        purpose: "Active Offer",
-        destinationPath: "/",
-        discountType: "FIXED_AMOUNT",
-        discountValue: 0,
-        usedCount: 0,
-        reservedCount: 0,
-        totalDiscountGivenCents: 0,
-        stackingAllowed: false,
-        timezone: "UTC",
-        createdAt: nowMs,
-      }),
-      status: "active",
-      updatedAt: nowMs,
-    };
-    await versionRef.set(updated, { merge: true });
-    finalOffer = updated;
-  } else {
-    // create or update
-    const base: OfferVersionRecord = existingOffer || {
-      offerId: `offer_${normalized}`,
-      version: 1,
-      code: normalized,
-      purpose: input.payload?.purpose || "Promotional Offer",
-      destinationPath: input.payload?.destinationPath || "/send",
-      discountType: input.payload?.discountType || "FIXED_AMOUNT",
-      discountValue: input.payload?.discountValue ?? 100,
-      status: "active",
-      usedCount: 0,
-      reservedCount: 0,
-      totalDiscountGivenCents: 0,
-      stackingAllowed: false,
-      timezone: "UTC",
-      createdAt: nowMs,
-      updatedAt: nowMs,
-    };
+    const payload = parseLegacyOfferPayload(input.payload);
+    const preview = await previewConsequentialOfferChange(code, input.action, payload);
+    if (input.action === "delete" && (!preview.canHardDelete || preview.activeReservationsCount > 0)) {
+      throw new PromotionAdminError("Archive this code to retain its orders and pending checkouts.", 409);
+    }
+    const changed = await firestoreDb.runTransaction(async (tx) => {
+      const refs = promotionCodeReferences(code);
+      const [legacySnap, versionSnap, ...issued] = await Promise.all(refs.map((ref) => tx.get(ref)));
+      const [usageSnap, migrationSnap] = await Promise.all([
+        tx.get(offerBalanceRef("code", code)), tx.get(offerCutoverRef()),
+      ]);
+      if (migrationSnap.data()?.state === "fenced") {
+        throw new PromotionAdminError("Discount changes are paused while limits are being migrated.", 409);
+      }
+      if (issued.some((snapshot) => snapshot.exists)) throw new PromotionAdminError("Manage this campaign from its campaign editor.", 409);
 
-    const merged: OfferVersionRecord = {
-      ...base,
-      ...(input.payload || {}),
-      code: normalized,
-      updatedAt: nowMs,
-    };
-
-    await versionRef.set(merged, { merge: true });
-    finalOffer = merged;
+      const legacy = legacySnap.data();
+      const version = versionSnap.data() as OfferVersionRecord | undefined;
+      const existing: OfferVersionRecord | undefined = version ?? (legacy ? withoutUndefined({
+        offerId: `offer_${code}`, version: 1, code, purpose: legacy.description || "Promotional Discount",
+        destinationPath: "/", discountType: legacy.type, discountValue: legacy.value, status: legacy.isActive ? "active" : "paused",
+        maxUses: legacy.maxUses ?? undefined, endsAt: legacy.expiresAt ?? undefined, usedCount: legacy.usedCount ?? 0,
+        reservedCount: 0, totalDiscountGivenCents: legacy.totalDiscountGivenCents ?? 0, createdAt: legacy.createdAt ?? now,
+        updatedAt: legacy.updatedAt ?? now, timezone: "UTC", stackingAllowed: false,
+      }) as OfferVersionRecord : undefined);
+      if (input.action === "create" && existing) throw new PromotionAdminError("This code is already in use.", 409);
+      if (input.action !== "create" && !existing) throw new PromotionAdminError("Discount code not found.", 404);
+      if (existing?.status === "archived" && input.action !== "archive" && input.action !== "delete") {
+        throw new PromotionAdminError("An archived code cannot be reactivated.", 409);
+      }
+      const usage = readPromotionBalance(usageSnap);
+      let offer: OfferVersionRecord | undefined;
+      if (input.action === "delete") {
+        if (usage.heldUses || usage.spentUses || existing?.usedCount || existing?.reservedCount || legacy?.usedCount) {
+          throw new PromotionAdminError("Archive this code to retain its orders and pending checkouts.", 409);
+        }
+        tx.delete(refs[0]);
+        tx.delete(refs[1]);
+      } else {
+        const defaults: OfferVersionRecord = {
+          offerId: `offer_${code}`, version: 1, code, purpose: "Promotional Discount", destinationPath: "/send",
+          discountType: "FIXED_AMOUNT", discountValue: 100, status: "active", timezone: "UTC",
+          usedCount: 0, reservedCount: 0, totalDiscountGivenCents: 0, stackingAllowed: false, createdAt: now, updatedAt: now,
+        };
+        offer = withoutUndefined({
+          ...(existing ?? defaults), ...payload, updatedAt: now,
+          status: input.action === "archive" ? "archived" : input.action === "pause" ? "paused" : input.action === "activate" ? "active" :
+            payload.status ?? existing?.status ?? "active",
+        });
+        const heldUses = Math.max(usage.heldUses, offer.reservedCount || 0);
+        const spentUses = Math.max(usage.spentUses, offer.usedCount || 0, legacy?.usedCount || 0);
+        const spentCents = Math.max(usage.spentCents, offer.totalDiscountGivenCents || 0, legacy?.totalDiscountGivenCents || 0);
+        if ((payload.maxUses ?? Infinity) < heldUses + spentUses || (payload.dollarBudgetLimitCents ?? Infinity) < usage.heldCents + spentCents) {
+          throw new PromotionAdminError("Discount limits must cover their held and spent balance.", 409);
+        }
+        if (existing?.campaignId !== offer.campaignId && existing && (heldUses || spentUses)) {
+          throw new PromotionAdminError("A campaign with held or redeemed uses cannot change its campaign ID.", 409);
+        }
+        if (input.action === "create" || payload.discountType !== undefined || payload.discountValue !== undefined) {
+          if (offer.discountType === "PERCENTAGE" && offer.discountValue > 100) throw new PromotionAdminError("Percentage discount cannot exceed 100%.");
+          const discount = offer.discountType === "PERCENTAGE" ? Math.round(900 * offer.discountValue / 100) : Math.min(900, offer.discountValue);
+          if (!isSupportedPromotionPayable(900 - discount, true)) throw new PromotionAdminError("These rules can leave a charge below $0.50.");
+          if (discount === 900 && offer.dollarBudgetLimitCents === undefined) throw new PromotionAdminError("Set a finite budget for a free offer.");
+        }
+        if (offer.endsAt !== undefined && offer.startsAt !== undefined && offer.endsAt <= offer.startsAt) {
+          throw new PromotionAdminError("Set the end time after the start time.");
+        }
+        tx.set(refs[1], offer);
+        tx.set(refs[0], {
+          ...(legacy ?? {}), id: code, code, type: offer.discountType, value: offer.discountValue, description: offer.purpose,
+          isActive: offer.status === "active" || offer.status === "scheduled", createdAt: offer.createdAt, updatedAt: now,
+          maxUses: offer.maxUses ?? null, expiresAt: offer.endsAt ?? null,
+          usedCount: Math.max(legacy?.usedCount ?? 0, offer.usedCount), totalDiscountGivenCents: Math.max(legacy?.totalDiscountGivenCents ?? 0, offer.totalDiscountGivenCents),
+        });
+      }
+      const auditDoc = firestoreDb.collection(ADMIN_AUDIT_LOG_COLLECTION).doc();
+      tx.create(auditDoc, {
+        id: auditDoc.id, actorEmail: input.actorEmail, environment: configuredAdminEnvironment(), action: input.action,
+        targetType: "offer", targetId: code, previousState: existing ?? null, newState: offer ?? null,
+        reason: typeof input.reason === "string" && input.reason.trim() ? input.reason.trim().slice(0, 400) : preview.actionSummary,
+        timestamp: now,
+      });
+      return { offer, auditId: auditDoc.id };
+    });
+    return { ...result, ...changed, success: true };
+  } catch (error) {
+    if (!(error instanceof PromotionAdminError)) throw error;
+    return { ...result, success: false, error: error.message, status: error.status };
   }
+}
 
-  // Record Immutable Audit Log Entry
-  const auditDocRef = firestoreDb.collection(ADMIN_AUDIT_LOG_COLLECTION).doc();
-  const auditRecord: AdminAuditLogRecord = {
-    id: auditDocRef.id,
-    actorEmail: input.actorEmail,
-    action: input.action,
-    targetType: "offer",
-    targetId: normalized,
-    previousState: existingOffer || null,
-    newState: finalOffer || null,
-    reason: input.reason || preview.actionSummary,
-    timestamp: nowMs,
-  };
-  await auditDocRef.set(auditRecord);
-
-  return {
-    success: true,
-    auditId: auditDocRef.id,
-    offer: finalOffer,
-    action: input.action,
-    actorEmail: input.actorEmail,
-    timestamp: nowMs,
-  };
+function parseLegacyOfferPayload(value: unknown): Partial<OfferVersionRecord> {
+  if (value === undefined) return {};
+  const input = adminObject(value, "discount changes");
+  const allowed = new Set(["purpose", "destinationPath", "discountType", "discountValue", "startsAt", "endsAt", "timezone", "status",
+    "maxUses", "dollarBudgetLimitCents", "perCustomerLimit", "campaignId", "stackingAllowed"]);
+  if (Object.keys(input).some((key) => !allowed.has(key))) throw new PromotionAdminError("This discount field cannot be changed.");
+  const result: Partial<OfferVersionRecord> = {};
+  for (const key of ["purpose", "campaignId", "timezone"] as const) {
+    const field = input[key];
+    if (field === undefined) continue;
+    if (typeof field !== "string" || !field.trim() || field.trim().length > 200) throw new PromotionAdminError(`Enter a valid ${key}.`);
+    if (key === "campaignId" && !/^[A-Za-z0-9_-]{1,128}$/.test(field.trim())) throw new PromotionAdminError("Enter a valid campaign ID.");
+    result[key] = field.trim();
+  }
+  if (input.destinationPath !== undefined) {
+    if (typeof input.destinationPath !== "string") throw new PromotionAdminError("Choose a supported destination path.");
+    const path = validateDestinationPath(input.destinationPath);
+    if (!path.isValid) throw new PromotionAdminError("Choose a supported destination path.");
+    result.destinationPath = path.normalizedPath;
+  }
+  if (input.discountType !== undefined) {
+    if (input.discountType !== "FIXED_AMOUNT" && input.discountType !== "PERCENTAGE") throw new PromotionAdminError("Choose a supported discount type.");
+    result.discountType = input.discountType;
+  }
+  if (input.stackingAllowed !== undefined && input.stackingAllowed !== false) throw new PromotionAdminError("Only one code can apply per order.");
+  if (input.status !== undefined) {
+    if (input.status !== "active" && input.status !== "draft" && input.status !== "paused") throw new PromotionAdminError("Choose a supported status.");
+    result.status = input.status;
+  }
+  for (const key of ["discountValue", "maxUses", "dollarBudgetLimitCents", "perCustomerLimit", "startsAt", "endsAt"] as const) {
+    if (input[key] !== undefined) result[key] = adminInteger(input[key], key, key === "startsAt" ? 0 : 1,
+      key === "startsAt" || key === "endsAt" ? 8_640_000_000_000_000 : 100_000_000);
+  }
+  return result;
 }
 
 // ============================================================================

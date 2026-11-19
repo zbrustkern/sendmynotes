@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { firestoreDb } from "../firebase-admin";
 
-export type CheckoutGroup = { ownerKey: string; currentOrderId?: string; currentRevision?: string; state: "creating" | "active" | "replacing" | "blocked" | "transferring" | "transferred"; leaseId?: string; updatedAt: number;
+export type CheckoutGroup = { ownerKey: string; currentOrderId?: string; currentRevision?: string; lastRetiredOrderId?: string; state: "creating" | "active" | "replacing" | "blocked" | "transferring" | "transferred"; leaseId?: string; updatedAt: number;
   weddingTransfer?: { inputHash: string; leaseUntil: number; projectId?: string; actorId?: string; sessionId?: string; copiedCount?: number; greetingReviewIds?: string[] };
 };
 const groupId = (checkoutId: string) => crypto.createHash("sha256").update(checkoutId).digest("hex");
@@ -45,7 +45,7 @@ export async function claimMultiSendCheckout(input: {
       const previous = previousSnap.exists ? previousSnap.data() as any : null;
       if (!previous || previous.status !== "PENDING_PAYMENT" || input.replaces?.orderId !== previousOrderId || input.replaces?.viewToken !== previous.viewToken) return { claimed: false, code: "MULTI_SEND_REPLACEMENT_PROOF_REQUIRED" };
     }
-    tx.set(ref, { ownerKey: input.ownerKey, currentOrderId: input.orderId, currentRevision: input.contentRevision, state: previousOrderId ? "replacing" : "creating", leaseId, updatedAt: Date.now() });
+    tx.set(ref, { ownerKey: input.ownerKey, ...(group?.lastRetiredOrderId ? { lastRetiredOrderId: group.lastRetiredOrderId } : {}), currentOrderId: input.orderId, currentRevision: input.contentRevision, state: previousOrderId ? "replacing" : "creating", leaseId, updatedAt: Date.now() });
     return { claimed: true, previousOrderId, leaseId };
   });
 }
@@ -89,13 +89,13 @@ export async function abortMultiSendCheckoutClaim(input: { checkoutId: string; l
   });
 }
 
-export async function resetMultiSendCheckoutAfterCanceledReplacement(checkoutId: string, leaseId: string): Promise<void> {
+export async function resetMultiSendCheckoutAfterCanceledReplacement(checkoutId: string, leaseId: string, retiredOrderId?: string): Promise<void> {
   const ref = firestoreDb.collection("multi_send_checkout_groups").doc(groupId(checkoutId));
   await firestoreDb.runTransaction(async (tx: any) => {
     const snap = await tx.get(ref);
     const group = snap.exists ? snap.data() as CheckoutGroup : undefined;
-    if (!group || group.leaseId !== leaseId || group.state !== "replacing") throw new Error("Multi-send replacement claim was lost.");
-    tx.update(ref, { currentOrderId: null, currentRevision: null, state: "active", leaseId: null, updatedAt: Date.now() });
+    if (!group || group.leaseId !== leaseId || !["replacing", "creating"].includes(group.state)) throw new Error("Multi-send replacement claim was lost.");
+    tx.update(ref, { currentOrderId: null, currentRevision: null, ...(retiredOrderId ? { lastRetiredOrderId: retiredOrderId } : {}), state: "active", leaseId: null, updatedAt: Date.now() });
   });
 }
 

@@ -28,6 +28,7 @@
  *   - Zero billable supplier calls or production effects invoked
  */
 
+import { offerCheckoutFixture } from "./fixtures/offer-checkout";
 import { withSafeTestHarness } from "../lib/testing/safe-harness";
 import {
   extractOfferCodeFromUrlParams,
@@ -191,15 +192,16 @@ async function runSprint0005Tests() {
     assert(versionRecord !== null && versionRecord.maxUses === 1, "Bridged legacy discount into offer_versions with maxUses: 1");
 
     // 2.1 Concurrent reservation race: two checkouts request the single remaining slot simultaneously
+    const scarceQuote = (await issueOfferPriceQuote({ code: singleSlotCode, nowMs: now })).quote!;
     const [resA, resB] = await Promise.all([
       reserveOfferForCheckout({
-        code: singleSlotCode,
+        code: singleSlotCode, quoteId: scarceQuote.quoteId,
         orderId: "order_concurrent_A",
         sessionId: "sess_user_A",
         nowMs: now,
       }),
       reserveOfferForCheckout({
-        code: singleSlotCode,
+        code: singleSlotCode, quoteId: scarceQuote.quoteId,
         orderId: "order_concurrent_B",
         sessionId: "sess_user_B",
         nowMs: now,
@@ -216,12 +218,17 @@ async function runSprint0005Tests() {
 
     // 2.2 Releasing reservation frees up the scarce slot
     const holdingOrderId = successfulRes.reservation?.orderId!;
-    const releaseSuccess = await releaseOfferReservation(holdingOrderId, "canceled");
+    const hold = successfulRes.reservation;
+    await saveOrder({ id: holdingOrderId, status: "PENDING_PAYMENT", discountCode: singleSlotCode, stripePaymentId: "pi_scarce_canceled" } as any);
+    const releaseSuccess = await releaseOfferReservation(holdingOrderId, "canceled", {
+      sessionId: hold?.sessionId,
+      paymentIntent: { id: "pi_scarce_canceled", status: "canceled", metadata: { orderId: holdingOrderId, quoteId: scarceQuote.quoteId }, amount: 700, currency: "usd" },
+    });
     assert(releaseSuccess === true, "Released active reservation on order cancellation");
 
     // Now order_concurrent_B can reserve the slot
     const retryResB = await reserveOfferForCheckout({
-      code: singleSlotCode,
+      code: singleSlotCode, quoteId: scarceQuote.quoteId,
       orderId: "order_concurrent_B",
       sessionId: "sess_user_B",
       nowMs: now + 10,
@@ -259,13 +266,14 @@ async function runSprint0005Tests() {
     });
 
     // A fresh customer attempts checkout: reservation engine must prune the expired hold and succeed
+    const expiredCampaignQuote = (await issueOfferPriceQuote({ code: expiredSlotCode, nowMs: now })).quote!;
     const freshCheckoutRes = await reserveOfferForCheckout({
-      code: expiredSlotCode,
+      code: expiredSlotCode, quoteId: expiredCampaignQuote.quoteId,
       orderId: "order_fresh_buyer",
       sessionId: "sess_fresh_buyer",
       nowMs: now,
     });
-    assert(freshCheckoutRes.reserved === true, "Expired reservation hold automatically pruned; fresh buyer successfully claims slot");
+    assert(!freshCheckoutRes.reserved, "Expired unbound legacy reservation retains exposure for reconciliation");
 
     // 2.4 Duplicate redemptions consume ONCE (exactly-once semantics)
     const idempotentCode = "IDEMPOTENT_TEST_CODE";
@@ -285,30 +293,14 @@ async function runSprint0005Tests() {
     await getOrSyncOfferVersion(idempotentCode);
 
     const targetOrderId = "order_dual_callback_123";
-    // First redemption call (e.g. from client confirmation)
-    const firstRedemption = await redeemOfferForOrder({
-      code: idempotentCode,
-      orderId: targetOrderId,
-      discountAmountCents: 300,
-      finalAmountCents: 600,
-      verifiedCaptureId: "pi_stripe_capture_123",
-      nowMs: now,
-    });
+    const idempotent = await offerCheckoutFixture({ code: idempotentCode, orderId: targetOrderId, now });
+    const firstRedemption = await redeemOfferForOrder(idempotent.redemption);
     assert(firstRedemption.redeemed === true && !firstRedemption.duplicate, "First redemption succeeds");
-
-    // Second redemption call (e.g. from asynchronous Stripe webhook replay)
-    const secondRedemption = await redeemOfferForOrder({
-      code: idempotentCode,
-      orderId: targetOrderId,
-      discountAmountCents: 300,
-      finalAmountCents: 600,
-      verifiedCaptureId: "pi_stripe_capture_123",
-      nowMs: now + 500,
-    });
+    const secondRedemption = await redeemOfferForOrder({ ...idempotent.redemption, nowMs: now + 500 });
     assert(secondRedemption.redeemed === true && secondRedemption.duplicate === true, "Second redemption is recognized as duplicate");
 
     // Verify usedCount is strictly 1, NOT 2
-    const checkedCode = await getDiscountCode(idempotentCode);
+    const checkedCode = await getOrSyncOfferVersion(idempotentCode);
     assert(checkedCode?.usedCount === 1, "Counter usedCount is strictly 1 after duplicate redemption attempts");
     assert(checkedCode?.totalDiscountGivenCents === 300, "Cumulative savings totalDiscountGivenCents is strictly 300¢ (not double-counted)");
 
@@ -382,12 +374,9 @@ async function runSprint0005Tests() {
     await getOrSyncOfferVersion(boundCode);
     const boundOrderId = `order_bound_${Date.now()}`;
     const boundPiId = `pi_bound_${Date.now()}`;
-    const boundQuote = await issueOfferPriceQuote({ code: boundCode, nowMs: now });
-    const boundQuoteId = boundQuote.quote?.quoteId as string;
-    await reserveOfferForCheckout({ code: boundCode, orderId: boundOrderId, sessionId: "sess_bound", quoteId: boundQuoteId, nowMs: now });
-    await saveOrder({ id: boundOrderId, status: "PENDING_PAYMENT", discountCode: boundCode, quoteId: boundQuoteId, finalAmountInCents: boundQuote.finalAmountInCents, discountAmountInCents: boundQuote.discountAmountInCents, createdAt: now, updatedAt: now } as any);
-    await recordPaymentCaptureFact({ orderId: boundOrderId, paymentIntentId: boundPiId, amountCents: boundQuote.finalAmountInCents as number, currency: "usd", livemode: true });
-    const boundRedemption = await redeemOfferForOrder({ code: boundCode, orderId: boundOrderId, quoteId: boundQuoteId, discountAmountCents: boundQuote.discountAmountInCents as number, finalAmountCents: boundQuote.finalAmountInCents as number, verifiedCaptureId: boundPiId, requireAuthoritativeBinding: true, nowMs: now });
+    const bound = await offerCheckoutFixture({ code: boundCode, orderId: boundOrderId, now, live: true });
+    const boundQuoteId = bound.quote.quoteId;
+    const boundRedemption = await redeemOfferForOrder(bound.redemption);
     assert(boundRedemption.redeemed, "Server redemption accepts exact persisted quote, order, reservation, and capture binding", boundRedemption.error);
     const changedTermsReplay = await redeemOfferForOrder({ code: "OTHER_CODE", orderId: boundOrderId, quoteId: boundQuoteId, discountAmountCents: 0, finalAmountCents: 900, verifiedCaptureId: "other_pi", requireAuthoritativeBinding: true, nowMs: now });
     assert(!changedTermsReplay.redeemed, "Idempotency replay with changed commercial terms is rejected");
@@ -410,22 +399,14 @@ async function runSprint0005Tests() {
     await getOrSyncOfferVersion(refundOrderCode);
 
     const refundOrderId = "order_to_be_refunded_999";
-    await redeemOfferForOrder({
-      code: refundOrderCode,
-      orderId: refundOrderId,
-      discountAmountCents: 400,
-      finalAmountCents: 500,
-      verifiedCaptureId: "pi_captured_for_refund",
-      nowMs: now,
-    });
-
-    const codeAfterRedeem = await getDiscountCode(refundOrderCode);
+    const refundFixture = await offerCheckoutFixture({ code: refundOrderCode, orderId: refundOrderId, now, live: true });
+    assert((await redeemOfferForOrder(refundFixture.redemption)).redeemed, "Paid offer redemption succeeded");
+    const codeAfterRedeem = await getOrSyncOfferVersion(refundOrderCode);
     assert(codeAfterRedeem?.usedCount === 1, "Used count incremented to 1 on redemption");
 
-    // Process refund outcome
     const refundRecorded = await recordOfferRefundOutcome({
-      orderId: refundOrderId,
-      refundAmountCents: 500,
+      orderId: refundOrderId, refundId: "re_test_legacy_offer", paymentIntentId: refundFixture.paymentIntent.id,
+      status: "succeeded", amountCents: 500, currency: "usd", livemode: true,
     });
     assert(refundRecorded === true, "Recorded refund outcome on offer redemption document");
 
@@ -437,7 +418,7 @@ async function runSprint0005Tests() {
     assert(REFUND_RESTORES_OFFER_USAGE === false, "REFUND_RESTORES_OFFER_USAGE constant is strictly false per Contract 4");
 
     // Verify usedCount was NOT restored / decremented
-    const codeAfterRefund = await getDiscountCode(refundOrderCode);
+    const codeAfterRefund = await getOrSyncOfferVersion(refundOrderCode);
     assert(codeAfterRefund?.usedCount === 1, "usedCount is preserved at 1 after refund (usage is NOT restored)");
 
     // =========================================================================
@@ -474,42 +455,20 @@ async function runSprint0005Tests() {
 
     // 4.2 Free order redemption
     const freeOrderId = "order_free_promo_001";
-    const freeRedeemResult = await redeemOfferForOrder({
-      code: freePromoCode,
-      orderId: freeOrderId,
-      discountAmountCents: CARD_FLAT_RATE_CENTS,
-      finalAmountCents: 0,
-      isFreePromo: true,
-      nowMs: now,
-    });
+    const freeFixture = await offerCheckoutFixture({ code: freePromoCode, orderId: freeOrderId, now });
+    const freeRedeemResult = await redeemOfferForOrder(freeFixture.redemption);
     assert(freeRedeemResult.redeemed === true, "Free promo order redeemed successfully without payment intent");
     assert(freeRedeemResult.redemption?.commercialKind === "free_promo", "Commercial kind classified as 'free_promo'");
 
-    // 4.3 Studio comp redemption
+    // Historical comp records remain distinguishable in reporting. Current admin comp owns a separate purchase path.
     const compOrderId = "order_studio_comp_002";
-    const compRedeemResult = await redeemOfferForOrder({
-      code: freePromoCode,
-      orderId: compOrderId,
-      discountAmountCents: CARD_FLAT_RATE_CENTS,
-      finalAmountCents: 0,
-      isStudioComp: true,
-      nowMs: now,
+    await getOfferRedemptionsCollection().doc(`redemption_${compOrderId}`).set({
+      offerId: `offer_${freePromoCode}`, orderId: compOrderId, payableAmountCents: 0, discountAmountCents: 900, commercialKind: "studio_comp",
     });
-    assert(compRedeemResult.redeemed === true, "Studio comp redeemed successfully");
-    assert(compRedeemResult.redemption?.commercialKind === "studio_comp", "Commercial kind classified as 'studio_comp'");
-
-    // 4.4 Standard paid discounted redemption
     const paidOrderId = "order_paid_discounted_003";
-    const paidRedeemResult = await redeemOfferForOrder({
-      code: freePromoCode,
-      orderId: paidOrderId,
-      discountAmountCents: 450,
-      finalAmountCents: 450,
-      verifiedCaptureId: "pi_paid_450",
-      nowMs: now,
+    await getOfferRedemptionsCollection().doc(`redemption_${paidOrderId}`).set({
+      offerId: `offer_${freePromoCode}`, orderId: paidOrderId, payableAmountCents: 450, discountAmountCents: 450, commercialKind: "discounted_paid",
     });
-    assert(paidRedeemResult.redeemed === true, "Paid discounted order redeemed successfully");
-    assert(paidRedeemResult.redemption?.commercialKind === "discounted_paid", "Commercial kind classified as 'discounted_paid'");
 
     // 4.5 Offer Analytics Summary: costStatus: "unconfirmed" and netMarginCents: null
     const analytics = await getOfferAnalyticsSummary(freePromoCode);

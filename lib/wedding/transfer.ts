@@ -8,7 +8,7 @@ import { extractGreetingTargetName } from '../multi-send/greeting-guard';
 import { AccountError, requireAccountActor } from '../account/http';
 import { resolvePaymentMode } from '../payment-mode';
 import { getStripeClient } from '../stripe';
-import { releaseOfferReservation } from '../offer-engine';
+import { getActiveOfferReservation, releaseOfferReservation, type OfferIntentEvidence } from '../offer-engine';
 import type { Order } from '../types';
 import { createWeddingProject, weddingState } from './project';
 import { canonicalWeddingJSON, weddingHash } from './hash';
@@ -80,23 +80,24 @@ function assertIntent(order:Order,pi:Stripe.PaymentIntent) {
 }
 /** A missing saved intent ID is ambiguous: Stripe may have accepted a timed-out
  * create. Never infer nonpayment from our pending/failed status or an old lease. */
-export async function reconcileWeddingTransferPayment(order:Order):Promise<void> {
+export async function reconcileWeddingTransferPayment(order:Order):Promise<OfferIntentEvidence> {
   if(paidOrder(order))authorizedStatus(order,'paid');
   if(!order.stripePaymentId)authorizedStatus(order,'uncertain');
   let mode;try {mode=resolvePaymentMode();}catch {authorizedStatus(order,'uncertain');}
-  if(mode==='local_mock'&&process.env.NODE_ENV==='test'&&process.env.SMN_TEST_DATA_DIR&&order.paymentMode==='local_mock'&&order.stripePaymentId===`pi_mock_${order.id}`&&order.status==='PENDING_PAYMENT')return;
+  if(mode==='local_mock'&&process.env.NODE_ENV==='test'&&process.env.SMN_TEST_DATA_DIR&&order.paymentMode==='local_mock'&&order.stripePaymentId===`pi_mock_${order.id}`&&order.status==='PENDING_PAYMENT')return {id:order.stripePaymentId,status:'canceled',amount:order.amountInCents,currency:'usd',livemode:false,metadata:{orderId:order.id,quoteId:order.quoteId || '',contentRevision:order.multiSend?.contentRevision || ''}};
   if(mode!=='stripe_test'||order.paymentMode!=='stripe_test')authorizedStatus(order,'uncertain');
   const stripe=getStripeClient();
   const retrieve=async()=>{try {const pi=await stripe.paymentIntents.retrieve(order.stripePaymentId!);assertIntent(order,pi);return pi;}catch(error){if(error instanceof WeddingTransferError)throw error;authorizedStatus(order,'uncertain');}};
   let pi=await retrieve();
   if(pi.status==='succeeded')authorizedStatus(order,'paid');
   if(pi.status==='processing'||pi.status==='requires_capture')authorizedStatus(order,'pending');
-  if(pi.status==='canceled')return;
+  if(pi.status==='canceled')return pi;
   if(!['requires_payment_method','requires_confirmation','requires_action'].includes(pi.status))authorizedStatus(order,'uncertain');
   try {pi=await stripe.paymentIntents.cancel(pi.id,{}, {idempotencyKey:`wedding-transfer-${order.id}`});assertIntent(order,pi);}catch(error){if(error instanceof WeddingTransferError)throw error;pi=await retrieve();}
   // Verify cancellation response, including a late capture or lost response.
   if(pi.status==='succeeded')authorizedStatus(order,'paid');
   if(pi.status!=='canceled')authorizedStatus(order,pi.status==='processing'||pi.status==='requires_capture'?'pending':'uncertain');
+  return pi;
 }
 function checkProof(group:CheckoutGroup,order:Order|undefined,input:TransferInput) {
   if(!group.currentOrderId){if(input.paymentAttempted||input.proof)failure('TRANSFER_RECONCILIATION_REQUIRED','The previous checkout cannot be verified. Keep the original draft.');return;}
@@ -159,7 +160,21 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
   const claim=await sourceClaim(input,ownerKey,body.coverResolution!=null);
   if(!account)onCapability?.(cookieName,capability);
   try {
-    if(!claim.replay&&claim.order){await reconcileWeddingTransferPayment(claim.order);await releaseOfferReservation(claim.order.id,'removed');}
+    let releasedOffer = false;
+    if (!claim.replay && claim.order) {
+      const order = claim.order;
+      const paymentIntent = await reconcileWeddingTransferPayment(order);
+      if (order.discountCode) {
+        const hold = await getActiveOfferReservation(order.id);
+        if (hold) {
+          releasedOffer = await releaseOfferReservation(order.id, 'removed', {
+            ownerKey, ownerId: account?.uid, sessionId: order.sessionId || hold.sessionId,
+            checkoutRevision: order.checkoutRevision || hold.checkoutRevision, paymentIntent,
+          });
+          if (!releasedOffer) authorizedStatus(order, 'uncertain');
+        }
+      }
+    }
     // A fresh core-owned private project is never exposed until the atomic copy
     // and source fence finish. Failure can leave only an empty expiring project.
     const fresh=claim.replay?null:await createWeddingProject(account?ownerKey:deviceToken);
@@ -181,7 +196,7 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
       checkProof(group,prior,input);
       if(!claim.replay&&prior){
         if(paidOrder(prior))authorizedStatus(prior,'paid');
-        if(prior.stripePaymentId!==claim.order?.stripePaymentId||prior.status!==claim.order?.status)authorizedStatus(prior,'uncertain');
+        if(prior.stripePaymentId!==claim.order?.stripePaymentId||(prior.status!==claim.order?.status && !(releasedOffer && prior.status==='FAILED' && prior.fulfillmentStatus==='OFFER_RESERVATION_RELEASED')))authorizedStatus(prior,'uncertain');
       }
       const projectId=claim.replay?group.weddingTransfer!.projectId!:fresh!.projectId;
       const actorId=claim.replay?group.weddingTransfer!.actorId!:fresh!.actorId;

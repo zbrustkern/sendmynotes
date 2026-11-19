@@ -6,7 +6,6 @@ import { processPaidOrder, verifyPaymentIntentForOrder } from "@/lib/order-proce
 import { recordPaymentCaptureFact, deriveCommercialKind } from "@/lib/financial-ledger";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { logIncident } from "@/lib/incident-logger";
-import { verifyCheckoutQuoteIntegrity, redeemOfferForOrder } from "@/lib/offer-engine";
 import { buildPurchaseMeasurement, persistPurchaseMeasurement, projectPurchaseMeasurementForOrder, validateVerifiedCapture } from "@/lib/purchase-measurement";
 import { effectiveOrderEmail } from "@/lib/checkout-contact";
 import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/receipt-email-delivery";
@@ -70,6 +69,7 @@ export async function POST(req: NextRequest) {
     let paymentMode: PaymentMode = mode;
     let customerEmailFromStripe: string | undefined;
     let serverVerifiedPaymentIntent: any;
+    let captureObservedAt: number | undefined;
 
     if (!isMockDevMode) {
       // Synchronously verify PaymentIntent directly via Stripe API (Fail Closed)
@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
       try {
         const stripe = getStripeClient();
         pi = await stripe.paymentIntents.retrieve(verifiedPaymentIntentId);
+        captureObservedAt = Date.now();
         serverVerifiedPaymentIntent = pi;
       } catch (stripeErr: unknown) {
         const msg = stripeErr instanceof Error ? stripeErr.message : "Stripe API retrieval error";
@@ -238,63 +239,14 @@ export async function POST(req: NextRequest) {
       isTest = !pi.livemode;
       paymentMode = pi.livemode ? "live" : "stripe_test";
 
-      // Persist a minimal immutable snapshot before the fulfillment idempotency path can return early.
-      try {
-        purchaseMeasurement = await persistPurchaseMeasurement(orderId, buildPurchaseMeasurement(order, {
-          paymentIntentId: pi.id,
-          amount: pi.amount,
-          amountReceived: pi.amount_received,
-          currency: pi.currency,
-          livemode: pi.livemode,
-        }));
-      } catch {
-        console.warn("[Confirm Order] Purchase measurement snapshot write unavailable.");
-      }
-    } else {
-      console.log(`[Confirm Order] Mock mode verification active for order ${orderId}`);
-      const expectedAmountCents =
-        typeof order.finalAmountInCents === "number" && order.finalAmountInCents >= 0
-          ? order.finalAmountInCents
-          : typeof order.amountInCents === "number" && order.amountInCents >= 0
-          ? order.amountInCents
-          : CARD_FLAT_RATE_CENTS;
-
     }
-
-    await trySyncPostPurchaseOrder(orderId);
-
-    // A browser's verifyOnly request remains a non-dispatching quote check.
-    // Real completion delegates the transactional hold to processPaidOrder so
-    // webhook and synchronous paths share the same race-safe authority.
-    if (verifyOnly === true && order.origin !== "ADMIN_COMP") {
-      const expectedAmountCents = typeof order.finalAmountInCents === "number" && order.finalAmountInCents >= 0
-        ? order.finalAmountInCents
-        : typeof order.amountInCents === "number" && order.amountInCents >= 0
-        ? order.amountInCents
-        : CARD_FLAT_RATE_CENTS;
-      const integrityCheck = await verifyCheckoutQuoteIntegrity({
-        quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
-        code: order.discountCode,
-        expectedFinalCents: expectedAmountCents,
-        paymentIntentAmountCents: serverVerifiedPaymentIntent?.amount ?? expectedAmountCents,
-        surchargeCents: order.quote?.internationalSurchargeCents || 0,
-        ...(order.multiSend ? { multiSendCount: order.multiSend.recipients.length } : {}),
-      });
-      if (!integrityCheck.valid) {
-        return NextResponse.json({ success: false, error: integrityCheck.reason || "Price changed or quote expired. Please reconfirm total before paying.", requiresPriceReconfirmation: true }, { status: 409 });
-      }
-    }
-
-    purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
 
     if (verifyOnly === true) {
-      return NextResponse.json({
-        success: true,
-        status: "PAYMENT_RECEIVED",
-        orderId,
-        viewToken: order.viewToken,
-        purchaseMeasurement,
-      });
+      const settlement = await processPaidOrder(orderId, verifiedPaymentIntentId, customerEmailFromStripe,
+        { isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent, captureObservedAt, settleOnly: true });
+      if (!settlement.success) {
+        return NextResponse.json({ success: false, status: settlement.status, error: settlement.error, offerRedemption: settlement.offerRedemption, requiresPriceReconfirmation: settlement.requiresPriceReconfirmation }, { status: 409 });
+      }
     }
 
     const clientIp =
@@ -305,12 +257,32 @@ export async function POST(req: NextRequest) {
     const resolvedEmail = effectiveOrderEmail(order, customerEmail || customerEmailFromStripe);
 
     // Process and fulfill the verified paid order (atomic locking handled in order-processor)
-    const result = await processPaidOrder(
+    const result = verifyOnly === true ? { success: true, status: "PAYMENT_RECEIVED" } : await processPaidOrder(
       orderId,
       verifiedPaymentIntentId,
       resolvedEmail,
-      { clientIp, userAgent, isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent }
+      { clientIp, userAgent, isTest, paymentMode, verifiedPaymentIntent: serverVerifiedPaymentIntent, captureObservedAt }
     );
+
+    if (!result.success && result.offerRedemption?.status === "reconciliation_required") {
+      return NextResponse.json({ success: false, status: result.status, orderId, error: result.error, offerRedemption: result.offerRedemption }, { status: 409 });
+    }
+
+    if (result.success && serverVerifiedPaymentIntent) {
+      const pi = serverVerifiedPaymentIntent;
+      try {
+        purchaseMeasurement = await persistPurchaseMeasurement(orderId, buildPurchaseMeasurement(order, {
+          paymentIntentId: pi.id, amount: pi.amount, amountReceived: pi.amount_received,
+          currency: pi.currency, livemode: pi.livemode,
+        }));
+      } catch {
+        console.warn("[Confirm Order] Purchase measurement snapshot write unavailable.");
+      }
+    }
+    purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
+    if (verifyOnly === true) {
+      return NextResponse.json({ success: true, status: "PAYMENT_RECEIVED", orderId, viewToken: order.viewToken, purchaseMeasurement });
+    }
 
     if (result.requiresPriceReconfirmation) {
       return NextResponse.json({ success: false, status: result.status, orderId, error: result.error, requiresPriceReconfirmation: true, purchaseMeasurement }, { status: 409 });
@@ -342,35 +314,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let offerRedemption: { status: "not_applicable" | "redeemed" | "reconciliation_required"; error?: string } = { status: "not_applicable" };
-    if (result.success && order.discountCode) {
-      const redemption = await redeemOfferForOrder({
-        code: order.discountCode,
-        orderId,
-        quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
-        discountAmountCents: order.discountAmountInCents || 0,
-        finalAmountCents:
-          typeof order.finalAmountInCents === "number"
-            ? order.finalAmountInCents
-            : order.amountInCents ?? CARD_FLAT_RATE_CENTS,
-        destinationSurchargeCents: order.quote?.internationalSurchargeCents || 0,
-        verifiedCaptureId: verifiedPaymentIntentId,
-        requireAuthoritativeBinding: true,
-        ...(order.multiSend ? { multiSendCount: order.multiSend.recipients.length } : {}),
-      });
-      offerRedemption = redemption.redeemed
-        ? { status: "redeemed" }
-        : { status: "reconciliation_required", error: redemption.error || "Offer redemption could not be confirmed." };
-      if (!redemption.redeemed) {
-        await logIncident({
-          type: "STRIPE",
-          severity: "error",
-          summary: `Paid order offer redemption requires reconciliation (${orderId})`,
-          technicalDetails: redemption.error || "Promotion redemption failed after verified payment.",
-          metadata: { orderId, paymentIntentId: verifiedPaymentIntentId },
-        });
-      }
-    }
+    const offerRedemption = result.offerRedemption ?? { status: result.success && order.discountCode && order.origin !== "ADMIN_COMP" ? "redeemed" : "not_applicable" };
 
     await trySyncPostPurchaseOrder(orderId);
 

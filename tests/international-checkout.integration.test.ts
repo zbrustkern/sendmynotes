@@ -116,7 +116,7 @@ async function run() {
       assert.equal((await freeBaseConfirmResponse.json()).success, true);
       const freeBaseRedemption = await getOfferRedemptionsCollection().doc(`redemption_${freeBase.orderId}`).get();
       assert.equal(freeBaseRedemption.data()?.payableAmountCents, 0, "100% base discount redeems while the $5 destination upgrade remains paid");
-      const bypass = await completeFreeOrderPost(await postJson("/api/checkout/complete-free-order", { orderId: freeBase.orderId, discountCode: freeCode }));
+      const bypass = await completeFreeOrderPost(await postJson("/api/checkout/complete-free-order", { orderId: freeBase.orderId, viewToken: freeBase.viewToken }));
       assert.equal(bypass.status, 400, "free completion endpoint cannot bypass the positive destination surcharge");
 
       const wrongPayment = await confirmOrderPost(await postJson("/api/checkout/confirm-order", {
@@ -145,6 +145,7 @@ async function run() {
       assert.equal(webhookCreated.amountInCents, 1200);
       const { POST: webhookPost } = await import("../app/api/webhooks/stripe/route");
       const eventId = `evt_intl_preview_${Date.now()}`;
+      const webhookPending = await getOrderById(webhookCreated.orderId) as Order;
       const webhookEvent = {
         id: eventId,
         type: "payment_intent.succeeded",
@@ -162,6 +163,8 @@ async function run() {
             recipientCountryCode: "FR",
             quoteVersion: webhookCreated.quote.version,
             quotedTotalCents: "1200",
+            quoteId: webhookPending.quoteId,
+            checkoutRevision: webhookPending.checkoutRevision,
           },
         } },
       };

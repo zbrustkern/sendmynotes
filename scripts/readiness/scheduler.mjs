@@ -28,6 +28,7 @@ const routes = manifest.jobs.map(job => ({
   attemptDeadline: '300s',
   retryConfig: { retryCount: 2, maxRetryDuration: '300s', minBackoffDuration: '30s', maxBackoffDuration: '120s', maxDoublings: 2 },
   secretResource: job.secret,
+  oidcServiceAccount: job.oidcServiceAccount ? `${job.oidcServiceAccount}@${project}.iam.gserviceaccount.com` : undefined,
 }));
 
 function safeError(error) {
@@ -144,6 +145,7 @@ async function main() {
           attemptDeadline: wanted.attemptDeadline,
           retryConfig: wanted.retryConfig,
           secretResource: wanted.secretResource,
+          oidcServiceAccount: wanted.oidcServiceAccount,
           matches: matches.map(job => ({
             name: job.name,
             state: job.state || 'UNKNOWN',
@@ -156,7 +158,9 @@ async function main() {
             matchesProposedConfig: job.schedule === wanted.schedule
               && job.timeZone === wanted.timeZone
               && job.attemptDeadline === wanted.attemptDeadline
-              && job.httpTarget?.httpMethod === wanted.method,
+              && job.httpTarget?.httpMethod === wanted.method
+              && (!wanted.oidcServiceAccount || (job.httpTarget?.oidcToken?.serviceAccountEmail === wanted.oidcServiceAccount
+                && job.httpTarget?.oidcToken?.audience === wanted.uri)),
           })),
           action: matches.length ? 'retain_existing_without_changes' : 'deferred_pending_safe_paused_create',
         });

@@ -18,6 +18,8 @@ assert.equal(safeVerificationReturnTo('/account/drafts?x=1','https://app.example
 assert.equal(safeVerificationReturnTo('//evil.example/path','https://app.example'),'/account');
 assert.equal(safeVerificationReturnTo('https://evil.example/path','https://app.example'),'/account');
 assert.equal(safeVerificationReturnTo('/admin','https://app.example'),'/account');
+assert.equal(safeVerificationReturnTo('/?step=pay','https://app.example'),'/?step=pay');
+assert.equal(safeVerificationReturnTo('/send/thank-you/example?step=pay','https://app.example'),'/send/thank-you/example?step=pay');
 assert.equal(hostedVerificationResult(false,false),'sign_in','hosted continuation cannot claim success without signed-in identity');
 assert.equal(hostedVerificationResult(true,false),'not_verified','a stale or unverified account remains gated');
 assert.equal(hostedVerificationResult(true,true),'verified','only refreshed email verification marks the hosted return complete');

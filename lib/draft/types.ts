@@ -125,6 +125,7 @@ export interface DraftRequiredContent {
 export interface DraftOptionalPreferences {
   schedule: ScheduleDraft | null;
   discountCode: string | null;
+  offerReference?: string | null;
   appliedOffer?: AppliedOfferDraft | null;
   attribution: AttributionDraft | null;
   customGeneration: CustomGenerationState;
@@ -167,6 +168,7 @@ export interface DraftState {
   // Optional preferences fields
   schedule: ScheduleDraft | null;
   discountCode: string | null;
+  offerReference?: string | null;
   appliedOffer?: AppliedOfferDraft | null;
   attribution: AttributionDraft | null;
   customGeneration: CustomGenerationState;
@@ -203,6 +205,7 @@ export const ALLOWED_DRAFT_ROOT_KEYS: readonly (keyof DraftState)[] = [
   "sender",
   "schedule",
   "discountCode",
+  "offerReference",
   "appliedOffer",
   "attribution",
   "customGeneration",

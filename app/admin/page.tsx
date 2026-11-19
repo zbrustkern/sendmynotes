@@ -47,6 +47,7 @@ import { CapturedContactsPanel } from "@/components/admin/CapturedContactsPanel"
 import { PostPurchaseQueuePanel } from "@/components/admin/PostPurchaseQueuePanel";
 import { PostPurchaseSettingsPanel } from "@/components/admin/PostPurchaseSettingsPanel";
 import { OrderFollowupPanel } from "@/components/admin/OrderFollowupPanel";
+import { BespokeOfferEditor } from "@/components/admin/BespokeOfferEditor";
 
 export default function AdminDashboardPage() {
   const { user, signInWithGoogle, signOut: authSignOut } = useAuth();
@@ -1545,6 +1546,7 @@ export default function AdminDashboardPage() {
         {/* ===================== TAB 3: DISCOUNTS ===================== */}
         {activeTab === "discounts" && (
           <div className="space-y-6">
+            <BespokeOfferEditor />
             {/* KPI METRIC CARDS FOR DISCOUNTS */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
@@ -1594,191 +1596,6 @@ export default function AdminDashboardPage() {
                   Auto-hydrates and applies promo at checkout
                 </p>
               </div>
-            </div>
-
-            {/* CREATE DISCOUNT CODE FORM */}
-            <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm space-y-6">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pb-4 border-b border-stone-100">
-                <div>
-                  <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
-                    <Plus className="w-4 h-4 text-amber-600" />
-                    Create New Discount Code
-                  </h2>
-                  <p className="text-xs text-stone-500 mt-0.5">
-                    Generate percentage discounts, dollar coupons, or 100% off VIP launch vouchers.
-                  </p>
-                </div>
-
-                {/* Quick Presets */}
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] font-semibold text-stone-400 uppercase tracking-wider mr-1">
-                    Presets:
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset("VIP")}
-                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 transition cursor-pointer inline-flex items-center gap-1"
-                  >
-                    <Gift className="w-3 h-3 text-emerald-600" />
-                    100% Off VIP
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset("DOLLAR2")}
-                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 border border-stone-200 transition cursor-pointer"
-                  >
-                    $2.00 Off
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPreset("PERCENT20")}
-                    className="text-xs font-medium px-2.5 py-1 rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 border border-stone-200 transition cursor-pointer"
-                  >
-                    20% Off Launch
-                  </button>
-                </div>
-              </div>
-
-              {discountFormError && (
-                <div className="p-3 bg-rose-50 border border-rose-200 text-rose-800 text-xs rounded-xl flex items-center justify-between">
-                  <span>{discountFormError}</span>
-                  <button
-                    type="button"
-                    onClick={() => setDiscountFormError("")}
-                    className="text-rose-500 hover:text-rose-800 font-bold ml-2 cursor-pointer"
-                  >
-                    &times;
-                  </button>
-                </div>
-              )}
-
-              {discountFormSuccess && (
-                <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs rounded-xl flex items-center justify-between">
-                  <span>{discountFormSuccess}</span>
-                  <button
-                    type="button"
-                    onClick={() => setDiscountFormSuccess("")}
-                    className="text-emerald-500 hover:text-emerald-800 font-bold ml-2 cursor-pointer"
-                  >
-                    &times;
-                  </button>
-                </div>
-              )}
-
-              <form onSubmit={handleCreateDiscount} className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
-                      Discount Code *
-                    </label>
-                    <input
-                      type="text"
-                      value={newCode}
-                      onChange={(e) => setNewCode(e.target.value.toUpperCase())}
-                      placeholder="e.g. VIP100"
-                      required
-                      className="w-full px-3.5 py-2 text-sm font-mono font-bold uppercase bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
-                      Discount Type
-                    </label>
-                    <select
-                      value={newType}
-                      onChange={(e) => setNewType(e.target.value as DiscountType)}
-                      className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white cursor-pointer"
-                    >
-                      <option value="PERCENTAGE">Percentage (% Off)</option>
-                      <option value="FIXED_AMOUNT">Fixed Amount ($ Off)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
-                      {newType === "PERCENTAGE" ? "Percentage Value (1-100)" : "Dollar Value ($ USD)"} *
-                    </label>
-                    <div className="relative">
-                      {newType === "FIXED_AMOUNT" && (
-                        <span className="absolute left-3 top-2 text-stone-500 text-sm font-bold">$</span>
-                      )}
-                      <input
-                        type="number"
-                        step={newType === "PERCENTAGE" ? "1" : "0.01"}
-                        min={newType === "PERCENTAGE" ? "1" : "0.50"}
-                        max={newType === "PERCENTAGE" ? "100" : undefined}
-                        value={newValue}
-                        onChange={(e) => setNewValue(e.target.value)}
-                        placeholder={newType === "PERCENTAGE" ? "20 (for 20% off)" : "2.00 (for $2.00 off)"}
-                        required
-                        className={`w-full py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white ${
-                          newType === "FIXED_AMOUNT" ? "pl-7 pr-3" : "px-3.5"
-                        }`}
-                      />
-                      {newType === "PERCENTAGE" && (
-                        <span className="absolute right-3 top-2 text-stone-400 text-sm font-bold">%</span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
-                      Max Uses Limit (Optional)
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={newMaxUses}
-                      onChange={(e) => setNewMaxUses(e.target.value)}
-                      placeholder="Leave empty for unlimited"
-                      className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
-                      Expiration Date (Optional)
-                    </label>
-                    <input
-                      type="date"
-                      value={newExpiresAt}
-                      onChange={(e) => setNewExpiresAt(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-stone-600 mb-1.5">
-                      Campaign Note (Internal)
-                    </label>
-                    <input
-                      type="text"
-                      value={newDescription}
-                      onChange={(e) => setNewDescription(e.target.value)}
-                      placeholder="e.g. VIP friends, Twitter launch"
-                      className="w-full px-3.5 py-2 text-sm bg-stone-50 border border-stone-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 focus:bg-white"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-2">
-                  <button
-                    type="submit"
-                    disabled={creatingDiscount}
-                    className="px-5 py-2.5 bg-stone-900 hover:bg-black text-white text-xs font-semibold rounded-xl shadow-sm transition inline-flex items-center gap-2 cursor-pointer disabled:opacity-50"
-                  >
-                    {creatingDiscount ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Plus className="w-3.5 h-3.5" />
-                    )}
-                    <span>{creatingDiscount ? "Creating..." : "Save Discount Code"}</span>
-                  </button>
-                </div>
-              </form>
             </div>
 
             {/* DISCOUNT CODES TABLE */}

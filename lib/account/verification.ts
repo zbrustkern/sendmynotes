@@ -1,4 +1,4 @@
-const SAFE_RETURN_PREFIXES = ['/account', '/new', '/create/upload'] as const;
+const SAFE_RETURN_PATHS = new Set(['/', '/account', '/new', '/preview/entry', '/create/upload', '/send']);
 
 /** Accept only local account/builder destinations; reject protocol-relative and external URLs. */
 export function safeVerificationReturnTo(value: unknown, origin: string): string {
@@ -8,7 +8,7 @@ export function safeVerificationReturnTo(value: unknown, origin: string): string
   try {
     const parsed = new URL(input, origin);
     if (parsed.origin !== new URL(origin).origin) return '/account';
-    const allowed = SAFE_RETURN_PREFIXES.some(prefix => parsed.pathname === prefix || prefix === '/account' && (parsed.pathname === '/account' || parsed.pathname.startsWith('/account/')));
+    const allowed = SAFE_RETURN_PATHS.has(parsed.pathname) || parsed.pathname.startsWith('/account/') || /^\/send(?:\/[a-z0-9-]+){1,2}\/?$/.test(parsed.pathname);
     if (!allowed) return '/account';
     return `${parsed.pathname}${parsed.search}${parsed.hash}`;
   } catch { return '/account'; }

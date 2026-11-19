@@ -1,20 +1,18 @@
+import { timingSafeEqual } from "node:crypto";
 import { recordAcceptedAccountOrder } from "@/lib/account/order-association";
 import { NextRequest, NextResponse } from "next/server";
 import {
   firestoreDb,
   getOrdersCollection,
-  getDiscountCodesCollection,
   updateOrderStatus,
   getImageCachePoolCollection,
 } from "@/lib/firebase-admin";
-import { validateDiscount } from "@/lib/discount";
-import { CARD_FLAT_RATE_CENTS } from "@/lib/stripe";
 import { fulfillHandwryttenOrder } from "@/lib/handwrytten";
 import { logIncident } from "@/lib/incident-logger";
 import { validatePersonalSender } from "@/lib/order-processor";
 import { sendAddressDeferredEmail } from "@/lib/email-alerts";
-import { redeemOfferForOrder } from "@/lib/offer-engine";
-import { Order, DiscountCode } from "@/lib/types";
+import { redeemOfferInTransaction } from "@/lib/offer-engine";
+import { Order } from "@/lib/types";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { normalizeCountryCode } from "@/lib/mailing-destinations";
 import { isFreeOrderEligible } from "@/lib/order-pricing";
@@ -27,7 +25,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Checkout is temporarily unavailable.", code: "CHECKOUT_PAUSED" }, { status: 503 });
     }
     const body = await req.json();
-    const { orderId, discountCode, customerEmail } = body;
+    const { orderId, customerEmail, viewToken } = body;
 
     if (!orderId) {
       return NextResponse.json({ error: "Missing order ID" }, { status: 400 });
@@ -51,6 +49,11 @@ export async function POST(req: NextRequest) {
         }
 
         const existingOrder = orderDoc.data() as Order;
+        if (existingOrder.viewToken) {
+          const supplied = Buffer.from(typeof viewToken === "string" && viewToken.length <= 256 ? viewToken : "");
+          const expected = Buffer.from(existingOrder.viewToken);
+          if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new Error("ORDER_NOT_FOUND");
+        }
         if (existingOrder.multiSend?.kind === "parent") throw new Error("MULTI_SEND_REQUIRES_PAID_CHECKOUT");
         if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {
           throw new Error("CONTACT_COMMIT_PENDING");
@@ -95,37 +98,19 @@ export async function POST(req: NextRequest) {
           return { alreadyProcessed: true, order: existingOrder, status: existingOrder.status, handwryttenOrderId: existingOrder.handwryttenOrderId };
         }
 
-        // Verify discount code
-        const codeToVerify = (discountCode || existingOrder.discountCode || "")
-          .trim()
-          .toUpperCase();
-        if (!codeToVerify) {
-          throw new Error("NO_DISCOUNT_CODE");
-        }
-
-        const discountRef = getDiscountCodesCollection().doc(codeToVerify);
-        const discountDoc = await transaction.get(discountRef);
-        if (!discountDoc.exists) {
-          throw new Error("INVALID_DISCOUNT_CODE");
-        }
-
-        const discountData = discountDoc.data() as DiscountCode;
-        const validation = validateDiscount(discountData, CARD_FLAT_RATE_CENTS);
-
-        if (!validation.valid || validation.finalAmountInCents !== 0) {
-          throw new Error(
-            validation.error || "The discount code is no longer eligible for 100% free checkout."
-          );
-        }
-
-        if (discountData.maxUses && (discountData.usedCount || 0) >= discountData.maxUses) {
-          throw new Error("This discount code has reached its maximum usage limit.");
-        }
+        const codeToVerify = existingOrder.discountCode;
+        if (!codeToVerify) throw new Error("NO_DISCOUNT_CODE");
 
         const finalEmail = effectiveOrderEmail(existingOrder, customerEmail);
         if ((existingOrder.addressDeferred || existingOrder.address_deferred) && !finalEmail) {
           throw new Error("DEFERRED_ADDRESS_EMAIL_REQUIRED");
         }
+
+        const redemption = await redeemOfferInTransaction(transaction, {
+          code: codeToVerify, orderId, quoteId: existingOrder.quoteId,
+          discountAmountCents: existingOrder.discountAmountInCents ?? 0, finalAmountCents: 0, isFreePromo: true,
+        });
+        if (!redemption.redeemed) throw new Error(redemption.error || "This offer is unavailable.");
 
         // Atomically claim DISPATCHING lock on order
         transaction.update(orderRef, {
@@ -198,27 +183,6 @@ export async function POST(req: NextRequest) {
     try { await savePaidOrderReminder(order, effectiveOrderEmail(order, customerEmail)); }
     catch (reminderErr) { console.warn("[Free Order] Notice saving opted-in occasion reminder:", reminderErr instanceof Error ? reminderErr.message : "unknown error"); }
 
-    // 2.5. Deterministic offer redemption
-    const redemptionResult = await redeemOfferForOrder({
-      code: (order.discountCode || "").trim().toUpperCase(),
-      orderId,
-      quoteId: (order as unknown as Record<string, unknown>).quoteId as string | undefined,
-      discountAmountCents: CARD_FLAT_RATE_CENTS,
-      finalAmountCents: 0,
-      isFreePromo: true,
-      requireAuthoritativeBinding: true,
-    });
-
-    if (!redemptionResult.redeemed) {
-      await updateOrderStatus(orderId, {
-        status: "FAILED",
-        fulfillmentError: redemptionResult.error || "Promo redemption failed.",
-      });
-      return NextResponse.json(
-        { error: redemptionResult.error || "This discount code has reached its maximum redemptions limit." },
-        { status: 400 }
-      );
-    }
 
     // 2. Sender validation
     const senderValidation = validatePersonalSender(order.returnAddress);
@@ -237,7 +201,7 @@ export async function POST(req: NextRequest) {
         severity: "error",
         summary: `Invalid/Missing Sender Address on Free Order ${orderId}`,
         technicalDetails: `${errorMsg} Dispatch halted to prevent brand-name or blank sender delivery.`,
-        metadata: { orderId, discountCode: order.discountCode },
+        metadata: { orderId },
       });
 
       return NextResponse.json({
@@ -277,7 +241,7 @@ export async function POST(req: NextRequest) {
 
     // 3. Dispatch to Handwrytten robotic pen fulfillment with deterministic orderId
     console.log(
-      `[Free Order] Dispatching Order ${orderId} (Promo: ${order.discountCode}) to Handwrytten...`
+      `[Free Order] Dispatching Order ${orderId} to Handwrytten...`
     );
 
     let fulfillment: { success: boolean; order_id?: string; error?: string };

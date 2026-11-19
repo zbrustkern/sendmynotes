@@ -13,7 +13,14 @@
  * - Analytics reporting with costStatus: "unconfirmed" when supplier cost is unknown
  */
 
-import { firestoreDb, getDiscountCodesCollection, getDiscountCode, saveDiscountCode } from "./firebase-admin";
+import { isDeepStrictEqual } from "node:util";
+import { firestoreDb, getDiscountCodesCollection, getOrdersCollection, sanitizeFirestoreData } from "./firebase-admin";
+import { evaluatePromotion } from "./promotions-v2";
+import { promotionReservationsEnabled, readPromotionById, readPromotionUsage } from "./promotions-v2-store";
+import { offerBalance, offerBalanceRef, offerAllowanceFits, offerCutoverRef, legacyOfferBaselineRef, promotionCounterDeltas, readOfferCounterDeltas, applyOfferCounterDeltas, type OfferCounterDelta, type OfferCounterLimit } from "./offer-balances";
+import type { CreateIntentParams } from "./stripe";
+import type { PaymentMode } from "./payment-mode";
+import type { Order } from "./types";
 import {
   OfferLifecycleStatus,
   OfferVersionRecord,
@@ -39,6 +46,8 @@ export const getOfferVersionsCollection = () => firestoreDb.collection(OFFER_VER
 export const getOfferQuotesCollection = () => firestoreDb.collection(OFFER_QUOTES_COLLECTION);
 export const getOfferReservationsCollection = () => firestoreDb.collection(OFFER_RESERVATIONS_COLLECTION);
 export const getOfferRedemptionsCollection = () => firestoreDb.collection(OFFER_REDEMPTIONS_COLLECTION);
+
+export { recordOfferRefundOutcome } from "./offer-refunds";
 
 export {
   LEGACY_OFFER_URL_PARAMS,
@@ -136,7 +145,7 @@ export function computeOfferLifecycleStatus(
   }
 
   const expiration = offer.endsAt ?? offer.expiresAt;
-  if (expiration && nowMs > expiration) {
+  if (expiration && nowMs >= expiration) {
     return "expired";
   }
 
@@ -171,66 +180,63 @@ export async function getOrSyncOfferVersion(
   if (!normalized) return null;
 
   const versionRef = getOfferVersionsCollection().doc(`offer_${normalized}_v1`);
-  const versionDoc = transaction ? await transaction.get(versionRef) : await versionRef.get();
-
-  if (versionDoc.exists) {
-    const data = versionDoc.data() as OfferVersionRecord;
-    const dynamicStatus = computeOfferLifecycleStatus(data);
-    return {
-      ...data,
-      status: dynamicStatus,
-    };
-  }
-
-  // Fallback to legacy discount_codes collection
-  const legacyDoc = await getDiscountCode(normalized);
-  if (!legacyDoc) return null;
-
-  // Bridge legacy document to version 1 record
-  const bridged: OfferVersionRecord = {
-    offerId: `offer_${normalized}`,
-    version: 1,
-    code: normalized,
-    purpose: legacyDoc.description || "Promotional Discount",
-    destinationPath: "/",
-    discountType: legacyDoc.type,
-    discountValue: legacyDoc.value,
-    startsAt: legacyDoc.createdAt || Date.now(),
-    endsAt: legacyDoc.expiresAt || undefined,
-    timezone: "UTC",
-    status: computeOfferLifecycleStatus({
-      isActive: legacyDoc.isActive,
-      expiresAt: legacyDoc.expiresAt,
-      maxUses: legacyDoc.maxUses,
-      usedCount: legacyDoc.usedCount,
-      totalDiscountGivenCents: legacyDoc.totalDiscountGivenCents,
-    }),
-    maxUses: legacyDoc.maxUses || undefined,
-    usedCount: legacyDoc.usedCount || 0,
-    reservedCount: 0,
-    dollarBudgetLimitCents: undefined,
-    totalDiscountGivenCents: legacyDoc.totalDiscountGivenCents || 0,
-    stackingAllowed: false,
-    createdAt: legacyDoc.createdAt || Date.now(),
-    updatedAt: legacyDoc.updatedAt || Date.now(),
+  const legacyRef = getDiscountCodesCollection().doc(normalized);
+  const usageRef = offerBalanceRef("code", normalized);
+  const checkpointRef = legacyOfferBaselineRef(normalized);
+  const [versionDoc, legacySnap, usageSnap, checkpoint] = await Promise.all(
+    [versionRef, legacyRef, usageRef, checkpointRef].map((ref) => transaction ? transaction.get(ref) : ref.get()),
+  );
+  const legacy = legacySnap.data() as DiscountCode | undefined;
+  const offer = (versionDoc.data() as OfferVersionRecord | undefined) ?? (legacy ? legacyOfferTerms(normalized, legacy) : null);
+  if (!offer) return null;
+  const usage = usageSnap.exists ? offerBalance(usageSnap.data()) : null;
+  const merged = {
+    ...offer, usedCount: usage?.spentUses ?? offer.usedCount,
+    reservedCount: usage?.heldUses ?? offer.reservedCount,
+    totalDiscountGivenCents: usage?.spentCents ?? offer.totalDiscountGivenCents,
+    heldDiscountCents: usage?.heldCents ?? 0,
   };
+  const status = computeOfferLifecycleStatus({
+    ...merged, isActive: legacy?.isActive,
+    usedCount: merged.usedCount + merged.reservedCount,
+    totalDiscountGivenCents: merged.totalDiscountGivenCents + merged.heldDiscountCents,
+  });
+  return { ...merged, status: checkpoint.data()?.state === "isolated" ? "paused" : status };
+}
 
-  try {
-    if (transaction) {
-      transaction.set(versionRef, bridged);
-    } else {
-      await versionRef.set(bridged);
-    }
-  } catch {
-    // Non-fatal write failure, bridged object still usable in-memory
-  }
-
-  return bridged;
+function legacyOfferTerms(code: string, legacy: DiscountCode, now = Date.now()): OfferVersionRecord {
+  return {
+    offerId: `offer_${code}`,
+    version: 1,
+    code,
+    purpose: legacy.description || "Promotional Discount",
+    destinationPath: "/",
+    discountType: legacy.type,
+    discountValue: legacy.value,
+    startsAt: legacy.createdAt,
+    endsAt: legacy.expiresAt || undefined,
+    timezone: "UTC",
+    status: legacy.isActive ? "active" : "paused",
+    maxUses: legacy.maxUses || undefined,
+    usedCount: legacy.usedCount || 0,
+    reservedCount: 0,
+    totalDiscountGivenCents: legacy.totalDiscountGivenCents || 0,
+    stackingAllowed: false,
+    createdAt: legacy.createdAt || now,
+    updatedAt: legacy.updatedAt || now,
+  };
 }
 
 // ============================================================================
 // 4. Authoritative Price Quotes (SPRINT-0005-T02, AC03)
 // ============================================================================
+
+export function legacyOfferDiscount(offer: Pick<OfferVersionRecord, "discountType" | "discountValue">) {
+  if (offer.discountType === "PERCENTAGE") {
+    return Math.round(CARD_FLAT_RATE_CENTS * Math.max(0, Math.min(100, offer.discountValue)) / 100);
+  }
+  return Math.min(CARD_FLAT_RATE_CENTS, Math.max(0, offer.discountValue));
+}
 
 export interface IssueOfferQuoteInput {
   code: string;
@@ -313,19 +319,13 @@ export async function issueOfferPriceQuote(
     };
   }
 
-  // Canonical base price: ignore client-supplied prices!
-  const basePriceCents = CARD_FLAT_RATE_CENTS; // 900
-  let discountAmountCents = 0;
-
-  if (offer.discountType === "PERCENTAGE") {
-    const pct = Math.max(0, Math.min(100, offer.discountValue));
-    discountAmountCents = Math.round((basePriceCents * pct) / 100);
-  } else if (offer.discountType === "FIXED_AMOUNT") {
-    discountAmountCents = Math.max(0, offer.discountValue);
+  if (dynamicStatus !== "active") {
+    return { valid: false, error: "This discount code is unavailable.", status: dynamicStatus, finalAmountInCents: CARD_FLAT_RATE_CENTS, discountAmountInCents: 0 };
   }
 
-  // Clamp discount so it cannot exceed base price
-  discountAmountCents = Math.min(discountAmountCents, basePriceCents);
+  // Canonical base price: ignore client-supplied prices!
+  const basePriceCents = CARD_FLAT_RATE_CENTS; // 900
+  const discountAmountCents = legacyOfferDiscount(offer);
   const payableAmountCents = Math.max(0, basePriceCents - discountAmountCents);
 
   const quoteId = `quote_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
@@ -407,15 +407,12 @@ export async function verifyCheckoutQuoteIntegrity(
 
         // 1. Expiration check
         const surchargeCents = Math.max(0, Math.floor(input.surchargeCents || 0));
-        const extraCardsCents = Math.max(0, Math.floor(input.multiSendCount || 1) - 1) * CARD_FLAT_RATE_CENTS;
-        const authoritativeQuotedTotal = quote.payableAmountCents + extraCardsCents + surchargeCents;
+        const authoritativeQuotedTotal = frozenOfferTotal(quote, surchargeCents, input.multiSendCount);
         if (nowMs > quote.expiresAt) {
-          // Re-evaluate fresh base pricing, then reapply the immutable destination surcharge.
-          const fresh = await issueOfferPriceQuote({ code: quote.code, nowMs });
           return {
             valid: false,
             requiresPriceReconfirmation: true,
-            authoritativeFinalCents: (fresh.finalAmountInCents ?? CARD_FLAT_RATE_CENTS) + extraCardsCents + surchargeCents,
+            authoritativeFinalCents: authoritativeQuotedTotal,
             staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
             reason: "Price quote has expired. Please reconfirm total before paying.",
             quote,
@@ -448,35 +445,8 @@ export async function verifyCheckoutQuoteIntegrity(
     }
   }
 
-  // If no quoteId but code is supplied, re-evaluate fresh quote
-  if (input.code) {
-    const fresh = await issueOfferPriceQuote({ code: input.code, nowMs });
-    if (!fresh.valid || fresh.finalAmountInCents == null) {
-      return {
-        valid: false,
-        requiresPriceReconfirmation: true,
-        authoritativeFinalCents: CARD_FLAT_RATE_CENTS * Math.max(1, Math.floor(input.multiSendCount || 1)) + Math.max(0, Math.floor(input.surchargeCents || 0)),
-        staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
-        reason: fresh.error || "Discount code is no longer valid.",
-      };
-    }
-
-    const authoritativeTotal = fresh.finalAmountInCents + Math.max(0, Math.floor(input.multiSendCount || 1) - 1) * CARD_FLAT_RATE_CENTS + Math.max(0, Math.floor(input.surchargeCents || 0));
-    if (
-      (input.paymentIntentAmountCents != null && input.paymentIntentAmountCents !== authoritativeTotal) ||
-      (input.expectedFinalCents != null && input.expectedFinalCents !== authoritativeTotal)
-    ) {
-      return {
-        valid: false,
-        requiresPriceReconfirmation: true,
-        authoritativeFinalCents: authoritativeTotal,
-        staleAmountCents: input.paymentIntentAmountCents ?? input.expectedFinalCents,
-        reason: "Payment amount does not match current discounted base plus destination surcharge.",
-        quote: fresh.quote,
-      };
-    }
-
-    return { valid: true, authoritativeFinalCents: authoritativeTotal, quote: fresh.quote };
+  if (input.quoteId || input.code) {
+    return { valid: false, requiresPriceReconfirmation: true, reason: "The authoritative offer quote is unavailable." };
   }
 
   // No discount: destination surcharge is added after the canonical domestic base.
@@ -510,245 +480,303 @@ export interface ReserveOfferInput {
   sessionId: string;
   journeyId?: string;
   quoteId?: string;
-  /** Transfer an existing active hold only after its unpaid intent was canceled. */
+  ownerId?: string;
+  ownerKey?: string;
+  checkoutRevision?: string;
+  expectedTotalCents?: number;
+  paymentMode?: PaymentMode;
+  creationRequest?: CreateIntentParams;
   replaceOrderId?: string;
   nowMs?: number;
   reservationTtlMs?: number;
 }
+
+export type OfferHold = OfferReservationRecord & {
+  code: string;
+  schemaVersion?: 2;
+  ownerId?: string;
+  ownerKey?: string;
+  checkoutRevision?: string;
+  expectedTotalCents?: number;
+  discountCents?: number;
+  currency?: "USD";
+  paymentMode?: PaymentMode;
+  creationRequest?: CreateIntentParams;
+  paymentIntentId?: string;
+  deltas?: OfferCounterDelta[];
+  nextActionAt?: number;
+  revision?: number;
+  lease?: { token: string; expiresAt: number };
+  reconciliationAttempts?: number;
+  legacyVersionId?: string;
+};
+
+type LegacyOffer = {
+  offer: OfferVersionRecord | null;
+  legacy?: DiscountCode;
+  version?: OfferVersionRecord;
+  versionRef: FirebaseFirestore.DocumentReference;
+  legacyRef: FirebaseFirestore.DocumentReference;
+};
 
 export interface ReservationResult {
   reserved: boolean;
   duplicate?: boolean;
   error?: string;
   status?: OfferLifecycleStatus;
-  reservation?: OfferReservationRecord;
+  reservation?: OfferHold;
 }
 
-/**
- * Reserves a scarce redemption slot and budget for an in-flight checkout.
- * Runs inside firestoreDb.runTransaction to guarantee concurrency boundaries.
- * Under concurrent contention for the last slot (maxUses: 1), strictly 1 succeeds.
- * Automatically cleans up expired reservations so abandoned checkouts release their hold.
- */
-export async function reserveOfferForCheckout(
-  input: ReserveOfferInput
-): Promise<ReservationResult> {
-  const nowMs = input.nowMs ?? Date.now();
-  const normalized = input.code.trim().toUpperCase();
-  const reservationDocId = `res_${input.orderId}_${normalized}`;
-  const ttl = input.reservationTtlMs || DEFAULT_QUOTE_VALIDITY_MS;
-  const expiresAt = nowMs + ttl;
+export function frozenOfferTotal(quote: OfferPriceQuoteSnapshot, surcharge = 0, multiSendCount = 1) {
+  return quote.promotion
+    ? quote.promotion.evaluation.netCents
+    : quote.payableAmountCents + Math.max(0, multiSendCount - 1) * CARD_FLAT_RATE_CENTS + surcharge;
+}
 
-  return await firestoreDb.runTransaction(async (transaction: any) => {
-    // 1. Check existing reservation for this order
-    const resRef = getOfferReservationsCollection().doc(reservationDocId);
-    const existingResSnap = await transaction.get(resRef);
+const reservationPointer = (orderId: string) => firestoreDb.collection("offer_order_holds").doc(orderId);
+const legacyHoldRef = (orderId: string, code: string) => getOfferReservationsCollection().doc(`res_${orderId}_${code}`);
+const redemptionRef = (orderId: string) => getOfferRedemptionsCollection().doc(`redemption_${orderId}`);
 
-    if (existingResSnap.exists) {
-      const existing = existingResSnap.data() as OfferReservationRecord;
-      if (existing.status === "active" && existing.expiresAt > nowMs && (!input.quoteId || existing.quoteId === input.quoteId)) {
-        return {
-          reserved: true,
-          duplicate: true,
-          reservation: existing,
-        };
-      }
-    }
+export async function readOfferHold(tx: FirebaseFirestore.Transaction, orderId: string, code?: string) {
+  const pointer = await tx.get(reservationPointer(orderId));
+  const existingId = pointer.data()?.reservationId as string | undefined;
+  const ref = existingId ? getOfferReservationsCollection().doc(existingId) : code ? legacyHoldRef(orderId, code) : null;
+  return ref ? await tx.get(ref) : null;
+}
 
-    // 2. Load authoritative quote and its offer version before any transaction writes.
-    const quoteSnap = input.quoteId
-      ? await transaction.get(getOfferQuotesCollection().doc(input.quoteId))
-      : null;
-    const quote = quoteSnap?.exists ? (quoteSnap.data() as OfferPriceQuoteSnapshot) : undefined;
-    if (input.quoteId && (!quote || quote.code !== normalized || quote.expiresAt < nowMs)) {
+export async function getActiveOfferReservation(orderId: string): Promise<OfferHold | null> {
+  return firestoreDb.runTransaction(async (tx) => {
+    const order = await tx.get(getOrdersCollection().doc(orderId));
+    const snap = await readOfferHold(tx, orderId, order.data()?.discountCode);
+    const hold = snap?.data() as OfferHold | undefined;
+    return hold?.status === "active" ? hold : null;
+  });
+}
+
+export async function readLegacyOffer(tx: FirebaseFirestore.Transaction, code: string): Promise<LegacyOffer> {
+  const versionRef = getOfferVersionsCollection().doc(`offer_${code}_v1`);
+  const legacyRef = getDiscountCodesCollection().doc(code);
+  const versionSnap = await tx.get(versionRef);
+  const legacySnap = await tx.get(legacyRef);
+  const version = versionSnap.data() as OfferVersionRecord | undefined;
+  const legacy = legacySnap.data() as DiscountCode | undefined;
+  return { offer: version ?? (legacy ? legacyOfferTerms(code, legacy) : null), legacy, version, versionRef, legacyRef };
+}
+
+export function legacySpentBaseline(terms: LegacyOffer) {
+  const version = terms.version;
+  const legacy = terms.legacy;
+  const spentUses = version?.usedCount ?? legacy?.usedCount ?? 0;
+  const spentCents = version?.totalDiscountGivenCents ?? legacy?.totalDiscountGivenCents ?? 0;
+  const disagreements = [
+    ["uses", version?.usedCount, legacy?.usedCount],
+    ["cents", version?.totalDiscountGivenCents, legacy?.totalDiscountGivenCents],
+  ].filter(([, left, right]) => left !== undefined && right !== undefined && left !== right).map(([name]) => name);
+  return { spentUses, spentCents, disagreements };
+}
+
+function ownerMatches(hold: OfferHold, input: Pick<ReserveOfferInput, "ownerId" | "ownerKey"> & { sessionId?: string }) {
+  if (hold.ownerKey) return input.ownerKey === hold.ownerKey;
+  if (hold.ownerId) return input.ownerId === hold.ownerId;
+  return Boolean(hold.sessionId && input.sessionId === hold.sessionId);
+}
+
+function expiryForQuote(input: ReserveOfferInput, quote: OfferPriceQuoteSnapshot) {
+  return Math.min(quote.expiresAt, (input.nowMs ?? Date.now()) + (input.reservationTtlMs ?? DEFAULT_QUOTE_VALIDITY_MS));
+}
+
+export async function reserveOfferForCheckout(input: ReserveOfferInput): Promise<ReservationResult> {
+  const now = input.nowMs ?? Date.now();
+  const { orderId, quoteId } = input;
+  if (!quoteId || input.replaceOrderId) return { reserved: false, error: "Save the checkout terms and cancel any prior payable attempt before reserving." };
+  return firestoreDb.runTransaction(async (tx) => {
+    const quoteSnap = await tx.get(getOfferQuotesCollection().doc(quoteId));
+    const quote = quoteSnap.data() as OfferPriceQuoteSnapshot | undefined;
+    const code = quote?.promotion ? input.code : input.code.trim().toUpperCase();
+    if (!quote || quote.code !== code || expiryForQuote({ ...input, nowMs: now }, quote) <= now || quote.discountAmountCents <= 0) {
       return { reserved: false, error: "Authoritative offer quote is missing or expired." };
     }
-    const versionNumber = quote?.offerVersion || 1;
-    const versionRef = getOfferVersionsCollection().doc(`offer_${normalized}_v${versionNumber}`);
-    const versionSnap = await transaction.get(versionRef);
-
-    const legacyRef = getDiscountCodesCollection().doc(normalized);
-    const legacySnap = await transaction.get(legacyRef);
-
-    if (!versionSnap.exists && !legacySnap.exists) {
-      return {
-        reserved: false,
-        error: "Discount code not found.",
-        status: "archived",
-      };
+    const holdSnap = await readOfferHold(tx, orderId, code);
+    const prior = holdSnap?.data() as OfferHold | undefined;
+    const final = input.expectedTotalCents ?? quote.payableAmountCents;
+    if (!Number.isSafeInteger(final) || final < 0 || (final > 0 && final < 50) ||
+        (quote.promotion && final !== quote.promotion.evaluation.netCents) ||
+        (input.creationRequest && (!input.creationRequest.idempotencyKey || input.creationRequest.orderId !== orderId || input.creationRequest.amountInCents !== final ||
+          input.creationRequest.metadata?.quoteId !== quoteId ||
+          (input.checkoutRevision && input.creationRequest.metadata?.checkoutRevision !== input.checkoutRevision)))) {
+      return { reserved: false, error: "The quoted payable amount or payment attempt is invalid." };
     }
+    if (prior?.status === "active") {
+      if (prior.expiresAt > now && prior.quoteId === quoteId && ownerMatches(prior, input)
+        && prior.checkoutRevision === input.checkoutRevision && (prior.expectedTotalCents === undefined || prior.expectedTotalCents === final)) {
+        return { reserved: true, duplicate: true, reservation: prior };
+      }
+      return { reserved: false, error: "A different offer hold is already bound to this order." };
+    }
+    if (prior) return { reserved: false, error: "Start a new checkout after closing a previous offer reservation." };
+    if ((await tx.get(redemptionRef(orderId))).exists) return { reserved: false, error: "This order already settled." };
 
-    let offerData: OfferVersionRecord;
-    if (versionSnap.exists) {
-      offerData = versionSnap.data() as OfferVersionRecord;
+    const cutover = await tx.get(offerCutoverRef());
+    if (cutover.data()?.state === "fenced" || (quote.promotion && (cutover.data()?.state !== "active" || !Number.isSafeInteger(cutover.data()?.cutoverAt)))) {
+      return { reserved: false, error: "Offer reservations are temporarily unavailable." };
+    }
+    let balances: OfferCounterLimit[];
+    let units = 1;
+    let seedLegacy = false;
+    let legacyVersionId: string | undefined;
+    if (quote.promotion) {
+      const sale = quote.promotion;
+      if (!promotionReservationsEnabled(sale.basket.workflow, sale.basket.lines.map((line) => line.countryCode))) {
+        return { reserved: false, error: "Offer reservations are temporarily unavailable." };
+      }
+      const resolved = await readPromotionById(sale.codeId, tx);
+      if (!resolved || resolved.campaign.status !== "active" || resolved.campaign.id !== sale.campaignId || resolved.policy.id !== sale.policyVersionId ||
+          sale.basket.ownerUid !== input.ownerId || sale.basket.revision !== input.checkoutRevision) {
+        return { reserved: false, error: "This offer changed or is unavailable." };
+      }
+      const current = await readPromotionUsage(resolved, sale.basket, tx);
+      const evaluation = evaluatePromotion(resolved.policy, sale.basket, now, current.usage);
+      if (!evaluation.eligible || evaluation.discountCents !== quote.discountAmountCents || evaluation.netCents !== final ||
+          !isDeepStrictEqual(sanitizeFirestoreData(evaluation.lines), sale.evaluation.lines)) {
+        return { reserved: false, error: "This offer can no longer provide the quoted savings." };
+      }
+      units = evaluation.selectedUnits;
+      balances = current.balances.map((balance) => ({ ...balance, data: offerBalance(balance.data) }));
     } else {
-      const leg = legacySnap.data() as DiscountCode;
-      offerData = {
-        offerId: `offer_${normalized}`,
-        version: 1,
-        code: normalized,
-        purpose: leg.description || "Promotional Discount",
-        destinationPath: "/",
-        discountType: leg.type,
-        discountValue: leg.value,
-        status: leg.isActive ? "active" : "paused",
-        maxUses: leg.maxUses || undefined,
-        usedCount: leg.usedCount || 0,
-        reservedCount: 0,
-        totalDiscountGivenCents: leg.totalDiscountGivenCents || 0,
-        stackingAllowed: false,
-        timezone: "UTC",
-        createdAt: leg.createdAt || nowMs,
-        updatedAt: nowMs,
-      };
-    }
-
-    // Check basic lifecycle
-    const status = computeOfferLifecycleStatus(offerData, nowMs);
-    if (status !== "active") {
-      return {
-        reserved: false,
-        error: `Discount code is not active (status: ${status}).`,
-        status,
-      };
-    }
-
-    // 3. Count active reservations and prune expired reservations
-    const reservationsQuery = await getOfferReservationsCollection()
-      .where("code", "==", normalized)
-      .get();
-
-    let activeReservationsCount = 0;
-    const expiredReservationRefs: any[] = [];
-    const replacedReservationRefs: any[] = [];
-    for (const doc of reservationsQuery.docs) {
-      const r = doc.data() as OfferReservationRecord;
-      if (r.status !== "active") continue;
-      // Skip reservation belonging to current orderId
-      if (r.orderId === input.orderId) continue;
-
-      if (r.orderId === input.replaceOrderId) {
-        if (r.expiresAt > nowMs) replacedReservationRefs.push(doc.ref);
-        else expiredReservationRefs.push(doc.ref);
-        continue;
+      const legacy = await readLegacyOffer(tx, code);
+      if (!legacy.offer || legacy.offer.version !== quote.offerVersion || legacy.offer.offerId !== quote.offerId ||
+          legacyOfferDiscount(legacy.offer) !== quote.discountAmountCents) {
+        return { reserved: false, error: "Discount code not found." };
       }
-
-      if (r.expiresAt <= nowMs) {
-        // Expired reservation hold: release it!
-        expiredReservationRefs.push(doc.ref);
-      } else {
-        activeReservationsCount++;
+      const status = computeOfferLifecycleStatus(legacy.offer, now);
+      if (status !== "active" || legacy.legacy?.isActive === false) return { reserved: false, error: "This discount code is unavailable.", status };
+      const codeRef = offerBalanceRef("code", code);
+      const campaignRef = offerBalanceRef("campaign", legacy.offer.campaignId || legacy.offer.offerId);
+      const [codeSnap, campaignSnap, migration] = await Promise.all([tx.get(codeRef), tx.get(campaignRef), tx.get(legacyOfferBaselineRef(code))]);
+      if (migration.data()?.state === "isolated") return { reserved: false, error: "This discount code is being reconciled." };
+      const baseline = legacySpentBaseline(legacy);
+      seedLegacy = !migration.exists;
+      if (seedLegacy) {
+        const active = await tx.get(getOfferReservationsCollection().where("code", "==", code).where("status", "==", "active").limit(1));
+        if (active.size || baseline.disagreements.length) {
+          return { reserved: false, error: "This discount code is being reconciled." };
+        }
       }
+      const maxUses = legacy.offer.maxUses || legacy.legacy?.maxUses || undefined;
+      const maxCents = legacy.offer.dollarBudgetLimitCents || undefined;
+      const campaignBalance = offerBalance(campaignSnap.data());
+      const legacyCampaignBalance = seedLegacy ? offerBalance({
+        ...campaignBalance, spentUses: campaignBalance.spentUses + baseline.spentUses, spentCents: campaignBalance.spentCents + baseline.spentCents,
+      }) : campaignBalance;
+      // Legacy campaignId grouped reporting. Its independently issued grants only limited each code.
+      balances = [
+        { kind: "code", ref: codeRef, data: offerBalance(codeSnap.data() ?? baseline), maxUses, maxCents },
+        { kind: "campaign", ref: campaignRef, data: legacyCampaignBalance },
+      ];
+      const senderLimit = legacy.offer.perCustomerLimit || undefined;
+      if (senderLimit && !input.ownerId) return { reserved: false, error: "Verify to use this offer." };
+      if (input.ownerId) {
+        const ref = offerBalanceRef("sender", legacy.offer.offerId, input.ownerId);
+        balances.push({ kind: "sender", ref, data: offerBalance((await tx.get(ref)).data()), maxUses: senderLimit });
+      }
+      legacyVersionId = legacy.versionRef.id;
     }
-
-    // 4. Concurrency check: usedCount + activeReservationsCount < maxUses
-    const maxUses = offerData.maxUses ?? (legacySnap.exists ? legacySnap.data()?.maxUses : undefined);
-    const currentUsed = offerData.usedCount || (legacySnap.exists ? legacySnap.data()?.usedCount : 0) || 0;
-
-    if (maxUses != null && maxUses > 0 && currentUsed + activeReservationsCount >= maxUses) {
-      return {
-        reserved: false,
-        error: "This discount code has reached its maximum redemptions limit.",
-        status: "exhausted",
-      };
+    const deltas = promotionCounterDeltas(balances, quote.discountAmountCents, units);
+    if (balances.some((counter, index) => !offerAllowanceFits(counter, deltas[index]))) {
+      return { reserved: false, error: "This discount code has reached its redemption or spending limit.", status: "exhausted" };
     }
-
-    // All transaction reads are complete before the first write.
-    for (const expiredRef of expiredReservationRefs) {
-      transaction.update(expiredRef, {
-        status: "expired",
-        releasedReason: "ttl_expired",
-      });
-    }
-    for (const replacedRef of replacedReservationRefs) {
-      transaction.update(replacedRef, { status: "released", releasedReason: "multi_send_replaced" });
-    }
-
-    // 5. Create active reservation
-    const newReservation: OfferReservationRecord & { code: string } = {
-      reservationId: reservationDocId,
-      offerId: offerData.offerId,
-      offerVersion: offerData.version,
-      orderId: input.orderId,
-      code: normalized,
-      sessionId: input.sessionId,
-      quoteId: input.quoteId,
-      reservedAt: nowMs,
-      expiresAt,
-      status: "active",
+    const expiresAt = expiryForQuote({ ...input, nowMs: now }, quote);
+    const ref = holdSnap?.ref ?? legacyHoldRef(orderId, code);
+    const hold: OfferHold = {
+      reservationId: ref.id, orderId, schemaVersion: 2, code, quoteId,
+      offerId: quote.offerId, offerVersion: quote.offerVersion, sessionId: input.sessionId,
+      ownerId: input.ownerId, ownerKey: input.ownerKey, checkoutRevision: input.checkoutRevision,
+      expectedTotalCents: final, discountCents: quote.discountAmountCents, currency: "USD",
+      paymentMode: input.paymentMode, creationRequest: input.creationRequest, reservedAt: now,
+      expiresAt, nextActionAt: expiresAt, revision: 1, status: "active",
+      deltas, legacyVersionId,
     };
-
-    transaction.set(resRef, newReservation);
-
-    // Atomically increment reserved count
-    const newReservedCount = activeReservationsCount + 1;
-    transaction.set(
-      versionRef,
-      {
-        ...offerData,
-        reservedCount: newReservedCount,
-        updatedAt: nowMs,
-      },
-      { merge: true }
-    );
-
-    return {
-      reserved: true,
-      duplicate: false,
-      reservation: newReservation,
-    };
+    applyOfferCounterDeltas(tx, deltas, new Map(balances.map((balance) => [balance.ref.id, balance])), "hold");
+    if (seedLegacy) tx.set(legacyOfferBaselineRef(code), { state: "initialized", at: now });
+    tx.set(reservationPointer(orderId), { reservationId: ref.id });
+    tx.set(ref, sanitizeFirestoreData(hold));
+    return { reserved: true, reservation: hold };
   });
 }
 
-/**
- * Releases an active reservation hold (e.g. on order cancellation, payment failure, or promo removal).
- */
+export interface OfferIntentEvidence {
+  id: string;
+  status?: string;
+  amount?: number;
+  amount_received?: number;
+  currency?: string;
+  metadata?: Record<string, string> | null;
+  livemode?: boolean;
+  created?: number;
+}
+
+export function offerIntentMatches(hold: OfferHold, intent: OfferIntentEvidence, { canBind = false } = {}) {
+  return (canBind && !hold.paymentIntentId || hold.paymentIntentId === intent.id)
+    && intent.metadata?.orderId === hold.orderId && intent.metadata?.quoteId === hold.quoteId
+    && (hold.checkoutRevision === undefined || (intent.metadata?.checkoutRevision ?? intent.metadata?.contentRevision) === hold.checkoutRevision)
+    && intent.amount === hold.expectedTotalCents && intent.currency?.toLowerCase() === "usd"
+    && (hold.paymentMode === undefined || intent.livemode === (hold.paymentMode === "live"));
+}
+
+export async function bindOfferReservationIntent(input: { orderId: string; paymentIntentId: string; checkoutRevision?: string }) {
+  return firestoreDb.runTransaction(async (tx) => {
+    const snap = await readOfferHold(tx, input.orderId);
+    const hold = snap?.data() as OfferHold | undefined;
+    if (!snap || hold?.status !== "active" || hold.checkoutRevision !== input.checkoutRevision || hold.expectedTotalCents === 0) return false;
+    if (hold.paymentIntentId) return hold.paymentIntentId === input.paymentIntentId;
+    if (hold.lease || hold.expiresAt <= Date.now()) return false;
+    tx.update(snap.ref, { paymentIntentId: input.paymentIntentId, revision: (hold.revision ?? 0) + 1 });
+    return true;
+  });
+}
+
+export type OfferReleaseAuthority = {
+  ownerId?: string; ownerKey?: string; sessionId?: string; checkoutRevision?: string;
+  paymentIntent?: OfferIntentEvidence;
+  lease?: { token: string; revision: number };
+  nowMs?: number;
+};
+
+export function ownsOfferLease(hold: OfferHold, lease: NonNullable<OfferReleaseAuthority["lease"]>, now: number) {
+  return hold.revision === lease.revision && hold.lease?.token === lease.token && hold.lease.expiresAt > now;
+}
+
 export async function releaseOfferReservation(
   orderId: string,
-  reason: "canceled" | "payment_failed" | "removed" | "expired" = "removed"
+  reason: "canceled" | "payment_failed" | "removed" | "expired" = "removed",
+  authority: OfferReleaseAuthority = {},
 ): Promise<boolean> {
-  const snapshot = await getOfferReservationsCollection()
-    .where("orderId", "==", orderId)
-    .get();
-  const activeDocs = snapshot.docs.filter((d) => (d.data() as OfferReservationRecord).status === "active");
-  if (activeDocs.length === 0) return false;
-
-  await firestoreDb.runTransaction(async (transaction: any) => {
-    const versionRefs = new Map<string, any>();
-    for (const doc of activeDocs) {
-      const data = doc.data() as OfferReservationRecord & { code?: string };
-      if (data.offerId) {
-        const ref = getOfferVersionsCollection().doc(`offer_${data.code || ""}_v${data.offerVersion || 1}`);
-        versionRefs.set(ref.id || `${data.code}:${data.offerVersion}`, ref);
-      }
+  return firestoreDb.runTransaction(async (tx) => {
+    const orderSnap = await tx.get(getOrdersCollection().doc(orderId));
+    const order = orderSnap.data() as Order | undefined;
+    const snap = await readOfferHold(tx, orderId, order?.discountCode);
+    const hold = snap?.data() as OfferHold | undefined;
+    const now = authority.nowMs ?? Date.now();
+    if (!snap || hold?.status !== "active" || !hold.deltas) return false;
+    if (authority.lease ? !ownsOfferLease(hold, authority.lease, now) : !ownerMatches(hold, authority) || hold.checkoutRevision !== authority.checkoutRevision) return false;
+    const intent = authority.paymentIntent;
+    const bound = hold.paymentIntentId || order?.stripePaymentId;
+    if (hold.expectedTotalCents !== 0 || bound || hold.creationRequest) {
+      if (!intent || intent.status !== "canceled" || !offerIntentMatches({ ...hold, paymentIntentId: bound }, intent, { canBind: Boolean(authority.lease) })) return false;
     }
-    const versionSnapshots = new Map<any, any>();
-    for (const ref of versionRefs.values()) {
-      versionSnapshots.set(ref, await transaction.get(ref));
+    const counters = await readOfferCounterDeltas(tx, hold.deltas);
+    applyOfferCounterDeltas(tx, hold.deltas, counters, "release");
+    tx.update(snap.ref, {
+      status: reason === "expired" ? "expired" : "released",
+      releasedReason: reason, releasedAt: now, revision: (hold.revision ?? 0) + 1, lease: null,
+      ...(intent ? { paymentIntentId: intent.id } : {}),
+    });
+    if (order && ["PENDING_PAYMENT", "PAYMENT_VERIFICATION_FAILED"].includes(order.status)) {
+      tx.update(orderSnap.ref, { status: "FAILED", fulfillmentStatus: "OFFER_RESERVATION_RELEASED", updatedAt: now });
     }
-    for (const doc of activeDocs) {
-      transaction.update(doc.ref, {
-        status: "released",
-        releasedReason: reason,
-        releasedAt: Date.now(),
-      });
-    }
-    for (const [ref, vSnap] of versionSnapshots.entries()) {
-      if (vSnap.exists) {
-        const vData = vSnap.data() as OfferVersionRecord;
-        transaction.update(ref, {
-          reservedCount: Math.max(0, (vData.reservedCount || 1) - 1),
-          updatedAt: Date.now(),
-        });
-      }
-    }
+    return true;
   });
-  return true;
 }
-
-// ============================================================================
-// 7. Semantic Order-Linked Redemption (SPRINT-0005-T04, AC02, AC04)
-// ============================================================================
 
 export interface RedeemOfferInput {
   code: string;
@@ -758,14 +786,17 @@ export interface RedeemOfferInput {
   quoteId?: string;
   discountAmountCents: number;
   finalAmountCents: number;
-  /** Amount added outside the discountable offer base, such as the destination upgrade. */
   destinationSurchargeCents?: number;
   isFreePromo?: boolean;
   isStudioComp?: boolean;
   verifiedCaptureId?: string;
+  captureTime?: { earliestAt: number; latestAt: number };
   requireAuthoritativeBinding?: boolean;
   multiSendCount?: number;
   nowMs?: number;
+  paymentIntent?: OfferIntentEvidence;
+  paymentMode?: PaymentMode;
+  lease?: NonNullable<OfferReleaseAuthority["lease"]>;
 }
 
 export interface RedemptionResult {
@@ -775,216 +806,102 @@ export interface RedemptionResult {
   redemption?: OfferRedemptionRecord;
 }
 
-/**
- * Executes a deterministic, exactly-once offer redemption.
- * Runs inside a transaction keyed by `redemption_${orderId}`.
- * Duplicate calls (client confirmation + webhook retry) consume ONCE and return duplicate: true.
- * Marks corresponding reservation as consumed and atomically increments usedCount.
- */
-export async function redeemOfferForOrder(
-  input: RedeemOfferInput
-): Promise<RedemptionResult> {
-  const nowMs = input.nowMs ?? Date.now();
-  const normalized = input.code.trim().toUpperCase();
-  const surchargeCents = input.destinationSurchargeCents ?? 0;
-  const extraCardsCents = Math.max(0, Math.floor(input.multiSendCount || 1) - 1) * CARD_FLAT_RATE_CENTS;
-  const basePayableCents = input.finalAmountCents - surchargeCents - extraCardsCents;
-  if (!Number.isSafeInteger(surchargeCents) || surchargeCents < 0 || !Number.isSafeInteger(basePayableCents) || basePayableCents < 0) {
-    return { redeemed: false, error: "Checkout amount breakdown is invalid." };
-  }
-  const redemptionDocId = `redemption_${input.orderId}`;
-
-  return await firestoreDb.runTransaction(async (transaction: any) => {
-    const redRef = getOfferRedemptionsCollection().doc(redemptionDocId);
-    const existingSnap = await transaction.get(redRef);
-
-    // 1. Idempotency Guard: if already redeemed for this order, do NOT consume twice!
-    if (existingSnap.exists) {
-      const existing = existingSnap.data() as OfferRedemptionRecord;
-      const sameTerms =
-        existing.offerId === `offer_${normalized}` &&
-        existing.discountAmountCents === input.discountAmountCents &&
-        existing.payableAmountCents === basePayableCents &&
-        (!input.quoteId || existing.quoteId === input.quoteId) &&
-        (!input.verifiedCaptureId || existing.verifiedCaptureId === input.verifiedCaptureId);
-      if (!sameTerms) return { redeemed: false, error: "Order already has a redemption with different terms." };
-      return { redeemed: true, duplicate: true, redemption: existing };
-    }
-
-    // Load authoritative quote before selecting the versioned offer document.
-    let quoteSnap: any = null;
-    let quote: OfferPriceQuoteSnapshot | undefined;
-    if (input.quoteId) {
-      quoteSnap = await transaction.get(getOfferQuotesCollection().doc(input.quoteId));
-      if (quoteSnap.exists) quote = quoteSnap.data() as OfferPriceQuoteSnapshot;
-    }
-    if (input.requireAuthoritativeBinding && !quote) {
-      return { redeemed: false, error: "Authoritative checkout quote is missing." };
-    }
-    if (input.requireAuthoritativeBinding && quote && (quote.code !== normalized || quote.payableAmountCents !== basePayableCents || quote.discountAmountCents !== input.discountAmountCents || quote.expiresAt < nowMs)) {
-      return { redeemed: false, error: "Checkout terms do not match the authoritative quote." };
-    }
-
-    if (input.requireAuthoritativeBinding) {
-      const orderSnap = await transaction.get(firestoreDb.collection("orders").doc(input.orderId));
-      const boundOrder = orderSnap.exists ? orderSnap.data() as any : null;
-      const totalSnapshotMatches = surchargeCents > 0 || (input.multiSendCount || 1) > 1
-        ? boundOrder?.amountInCents === input.finalAmountCents && boundOrder?.quote?.totalCents === input.finalAmountCents && boundOrder?.quote?.discountCents === input.discountAmountCents && boundOrder?.quote?.internationalSurchargeCents === surchargeCents
-        : (!boundOrder?.quote || (boundOrder.quote.totalCents === input.finalAmountCents && boundOrder.quote.discountCents === input.discountAmountCents));
-      if (!boundOrder || String(boundOrder.discountCode || "").toUpperCase() !== normalized || boundOrder.quoteId !== input.quoteId || boundOrder.finalAmountInCents !== input.finalAmountCents || !totalSnapshotMatches || boundOrder.discountAmountInCents !== input.discountAmountCents) {
-        return { redeemed: false, error: "Persisted order terms do not match the checkout quote." };
-      }
-    }
-    const versionNumber = quote?.offerVersion || 1;
-    const versionRef = getOfferVersionsCollection().doc(`offer_${normalized}_v${versionNumber}`);
-    const versionSnap = await transaction.get(versionRef);
-
-    const legacyRef = getDiscountCodesCollection().doc(normalized);
-    const legacySnap = await transaction.get(legacyRef);
-
-    if (!versionSnap.exists && !legacySnap.exists) {
-      return {
-        redeemed: false,
-        error: "Discount code not found.",
-      };
-    }
-
-    let offerId = `offer_${normalized}`;
-    let version = 1;
-    let currentUsed = 0;
-    let currentTotalDiscount = 0;
-    let maxUses: number | undefined = undefined;
-
-    if (versionSnap.exists) {
-      const vData = versionSnap.data() as OfferVersionRecord;
-      offerId = vData.offerId;
-      version = vData.version;
-      currentUsed = vData.usedCount || 0;
-      currentTotalDiscount = vData.totalDiscountGivenCents || 0;
-      maxUses = vData.maxUses;
-    } else if (legacySnap.exists) {
-      const leg = legacySnap.data() as DiscountCode;
-      currentUsed = leg.usedCount || 0;
-      currentTotalDiscount = leg.totalDiscountGivenCents || 0;
-      maxUses = leg.maxUses || undefined;
-    }
-
-    // If there is no existing reservation for this order, check maxUses
-    const resDocId = `res_${input.orderId}_${normalized}`;
-    const resRef = getOfferReservationsCollection().doc(resDocId);
-    const resSnap = await transaction.get(resRef);
-
-    if (input.requireAuthoritativeBinding && (!resSnap.exists || (resSnap.data() as OfferReservationRecord).quoteId !== input.quoteId || (resSnap.data() as OfferReservationRecord).offerVersion !== versionNumber)) {
-      return { redeemed: false, error: "Offer reservation does not match the checkout quote." };
-    }
-    if (input.requireAuthoritativeBinding && input.finalAmountCents > 0) {
-      if (!input.verifiedCaptureId) return { redeemed: false, error: "Verified payment capture is required for offer redemption." };
-      const captureSnap = await transaction.get(firestoreDb.collection("financial_facts").doc(`fact_cap_${input.verifiedCaptureId}`));
-      const capture = captureSnap.data() as any;
-      if (!captureSnap.exists || capture?.orderId !== input.orderId || capture?.amountCents !== input.finalAmountCents) {
-        return { redeemed: false, error: "Verified capture does not match the order and quoted amount." };
-      }
-    }
-
-    if (!resSnap.exists && maxUses != null && maxUses > 0 && currentUsed >= maxUses) {
-      return {
-        redeemed: false,
-        error: "This discount code has reached its maximum redemptions limit.",
-      };
-    }
-
-    // Determine Commercial Kind
-    let commercialKind: CommercialKind = "discounted_paid";
-    if (input.isStudioComp) {
-      commercialKind = "studio_comp";
-    } else if (input.isFreePromo || input.finalAmountCents === 0) {
-      commercialKind = "free_promo";
-    }
-
-    // 3. Mark reservation as consumed if exists
-    if (resSnap.exists) {
-      transaction.update(resRef, {
-        status: "consumed",
-        consumedAt: nowMs,
-      });
-    }
-
-    // 4. Create Immutable Redemption Audit Record
-    const redemption: OfferRedemptionRecord = {
-      redemptionId: redemptionDocId,
-      offerId,
-      offerVersion: version,
-      orderId: input.orderId,
-      commercialKind,
-      quoteId: input.quoteId || `quote_${input.orderId}`,
-      discountAmountCents: input.discountAmountCents,
-      payableAmountCents: basePayableCents,
-      verifiedCaptureId: input.verifiedCaptureId,
-      redeemedAt: nowMs,
-      refunded: false,
-      refundRestoredUsage: false, // REFUND_RESTORES_OFFER_USAGE = false
-    };
-
-    transaction.set(redRef, redemption);
-
-    // 5. Atomically update counters on offer_versions & legacy discount_codes
-    const newUsed = currentUsed + 1;
-    const newDiscountTotal = currentTotalDiscount + input.discountAmountCents;
-
-    if (versionSnap.exists) {
-      transaction.update(versionRef, {
-        usedCount: newUsed,
-        totalDiscountGivenCents: newDiscountTotal,
-        reservedCount: Math.max(0, (versionSnap.data()?.reservedCount || 1) - 1),
-        updatedAt: nowMs,
-      });
-    }
-
-    if (legacySnap.exists) {
-      transaction.update(legacyRef, {
-        usedCount: newUsed,
-        totalDiscountGivenCents: newDiscountTotal,
-        updatedAt: nowMs,
-      });
-    }
-
-    return {
-      redeemed: true,
-      duplicate: false,
-      redemption,
-    };
-  });
+export async function redeemOfferForOrder(input: RedeemOfferInput): Promise<RedemptionResult> {
+  return firestoreDb.runTransaction((tx) => redeemOfferInTransaction(tx, input));
 }
 
-// ============================================================================
-// 8. Explicit Refund Outcome (SPRINT-0005-T02, AC03)
-// ============================================================================
+/** Called at the end of a transaction's read phase before acquiring the free-order dispatch lock. */
+export async function redeemOfferInTransaction(tx: FirebaseFirestore.Transaction, input: RedeemOfferInput): Promise<RedemptionResult> {
+  const { orderId, quoteId, finalAmountCents, discountAmountCents } = input;
+  const now = input.nowMs ?? Date.now();
+  const priorSnap = await tx.get(redemptionRef(orderId));
+  if (!quoteId) return { redeemed: false, error: "Authoritative checkout quote is missing." };
+  const quoteSnap = await tx.get(getOfferQuotesCollection().doc(quoteId));
+  const quote = quoteSnap.data() as OfferPriceQuoteSnapshot | undefined;
+  const code = quote?.promotion ? input.code : input.code.trim().toUpperCase();
+  if (!quote || quote.code !== code || quote.discountAmountCents !== discountAmountCents ||
+      frozenOfferTotal(quote, input.destinationSurchargeCents, input.multiSendCount) !== finalAmountCents) {
+    return { redeemed: false, error: "Checkout terms do not match the authoritative quote." };
+  }
+  const prior = priorSnap.data() as (OfferRedemptionRecord & { totalCents?: number }) | undefined;
+  if (prior) {
+    const same = prior.offerId === quote.offerId && prior.offerVersion === quote.offerVersion && prior.quoteId === quoteId &&
+      prior.discountAmountCents === discountAmountCents && (prior.totalCents ?? prior.payableAmountCents) === (prior.totalCents === undefined ? quote.payableAmountCents : finalAmountCents) &&
+      prior.verifiedCaptureId === input.verifiedCaptureId;
+    return same ? { redeemed: true, duplicate: true, redemption: prior } : { redeemed: false, error: "Order already has a redemption with different terms." };
+  }
+  const orderSnap = await tx.get(getOrdersCollection().doc(orderId));
+  const order = orderSnap.data() as Order | undefined;
+  if (!order || order.discountCode !== code || order.quoteId !== quoteId || order.amountInCents !== finalAmountCents ||
+      order.finalAmountInCents !== finalAmountCents || order.discountAmountInCents !== discountAmountCents ||
+      (order.quote && (order.quote.totalCents !== finalAmountCents || order.quote.discountCents !== discountAmountCents))) {
+    return { redeemed: false, error: "Persisted order terms do not match the checkout quote." };
+  }
 
-/**
- * Records a refund against an offer redemption record.
- * In strict adherence to REFUND_RESTORES_OFFER_USAGE = false, does NOT increment
- * or restore the offer's available usage capacity. Preserves original commercial terms.
- */
-export async function recordOfferRefundOutcome(
-  param1: string | { orderId: string; refundAmountCents?: number },
-  param2?: number
-): Promise<boolean> {
-  const orderId = typeof param1 === "string" ? param1 : param1.orderId;
-  const refundAmountCents = typeof param1 === "string" ? (param2 ?? 0) : (param1.refundAmountCents ?? 0);
-  const redemptionDocId = `redemption_${orderId}`;
-  const redRef = getOfferRedemptionsCollection().doc(redemptionDocId);
-  const snap = await redRef.get();
-
-  if (!snap.exists) return false;
-
-  await redRef.update({
-    refunded: true,
-    refundAmountCents,
-    refundRestoredUsage: false, // REFUND_RESTORES_OFFER_USAGE = false
-    refundedAt: Date.now(),
+  const holdSnap = await readOfferHold(tx, orderId, code);
+  const hold = holdSnap?.data() as OfferHold | undefined;
+  if (!holdSnap || hold?.status !== "active" || !hold.deltas || hold.quoteId !== quoteId || hold.offerVersion !== quote.offerVersion ||
+      hold.code !== code || hold.expectedTotalCents !== finalAmountCents || hold.discountCents !== discountAmountCents ||
+      (hold.checkoutRevision !== undefined && hold.checkoutRevision !== (order.checkoutRevision ?? order.multiSend?.contentRevision)) ||
+      (hold.ownerKey !== undefined && hold.ownerKey !== order.checkoutOwnerKey) ||
+      (quote.promotion && !isDeepStrictEqual(order.checkoutPrice?.lines, quote.promotion.evaluation.lines))) {
+    return { redeemed: false, error: "A bound active offer reservation is required." };
+  }
+  if (input.lease && !ownsOfferLease(hold, input.lease, now)) return { redeemed: false, error: "Reconciliation lease changed." };
+  let settledAt = now;
+  let captureTimeBasis = "successful_free_order";
+  if (finalAmountCents > 0) {
+    const intent = input.paymentIntent;
+    if (!input.verifiedCaptureId || !intent || intent.id !== input.verifiedCaptureId || intent.status !== "succeeded" ||
+        intent.amount_received !== finalAmountCents ||
+        (!input.lease && order.stripePaymentId !== intent.id) ||
+        !offerIntentMatches({ ...hold, paymentIntentId: hold.paymentIntentId || order.stripePaymentId }, intent, { canBind: Boolean(input.lease) })) {
+      return { redeemed: false, error: "Verified payment capture does not match the quote and bound intent." };
+    }
+    const capture = (await tx.get(firestoreDb.collection("financial_facts").doc(`fact_cap_${intent.id}`))).data();
+    if (!capture || capture.orderId !== orderId || capture.amountCents !== finalAmountCents || capture.currency !== "usd" || capture.livemode !== Boolean(intent.livemode)) {
+      return { redeemed: false, error: "Verified capture fact does not match the order, amount, currency and mode." };
+    }
+    const time = input.captureTime;
+    if (!time || time.earliestAt > time.latestAt || time.latestAt > Math.min(hold.expiresAt, quote.expiresAt) || time.latestAt < hold.reservedAt) {
+      return { redeemed: false, error: "Payment capture was late or its timing could not be verified." };
+    }
+    settledAt = time.earliestAt;
+    captureTimeBasis = "verified_capture";
+  } else if (!input.isFreePromo || order.paymentMethod !== "PROMO_CODE" || order.stripePaymentId || hold.paymentIntentId ||
+      order.origin === "ADMIN_COMP" || order.multiSend || order.quote?.countryCode !== "US" ||
+      (quote.promotion && quote.promotion.basket.workflow !== "single") ||
+      now >= Math.min(quote.expiresAt, hold.expiresAt) || now < hold.reservedAt) {
+    return { redeemed: false, error: "This checkout cannot be completed as a free domestic order." };
+  }
+  const cutoff = (await tx.get(offerCutoverRef())).data()?.cutoverAt as number | undefined;
+  if (cutoff !== undefined && input.captureTime && input.captureTime.earliestAt < cutoff && input.captureTime.latestAt >= cutoff &&
+      hold.deltas.some(({ kind }) => kind === "sender")) {
+    return { redeemed: false, error: "Payment capture timing crosses the sender-limit cutover." };
+  }
+  const counters = await readOfferCounterDeltas(tx, hold.deltas);
+  const commercialKind = input.isStudioComp ? "studio_comp" : finalAmountCents === 0 ? "free_promo" : "discounted_paid";
+  const redemption: OfferRedemptionRecord = {
+    redemptionId: priorSnap.id, offerId: quote.offerId, offerVersion: quote.offerVersion, orderId,
+    commercialKind, quoteId, discountAmountCents, payableAmountCents: quote.payableAmountCents,
+    verifiedCaptureId: input.verifiedCaptureId, redeemedAt: settledAt,
+    refunded: Boolean((order as Order & { refundSettledCents?: number }).refundSettledCents), refundRestoredUsage: false,
+  };
+  applyOfferCounterDeltas(tx, hold.deltas, counters, "consume", { countSender: cutoff === undefined || settledAt >= cutoff });
+  tx.update(holdSnap.ref, {
+    status: "consumed", consumedAt: settledAt, revision: (hold.revision ?? 0) + 1, lease: null,
+    nextActionAt: finalAmountCents > 0 ? now : Number.MAX_SAFE_INTEGER,
+    ...(input.verifiedCaptureId ? { paymentIntentId: input.verifiedCaptureId } : {}),
   });
-
-  return true;
+  tx.set(priorSnap.ref, sanitizeFirestoreData({
+    ...redemption, code, codeId: quote.promotion?.codeId, totalCents: finalAmountCents, captureTimeBasis, deltas: hold.deltas,
+    checkoutRevision: hold.checkoutRevision, promotion: quote.promotion,
+    refundAmountCents: (order as Order & { refundSettledCents?: number }).refundSettledCents,
+  }));
+  if (input.lease && input.verifiedCaptureId && !order.stripePaymentId) {
+    tx.update(orderSnap.ref, { stripePaymentId: input.verifiedCaptureId, updatedAt: now });
+  }
+  return { redeemed: true, redemption, duplicate: false };
 }
 
 // ============================================================================

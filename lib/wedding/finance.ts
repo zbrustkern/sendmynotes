@@ -155,5 +155,15 @@ export function priceWeddingSelection(
   };
   return { ...quote, id: digest([projectId, quote]) };
 }
-export type WeddingQuote = ReturnType<typeof priceWeddingSelection>;
+export type WeddingQuote = ReturnType<typeof priceWeddingSelection> & {
+  appliedPromotions?: import("../promotions-v2").PromotionApplied[];
+  promotion?: {
+    campaignId: string;
+    codeId: string;
+    policyVersionId: string;
+    savingsCents: number;
+    remainingProjectUnits: number | null;
+    remainingProjectCents?: number | null;
+  };
+};
 export type WeddingQuoteLine = WeddingQuote["lines"][number];

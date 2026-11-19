@@ -1,6 +1,31 @@
 {
   "indexes": [
     {
+      "collectionGroup": "promotion_campaigns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "operatorManaged", "order": "ASCENDING" },
+        { "fieldPath": "updatedAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "admin_audit_log",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "targetId", "order": "ASCENDING" },
+        { "fieldPath": "targetType", "order": "ASCENDING" },
+        { "fieldPath": "timestamp", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "offer_reservations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "nextActionAt", "order": "ASCENDING" }
+      ]
+    },
+    {
       "collectionGroup": "orders",
       "queryScope": "COLLECTION",
       "fields": [
@@ -436,6 +461,7 @@
     }
   ],
   "fieldOverrides": [
+    { "collectionGroup": "promotion_attempt_limits", "fieldPath": "expiresAt", "ttl": true, "indexes": [] },
     {
       "collectionGroup": "deliveries",
       "fieldPath": "supplierOrderId",

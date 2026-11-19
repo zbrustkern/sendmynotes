@@ -105,6 +105,11 @@ export interface Order {
   /** Immutable, server-authored multi-send purchase and per-recipient payload snapshot. */
   multiSend?: MultiSendParentSnapshot;
   checkoutResumeVersion?: 1;
+  checkoutRevision?: string;
+  checkoutOwnerKey?: string;
+  checkoutPaymentRequest?: import("./stripe").CreateIntentParams;
+  checkoutPrice?: import("./checkout-promotion").CheckoutPriceComponents;
+  appliedPromotions?: import("./promotions-v2").PromotionEvaluation["appliedPromotions"];
   operationId?: string;
   receiptEmailSentAt?: number;
   addressDeferredEmailSentAt?: number;

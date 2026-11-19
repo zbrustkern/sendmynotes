@@ -380,6 +380,20 @@
       "updated_at": "2026-11-18",
       "implementation_status": "staging_deployed",
       "evidence": "docs/sprints/evidence/SPRINT-0031/REVIEW.md"
+    },
+    {
+      "id": "SPRINT-0033",
+      "title": "Enforce discount limits and build bespoke code previews",
+      "status": "in_progress",
+      "path": "docs/sprints/SPRINT-0033.md",
+      "proposal": "docs/proposals/2026-11-18-discount-code-rules/PROPOSAL.md",
+      "release_target": "staging",
+      "milestones": {
+        "33A": "in_verification",
+        "33B": "in_verification",
+        "33C": "in_verification"
+      },
+      "updated_at": "2026-11-19"
     }
   ]
 }

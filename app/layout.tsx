@@ -77,6 +77,17 @@ export default function RootLayout({
   return (
     <html lang="en">
       <head>
+        <script dangerouslySetInnerHTML={{ __html: `(() => {
+          const fragment = new URLSearchParams(location.hash.slice(1));
+          const code = fragment.get('offer');
+          if (!code) return;
+          fragment.delete('offer');
+          const remaining = fragment.toString();
+          history.replaceState(history.state, '', location.pathname + location.search + (remaining ? '#' + remaining : ''));
+          window.smnLinkedOffer = fetch('/api/discount/exchange', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, referrerPolicy: 'no-referrer', body: JSON.stringify({ code })
+          }).then(response => response.ok ? response.json() : null).then(result => typeof result?.reference === 'string' ? result.reference : null).catch(() => null);
+        })();` }} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link

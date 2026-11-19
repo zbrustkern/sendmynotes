@@ -5,7 +5,6 @@ import {
   getOrderById,
   updateOrderStatus,
   getImageCachePoolCollection,
-  recordDiscountUsage,
   resolveIncidentsForOrder,
 } from "./firebase-admin";
 import { fulfillHandwryttenOrder } from "./handwrytten";
@@ -23,6 +22,7 @@ import { normalizeCountryCode, getSupplierCountry, isProductionInternationalEnab
 import { isOrderQuoteValid } from "./order-pricing";
 import { isAdminCompQuoteSnapshotValid } from "./admin-comp-pricing";
 import { verifyCheckoutQuoteIntegrity } from "./offer-engine";
+import { markOfferCaptureReconciliation, settlePaidOrderPromotion } from "./offer-settlement";
 import { isMultiSendOrder } from "./multi-send/orders";
 
 export interface ProcessPaidOrderResult {
@@ -32,6 +32,7 @@ export interface ProcessPaidOrderResult {
   error?: string;
   alreadyProcessed?: boolean;
   requiresPriceReconfirmation?: boolean;
+  offerRedemption?: Awaited<ReturnType<typeof settlePaidOrderPromotion>>;
 }
 
 export interface ProcessOrderOptions {
@@ -44,6 +45,8 @@ export interface ProcessOrderOptions {
   providerEventId?: string;
   providerOccurredAt?: number;
   simulateAnalyticsOutage?: boolean;
+  settleOnly?: boolean;
+  captureObservedAt?: number;
   /** Provider object supplied only by trusted server routes after signature/retrieval. */
   verifiedPaymentIntent?: { id: string; status?: string; amount?: number; amount_received?: number; currency?: string; livemode?: boolean; metadata?: Record<string, string> | null; created?: number; receipt_email?: string | null };
 }
@@ -55,7 +58,7 @@ export interface SenderValidationResult {
 }
 
 export function verifyPaymentIntentForOrder(input: {
-  paymentIntent: { status?: string; amount?: number; amount_received?: number; currency?: string; metadata?: Record<string, string> | null };
+  paymentIntent: { id?: string; status?: string; amount?: number; amount_received?: number; currency?: string; livemode?: boolean; metadata?: Record<string, string> | null };
   orderId: string;
   order: Order;
 }): { valid: boolean; reason?: string; expectedAmountCents: number; capturedAmountCents: number } {
@@ -95,6 +98,15 @@ export function verifyPaymentIntentForOrder(input: {
     }
   }
   const capturedAmountCents = pi.amount_received ?? pi.amount ?? 0;
+  if (pi.id && input.order.stripePaymentId && pi.id !== input.order.stripePaymentId) {
+    return { valid: false, reason: "PaymentIntent is not bound to this order.", expectedAmountCents, capturedAmountCents };
+  }
+  if (typeof pi.livemode === "boolean" && input.order.paymentMode && pi.livemode !== (input.order.paymentMode === "live")) {
+    return { valid: false, reason: "PaymentIntent mode does not match the accepted checkout.", expectedAmountCents, capturedAmountCents };
+  }
+  if (pi.amount !== undefined && pi.amount !== expectedAmountCents) {
+    return { valid: false, reason: "PaymentIntent amount does not match the accepted checkout.", expectedAmountCents, capturedAmountCents };
+  }
   if (input.order.multiSend?.kind === "parent") {
     if (pi.metadata?.contentRevision !== input.order.multiSend.contentRevision || pi.metadata?.itemCount !== String(input.order.multiSend.recipients.length)) {
       return { valid: false, reason: "PaymentIntent batch content revision or item count does not match the immutable multi-send snapshot.", expectedAmountCents, capturedAmountCents };
@@ -222,6 +234,7 @@ export async function processPaidOrder(
       currency: "usd", livemode: false, metadata: {
         orderId,
         ...(authorityOrder.multiSend ? { contentRevision: authorityOrder.multiSend.contentRevision, itemCount: String(authorityOrder.multiSend.recipients.length) } : {}),
+        ...(authorityOrder.discountCode ? { discountCode: authorityOrder.discountCode, discountAmountCents: String(authorityOrder.discountAmountInCents || 0), quoteId: authorityOrder.quoteId || "", checkoutRevision: (authorityOrder as Order & { checkoutRevision?: string }).checkoutRevision || authorityOrder.multiSend?.contentRevision || "" } : {}),
         ...(adminQuote ? {
           origin: "ADMIN_COMP",
           adminCompQuoteId: adminQuote.quoteId,
@@ -237,6 +250,7 @@ export async function processPaidOrder(
     return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "PaymentIntent identity could not be verified against the requested payment." };
   }
   const operationId = authorityOrder.operationId || paymentIntent.metadata?.operationId;
+  const observedAt = clientContext?.captureObservedAt ?? Date.now();
   const paymentCheck = verifyPaymentIntentForOrder({ paymentIntent, orderId, order: authorityOrder });
   const capturedAmountCents = paymentIntent.amount_received ?? paymentIntent.amount ?? 0;
   const paymentCurrency = (paymentIntent.currency || "unknown").toLowerCase();
@@ -272,10 +286,21 @@ export async function processPaidOrder(
     return { success: false, status: "PAYMENT_VERIFICATION_FAILED", error: paymentCheck.reason || "Payment verification failed." };
   }
 
-  // Synchronous confirmation and Stripe webhooks share this final quote gate.
-  // Capture facts were recorded above, so an expired quote never erases evidence
-  // that money moved. ADMIN_COMP has its own immutable quote engine.
-  if (!alreadySubmitted && authorityOrder.origin !== "ADMIN_COMP") {
+  const offerRedemption = alreadySubmitted
+    ? undefined
+    : await settlePaidOrderPromotion({ order: authorityOrder, intent: paymentIntent,
+        paymentMode: localMockAllowed ? "local_mock" : isLivePayment ? "live" : "stripe_test",
+        providerEventAt: clientContext?.providerOccurredAt, observedAt });
+  if (offerRedemption?.status === "reconciliation_required") {
+    const outcome = await markOfferCaptureReconciliation(orderId, paymentIntentId, offerRedemption.error);
+    if (outcome) await logIncident({
+      type: "STRIPE", severity: "error", summary: `Paid order offer requires reconciliation (${orderId})`,
+      technicalDetails: offerRedemption.error, metadata: { orderId, paymentIntentId },
+    });
+    return { success: false, status: "PAYMENT_RECEIVED", error: "Payment received. We are reviewing the offer before fulfillment.", offerRedemption };
+  }
+  // Standard checkout and admin comp retain their own quote contracts.
+  if (!alreadySubmitted && authorityOrder.origin !== "ADMIN_COMP" && !authorityOrder.discountCode) {
     const expectedFinalCents = typeof authorityOrder.finalAmountInCents === "number"
       ? authorityOrder.finalAmountInCents
       : authorityOrder.amountInCents ?? 900;
@@ -316,6 +341,8 @@ export async function processPaidOrder(
       return { success: true, status: quoteOutcome.order.status, alreadyProcessed: true, handwryttenOrderId: quoteOutcome.order.handwryttenOrderId };
     }
   }
+  if (clientContext?.settleOnly) return { success: true, status: "PAYMENT_RECEIVED", offerRedemption };
+
   // A failed reminder projection must not change payment or fulfillment authority.
   try { await recordAcceptedAccountOrder({...authorityOrder,paymentMode:localMockAllowed?"local_mock":isLivePayment?"live":"stripe_test"}); }
   catch { console.warn("[Account] Accepted occurrence projection needs reconciliation."); }
@@ -394,7 +421,7 @@ export async function processPaidOrder(
       const stillBatchProgressed = isMultiSendOrder(current) && ["MULTI_SEND_READY", "MULTI_SEND_PARTIAL", "MULTI_SEND_CHECKING", "MULTI_SEND_COMPLETE", "MULTI_SEND_HELD", "MULTI_SEND_PREPARATION_UNCERTAIN", "MULTI_SEND_PREPARATION_REJECTED", "MULTI_SEND_INVALID_HOLD"].includes(current.fulfillmentStatus || "");
       const environmentHold = !isLivePayment || localMockAllowed || Boolean(authorityOrder.isTest || authorityOrder.isFounderTest || authorityOrder.isComp) || process.env.STAGING_REVIEW_ONLY === "true" || process.env.HANDWRYTTEN_TEST_MODE === "true";
       const nextStatus = stillBatchProgressed ? current.status : "QUEUED_FOR_FULFILLMENT";
-      const nextFulfillmentStatus = stillBatchProgressed ? current.fulfillmentStatus : environmentHold ? "MULTI_SEND_HELD" : (current.fulfillmentStatus || "MULTI_SEND_QUEUED");
+      const nextFulfillmentStatus = stillBatchProgressed ? current.fulfillmentStatus : environmentHold ? "MULTI_SEND_HELD" : (current.fulfillmentStatus === "OFFER_RECONCILIATION_REQUIRED" ? "MULTI_SEND_QUEUED" : current.fulfillmentStatus || "MULTI_SEND_QUEUED");
       tx.update(parentRef, {
         status: nextStatus, stripePaymentId: paymentIntentId,
         paymentMode: localMockAllowed ? "local_mock" : (isLivePayment ? "live" : "stripe_test"),
@@ -404,13 +431,6 @@ export async function processPaidOrder(
       return { progressed: stillBatchProgressed, status: nextStatus, fulfillmentStatus: nextFulfillmentStatus };
     });
     if (!convergence.progressed) {
-      if (authorityOrder.discountCode) {
-        try {
-          await recordDiscountUsage(authorityOrder.discountCode, authorityOrder.discountAmountInCents || 0);
-        } catch (discErr) {
-          console.warn("[OrderProcessor] Notice recording multi-send discount code usage:", discErr);
-        }
-      }
       const verifiedAmountInCents = authorityOrder.finalAmountInCents ?? authorityOrder.amountInCents;
       const isEligibleLiveCustomerPayment =
         Number.isInteger(verifiedAmountInCents) &&
@@ -668,14 +688,7 @@ export async function processPaidOrder(
     }
   }
 
-  // 4. Record discount code usage metrics if applicable
-  if (order.discountCode) {
-    try {
-      await recordDiscountUsage(order.discountCode, order.discountAmountInCents || 0);
-    } catch (discErr) {
-      console.warn("[OrderProcessor] Notice recording discount code usage:", discErr);
-    }
-  }
+
 
   // Address Deferral Bypass: halt automatic Handwrytten dispatch, order is awaiting recipient address from magic link
   if (order.status === "AWAITING_RECIPIENT_ADDRESS" || order.addressDeferred || (order as any).address_deferred) {

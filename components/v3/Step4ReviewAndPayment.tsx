@@ -43,6 +43,8 @@ import {
   normalizeSignOffText,
 } from "@/lib/multi-send/contracts";
 import { resolveStep2PreviewMessage } from "@/lib/note-preview";
+import type { CheckoutPriceComponents } from "@/lib/checkout-promotion";
+import type { CheckoutPromotionPreview } from "@/lib/checkout-promotion-client";
 
 export interface AppliedDiscountInfo {
   code: string;
@@ -51,10 +53,19 @@ export interface AppliedDiscountInfo {
   discountAmountInCents: number;
   finalAmountInCents: number;
   description?: string;
+  privateOffer?: boolean;
   isFree: boolean;
 }
 
-interface Step4ReviewAndPaymentProps {
+interface ReviewPriceProps {
+  checkoutPrice?: CheckoutPriceComponents | null;
+  offerNotice?: CheckoutPromotionPreview | null;
+  verificationMessage?: string;
+  onVerifyOffer?: () => void;
+  onRefreshOffer?: () => void;
+}
+
+interface Step4ReviewAndPaymentProps extends ReviewPriceProps {
   multiSendRecipients?: Array<{ id: string; name: string; city: string; state: string; greeting: string }>;
   multiSendSelectedRecipientId?: string | null;
   onEditMultiGreeting?: (id: string) => void;
@@ -91,7 +102,7 @@ interface Step4ReviewAndPaymentProps {
   onBack: () => void;
 }
 
-interface InnerPaymentProps {
+interface InnerPaymentProps extends ReviewPriceProps {
   multiSendRecipients?: Array<{ id: string; name: string; city: string; state: string; greeting: string }>;
   multiSendSelectedRecipientId?: string | null;
   onEditMultiGreeting?: (id: string) => void;
@@ -147,6 +158,11 @@ function InnerPaymentForm({
   isFree,
   amountInCents,
   destinationCountry = "US",
+  checkoutPrice,
+  offerNotice,
+  verificationMessage,
+  onVerifyOffer,
+  onRefreshOffer,
   appliedDiscount,
   onApplyDiscount,
   onRemoveDiscount,
@@ -219,7 +235,9 @@ function InnerPaymentForm({
     return combined.slice(0, 110) + "...";
   }, [salutation, bodyNote, signOff]);
 
-  const finalPriceCents = amountInCents ?? (appliedDiscount ? appliedDiscount.finalAmountInCents : 900);
+  const finalPriceCents = checkoutPrice?.totalCents ?? amountInCents ?? (appliedDiscount ? appliedDiscount.finalAmountInCents : 900);
+  const verificationRequired = ["identity_required", "sender_required"].includes(offerNotice?.reason?.toLowerCase() || "");
+  const formatCents = (cents: number) => `$${(cents / 100).toFixed(2)}`;
   const isInternational = isInternationalCountry(destinationCountry);
   const isZeroCost = isFree || finalPriceCents === 0;
 
@@ -415,6 +433,7 @@ function InnerPaymentForm({
           body: JSON.stringify({
             orderId,
             discountCode: appliedDiscount?.code,
+            viewToken,
             customerEmail,
           }),
         });
@@ -911,7 +930,30 @@ function InnerPaymentForm({
         </div>
 
         {/* RIGHT COLUMN: Customer Email + Stripe Express Checkout & Cards (lg:col-span-7) */}
-        <div className="lg:col-span-7 space-y-4">
+        <div className="min-w-0 lg:col-span-7 space-y-4">
+          {checkoutPrice && <section aria-label="Price breakdown" className="space-y-3 rounded-2xl border border-stone-200 bg-white p-4 text-sm text-stone-800">
+            <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2">
+              <dt>Card subtotal</dt><dd className="text-right tabular-nums">{formatCents(checkoutPrice.basePriceCents)}</dd>
+              <dt>Mailing</dt><dd className="text-right tabular-nums">{checkoutPrice.internationalSurchargeCents ? formatCents(checkoutPrice.internationalSurchargeCents) : "Included"}</dd>
+              <dt>Savings</dt><dd className="text-right tabular-nums">{checkoutPrice.discountCents ? `−${formatCents(checkoutPrice.discountCents)}` : formatCents(0)}</dd>
+              <dt className="border-t border-stone-200 pt-2 font-semibold">Amount due</dt><dd className="border-t border-stone-200 pt-2 text-right font-semibold tabular-nums">{formatCents(checkoutPrice.totalCents)}</dd>
+            </dl>
+            {checkoutPrice.lines.length > 1 && <details className="border-t border-stone-100 pt-2">
+              <summary className="cursor-pointer font-medium text-stone-700">Price per envelope</summary>
+              <ul className="mt-2 space-y-2">{checkoutPrice.lines.map((line, index) => <li key={line.id} className="flex justify-between gap-3">
+                <span className="min-w-0 break-words">{multiSendRecipients?.find((recipient) => recipient.id === line.id)?.name || `Card ${index + 1}`}</span>
+                <span className="shrink-0 tabular-nums">{formatCents(line.netCents)}</span>
+              </li>)}</ul>
+            </details>}
+          </section>}
+          {offerNotice?.error && <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950" role="status">
+            <p>{offerNotice.error}</p>
+            {verificationMessage && <p>{verificationMessage}</p>}
+            <div className="flex flex-wrap gap-2">
+              {verificationRequired && onVerifyOffer && <button type="button" className="min-h-11 rounded-lg bg-amber-900 px-3 font-semibold text-white" onClick={onVerifyOffer}>{verificationMessage ? "Check verification" : "Verify to use this offer"}</button>}
+              <button type="button" onClick={handleRemovePromo} className="min-h-11 px-2 text-left underline" disabled={isProcessing || promoLoading}>Continue at regular price</button>
+            </div>
+          </div>}
           {/* CUSTOMER EMAIL INPUT (RECEIPT & TRACKING) - IMMEDIATELY ABOVE PAYMENT */}
           <div className="bg-white rounded-2xl p-3.5 sm:p-4 border border-stone-200/90 shadow-2xs space-y-1.5">
             <label
@@ -1067,14 +1109,10 @@ function InnerPaymentForm({
               <div className="flex items-center justify-between p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs">
                 <div className="flex items-center gap-2">
                   <span className="font-mono font-bold text-emerald-800 uppercase px-2 py-0.5 bg-emerald-100 rounded border border-emerald-300">
-                    {appliedDiscount.code}
+                    {appliedDiscount.privateOffer ? "Private offer" : appliedDiscount.code}
                   </span>
                   <span className="text-emerald-700 font-medium">
-                    {appliedDiscount.isFree
-                      ? (multiSendRecipients && multiSendRecipients.length > 1 ? "One card free" : "100% Free Order")
-                      : appliedDiscount.type === "PERCENTAGE"
-                      ? `${appliedDiscount.value}% Off${multiSendRecipients && multiSendRecipients.length > 1 ? " one card" : ""}`
-                      : `-$${(appliedDiscount.discountAmountInCents / 100).toFixed(2)} Off`}
+                    {appliedDiscount.isFree ? "Card covered" : `${formatCents(appliedDiscount.discountAmountInCents)} saved`}
                   </span>
                 </div>
                 <button
@@ -1098,8 +1136,10 @@ function InnerPaymentForm({
                       if (promoError) setPromoError(null);
                     }}
                     placeholder="PROMO CODE"
-                    maxLength={25}
-                    className="flex-1 px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl font-mono font-semibold uppercase focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
+                    aria-label="Promo code"
+                    onKeyDown={(event) => { if (event.key === "Enter") void handleApplyPromo(event); }}
+                    maxLength={128}
+                    className="min-w-0 flex-1 px-3 py-2 text-xs bg-stone-50 border border-stone-300 rounded-xl font-mono font-semibold uppercase focus:outline-none focus:ring-2 focus:ring-amber-600 focus:bg-white"
                   />
                   <button
                     type="button"
@@ -1141,7 +1181,9 @@ function InnerPaymentForm({
                   onClick={async () => {
                     setPriceReconfirmationRequired(false);
                     setErrorMessage(null);
-                    if (appliedDiscount?.code) {
+                    if (onRefreshOffer) {
+                      onRefreshOffer();
+                    } else if (appliedDiscount?.code) {
                       await onApplyDiscount(appliedDiscount.code);
                     } else {
                       handleRemovePromo();

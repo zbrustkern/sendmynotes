@@ -246,7 +246,7 @@ function AttributionTrackerInner() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const followupReference = searchParams.get("followupRef");
-  const hasPrivateQuery = searchParams.has("discount") || searchParams.has("token") || Boolean(followupReference);
+  const hasPrivateQuery = ["discount", "code", "promo"].some((parameter) => searchParams.has(parameter)) || searchParams.has("token") || Boolean(followupReference);
   const isPrivatePaymentPath = Boolean(pathname?.startsWith("/comp-payment/"));
   const isPrivateTrackingPath = isPrivatePaymentPath || pathname === "/email/unsubscribe" || hasPrivateQuery;
   // Campaign attribution is first-party and allowlisted. Coupon/link URLs still

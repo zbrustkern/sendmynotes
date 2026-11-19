@@ -23,6 +23,7 @@ async function main() {
       process.env.SMN_TEST_DATA_DIR ||
       mkdtempSync(join(tmpdir(), "wedding-finance-")),
     WEDDING_CHECKOUT_ENABLED: "true",
+    PROMOTION_WEDDING_CHECKOUT_READY: "true",
     STAGING_REVIEW_ONLY: "true",
     INTERNATIONAL_MAILING_PREVIEW: "true",
     STRIPE_SECRET_KEY: "sk_test_wedding_fixture",
@@ -32,6 +33,7 @@ async function main() {
     "../lib/firebase-admin"
   );
   assert.ok(isFirestoreMock, "Use the isolated Firestore fixture.");
+  await db.collection("offer_migrations").doc("sprint_0033").set({ state: "active", cutoverAt: Date.now() });
   const { getStripeClient, setStripeClientFactoryForTests } = await import("../lib/stripe");
   const { NextRequest } = await import("next/server");
   const { POST: receiveStripeEvent } = await import("../app/api/webhooks/stripe/route");
@@ -259,15 +261,16 @@ async function main() {
     async function reserve(
       actor: WeddingActor,
       sel: Array<{ id: string; revision: number }>,
+      code?: string,
     ) {
-      const { quote } = await C.quoteWeddingSelection(actor, sel);
+      const { quote } = await C.quoteWeddingSelection(actor, sel, undefined, code);
       await assert.rejects(
-        C.quoteWeddingSelection(actor, sel, "changed"),
+        C.quoteWeddingSelection(actor, sel, "changed", code),
         /changed/,
       );
       const results = await Promise.all([
-        C.quoteWeddingSelection(actor, sel, quote.id),
-        C.quoteWeddingSelection(actor, sel, quote.id),
+        C.quoteWeddingSelection(actor, sel, quote.id, code),
+        C.quoteWeddingSelection(actor, sel, quote.id, code),
       ]);
       const batchId = "batchId" in results[0] ? results[0].batchId : "";
       assert.ok(batchId);
@@ -336,10 +339,51 @@ async function main() {
       assert.deepEqual(historic, card);
       assert.ok(!JSON.stringify(historic).includes("masterKey"));
     }
+    async function seedWeddingCredit(actor: WeddingActor, code: string) {
+      const { promotionCodeId } = await import("../lib/promotions-v2-store");
+      const { PROMOTION_SELECTION, PROMOTION_SCHEDULES } = await import("../lib/promotions-v2");
+      const id = "project_credit_" + actor.projectId;
+      const codeId = promotionCodeId(code, "private")!;
+      const policyId = id + "_1";
+      await db.collection("promotion_campaigns").doc(id).set({ id, status: "active", policyVersionId: policyId, budgetCents: 2500 });
+      await db.collection("promotion_issued_codes").doc(codeId).set({ id: codeId, campaignId: id, distribution: "private" });
+      await db.collection("promotion_policy_versions").doc(policyId).set({
+        id: policyId, campaignId: id, workflow: "wedding", scheduleVersion: PROMOTION_SCHEDULES.wedding, audience: "project", projectId: actor.projectId,
+        countryCodes: ["US","CA"], match: "matching", chargeTypes: ["card_base"], benefit: { type: "fixed_unit", amountCents: 100 },
+        maxUnitsPerProject: 25, payableFloor: "reject", selectionStrategy: PROMOTION_SELECTION,
+      });
+      return id;
+    }
+    {
+      const { actor, ref, sel } = await setup(50, false);
+      const code = "PROJECT-25";
+      const id = await seedWeddingCredit(actor, code);
+      const { promotionUsageRef } = await import("../lib/promotions-v2-store");
+      const foreign = await setup(1, false);
+      await assert.rejects(C.quoteWeddingSelection(foreign.actor,foreign.sel,undefined,code), /unavailable/);
+      const sample = await C.quoteWeddingSelection(actor,sel,undefined,code);
+      assert.equal(sample.quote.totalCents, 35250);
+      const one = await reserve(actor,sel.slice(0,20),code);
+      assert.equal(one.quote.totalCents,14500);
+      one.pi.status="succeeded"; one.pi.amount_received=one.pi.amount;
+      await C.settleWeddingIntent(one.pi);
+      await C.settleWeddingIntent(one.pi);
+      const two = await reserve(actor,sel.slice(20),code);
+      assert.equal(two.quote.totalCents,20750);
+      two.pi.status="succeeded"; two.pi.amount_received=two.pi.amount;
+      await C.settleWeddingIntent(two.pi);
+      assert.equal((await ref.get()).data()?.purchasedCount,50);
+      const balance = (await promotionUsageRef("campaign",id).get()).data();
+      assert.equal(balance?.spentCents,2500);
+      assert.equal(balance?.heldCents,0);
+      assert.equal(balance?.spentUnits,25);
+    }
     for (const mixed of [false, true]) {
       const { actor, ref, sel } = await setup(100, mixed);
-      const first = await reserve(actor, sel.slice(0, 98));
-      assert.equal(first.quote.totalCents, mixed ? 72350 : 71350);
+      const code = mixed ? "MIXED-25" : undefined;
+      if (code) await seedWeddingCredit(actor, code);
+      const first = await reserve(actor, sel.slice(0, 98),code);
+      assert.equal(first.quote.totalCents, mixed ? 69850 : 71350);
       assert.equal(first.quote.includedTaxCents, null);
       first.pi.status = "succeeded";
       first.pi.amount_received = first.pi.amount;
@@ -399,7 +443,7 @@ async function main() {
         assert.equal(saved.refundReservedCents, 0);
         assert.equal(
           first.pi.amount + second.pi.amount - saved.refundedCents,
-          73000,
+          70500,
         );
         const { exportWeddingTracker } = await import("../lib/wedding/project");
         const verifiedOwner = { ...actor, verified: true, uid: "test-owner" };

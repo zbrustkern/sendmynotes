@@ -13,6 +13,7 @@ import {
   safeId,
   WeddingCheckoutError,
 } from "@/lib/wedding/checkout";
+import { readPromotionFromRequestReference } from "@/lib/promotions-v2-store";
 import { isSameOrigin } from "@/lib/upload/http";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,12 +41,24 @@ export async function POST(req: NextRequest) {
         ? "edit"
         : "pay",
     );
+    const promotionCode = body.promotionCode;
+    if (promotionCode !== undefined && (typeof promotionCode !== "string" || promotionCode.length > 128)) {
+      throw new WeddingCheckoutError("Enter a valid offer code.", 400);
+    }
+    let offer: string | { issuedId: string } | undefined = promotionCode;
+    if (body.offerReference !== undefined) {
+      const linked = await readPromotionFromRequestReference(req, body.offerReference);
+      if (promotionCode || !linked) throw new WeddingCheckoutError("This offer link is unavailable. Remove it to continue.", 409);
+      offer = { issuedId: linked.code.id };
+    }
     let result;
     switch (body.action) {
       case "quote":
         result = await quoteWeddingSelection(
           actor,
           readSelection(body.selection),
+          undefined,
+          offer,
         );
         break;
       case "reserve":
@@ -61,6 +74,7 @@ export async function POST(req: NextRequest) {
           actor,
           readSelection(body.selection),
           body.quoteHash,
+          offer,
         );
         break;
       case "advance":

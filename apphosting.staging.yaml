@@ -1,10 +1,22 @@
 # Selected only by the sendmynotes-staging backend environment name.
 # Staging is an admin review environment; live payments, mail and physical orders are blocked.
 env:
+  - variable: PROMOTION_PRIVATE_KEY
+    secret: promotion-private-key@1
+    availability: [RUNTIME]
+  - variable: OFFER_SCHEDULER_IDENTITY
+    value: offer-reconciler@sendmynotes-staging.iam.gserviceaccount.com
+    availability: [RUNTIME]
+  - variable: OFFER_SCHEDULER_AUDIENCE
+    value: https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/api/cron/offer-reconcile
+    availability: [RUNTIME]
   - variable: NEXT_PUBLIC_WEDDING_PORTAL_ENABLED
     value: "true"
     availability: [BUILD, RUNTIME]
   - variable: WEDDING_PROJECTS_ENABLED
+    value: "true"
+    availability: [RUNTIME]
+  - variable: PROMOTION_WEDDING_CHECKOUT_READY
     value: "true"
     availability: [RUNTIME]
   - variable: WEDDING_CHECKOUT_ENABLED

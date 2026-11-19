@@ -1,3 +1,5 @@
+import { prepareWeddingPromotion, finalizeWeddingPromotion } from "./promotion";
+import type { OfferCounterDelta } from "../offer-balances";
 import { randomUUID } from "node:crypto";
 import type { Transaction } from "firebase-admin/firestore";
 import type Stripe from "stripe";
@@ -80,6 +82,7 @@ type Batch = {
   actorId: string;
   status: Status;
   quote: WeddingQuote;
+  promotionDeltas?: OfferCounterDelta[];
   createdAt: number;
   expiresAt: number;
   preparedCount: number;
@@ -253,6 +256,7 @@ export async function quoteWeddingSelection(
   actor: Payer,
   selection: Selection[],
   reserveHash?: string,
+  promotionCode?: string | { issuedId: string },
 ) {
   if (reserveHash !== undefined) requirePurchasing();
   const batchId = "wb_" + randomUUID();
@@ -299,11 +303,15 @@ export async function quoteWeddingSelection(
         contentHash: digest(card),
       };
     });
-    const quote = priceWeddingSelection(
+    const baseQuote = priceWeddingSelection(
       actor.projectId,
       project.purchasedCount || 0,
       lines,
     );
+    const promoted = promotionCode
+      ? await prepareWeddingPromotion(tx, actor, baseQuote, promotionCode)
+      : null;
+    const quote = promoted?.quote ?? baseQuote;
     if (reserveHash === undefined)
       return { quote, checkoutEnabled: weddingCheckoutEnabled() };
     if (quote.id !== reserveHash)
@@ -330,6 +338,10 @@ export async function quoteWeddingSelection(
       refundReservedCents: 0,
       dueAt: now + HOUR,
     };
+    if (promoted) {
+      promoted.reserve();
+      batch.promotionDeltas = promoted.deltas;
+    }
     tx.create(weddingBatchRef(batchId), batch);
     tx.update(ref, {
       activeBatchId: batchId,
@@ -637,6 +649,7 @@ export async function settleWeddingIntent(pi: Stripe.PaymentIntent) {
         );
       paidHouseholds[l.householdId] = id;
     }
+    await finalizeWeddingPromotion(tx, b, "consume", pi.id);
     tx.update(ref, {
       ...clearLock,
       purchasedCount: b.quote.previouslyPurchased + b.quote.count,
@@ -742,6 +755,7 @@ async function closeReservation(id: string, actor?: Payer) {
     if (p.activeBatchId !== id)
       throw new WeddingCheckoutError("Reservation requires review.");
     if (!b.issueAt) {
+      await finalizeWeddingPromotion(tx, b, "release");
       tx.update(projectRef(b.projectId), clearLock);
       tx.update(weddingBatchRef(id), { status: "canceled", dueAt: null });
       return { ...b, status: "canceled" as const };
@@ -773,6 +787,7 @@ async function closeReservation(id: string, actor?: Payer) {
       if (latest.status === "canceled") return;
       if (latest.status !== "canceling" || p.activeBatchId !== id)
         throw new WeddingCheckoutError("Cancellation requires review.");
+      await finalizeWeddingPromotion(tx, latest, "release");
       tx.update(projectRef(b.projectId), clearLock);
       tx.update(weddingBatchRef(id), {
         status: "canceled",

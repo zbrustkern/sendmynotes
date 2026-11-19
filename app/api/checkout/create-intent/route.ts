@@ -8,29 +8,53 @@ import { pinUploadOrderMaster, verifyResumedOrderSelection } from "@/lib/upload/
 import { UploadError } from "@/lib/upload/contracts";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { saveOrder, createOrderOnce, getOrderById, getSystemConfig, updateOrderStatus } from "@/lib/firebase-admin";
-import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS, getStripeClient } from "@/lib/stripe";
-import { checkoutBinding, checkoutSeed, CheckoutSeed, claimCheckout, resumeCheckout, CheckoutResumeError, legacyCheckoutSeed } from "@/lib/checkout-resume";
+import { createOrderOnce, getOrderById, getSystemConfig } from "@/lib/firebase-admin";
+import { createCardPaymentIntent, CARD_FLAT_RATE_CENTS, getStripeClient, type CreateIntentParams } from "@/lib/stripe";
+import { checkoutBinding, checkoutSeed, CheckoutSeed, claimCheckout, clearClosedCheckoutBinding, resumeCheckout, CheckoutResumeError, legacyCheckoutSeed, openCheckoutPayment, retireCheckoutOrder, singleCheckoutOwnerKey, verifyCheckoutHold, verifyCheckoutIntent } from "@/lib/checkout-resume";
 import { PaymentModeConfigError, normalizeStripeSecretKey, resolvePaymentMode } from "@/lib/payment-mode";
 import { validatePersonalSender } from "@/lib/order-processor";
-import { issueOfferPriceQuote, reserveOfferForCheckout, releaseOfferReservation, getOfferReservationsCollection, verifyCheckoutQuoteIntegrity } from "@/lib/offer-engine";
+import { reserveOfferForCheckout } from "@/lib/offer-engine";
+import { checkoutPriceComponents, checkoutPromotionBasket, checkoutPromotionDecision, normalizeCheckoutCode, verifiedPromotionOwner } from "@/lib/checkout-promotion";
 import { Order, MailingAddress, RecipientOccasion } from "@/lib/types";
 import { logIncident } from "@/lib/incident-logger";
 import { isOperationalControlPaused } from "@/lib/operational-controls";
 import { resolveOperationId, operationMetadata, withOperationId } from "@/lib/operation-diagnostics";
 import { normalizeCountryCode, validateMailingAddress, getEnabledDestination, authorizeInternationalCheckout, isStagingInternationalPreview, isProductionInternationalEnabled } from "@/lib/mailing-destinations";
-import { calculateOrderQuote, ORDER_PRICE_VERSION } from "@/lib/order-pricing";
+import { ORDER_PRICE_VERSION } from "@/lib/order-pricing";
 import { prepareCheckoutOrderAttribution } from "@/lib/order-attribution";
 import { getFeatureFlags } from "@/lib/feature-flags";
-import { allocateTotalCents, composeRecipientMessage, normalizedMailingAddressKey, quoteMultiSend, resolveGreeting, validateMultiSendInput } from "@/lib/multi-send/contracts";
-import { abortMultiSendCheckoutClaim, blockMultiSendCheckout, claimMultiSendCheckout, claimMultiSendRetry, finishMultiSendCheckout, multiSendCheckoutOwnerKey, resetMultiSendCheckoutAfterCanceledReplacement, recoverMultiSendCheckout, verifyMultiSendCheckoutOwner } from "@/lib/multi-send/checkout";
+import { composeRecipientMessage, normalizedMailingAddressKey, resolveGreeting, validateMultiSendInput } from "@/lib/multi-send/contracts";
+import { abortMultiSendCheckoutClaim, blockMultiSendCheckout, claimMultiSendCheckout, claimMultiSendRetry, finishMultiSendCheckout, multiSendCheckoutOwnerKey, multiSendCheckoutRef, resetMultiSendCheckoutAfterCanceledReplacement, recoverMultiSendCheckout, verifyMultiSendCheckoutOwner } from "@/lib/multi-send/checkout";
+
+async function retirePriorCheckout(req: NextRequest, proof: unknown, userId: string | undefined, allowMultiSend: boolean) {
+  if (!proof || typeof proof !== "object" || !("orderId" in proof) || !("viewToken" in proof) ||
+      typeof proof.orderId !== "string" || !/^order_[a-f0-9]{32}$/.test(proof.orderId) || typeof proof.viewToken !== "string") return;
+  const order = await getOrderById(proof.orderId);
+  if (!order || order.isComp || order.viewToken !== proof.viewToken || (order.userId && order.userId !== userId) || order.status === "FAILED") return;
+  if (!order.multiSend) {
+    await retireCheckoutOrder(order, "removed");
+    return;
+  }
+  if (!allowMultiSend) return;
+  const checkoutId = order.multiSend.checkoutId;
+  const group = (await multiSendCheckoutRef(checkoutId).get()).data();
+  const guestKey = multiSendCheckoutOwnerKey({ checkoutId, guestCapability: req.cookies.get(`smn_multi_send_${checkoutId}`)?.value });
+  const ownerKey = group?.ownerKey && group.ownerKey === guestKey ? guestKey : multiSendCheckoutOwnerKey({ checkoutId, userId });
+  const lease = await claimMultiSendRetry(checkoutId, ownerKey, order.id);
+  if (!lease) throw new CheckoutResumeError("The previous checkout is still being updated. Please retry.");
+  try {
+    await retireCheckoutOrder(order, "removed");
+    await resetMultiSendCheckoutAfterCanceledReplacement(checkoutId, lease, order.id);
+  } catch (error) {
+    await finishMultiSendCheckout(checkoutId, lease);
+    throw error;
+  }
+}
 
 export async function POST(req: NextRequest) {
   const operationId = resolveOperationId(req, "checkout");
-  let activeMultiSendClaim: { checkoutId: string; leaseId: string } | null = null;
+  let activeMultiSendClaim: { checkoutId: string; leaseId: string; previousOrderId?: string; oldRetired?: boolean; orderSaved?: boolean } | null = null;
   let guestCheckoutCapability: string | null = null;
-  let canceledMultiSendOrderId: string | null = null;
-  let reservedMultiSendOrderId: string | null = null;
   try {
     if (await isOperationalControlPaused("checkout")) {
       return withOperationId(NextResponse.json({ error: "Checkout is temporarily unavailable. Please try again shortly.", code: "CHECKOUT_PAUSED", operationId }, { status: 503 }), operationId);
@@ -87,158 +111,115 @@ export async function POST(req: NextRequest) {
         }
         checkedAddresses.push({ id: recipient.id, address });
       }
-      const requestContentHash = crypto.createHash("sha256").update(JSON.stringify({ multiSend, discountCode: typeof body.discountCode === "string" ? body.discountCode.trim().toUpperCase() : "", returnAddress: body.returnAddress, frontImageUrl: body.frontImageUrl || null, uploadDesign: body.uploadDesign || null, accountImage: body.accountImage || null })).digest("hex");
-      const orderId = `order_${crypto.createHash("sha256").update(`${multiSend.checkoutId}:${requestContentHash}`).digest("hex").slice(0, 32)}`;
+      const code = normalizeCheckoutCode(body.discountCode);
+      const reference = typeof body.offerReference === "string" && body.offerReference.length <= 256 ? body.offerReference : undefined;
+      if ((body.discountCode && !code) || (body.offerReference && !reference)) return NextResponse.json({ error: "This offer is unavailable.", reason: "unavailable" }, { status: 400 });
+      const requestContentHash = crypto.createHash("sha256").update(JSON.stringify({ multiSend, discountCode: code, returnAddress: body.returnAddress, frontImageUrl: body.frontImageUrl || null, uploadDesign: body.uploadDesign || null, accountImage: body.accountImage || null, ...(reference ? { offerReference: reference } : {}) })).digest("hex");
       const accountAssociation = await resolveAccountOrderAssociation(req, body);
+      const ownerUid = code || reference ? await verifiedPromotionOwner(req) : undefined;
       guestCheckoutCapability = req.cookies.get(`smn_multi_send_${multiSend.checkoutId}`)?.value || null;
       if (!accountAssociation.userId && !guestCheckoutCapability) guestCheckoutCapability = crypto.randomBytes(32).toString("hex");
-      const ownerKey = multiSendCheckoutOwnerKey({ checkoutId: multiSend.checkoutId, userId: accountAssociation.userId, guestCapability: guestCheckoutCapability || undefined });
+      const group = (await multiSendCheckoutRef(multiSend.checkoutId).get()).data();
+      const guestOwnerKey = multiSendCheckoutOwnerKey({ checkoutId: multiSend.checkoutId, guestCapability: guestCheckoutCapability || undefined });
+      const ownerKey = group?.ownerKey && group.ownerKey === guestOwnerKey ? guestOwnerKey : multiSendCheckoutOwnerKey({ checkoutId: multiSend.checkoutId, userId: accountAssociation.userId, guestCapability: guestCheckoutCapability || undefined });
+      if (group && group.ownerKey !== ownerKey) return NextResponse.json({ error: "Checkout could not be verified.", code: "MULTI_SEND_OWNER_MISMATCH" }, { status: 403 });
+      const orderId = group?.currentRevision === requestContentHash && group.currentOrderId
+        ? String(group.currentOrderId)
+        : `order_${crypto.createHash("sha256").update(`${multiSend.checkoutId}:${requestContentHash}:${group?.currentOrderId || group?.lastRetiredOrderId || ""}`).digest("hex").slice(0, 32)}`;
+      const paymentMode = resolvePaymentMode();
+      const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || null;
+      if (paymentMode !== "local_mock" && !publishableKey?.startsWith(paymentMode === "stripe_test" ? "pk_test_" : "pk_live_")) {
+        throw new PaymentModeConfigError("A matching Stripe publishable key is not configured.", 503, "STRIPE_PUBLISHABLE_KEY_MISMATCH");
+      }
+      const paymentResponse = (order: Order, payment: { clientSecret: string | null; paymentIntentId: string; isMock: boolean }) => {
+        const response = NextResponse.json({ orderId: order.id, operationId: order.operationId || operationId, viewToken: order.viewToken, clientSecret: payment.clientSecret, paymentIntentId: payment.paymentIntentId, publishableKey, isMock: payment.isMock, amountInCents: order.amountInCents, finalAmountInCents: order.finalAmountInCents, quote: order.quote, price: order.checkoutPrice, discountCode: order.discountCode, discountAmountInCents: order.discountAmountInCents || 0, quoteId: order.quoteId, appliedOfferId: order.appliedOfferId, appliedOfferVersion: order.appliedOfferVersion, isFree: false }, { headers: { "Cache-Control": "private, no-store" } });
+        if (guestCheckoutCapability && ownerKey === guestOwnerKey) response.cookies.set(`smn_multi_send_${multiSend.checkoutId}`, guestCheckoutCapability, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api", maxAge: 60 * 60 * 24 * 30 });
+        return withOperationId(response, operationId);
+      };
       const existingOrder = await getOrderById(orderId);
       if (existingOrder) {
+        if (existingOrder.userId && existingOrder.userId !== accountAssociation.userId) return NextResponse.json({ error: "Checkout belongs to a different account.", code: "MULTI_SEND_OWNER_MISMATCH" }, { status: 403 });
         const retryLease = await claimMultiSendRetry(multiSend.checkoutId, ownerKey, orderId);
         if (!retryLease) return NextResponse.json({ error: "Checkout could not be verified or is being replaced.", code: "MULTI_SEND_OWNER_MISMATCH" }, { status: 403 });
-        activeMultiSendClaim = { checkoutId: multiSend.checkoutId, leaseId: retryLease };
+        activeMultiSendClaim = { checkoutId: multiSend.checkoutId, leaseId: retryLease, orderSaved: true };
         if (existingOrder.multiSend?.contentRevision !== requestContentHash || existingOrder.status !== "PENDING_PAYMENT") {
           await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
           activeMultiSendClaim = null;
           return NextResponse.json({ error: "This checkout has already been paid or changed. Start a new checkout review.", code: "MULTI_SEND_CHECKOUT_STALE" }, { status: 409 });
         }
-        const mode = resolvePaymentMode();
-        if (existingOrder.paymentMode && existingOrder.paymentMode !== mode) {
-          await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
+        if (existingOrder.paymentMode && existingOrder.paymentMode !== paymentMode) throw new CheckoutResumeError("Payment mode changed while this checkout was open.");
+        if (!await verifyCheckoutHold(existingOrder)) {
+          await retireCheckoutOrder(existingOrder, "expired");
+          await resetMultiSendCheckoutAfterCanceledReplacement(multiSend.checkoutId, retryLease, existingOrder.id);
           activeMultiSendClaim = null;
-          return NextResponse.json({ error: "Payment mode changed while this checkout was open. Contact support before retrying.", code: "MULTI_SEND_PAYMENT_MODE_CHANGED" }, { status: 409 });
+          return NextResponse.json({ error: "This offer expired before payment. Review the current total and try again.", code: "MULTI_SEND_OFFER_QUOTE_EXPIRED" }, { status: 409 });
         }
-        let existingPayment: { clientSecret: string | null; paymentIntentId: string; isMock: boolean };
-        let savedQuoteIntegrity = existingOrder.discountCode
-          ? await verifyCheckoutQuoteIntegrity({ quoteId: existingOrder.quoteId, code: existingOrder.discountCode, expectedFinalCents: existingOrder.amountInCents, paymentIntentAmountCents: existingOrder.amountInCents, multiSendCount: existingOrder.multiSend.recipients.length })
-          : { valid: true };
-        if (existingOrder.discountCode && savedQuoteIntegrity.valid) {
-          const hold = await getOfferReservationsCollection().doc(`res_${existingOrder.id}_${existingOrder.discountCode}`).get();
-          const reservation = hold.data();
-          if (!hold.exists || reservation?.status !== "active" || reservation.expiresAt <= Date.now() || reservation.quoteId !== existingOrder.quoteId) {
-            savedQuoteIntegrity = { valid: false, reason: "Offer reservation expired or was released. Review the total again before paying." };
-          }
-        }
-        if (existingOrder.stripePaymentId && mode !== "local_mock") {
+        let payment;
+        if (existingOrder.stripePaymentId && paymentMode !== "local_mock") {
           const pi = await getStripeClient().paymentIntents.retrieve(existingOrder.stripePaymentId);
-          if (pi.metadata?.orderId !== orderId || pi.metadata?.contentRevision !== requestContentHash || pi.metadata?.itemCount !== String(existingOrder.multiSend.recipients.length) || pi.amount !== existingOrder.amountInCents || pi.currency.toLowerCase() !== "usd" || Boolean(pi.livemode) !== (mode === "live") || (existingOrder.discountCode && (pi.metadata?.discountCode !== existingOrder.discountCode || pi.metadata?.quoteId !== existingOrder.quoteId))) {
-            await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
-            activeMultiSendClaim = null;
-            return NextResponse.json({ error: "The saved payment does not match this checkout snapshot. Contact support before retrying.", code: "MULTI_SEND_PAYMENT_RECONCILIATION" }, { status: 409 });
-          }
-          if (pi.status === "succeeded" || pi.status === "processing" || pi.status === "canceled") {
+          if (!verifyCheckoutIntent(existingOrder, pi, paymentMode)) throw new CheckoutResumeError("The saved payment does not match this checkout snapshot.");
+          if (!["requires_payment_method", "requires_confirmation"].includes(pi.status)) {
             await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
             activeMultiSendClaim = null;
             const orderPath = `/order/${encodeURIComponent(existingOrder.id)}?token=${encodeURIComponent(existingOrder.viewToken || "")}`;
             return NextResponse.json({ error: "This payment is already complete or closed. Reopening the order to view its latest status.", code: "MULTI_SEND_PAYMENT_CLOSED", orderId: existingOrder.id, viewToken: existingOrder.viewToken, orderPath }, { status: 409 });
           }
-          if (!savedQuoteIntegrity.valid) {
-            await getStripeClient().paymentIntents.cancel(pi.id);
-            await updateOrderStatus(existingOrder.id, { status: "FAILED", fulfillmentStatus: "MULTI_SEND_OFFER_QUOTE_EXPIRED", fulfillmentError: savedQuoteIntegrity.reason || "Offer quote expired before retry." } as any);
-            await releaseOfferReservation(existingOrder.id, "expired");
-            await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
-            activeMultiSendClaim = null;
-            const orderPath = `/order/${encodeURIComponent(existingOrder.id)}?token=${encodeURIComponent(existingOrder.viewToken || "")}`;
-            return NextResponse.json({ error: "This offer quote expired before payment. Its payment was closed; reopening the order so you can review its status.", code: "MULTI_SEND_OFFER_QUOTE_EXPIRED", orderId: existingOrder.id, viewToken: existingOrder.viewToken, orderPath }, { status: 409 });
-          }
-          existingPayment = { clientSecret: pi.client_secret, paymentIntentId: pi.id, isMock: false };
+          payment = { clientSecret: pi.client_secret, paymentIntentId: pi.id, isMock: false };
+        } else if (existingOrder.stripePaymentId) {
+          if (existingOrder.stripePaymentId !== `pi_mock_${existingOrder.id}`) throw new CheckoutResumeError("The saved payment does not match this checkout snapshot.");
+          payment = await createCardPaymentIntent({ orderId, amountInCents: existingOrder.amountInCents });
         } else {
-          if (!savedQuoteIntegrity.valid) {
-            await updateOrderStatus(existingOrder.id, { status: "FAILED", fulfillmentStatus: "MULTI_SEND_OFFER_QUOTE_EXPIRED", fulfillmentError: savedQuoteIntegrity.reason || "Offer quote expired before retry." } as any);
-            await releaseOfferReservation(existingOrder.id, "expired");
-            await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
-            activeMultiSendClaim = null;
-            const orderPath = `/order/${encodeURIComponent(existingOrder.id)}?token=${encodeURIComponent(existingOrder.viewToken || "")}`;
-            return NextResponse.json({ error: "This offer quote expired before payment. Its payment was closed; reopening the order so you can review its status.", code: "MULTI_SEND_OFFER_QUOTE_EXPIRED", orderId: existingOrder.id, viewToken: existingOrder.viewToken, orderPath }, { status: 409 });
-          }
-          existingPayment = await createCardPaymentIntent({ orderId, amountInCents: existingOrder.amountInCents, idempotencyKey: `multi-send-${multiSend.checkoutId}-${requestContentHash.slice(0, 32)}`, metadata: { quoteVersion: existingOrder.quote?.version || "multi-send-900-v1", quotedTotalCents: String(existingOrder.amountInCents), itemCount: String(existingOrder.multiSend.recipients.length), contentRevision: requestContentHash, ...(existingOrder.discountCode ? { discountCode: existingOrder.discountCode, discountAmountCents: String(existingOrder.discountAmountInCents || 0), quoteId: existingOrder.quoteId || "" } : {}) } });
-          if (existingOrder.stripePaymentId !== existingPayment.paymentIntentId) await saveOrder({ ...existingOrder, stripePaymentId: existingPayment.paymentIntentId, updatedAt: Date.now() } as Order & Record<string, unknown>);
+          payment = await openCheckoutPayment(existingOrder);
         }
         await finishMultiSendCheckout(multiSend.checkoutId, retryLease);
         activeMultiSendClaim = null;
-        const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || null;
-        const response = NextResponse.json({ orderId, operationId: existingOrder.operationId || operationId, viewToken: existingOrder.viewToken, clientSecret: existingPayment.clientSecret, paymentIntentId: existingPayment.paymentIntentId, publishableKey, isMock: existingPayment.isMock, amountInCents: existingOrder.amountInCents, finalAmountInCents: existingOrder.finalAmountInCents, quote: existingOrder.quote, isFree: false });
-        if (!accountAssociation.userId && guestCheckoutCapability) response.cookies.set(`smn_multi_send_${multiSend.checkoutId}`, guestCheckoutCapability, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api", maxAge: 60 * 60 * 24 * 30 });
-        return withOperationId(response, operationId);
-      }
-      let discountAmountInCents = 0;
-      let appliedCode: string | undefined;
-      let quoteId: string | undefined;
-      let appliedOfferId: string | undefined;
-      let appliedOfferVersion: number | undefined;
-      if (typeof body.discountCode === "string" && body.discountCode.trim()) {
-        const code = body.discountCode.trim().toUpperCase();
-        const offer = await issueOfferPriceQuote({ code, sessionId: body.sessionId, nowMs: Date.now() });
-        if (!offer.valid) return NextResponse.json({ error: offer.error || "Invalid discount code." }, { status: 400 });
-        discountAmountInCents = Math.min(CARD_FLAT_RATE_CENTS, offer.discountAmountInCents || 0);
-        appliedCode = offer.offer?.code || code;
-        quoteId = offer.quote?.quoteId;
-        appliedOfferId = offer.offer?.offerId;
-        appliedOfferVersion = offer.offer?.version;
+        return paymentResponse(existingOrder, payment);
       }
       const claim = await claimMultiSendCheckout({ checkoutId: multiSend.checkoutId, contentRevision: requestContentHash, orderId, ownerKey, replaces: body.replaces });
       if (!claim.claimed || !claim.leaseId) return NextResponse.json({ error: claim.code === "MULTI_SEND_REPLACEMENT_PROOF_REQUIRED" ? "Review edits requires the previous checkout capability." : "Another checkout update is already in progress or needs support.", code: claim.code || "MULTI_SEND_CHECKOUT_BUSY" }, { status: claim.code === "MULTI_SEND_OWNER_MISMATCH" ? 403 : 409 });
-      activeMultiSendClaim = { checkoutId: multiSend.checkoutId, leaseId: claim.leaseId };
-      let priorOrderForReplacement: Order | null = null;
+      activeMultiSendClaim = { checkoutId: multiSend.checkoutId, leaseId: claim.leaseId, previousOrderId: claim.previousOrderId };
       if (claim.previousOrderId) {
         const prior = await getOrderById(claim.previousOrderId);
-        priorOrderForReplacement = prior;
-        if (!prior?.stripePaymentId) {
-          if (prior) {
-            canceledMultiSendOrderId = prior.id;
-            await updateOrderStatus(prior.id, { status: "FAILED", fulfillmentStatus: "MULTI_SEND_INTENT_REPLACED", fulfillmentError: "Unpaid checkout snapshot replaced before a payment intent was created." } as any);
-          }
-        } else if (resolvePaymentMode() === "local_mock") {
-          canceledMultiSendOrderId = prior.id;
-          await updateOrderStatus(prior.id, { status: "FAILED", fulfillmentStatus: "MULTI_SEND_INTENT_REPLACED", fulfillmentError: "Unpaid checkout snapshot replaced." } as any);
-        } else {
-          const stripe = getStripeClient();
-          const oldIntent = await stripe.paymentIntents.retrieve(prior.stripePaymentId);
-          if (oldIntent.metadata?.orderId !== prior.id || oldIntent.metadata?.contentRevision !== prior.multiSend?.contentRevision || oldIntent.amount !== prior.amountInCents || oldIntent.currency.toLowerCase() !== "usd" || Boolean(oldIntent.livemode) !== (prior.paymentMode === "live")) {
-            await blockMultiSendCheckout(multiSend.checkoutId, claim.leaseId);
-            activeMultiSendClaim = null;
-            return NextResponse.json({ error: "The previous payment could not be safely matched. Contact support before retrying.", code: "MULTI_SEND_REPLACEMENT_RECONCILIATION" }, { status: 409 });
-          }
-          if (oldIntent.status === "succeeded" || oldIntent.status === "processing") {
-            await blockMultiSendCheckout(multiSend.checkoutId, claim.leaseId);
-            activeMultiSendClaim = null;
-            const orderPath = `/order/${encodeURIComponent(prior.id)}?token=${encodeURIComponent(prior.viewToken || "")}`;
-            return NextResponse.json({ error: "The previous payment may have completed. Reopening its order so you can view the latest status.", code: "MULTI_SEND_LATE_PAYMENT", orderId: prior.id, viewToken: prior.viewToken, orderPath }, { status: 409 });
-          }
-          if (oldIntent.status !== "canceled") await stripe.paymentIntents.cancel(oldIntent.id);
-          canceledMultiSendOrderId = prior.id;
-          await updateOrderStatus(prior.id, { status: "FAILED", fulfillmentStatus: "MULTI_SEND_INTENT_REPLACED", fulfillmentError: "Prior unpaid payment intent was canceled before replacement." } as any);
+        if (!prior || (prior.userId && prior.userId !== accountAssociation.userId)) throw new CheckoutResumeError("The previous checkout could not be verified.");
+        try {
+          await retireCheckoutOrder(prior, "removed");
+          activeMultiSendClaim.oldRetired = true;
+        } catch (error) {
+          if (!(error instanceof CheckoutResumeError) || !error.order) throw error;
+          await blockMultiSendCheckout(multiSend.checkoutId, claim.leaseId);
+          activeMultiSendClaim = null;
+          const orderPath = `/order/${encodeURIComponent(prior.id)}?token=${encodeURIComponent(prior.viewToken || "")}`;
+          return NextResponse.json({ error: "The previous payment may have completed. Reopening its order so you can view the latest status.", code: "MULTI_SEND_LATE_PAYMENT", orderId: prior.id, viewToken: prior.viewToken, orderPath }, { status: 409 });
         }
+      } else {
+        await retirePriorCheckout(req, body.replaces, accountAssociation.userId, false);
       }
-      if (appliedCode) {
-        const reservation = await reserveOfferForCheckout({ code: appliedCode, orderId, sessionId: body.sessionId || "multi_send_checkout", quoteId, ...(priorOrderForReplacement ? { replaceOrderId: priorOrderForReplacement.id } : {}) });
-        if (!reservation.reserved) {
-          if (priorOrderForReplacement) {
-            // The old intent has already been safely canceled. Free any prior hold and let the same checkout group retry from a clean state.
-            await releaseOfferReservation(priorOrderForReplacement.id, "removed");
-            await resetMultiSendCheckoutAfterCanceledReplacement(multiSend.checkoutId, claim.leaseId);
-            activeMultiSendClaim = null;
-          } else {
-            await abortMultiSendCheckoutClaim({ checkoutId: multiSend.checkoutId, leaseId: claim.leaseId });
-            activeMultiSendClaim = null;
-          }
-          return NextResponse.json({ error: reservation.error || "This discount code cannot be reserved. The previous payment was canceled; retry checkout to continue.", code: "MULTI_SEND_OFFER_RESERVATION_FAILED" }, { status: 409 });
-        }
-        reservedMultiSendOrderId = orderId;
+      const contentRevision = requestContentHash;
+      const basket = checkoutPromotionBasket({ workflow: "multisend", revision: contentRevision, ownerUid, recipients: checkedAddresses.map(({ id }) => ({ id, countryCode: "US" })) });
+      const decision = await checkoutPromotionDecision({ req, code, reference, basket, durable: true, sessionId: body.sessionId });
+      const abandon = async () => {
+        if (claim.previousOrderId) await resetMultiSendCheckoutAfterCanceledReplacement(multiSend.checkoutId, claim.leaseId!, claim.previousOrderId);
+        else await abortMultiSendCheckoutClaim({ checkoutId: multiSend.checkoutId, leaseId: claim.leaseId! });
+        activeMultiSendClaim = null;
+      };
+      if (!decision.valid) {
+        await abandon();
+        return NextResponse.json({ error: decision.error, reason: decision.reason, price: decision.price }, { status: 400 });
       }
-      if (priorOrderForReplacement) await releaseOfferReservation(priorOrderForReplacement.id, "removed");
+      const { price, quote: offer } = decision;
+      const { lines: pricedLines, ...quote } = price;
+      const discountAmountInCents = price.discountCents;
+      const appliedCode = offer?.code;
+      const quoteId = offer?.quoteId;
+      const appliedOfferId = offer?.offerId;
+      const appliedOfferVersion = offer?.offerVersion;
       const viewToken = `tok_${crypto.randomBytes(16).toString("hex")}`;
       const uploadMaster = await pinUploadOrderMaster(req, body, orderId)
         || (accountAssociation.userId ? await pinGeneratedOrderMaster(accountAssociation.userId, orderId, body.frontImageUrl) : undefined);
-      const flagsForMode = resolvePaymentMode();
-      const unitCents = CARD_FLAT_RATE_CENTS;
-      const quoteAmounts = quoteMultiSend(multiSend.recipients.length, discountAmountInCents, unitCents);
-      const quote = {
-        version: "multi-send-900-v1", countryCode: "US", basePriceCents: quoteAmounts.basePriceCents,
-        discountCents: quoteAmounts.discountCents, internationalSurchargeCents: 0, totalCents: quoteAmounts.totalCents, currency: "USD" as const,
+      const paymentRequest: CreateIntentParams = {
+        orderId, amountInCents: quote.totalCents, idempotencyKey: `multi-send-${orderId}`,
+        metadata: { quoteVersion: quote.version, quotedTotalCents: String(quote.totalCents), itemCount: String(multiSend.recipients.length), contentRevision, checkoutRevision: contentRevision, ...(appliedCode ? { discountCode: appliedCode, discountAmountCents: String(discountAmountInCents), quoteId: quoteId || "" } : {}) },
       };
-      const allocations = allocateTotalCents(quote.totalCents, multiSend.recipients.length);
       const checkoutStartedAt = Date.now();
       const batchAttribution = prepareCheckoutOrderAttribution(body.attribution, {
         sessionId: body.sessionId,
@@ -254,12 +235,11 @@ export async function POST(req: NextRequest) {
         address: { ...recipient.address, country: "US" },
         resolvedGreeting: resolveGreeting(multiSend.note.salutation || "", recipient.greeting),
         printedMessage: composeRecipientMessage(multiSend.note, recipient.greeting),
-        amountInCents: allocations[index],
+        amountInCents: pricedLines[index].netCents,
       }));
-      const contentRevision = requestContentHash;
       const requestedEmail = typeof body.customerEmail === "string" ? body.customerEmail : "";
       const orderRecord: Order & Record<string, unknown> = {
-        id: orderId, operationId, stripePaymentId: "", customerEmail: body.contactPolicyVersion === 1 ? "" : requestedEmail,
+        id: orderId, operationId, checkoutRevision: contentRevision, checkoutOwnerKey: ownerKey, checkoutPaymentRequest: paymentRequest, checkoutPrice: price, appliedPromotions: offer?.promotion?.evaluation.appliedPromotions || [], customerEmail: body.contactPolicyVersion === 1 ? "" : requestedEmail,
         ...(body.contactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}), ...accountAssociation,
         ...(uploadMaster ? { uploadMaster } : {}),
         frontImageUrl: uploadMaster ? "" : body.frontImageUrl, printedMessage: "",
@@ -267,7 +247,7 @@ export async function POST(req: NextRequest) {
         recipientAddress: frozenRecipients[0].address, returnAddress: body.returnAddress,
         status: "PENDING_PAYMENT", amountInCents: quote.totalCents, originalAmountInCents: quote.basePriceCents,
         finalAmountInCents: quote.totalCents, quote, paymentMethod: "STRIPE", isFounderTest: req.cookies.get("smn_founder_device")?.value === "1",
-        isTest: flagsForMode !== "live", paymentMode: flagsForMode, ...(typeof body.sessionId === "string" ? { sessionId: body.sessionId } : {}),
+        isTest: paymentMode !== "live", paymentMode, ...(typeof body.sessionId === "string" ? { sessionId: body.sessionId } : {}),
         ...(batchAttribution ? { attribution: batchAttribution } : {}),
         ...(batchFollowupObservation ? { postPurchaseLinkObservation: batchFollowupObservation } : {}),
         ...(body.occasion ? { occasion: body.occasion } : {}),
@@ -277,26 +257,19 @@ export async function POST(req: NextRequest) {
         viewToken, createdAt: Date.now(), updatedAt: Date.now(),
         multiSend: { version: 1, kind: "parent", checkoutId: multiSend.checkoutId, recipients: frozenRecipients, shared: { frontImageUrl: uploadMaster ? "" : body.frontImageUrl, note: multiSend.note, fontStyleId: multiSend.note.style || body.fontStyleId || "1", returnAddress: body.returnAddress }, quote, contentRevision, manifestComplete: false, preparationState: "pending" },
       };
-      // Persist the immutable order binding before creating the intent; its content hash is the idempotency key.
-      await saveOrder(orderRecord);
-      const paymentIntentResult = await createCardPaymentIntent({
-        orderId, amountInCents: quote.totalCents, idempotencyKey: `multi-send-${multiSend.checkoutId}-${contentRevision.slice(0, 32)}`,
-        metadata: { quoteVersion: quote.version, quotedTotalCents: String(quote.totalCents), itemCount: String(frozenRecipients.length), contentRevision, ...(appliedCode ? { discountCode: appliedCode, discountAmountCents: String(discountAmountInCents), quoteId: quoteId || "" } : {}) },
-      });
-      orderRecord.stripePaymentId = paymentIntentResult.paymentIntentId;
-      await saveOrder(orderRecord);
-      if (activeMultiSendClaim) {
-        await finishMultiSendCheckout(multiSend.checkoutId, activeMultiSendClaim.leaseId);
-        activeMultiSendClaim = null;
+      if (offer) {
+        const reservation = await reserveOfferForCheckout({ code: offer.code, orderId, sessionId: body.sessionId || "multi_send_checkout", quoteId, ownerId: ownerUid, ownerKey, checkoutRevision: contentRevision, expectedTotalCents: quote.totalCents, paymentMode, creationRequest: paymentRequest });
+        if (!reservation.reserved) {
+          await abandon();
+          return NextResponse.json({ error: reservation.error || "This offer is unavailable.", reason: "exhausted", code: "MULTI_SEND_OFFER_RESERVATION_FAILED" }, { status: 409 });
+        }
       }
-      const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || process.env.STRIPE_PUBLISHABLE_KEY || null;
-      if (flagsForMode !== "local_mock") {
-        const prefix = flagsForMode === "stripe_test" ? "pk_test_" : "pk_live_";
-        if (!publishableKey || !publishableKey.startsWith(prefix)) throw new PaymentModeConfigError("A matching Stripe publishable key is not configured.", 503, "STRIPE_PUBLISHABLE_KEY_MISMATCH");
-      }
-      const response = NextResponse.json({ orderId, operationId, viewToken, clientSecret: paymentIntentResult.clientSecret, paymentIntentId: paymentIntentResult.paymentIntentId, publishableKey, isMock: paymentIntentResult.isMock, amountInCents: quote.totalCents, finalAmountInCents: quote.totalCents, quote, isFree: false });
-      if (!accountAssociation.userId && guestCheckoutCapability) response.cookies.set(`smn_multi_send_${multiSend.checkoutId}`, guestCheckoutCapability, { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/api", maxAge: 60 * 60 * 24 * 30 });
-      return withOperationId(response, operationId);
+      if (!await createOrderOnce(orderRecord)) throw new CheckoutResumeError("Checkout is updating. Please retry.");
+      activeMultiSendClaim.orderSaved = true;
+      const payment = await openCheckoutPayment(orderRecord);
+      await finishMultiSendCheckout(multiSend.checkoutId, claim.leaseId);
+      activeMultiSendClaim = null;
+      return paymentResponse(orderRecord, payment);
     }
 
     const {
@@ -384,7 +357,10 @@ export async function POST(req: NextRequest) {
     }
 
     const accountAssociation = await resolveAccountOrderAssociation(req, body);
-    const code = typeof rawDiscountCode === "string" ? rawDiscountCode.trim().toUpperCase() : "";
+    const code = normalizeCheckoutCode(rawDiscountCode);
+    const reference = typeof body.offerReference === "string" && body.offerReference.length <= 256 ? body.offerReference : undefined;
+    const ownerUid = code || reference ? await verifiedPromotionOwner(req) : undefined;
+    if ((rawDiscountCode && !code) || (body.offerReference && !reference)) return NextResponse.json({ error: "This offer is unavailable.", reason: "unavailable" }, { status: 400 });
     // Volatile attribution timestamps and session IDs can change on a return visit.
     // Consent and authenticated ownership affect the order and must still match.
     const snapshot = {
@@ -392,7 +368,7 @@ export async function POST(req: NextRequest) {
       printedMessage: printedMessage || "", handwrittenNote: handwrittenNote || "", fontStyleId,
       recipientAddress: canonicalRecipientAddress, returnAddress: canonicalReturnAddress, occasion: occasion || undefined,
       scheduledSendDate: scheduledSendDate || undefined, recipientOccasion: recipientOccasion || undefined,
-      ...accountAssociation, addressDeferred: isAddressDeferred, discountCode: code,
+      ...accountAssociation, addressDeferred: isAddressDeferred, discountCode: code, ...(reference ? { offerReference: reference } : {}),
       contactPolicyVersion: requestedContactPolicyVersion === 1 ? 1 : undefined,
       customerEmail: requestedContactPolicyVersion === 1 ? undefined : customerEmail,
       isFounderTest, isInternationalPreview, priceVersion: ORDER_PRICE_VERSION,
@@ -401,15 +377,18 @@ export async function POST(req: NextRequest) {
     const binding = checkoutBinding(body.checkoutDraftKey, snapshot);
     const priorBinding = binding && await binding.get();
     let seed = priorBinding?.data()?.orderId ? priorBinding.data() as CheckoutSeed : undefined;
+    if (binding && seed && await clearClosedCheckoutBinding(binding, seed)) seed = undefined;
     if (!priorBinding?.exists && binding && body.previousCheckout) {
       const previous = await legacyCheckoutSeed(body.previousCheckout, snapshot);
       if (previous) seed = await claimCheckout(binding, previous);
     }
+    const revision = binding?.id || crypto.randomUUID();
+    const basket = checkoutPromotionBasket({ workflow: "single", revision, ownerUid, recipients: [{ id: "card", countryCode: normalizedCountry }] });
     if (!seed) {
-      const result = code ? await issueOfferPriceQuote({ code, listPriceCents: CARD_FLAT_RATE_CENTS, sessionId }) : null;
-      if (result && (!result.valid || !result.quote))
-        return NextResponse.json({ error: result.error || "Invalid discount code." }, { status: 400 });
-      seed = await claimCheckout(binding, checkoutSeed(operationId, result?.quote || null));
+      await retirePriorCheckout(req, body.replaces, accountAssociation.userId, true);
+      const result = await checkoutPromotionDecision({ req, code, reference, basket, durable: true, sessionId });
+      if (!result.valid) return NextResponse.json({ error: result.error, reason: result.reason, price: result.price }, { status: 400 });
+      seed = await claimCheckout(binding, checkoutSeed(operationId, result.quote || null));
     }
     const { orderId, viewToken, offer } = seed;
     const appliedCode = offer?.code;
@@ -417,7 +396,9 @@ export async function POST(req: NextRequest) {
     const appliedOfferId = offer?.offerId;
     const appliedOfferVersion = offer?.offerVersion;
     const discountAmountInCents = offer?.discountAmountCents || 0;
-    const orderQuote = calculateOrderQuote({ countryCode: normalizedCountry, discountCents: discountAmountInCents });
+    const price = checkoutPriceComponents(basket, normalizedCountry, { discountCents: discountAmountInCents, evaluation: offer?.promotion?.evaluation });
+    const { lines: _lines, ...orderQuote } = price;
+    if (offer?.promotion?.basket.ownerUid && offer.promotion.basket.ownerUid !== ownerUid) throw new CheckoutResumeError("Verify to use this offer.");
     const finalAmountInCents = orderQuote.totalCents;
     const resolvedMode = finalAmountInCents === 0 ? null : resolvePaymentMode();
     const publishableKey =
@@ -444,40 +425,33 @@ export async function POST(req: NextRequest) {
       || (accountAssociation.userId ? await pinGeneratedOrderMaster(accountAssociation.userId, orderId, requestedFrontImageUrl) : undefined);
     const frontImageUrl = uploadMaster ? "" : requestedFrontImageUrl;
     const verifiedUserId = uploadMaster?.uid || accountAssociation.userId;
-    if (offer) {
-      const reservation = await reserveOfferForCheckout({ code: offer.code, orderId, sessionId: sessionId || "sess_checkout", quoteId });
-      if (!reservation.reserved) return NextResponse.json({ error: reservation.error || "This discount is unavailable." }, { status: 400 });
-    }
-
-    // Create Stripe PaymentIntent for the discounted or standard amount. Receipt
-    // email is committed later, after the sender's explicit choice is saved.
-    const paymentIntentResult = finalAmountInCents === 0 ? null : await createCardPaymentIntent({
-      orderId,
-      amountInCents: finalAmountInCents,
-      idempotencyKey: "checkout-" + orderId,
+    const ownerKey = singleCheckoutOwnerKey(viewToken);
+    const paymentRequest: CreateIntentParams | undefined = finalAmountInCents === 0 ? undefined : {
+      orderId, amountInCents: finalAmountInCents, idempotencyKey: "checkout-" + orderId,
       metadata: {
-        operationId: seed.operationId,
-        recipientCountryCode: normalizedCountry,
-        quoteVersion: orderQuote.version,
-        quotedTotalCents: String(orderQuote.totalCents),
+        operationId: seed.operationId, recipientCountryCode: normalizedCountry, checkoutRevision: revision,
+        quoteVersion: orderQuote.version, quotedTotalCents: String(orderQuote.totalCents),
         surchargeCents: String(orderQuote.internationalSurchargeCents),
-        ...(appliedCode
-        ? {
-            discountCode: appliedCode,
-            discountAmountCents: String(discountAmountInCents),
-            originalAmountCents: String(CARD_FLAT_RATE_CENTS),
-            ...(quoteId ? { quoteId } : {}),
-          }
-        : {}),
+        ...(appliedCode ? { discountCode: appliedCode, discountAmountCents: String(discountAmountInCents), originalAmountCents: String(CARD_FLAT_RATE_CENTS), quoteId: quoteId || "" } : {}),
       },
-    });
+    };
+    if (offer) {
+      const reservation = await reserveOfferForCheckout({
+        code: offer.code, orderId, sessionId: sessionId || "sess_checkout", quoteId, ownerId: ownerUid,
+        ownerKey, checkoutRevision: revision, expectedTotalCents: finalAmountInCents,
+        ...(resolvedMode ? { paymentMode: resolvedMode } : {}), ...(paymentRequest ? { creationRequest: paymentRequest } : {}),
+      });
+      if (!reservation.reserved) return NextResponse.json({ error: reservation.error || "This offer is unavailable.", reason: "exhausted" }, { status: 409 });
+    }
 
     // Construct and persist draft Order to Firestore
     const orderRecord: Order & Record<string, unknown> = {
       id: orderId,
       operationId: seed.operationId,
       ...(binding ? { checkoutResumeVersion: 1 } : {}),
-      ...(paymentIntentResult && resolvedMode ? { stripePaymentId: paymentIntentResult.paymentIntentId, paymentMode: resolvedMode } : {}),
+      checkoutRevision: revision, checkoutOwnerKey: ownerKey, checkoutPrice: price,
+      appliedPromotions: offer?.promotion?.evaluation.appliedPromotions || [],
+      ...(paymentRequest && resolvedMode ? { checkoutPaymentRequest: paymentRequest, paymentMode: resolvedMode } : {}),
       customerEmail: requestedContactPolicyVersion === 1 ? "" : customerEmail,
       ...(requestedContactPolicyVersion === 1 ? { contactPolicyVersion: 1 as const } : {}),
       ...accountAssociation,
@@ -505,7 +479,7 @@ export async function POST(req: NextRequest) {
       ...(isAddressDeferred ? { addressDeferred: true, address_deferred: true, fulfillmentStatus: "AWAITING_RECIPIENT_ADDRESS" } : {}),
       ...(appliedCode ? { discountCode: appliedCode } : {}),
       ...(discountAmountInCents > 0 ? { discountAmountInCents } : {}),
-      paymentMethod: paymentIntentResult ? "STRIPE" : "PROMO_CODE",
+      paymentMethod: paymentRequest ? "STRIPE" : "PROMO_CODE",
       ...(quoteId ? { quoteId } : {}),
       ...(appliedOfferId ? { appliedOfferId } : {}),
       ...(appliedOfferVersion ? { appliedOfferVersion } : {}),
@@ -527,6 +501,7 @@ export async function POST(req: NextRequest) {
       return reply(saved);
     }
 
+    const paymentIntentResult = paymentRequest ? await openCheckoutPayment(orderRecord) : null;
     return reply({
       orderId,
       operationId: seed.operationId,
@@ -539,6 +514,7 @@ export async function POST(req: NextRequest) {
       originalAmountInCents: CARD_FLAT_RATE_CENTS,
       finalAmountInCents,
       quote: orderQuote,
+      price,
       discountCode: appliedCode,
       discountAmountInCents,
       quoteId,
@@ -547,17 +523,13 @@ export async function POST(req: NextRequest) {
       isFree: !paymentIntentResult,
     });
   } catch (error: unknown) {
-    if (reservedMultiSendOrderId) {
-      try { await releaseOfferReservation(reservedMultiSendOrderId, "payment_failed"); }
-      catch (releaseError) { console.error("[Checkout] Failed to release multi-send reservation", releaseError instanceof Error ? releaseError.message : "unknown"); }
-    }
-    if (canceledMultiSendOrderId) {
-      try { await releaseOfferReservation(canceledMultiSendOrderId, "removed"); }
-      catch (releaseError) { console.error("[Checkout] Failed to release replaced multi-send reservation", releaseError instanceof Error ? releaseError.message : "unknown"); }
-    }
     if (activeMultiSendClaim) {
-      try { await blockMultiSendCheckout(activeMultiSendClaim.checkoutId, activeMultiSendClaim.leaseId); }
-      catch (claimError) { console.error("[Checkout] Failed to fail closed after multi-send error", claimError instanceof Error ? claimError.message : "unknown"); }
+      try {
+        const { checkoutId, leaseId, orderSaved, oldRetired, previousOrderId } = activeMultiSendClaim;
+        if (orderSaved) await finishMultiSendCheckout(checkoutId, leaseId);
+        else if (oldRetired) await resetMultiSendCheckoutAfterCanceledReplacement(checkoutId, leaseId, previousOrderId);
+        else await abortMultiSendCheckoutClaim({ checkoutId, leaseId, previousOrderId });
+      } catch (claimError) { console.error("[Checkout] Multi-send recovery", claimError instanceof Error ? claimError.name : "CheckoutError"); }
       activeMultiSendClaim = null;
     }
     if (error instanceof CheckoutResumeError) {
@@ -593,7 +565,7 @@ export async function POST(req: NextRequest) {
       ), operationId);
     }
 
-    const rawMsg = error instanceof Error ? error.message : "Error creating checkout intent";
+    const rawMsg = error instanceof Error ? error.name : "CheckoutError";
     console.error("[Checkout Intent Error]", rawMsg);
 
     // Record incident in admin incident feed with sanitized details

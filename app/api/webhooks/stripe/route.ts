@@ -3,9 +3,9 @@ import { normalizeCountryCode } from "@/lib/mailing-destinations";
 import { effectiveOrderEmail } from "@/lib/checkout-contact";
 import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/receipt-email-delivery";
 import { NextRequest, NextResponse } from "next/server";
-import { constructWebhookEvent } from "@/lib/stripe";
+import { constructWebhookEvent, getStripeClient } from "@/lib/stripe";
+import { recordOfferRefundOutcome } from "@/lib/offer-refunds";
 import { processPaidOrder, verifyPaymentIntentForOrder } from "@/lib/order-processor";
-import { redeemOfferForOrder } from "@/lib/offer-engine";
 import { logIncident } from "@/lib/incident-logger";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import {
@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
       const orderId = paymentIntent.metadata?.orderId;
       const isTestPayment = event.livemode === false || paymentIntent.livemode === false;
       const paymentMode = isTestPayment ? "stripe_test" : "live";
-      const amountReceived = paymentIntent.amount_received ?? paymentIntent.amount ?? 900;
+      const amountReceived = paymentIntent.amount_received ?? 0;
       const currency = paymentIntent.currency || "usd";
 
       const order = orderId ? await getOrderById(orderId) : null;
@@ -190,20 +190,6 @@ export async function POST(req: NextRequest) {
         await logIncident({ type: "WEBHOOK", severity: "error", summary: "Stripe capture verification failed", technicalDetails: reason });
         return NextResponse.json({ received: true, error: reason }, { status: 200 });
       }
-      try {
-        await persistPurchaseMeasurement(orderId, buildPurchaseMeasurement(latestOrder, {
-          paymentIntentId: paymentIntent.id,
-          amount: paymentIntent.amount,
-          amountReceived: paymentIntent.amount_received,
-          currency: paymentIntent.currency,
-          livemode: paymentIntent.livemode,
-        }));
-      } catch {
-        console.warn("[Webhook] Purchase measurement snapshot write unavailable.");
-      }
-
-      await trySyncPostPurchaseOrder(orderId);
-
       console.log(
         `[Webhook] Payment confirmed for Order ${orderId} (mode: ${paymentMode}, livemode: ${!isTestPayment}). Processing order...`
       );
@@ -237,33 +223,17 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // A verified webhook may be the only completion signal the server receives. Redeem
-      // the bound promotion here as well; the transaction is idempotent with client confirm.
-      let offerRedemption: { status: "not_applicable" | "redeemed" | "reconciliation_required"; error?: string } = { status: "not_applicable" };
-      if (latestOrder.discountCode) {
-        const redemption = await redeemOfferForOrder({
-          code: latestOrder.discountCode,
-          orderId,
-          quoteId: latestOrder.quoteId,
-          discountAmountCents: latestOrder.discountAmountInCents || 0,
-          finalAmountCents: latestOrder.finalAmountInCents ?? latestOrder.amountInCents,
-          destinationSurchargeCents: latestOrder.quote?.internationalSurchargeCents || 0,
-          verifiedCaptureId: paymentIntent.id,
-          requireAuthoritativeBinding: true,
-        ...(latestOrder.multiSend ? { multiSendCount: latestOrder.multiSend.recipients.length } : {}),
-        });
-        offerRedemption = redemption.redeemed
-          ? { status: "redeemed" }
-          : { status: "reconciliation_required", error: redemption.error || "Offer redemption could not be confirmed." };
-        if (!redemption.redeemed) {
-          await logIncident({
-            type: "STRIPE",
-            severity: "error",
-            summary: `Paid order offer redemption requires reconciliation (${orderId})`,
-            technicalDetails: redemption.error || "Promotion redemption failed after verified payment.",
-            metadata: { orderId, paymentIntentId: paymentIntent.id, eventId: event.id },
-          });
-        }
+      const offerRedemption = result.offerRedemption ?? { status: latestOrder.discountCode && latestOrder.origin !== "ADMIN_COMP" ? "redeemed" : "not_applicable" };
+      try {
+        await persistPurchaseMeasurement(orderId, buildPurchaseMeasurement(latestOrder, {
+          paymentIntentId: paymentIntent.id,
+          amount: paymentIntent.amount,
+          amountReceived: paymentIntent.amount_received,
+          currency: paymentIntent.currency,
+          livemode: paymentIntent.livemode,
+        }));
+      } catch {
+        console.warn("[Webhook] Purchase measurement snapshot write unavailable.");
       }
 
       await trySyncPostPurchaseOrder(orderId);
@@ -339,7 +309,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Handle asynchronous status changes for an existing Stripe refund.
-    if (event.type === "refund.updated") {
+    if (event.type === "refund.updated" || event.type === "refund.created") {
       const refund = event.data.object as Stripe.Refund;
       const paymentIntentId = resolvePaymentIntentReference(refund.payment_intent);
       if (paymentIntentId) {
@@ -357,9 +327,13 @@ export async function POST(req: NextRequest) {
           occurredAt: refund.created * 1000,
           reason: refund.reason || undefined,
         });
+        await recordOfferRefundOutcome({
+          refundId: refund.id, paymentIntentId, orderId: refund.metadata?.orderId, recipientId: refund.metadata?.recipientId,
+          amountCents: refund.amount, currency: refund.currency, livemode: event.livemode, status: refund.status, occurredAt: refund.created * 1_000,
+        });
       }
       await markWebhookInboxProcessed(event.id);
-      return NextResponse.json({ received: true, event: "refund.updated" });
+      return NextResponse.json({ received: true, event: event.type });
     }
 
     // 4. Handle Charge Refunded (supports partial and multiple refunds)
@@ -369,7 +343,19 @@ export async function POST(req: NextRequest) {
       const orderId = paymentIntentId ? charge.metadata?.orderId : undefined;
       const isTestPayment = event.livemode === false || charge.livemode === false;
 
-      const refundsList = charge.refunds?.data || [];
+      let refundsList = charge.refunds?.data || [];
+      if (!isTestEnvironment && (!refundsList.length || charge.refunds?.has_more)) {
+        const stripe = getStripeClient();
+        refundsList = [];
+        let cursor: string | undefined;
+        for (let page = 0; page < 3; page++) {
+          const current = await stripe.refunds.list({ charge: charge.id, limit: 100, starting_after: cursor });
+          refundsList.push(...current.data);
+          if (!current.has_more) break;
+          cursor = current.data.at(-1)?.id;
+          if (!cursor || page === 2) throw new Error("Provider refund itemization exceeds the reconciliation window.");
+        }
+      }
       if (refundsList.length > 0) {
         for (const r of refundsList) {
           await recordPaymentRefundFact({
@@ -386,6 +372,11 @@ export async function POST(req: NextRequest) {
             providerEventId: event.id,
             occurredAt: (r.created || charge.created) * 1000,
             reason: r.reason || undefined,
+          });
+          if (paymentIntentId) await recordOfferRefundOutcome({
+            refundId: r.id, paymentIntentId, orderId, recipientId: r.metadata?.recipientId,
+            amountCents: r.amount, currency: r.currency || charge.currency, livemode: !isTestPayment,
+            status: r.status, occurredAt: (r.created || charge.created) * 1_000,
           });
         }
       } else {

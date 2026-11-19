@@ -11,6 +11,12 @@ runConfig:
 # Environment variables and Cloud Secret Manager bindings
 # Secrets are managed via Google Cloud Secret Manager and never committed to git.
 env:
+  - variable: OFFER_SCHEDULER_IDENTITY
+    value: offer-reconciler@sendmynotes-2a417.iam.gserviceaccount.com
+    availability: [RUNTIME]
+  - variable: OFFER_SCHEDULER_AUDIENCE
+    value: https://sendmynotes.com/api/cron/offer-reconcile
+    availability: [RUNTIME]
   # Enable the accepted attribution capture and checkout snapshot rollout.
   - variable: NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED
     value: "true"
