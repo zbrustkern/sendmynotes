@@ -1,3 +1,4 @@
+import { checkoutOrderPath } from "../order-tracking-links";
 import { randomUUID } from 'node:crypto';
 import type Stripe from 'stripe';
 import type { NextRequest } from 'next/server';
@@ -72,7 +73,7 @@ export function parseWeddingTransfer(body:Record<string,unknown>,ownedSource?:Tr
   return {content,inputHash:weddingHash(canonicalWeddingJSON(content)),paymentAttempted:body.paymentAttempted||!!draft.checkoutSnapshotId||draft.completed===true,proof};
 }
 function authorizedStatus(order:Order,paymentState:'paid'|'pending'|'uncertain'):never {
-  throw new WeddingTransferError('TRANSFER_ORDER_STATUS','Open the existing order to check payment. Your original draft is preserved.',409,{orderId:order.id,orderPath:`/order/${encodeURIComponent(order.id)}?token=${encodeURIComponent(order.viewToken!)}`,paymentState});
+  throw new WeddingTransferError('TRANSFER_ORDER_STATUS','Open the existing order to check payment. Your original draft is preserved.',409,{orderId:order.id,orderPath:checkoutOrderPath(order.id, order.viewToken),paymentState});
 }
 function paidOrder(order:Order) {return ['PAYMENT_RECEIVED','AWAITING_RECIPIENT_ADDRESS','DISPATCHING','DISPATCH_UNCERTAIN','PROCESSING_HANDWRYTTEN','QUEUED_FOR_FULFILLMENT','MAILED'].includes(order.status)||!!order.purchaseMeasurement;}
 function assertIntent(order:Order,pi:Stripe.PaymentIntent) {

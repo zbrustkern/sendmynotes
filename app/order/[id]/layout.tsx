@@ -8,6 +8,7 @@ export const metadata: Metadata = {
     follow: false,
     nocache: true,
   },
+  referrer: "no-referrer",
 };
 
 export default function OrderLayout({

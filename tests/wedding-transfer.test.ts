@@ -94,7 +94,7 @@ async function run() {
 
   for(const status of ['succeeded','processing','requires_capture']) {
     const entry=await seed(),counter=fake(entry.order,{status});const answer=await result(entry.b,entry.cookie);
-    assert.equal(answer.json.code,'TRANSFER_ORDER_STATUS');assert.equal(answer.json.paymentState,status==='succeeded'?'paid':'pending');assert.ok(answer.json.orderPath);assert.ok(!answer.json.projectId);assert.equal(counter.cancels(),0);
+    assert.equal(answer.json.code,'TRANSFER_ORDER_STATUS');assert.equal(answer.json.paymentState,status==='succeeded'?'paid':'pending');assert.match(answer.json.orderPath,/^\/order\/[\w-]+#viewToken=/);assert.ok(!answer.json.projectId);assert.equal(counter.cancels(),0);
     assert.equal(await claimMultiSendRetry(entry.b.draft.multiSend.checkoutId,entry.ownerKey,entry.order.id),null);
   }
   for(const options of [{mismatch:true},{retrieveThrows:true},{cancelStatus:'requires_action'},{cancelThrows:true},{cancelStatus:'succeeded'}]) {

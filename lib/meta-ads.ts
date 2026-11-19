@@ -263,6 +263,8 @@ export function trackMetaAddPaymentInfo(params: {
   }
 }
 
+const reportedPurchases = new Set<string>();
+
 /**
  * Fires a standard Meta Purchase event with session-based deduplication and eventID.
  * The eventID is passed to enable 1:1 deduplication with Meta Conversions API (CAPI).
@@ -283,11 +285,13 @@ export function trackMetaPurchase(params: {
   if (typeof window === "undefined") return;
 
   const convKey = `meta_conv_${params.orderId}`;
-  if (sessionStorage.getItem(convKey)) {
-    // Already tracked in this session to prevent duplicate attribution
-    return;
-  }
-  sessionStorage.setItem(convKey, "true");
+  if (reportedPurchases.has(convKey)) return;
+  try {
+    if (window.sessionStorage.getItem(convKey)) return;
+  } catch { /* In-memory deduplication also covers restricted browser storage. */ }
+  if (typeof (window as Window & { fbq?: unknown }).fbq !== "function") return;
+  reportedPurchases.add(convKey);
+  try { window.sessionStorage.setItem(convKey, "true"); } catch { /* Dedupe in this document. */ }
 
   // Advanced Matching enrichment
   if (params.customerEmail) {

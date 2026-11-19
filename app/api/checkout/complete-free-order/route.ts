@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { constantTimeStringEqual } from "@/lib/order-access-credentials";
 import { recordAcceptedAccountOrder } from "@/lib/account/order-association";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -49,10 +49,8 @@ export async function POST(req: NextRequest) {
         }
 
         const existingOrder = orderDoc.data() as Order;
-        if (existingOrder.viewToken) {
-          const supplied = Buffer.from(typeof viewToken === "string" && viewToken.length <= 256 ? viewToken : "");
-          const expected = Buffer.from(existingOrder.viewToken);
-          if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) throw new Error("ORDER_NOT_FOUND");
+        if (!existingOrder.viewToken || !constantTimeStringEqual(viewToken, existingOrder.viewToken)) {
+          throw new Error("ORDER_NOT_FOUND");
         }
         if (existingOrder.multiSend?.kind === "parent") throw new Error("MULTI_SEND_REQUIRES_PAID_CHECKOUT");
         if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {

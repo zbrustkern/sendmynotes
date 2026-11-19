@@ -11,28 +11,40 @@ import { effectiveOrderEmail } from "@/lib/checkout-contact";
 import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/receipt-email-delivery";
 import { sendDeferredAddressReceiptEmail, sendOrderPenningReceiptEmail } from "@/lib/email/transactional";
 import { runMultiSendWorkerPass } from "@/lib/multi-send/orders";
+import { constantTimeStringEqual } from "@/lib/order-access-credentials";
+
+function privateJson(body: unknown, init?: { status: number }) {
+  return NextResponse.json(body, { ...init, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+}
+
+function checkoutProofRequired() {
+  return privateJson({ success: false, error: "Checkout proof is required." }, { status: 403 });
+}
 
 export async function POST(req: NextRequest) {
   try {
+    const checkoutToken = req.headers.get("x-view-token");
+    if (!checkoutToken || checkoutToken.length > 1024) return checkoutProofRequired();
+
     const { orderId, paymentIntentId, customerEmail, verifyOnly } = await req.json();
 
-    if (!orderId) {
-      return NextResponse.json({ error: "Missing required orderId parameter" }, { status: 400 });
+    if (typeof orderId !== "string" || !/^[A-Za-z0-9_-]{1,256}$/.test(orderId)) {
+      return privateJson({ error: "Missing required orderId parameter" }, { status: 400 });
     }
 
     const order = await getOrderById(orderId);
-    if (!order) {
-      return NextResponse.json({ error: `Order ${orderId} not found` }, { status: 404 });
+    if (!order || order.id !== orderId || !order.viewToken || !constantTimeStringEqual(checkoutToken, order.viewToken)) {
+      return checkoutProofRequired();
     }
     if ((order.contactPolicyVersion === 1 || order.contactEmailChoice) && (!order.contactEmailChoice || order.contactEmailSyncStatus !== "synced")) {
-      return NextResponse.json({ success: false, status: "CONTACT_COMMIT_PENDING", error: "Your email preference is still being saved. Please retry before confirming payment." }, { status: 409 });
+      return privateJson({ success: false, status: "CONTACT_COMMIT_PENDING", error: "Your email preference is still being saved. Please retry before confirming payment." }, { status: 409 });
     }
     let purchaseMeasurement = order.purchaseMeasurement || null;
 
     const verifiedPaymentIntentId = paymentIntentId || order.stripePaymentId;
 
     if (!order.stripePaymentId || (paymentIntentId && paymentIntentId !== order.stripePaymentId)) {
-      return NextResponse.json({ success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "PaymentIntent is not bound to this order." }, { status: 400 });
+      return privateJson({ success: false, status: "PAYMENT_VERIFICATION_FAILED", error: "PaymentIntent is not bound to this order." }, { status: 400 });
     }
 
     if (!verifiedPaymentIntentId) {
@@ -40,7 +52,7 @@ export async function POST(req: NextRequest) {
         status: "PAYMENT_VERIFICATION_FAILED",
         fulfillmentError: "Missing PaymentIntent identifier for verification.",
       });
-      return NextResponse.json(
+      return privateJson(
         { success: false, error: "Missing paymentIntentId. Payment verification failed." },
         { status: 400 }
       );
@@ -58,7 +70,7 @@ export async function POST(req: NextRequest) {
         summary: "Payment Verification Misconfiguration",
         technicalDetails: msg,
       });
-      return NextResponse.json(
+      return privateJson(
         { success: false, error: "Payment verification system is not configured." },
         { status: 503 }
       );
@@ -96,7 +108,7 @@ export async function POST(req: NextRequest) {
           metadata: { orderId, paymentIntentId: verifiedPaymentIntentId },
         });
 
-        return NextResponse.json(
+        return privateJson(
           {
             success: false,
             status: "PAYMENT_VERIFICATION_FAILED",
@@ -132,7 +144,7 @@ export async function POST(req: NextRequest) {
           technicalDetails: paymentCheck.reason || "Payment verification failed.",
           metadata: { orderId, paymentIntentId: pi.id },
         });
-        return NextResponse.json(
+        return privateJson(
           { success: false, error: "Captured payment could not be matched to this order; fulfillment was not dispatched." },
           { status: 409 }
         );
@@ -144,7 +156,7 @@ export async function POST(req: NextRequest) {
           status: "PAYMENT_VERIFICATION_FAILED",
           fulfillmentError: `Payment status is ${pi.status}, expected succeeded`,
         });
-        return NextResponse.json(
+        return privateJson(
           {
             success: false,
             status: "PAYMENT_NOT_SUCCEEDED",
@@ -160,7 +172,7 @@ export async function POST(req: NextRequest) {
           status: "PAYMENT_VERIFICATION_FAILED",
           fulfillmentError: `Currency mismatch: expected usd, got ${pi.currency}`,
         });
-        return NextResponse.json(
+        return privateJson(
           { success: false, error: `Invalid currency: expected usd, got ${pi.currency}` },
           { status: 400 }
         );
@@ -193,7 +205,7 @@ export async function POST(req: NextRequest) {
           metadata: { orderId, expected: expectedAmountCents, received: pi.amount },
         });
 
-        return NextResponse.json(
+        return privateJson(
           { success: false, error: "Payment amount does not match expected order total." },
           { status: 400 }
         );
@@ -206,7 +218,7 @@ export async function POST(req: NextRequest) {
         currency: pi.currency,
       });
       if (captureError) {
-        return NextResponse.json({ success: false, status: "PAYMENT_VERIFICATION_FAILED", error: captureError }, { status: 400 });
+        return privateJson({ success: false, status: "PAYMENT_VERIFICATION_FAILED", error: captureError }, { status: 400 });
       }
 
       // PaymentIntent must be explicitly bound to this order.
@@ -216,7 +228,7 @@ export async function POST(req: NextRequest) {
           status: "PAYMENT_VERIFICATION_FAILED",
           fulfillmentError: mismatchError,
         });
-        return NextResponse.json(
+        return privateJson(
           { success: false, error: "PaymentIntent metadata orderId mismatch." },
           { status: 400 }
         );
@@ -229,7 +241,7 @@ export async function POST(req: NextRequest) {
           status: "PAYMENT_VERIFICATION_FAILED",
           fulfillmentError: testModeError,
         });
-        return NextResponse.json(
+        return privateJson(
           { success: false, error: testModeError },
           { status: 400 }
         );
@@ -257,11 +269,11 @@ export async function POST(req: NextRequest) {
     );
 
     if (!result.success && result.offerRedemption?.status === "reconciliation_required") {
-      return NextResponse.json({ success: false, status: result.status, orderId, error: result.error, offerRedemption: result.offerRedemption }, { status: 409 });
+      return privateJson({ success: false, status: result.status, orderId, error: result.error, offerRedemption: result.offerRedemption }, { status: 409 });
     }
 
     if (result.requiresPriceReconfirmation || (verifyOnly === true && !result.success)) {
-      return NextResponse.json({ success: false, status: result.status, orderId, error: result.error, requiresPriceReconfirmation: result.requiresPriceReconfirmation, purchaseMeasurement }, { status: 409 });
+      return privateJson({ success: false, status: result.status, orderId, error: result.error, requiresPriceReconfirmation: result.requiresPriceReconfirmation, purchaseMeasurement }, { status: 409 });
     }
 
     if (result.success && serverVerifiedPaymentIntent) {
@@ -277,7 +289,7 @@ export async function POST(req: NextRequest) {
     }
     purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, purchaseMeasurement);
     if (verifyOnly === true) {
-      return NextResponse.json({ success: true, status: "PAYMENT_RECEIVED", orderId, viewToken: order.viewToken, purchaseMeasurement });
+      return privateJson({ success: true, status: "PAYMENT_RECEIVED", orderId, purchaseMeasurement });
     }
 
     if (result.success && resolvedEmail) {
@@ -326,11 +338,10 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    return privateJson({
       success: result.success,
       status: result.status,
       orderId,
-      viewToken: order.viewToken,
       handwryttenOrderId: result.handwryttenOrderId,
       error: result.error,
       alreadyProcessed: result.alreadyProcessed,
@@ -340,6 +351,6 @@ export async function POST(req: NextRequest) {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Error confirming order";
     console.error("[Confirm Order Exception]:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return privateJson({ error: msg }, { status: 500 });
   }
 }

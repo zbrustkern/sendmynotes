@@ -15,9 +15,13 @@ import {
 import { getFirebaseAuth } from "@/lib/firebase-client";
 import { UserAccount, SavedAddress, MailingAddress } from "@/lib/types";
 
+type AddressInput = Omit<SavedAddress, "id"> & { id?: string };
+type CheckoutAddressSave = { uid: string; authEpoch: number; key: string };
+
 interface AuthContextType {
   user: User | null;
   account: UserAccount | null;
+  authEpoch: number;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
@@ -26,7 +30,8 @@ interface AuthContextType {
   reloadUserAndRefreshToken: () => Promise<User>;
   signOut: () => Promise<void>;
   refreshAccount: () => Promise<void>;
-  saveAddress: (address: Omit<SavedAddress, "id"> & { id?: string }) => Promise<void>;
+  saveAddress: (address: AddressInput) => Promise<void>;
+  saveCheckoutAddress: (address: Omit<SavedAddress, "id">, save: CheckoutAddressSave) => Promise<void>;
   saveAddressesBulk: (addresses: (Omit<SavedAddress, "id"> & { id?: string })[]) => Promise<void>;
   deleteAddress: (addressId: string) => Promise<void>;
   updateDefaultReturnAddress: (address: MailingAddress) => Promise<void>;
@@ -40,6 +45,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [, setAuthRevision] = useState(0);
   const accountRequestSequence = useRef(0);
+  const authIdentity = useRef<{ uid: string | null; epoch: number }>({ uid: null, epoch: 0 });
+  const [authEpoch, setAuthEpoch] = useState(0);
+
+  const noteAuthIdentity = useCallback((uid: string | null) => {
+    if (authIdentity.current.uid === uid) return;
+    const epoch = authIdentity.current.epoch + 1;
+    authIdentity.current = { uid, epoch };
+    setAuthEpoch(epoch);
+  }, []);
 
   const fetchAccount = useCallback(async (currentUser: User, sequence: number) => {
     const isCurrent = () => {
@@ -93,6 +107,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const auth = getFirebaseAuth();
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         const sequence = ++accountRequestSequence.current;
+        noteAuthIdentity(currentUser?.uid ?? null);
         setUser(currentUser);
         setAccount(null);
         if (currentUser) {
@@ -105,7 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.warn("[Auth] Firebase Auth initialization notice:", err);
       setLoading(false);
     }
-  }, []);
+  }, [fetchAccount, noteAuthIdentity]);
 
   const signInWithGoogle = async () => {
     const auth = getFirebaseAuth();
@@ -174,6 +189,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error("The administrator session ended, but your sender account is still signed in. Please retry sign out.");
     }
     accountRequestSequence.current += 1;
+    noteAuthIdentity(null);
     setUser(null);
     setAccount(null);
   };
@@ -185,21 +201,49 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [fetchAccount]);
 
-  const accountApi = async <T,>(path: string, method = "GET", body?: unknown): Promise<T> => {
+  const requireCheckoutAddressOwner = (save: CheckoutAddressSave) => {
+    if (user?.uid !== save.uid || authIdentity.current.uid !== save.uid
+      || authIdentity.current.epoch !== save.authEpoch || getFirebaseAuth().currentUser?.uid !== save.uid) {
+      throw new Error("The signed-in account changed before the address could be saved.");
+    }
+  };
+
+  const accountApi = async <T,>(path: string, method = "GET", body?: unknown, checkoutSave?: CheckoutAddressSave): Promise<T> => {
     if (!user) throw new Error("Sign in to update your account.");
+    if (checkoutSave) requireCheckoutAddressOwner(checkoutSave);
     const token = await user.getIdToken();
-    const response = await fetch(path, { method, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...(method === "POST" ? { "Idempotency-Key": crypto.randomUUID() } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    if (checkoutSave) requireCheckoutAddressOwner(checkoutSave);
+    const response = await fetch(path, { method, headers: { Authorization: `Bearer ${token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }), ...(method === "POST" ? { "Idempotency-Key": checkoutSave?.key ?? crypto.randomUUID() } : {}) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || "Your account could not be updated.");
     return payload as T;
   };
 
-  const contactPayload = (address: Omit<SavedAddress, "id"> & { id?: string }) => ({
+  const contactPayload = (address: AddressInput) => ({
     displayName: address.label || `${address.firstName} ${address.lastName}`.trim(), relationship: "", notes: "",
     address: { firstName: address.firstName, lastName: address.lastName, street1: address.street1, street2: address.street2 || "", city: address.city, state: address.state, zip: address.zip, country: address.country || "US" },
   });
 
-  const saveAddress = async (address: Omit<SavedAddress, "id"> & { id?: string }) => {
+  const occasionPayload = (contactId: string, address: AddressInput) => ({
+    contactId,
+    title: address.occasionTitle || `${address.firstName}'s ${address.occasionType || "date"}`,
+    type: address.occasionType || "other",
+    month: Number(address.occasionMonth),
+    day: Number(address.occasionDay),
+    ...(address.occasionYear ? { year: Number(address.occasionYear) } : {}),
+    recurrence: "annual",
+    reminderEnabled: false,
+  });
+
+  const saveCheckoutAddress = async (address: Omit<SavedAddress, "id">, save: CheckoutAddressSave) => {
+    const { data } = await accountApi<{ data: { id: string } }>("/api/account/people", "POST", contactPayload(address), save);
+    if (address.occasionMonth && address.occasionDay) {
+      await accountApi("/api/account/occasions", "POST", occasionPayload(data.id, address), save);
+    }
+    await refreshAccount();
+  };
+
+  const saveAddress = async (address: AddressInput) => {
     if (!user) return;
     const payload = contactPayload(address);
     let contactId = address.id;
@@ -213,7 +257,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (address.occasionMonth && address.occasionDay && contactId) {
       const list = await accountApi<{ data: Array<{ id: string; contactId: string; version: number }> }>("/api/account/occasions?limit=50");
       const current = list.data.find((event) => event.contactId === contactId);
-      const event = { contactId, title: address.occasionTitle || `${address.firstName}'s ${address.occasionType || "date"}`, type: address.occasionType || "other", month: Number(address.occasionMonth), day: Number(address.occasionDay), ...(address.occasionYear ? { year: Number(address.occasionYear) } : {}), recurrence: "annual", reminderEnabled: false };
+      const event = occasionPayload(contactId, address);
       if (current) await accountApi(`/api/account/occasions/${encodeURIComponent(current.id)}`, "PATCH", { ...event, expectedVersion: current.version });
       else await accountApi("/api/account/occasions", "POST", event);
     }
@@ -265,6 +309,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         account,
+        authEpoch,
         loading,
         signInWithGoogle,
         signInWithEmail,
@@ -274,6 +319,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         signOut,
         refreshAccount,
         saveAddress,
+        saveCheckoutAddress,
         saveAddressesBulk,
         deleteAddress,
         updateDefaultReturnAddress,

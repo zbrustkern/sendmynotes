@@ -71,10 +71,10 @@ assert(!previewHold.includes("Your Handwritten Card is in Motion"), "preview con
 assert(!previewHold.includes("Receipt dispatched to"), "preview confirmation suppresses the receipt-dispatched claim");
 assert(!previewHold.includes("Real-Time Fulfillment Stepper"), "preview confirmation suppresses the ordinary fulfillment tracker heading");
 
-const orderPage = readFileSync(new URL("../app/order/[id]/page.tsx", import.meta.url), "utf8");
+const orderPage = readFileSync(new URL("../app/order/[id]/OrderTracker.tsx", import.meta.url), "utf8");
 assert(orderPage.includes('order.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD"'), "order page recognizes the backend preview-hold status");
 assert(orderPage.includes("No real charge, receipt email, card printing, fulfillment, or mailing occurred."), "order page explains staging has no real-world side effects");
 assert(orderPage.includes('title: isPreviewHold ? "Mailing not started"'), "order tracker does not claim a held preview was mailed");
-assert(orderPage.includes('!data.order.isInternationalPreview && data.order.fulfillmentStatus !== "INTERNATIONAL_PREVIEW_HOLD"'), "order page suppresses purchase telemetry for held previews");
+assert(orderPage.includes('orderData.isInternationalPreview || orderData.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD"'), "order page suppresses purchase telemetry for held previews");
 
 console.log("PASS international address UI behavior checks");

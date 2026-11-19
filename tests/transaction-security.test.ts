@@ -10,6 +10,7 @@ import {
 } from "../lib/firebase-admin";
 import { Order } from "../lib/types";
 import { CARD_FLAT_RATE_CENTS } from "../lib/stripe";
+import { createOrderReadToken } from "../lib/order-access-credentials";
 
 async function runSecurityTests() {
   console.log("=================================================");
@@ -111,6 +112,7 @@ async function runSecurityTests() {
   const testOrderId = `order_sec_test_${Date.now()}`;
   const baseOrder: Order = {
     id: testOrderId,
+    viewToken: "synthetic-checkout-token",
     customerEmail: "victim@example.com",
     frontImageUrl: "https://example.com/cover.jpg",
     printedMessage: "Happy Birthday!",
@@ -140,10 +142,37 @@ async function runSecurityTests() {
 
   await saveOrder(baseOrder);
 
+  const confirmRequest = (body: object, token?: string) => confirmOrderPost(new NextRequest("http://localhost:3000/api/checkout/confirm-order", {
+    method: "POST",
+    headers: { "content-type": "application/json", ...(token ? { "x-view-token": token } : {}) },
+    body: JSON.stringify(body),
+  }));
+  const { viewToken: _, ...legacyOrder } = { ...baseOrder, id: `legacy_${testOrderId}`, stripePaymentId: "pi_legacy_fixture" };
+  await saveOrder(legacyOrder);
+  const checkoutOrder = { ...baseOrder, stripePaymentId: "pi_confirm_boundary_fixture" };
+  await saveOrder(checkoutOrder);
+  for (const [label, target, token, verifyOnly] of [
+    ["bare order ID", testOrderId, undefined, false],
+    ["bare verify-only", testOrderId, undefined, true],
+    ["wrong proof", testOrderId, "another-order-token", false],
+    ["read-only proof", testOrderId, createOrderReadToken(testOrderId, baseOrder.viewToken!)!, true],
+    ["tokenless legacy order", legacyOrder.id, baseOrder.viewToken, false],
+    ["unknown order", "unknown_order_fixture", baseOrder.viewToken, false],
+  ] as const) {
+    const denied = await confirmRequest({ orderId: target, verifyOnly, viewToken: baseOrder.viewToken }, token);
+    const deniedBody = await denied.json();
+    assert(denied.status === 403 && deniedBody.error === "Checkout proof is required." && !deniedBody.viewToken
+      && denied.headers.get("Cache-Control")?.includes("no-store") === true, `Confirmation rejects ${label} uniformly before payment verification`);
+  }
+  const untouched = await getOrderById(testOrderId);
+  assert(untouched?.updatedAt === checkoutOrder.updatedAt && untouched.status === "PENDING_PAYMENT" && !untouched.fulfillmentError,
+    "Denied confirmation leaves the stored payment untouched");
+  await saveOrder(baseOrder);
+
   // 2A. Missing paymentIntentId fails closed
   const missingPiReq = new NextRequest("http://localhost:3000/api/checkout/confirm-order", {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", "x-view-token": baseOrder.viewToken! },
     body: JSON.stringify({ orderId: testOrderId }),
   });
 

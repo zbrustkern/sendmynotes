@@ -87,7 +87,7 @@ export function TransferToWedding({
         if (
           data.code === "TRANSFER_ORDER_STATUS" &&
           typeof data.orderPath === "string" &&
-          /^\/order\/[\w-]+\?/.test(data.orderPath)
+          /^\/order\/[\w-]+(?:#viewToken=|\?(?:token|viewToken)=)/.test(data.orderPath)
         )
           setStatus(data.orderPath);
         if (data.code === "TRANSFER_COVER_RESOLUTION_REQUIRED") setCover(true);

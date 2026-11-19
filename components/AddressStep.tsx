@@ -298,7 +298,7 @@ export function AddressStep({
               <div className="flex items-center justify-between text-[11px] text-stone-600 bg-stone-50 p-2.5 rounded-xl border border-stone-200/80">
                 <span className="flex items-center gap-1.5">
                   <BookmarkCheck className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                  <span>Guest Checkout: Option to save this contact to your Address Book in 1 click after payment.</span>
+                  <span>You can send this card as a guest.</span>
                 </span>
               </div>
             )}

@@ -1,7 +1,8 @@
 "use client";
 
 import { checkoutDraftKey, clearCheckoutDraftKey } from "../lib/checkout-draft-client";
-import React, { useState, useEffect } from "react";
+import { checkoutOrderPath, fetchOrderAccess, privateOrderPath } from "../lib/order-tracking-links";
+import React, { useState, useEffect, useLayoutEffect } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
@@ -30,7 +31,7 @@ import { CheckoutStep } from "./CheckoutStep";
 import { FeedbackModal } from "./FeedbackModal";
 import { CARD_PRESETS, OCCASIONS, FONT_OPTIONS, CardPreset } from "@/lib/card-presets";
 import { ThematicSentiment } from "@/lib/thematic-sentiment";
-import { MailingAddress, RecipientOccasion } from "@/lib/types";
+import { MailingAddress, RecipientOccasion, SavedAddress } from "@/lib/types";
 import { trackEvent } from "@/lib/telemetry";
 import {
   trackGA4ViewItem,
@@ -67,7 +68,7 @@ export interface VendingMachineBuilderProps {
 export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user, account, saveAddress } = useAuth();
+  const { user, account, authEpoch, saveCheckoutAddress } = useAuth();
   const deviceWallet = useDeviceWallet();
 
   // Builder Steps: 1 = Cover, 2 = Inside Note, 3 = Address, 4 = Checkout
@@ -95,7 +96,6 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
   // Address State & Scheduling
   const [scheduledSendDate, setScheduledSendDate] = useState<string>("");
-  const [saveRecipientToAddressBook, setSaveRecipientToAddressBook] = useState<boolean>(true);
   const [recipientOccasion, setRecipientOccasion] = useState<RecipientOccasion | null>(null);
 
   const [recipient, setRecipient] = useState<MailingAddress>({
@@ -108,6 +108,35 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
     zip: "",
     country: "USA",
   });
+
+  const [addressBookOptIn, setAddressBookOptIn] = useState<{
+    uid: string;
+    authEpoch: number;
+    recipient: MailingAddress;
+    key: string;
+  } | null>(null);
+  const activeAddressBookOptIn = addressBookOptIn?.uid === user?.uid
+    && addressBookOptIn?.authEpoch === authEpoch && addressBookOptIn?.recipient === recipient
+    ? addressBookOptIn : null;
+  const latestAddressBookOptIn = React.useRef(activeAddressBookOptIn);
+  const addressBookSaveProgress = React.useRef<{
+    key: string;
+    address: Omit<SavedAddress, "id">;
+    saved: boolean;
+  } | null>(null);
+  useLayoutEffect(() => {
+    latestAddressBookOptIn.current = activeAddressBookOptIn;
+    if (addressBookSaveProgress.current?.key !== activeAddressBookOptIn?.key) {
+      addressBookSaveProgress.current = null;
+    }
+    if (addressBookOptIn && !activeAddressBookOptIn) setAddressBookOptIn(null);
+    return () => { latestAddressBookOptIn.current = null; };
+  }, [activeAddressBookOptIn, addressBookOptIn]);
+
+  const handleToggleSaveRecipient = (checked: boolean) => {
+    setAddressBookOptIn(checked && user
+      ? { uid: user.uid, authEpoch, recipient, key: crypto.randomUUID() } : null);
+  };
 
   const [returnAddress, setReturnAddress] = useState<MailingAddress>({
     firstName: "",
@@ -351,7 +380,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
   };
 
   const handleUpdateRecipient = (field: keyof MailingAddress, value: string) => {
-    setRecipient((prev) => ({ ...prev, [field]: value }));
+    if (recipient[field] !== value) setRecipientOccasion(null);
+    setRecipient((prev) => prev[field] === value ? prev : { ...prev, [field]: value });
   };
 
   const handleUpdateReturn = (field: keyof MailingAddress, value: string) => {
@@ -486,39 +516,43 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
 
       const data = await res.json();
       if (res.status === 409 && data.code === "CHECKOUT_ALREADY_IN_PROGRESS" && data.orderId && data.viewToken) {
-        window.location.assign("/order/" + encodeURIComponent(data.orderId) + "?token=" + encodeURIComponent(data.viewToken));
+        window.location.assign(checkoutOrderPath(data.orderId, data.viewToken));
         return false;
       }
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize checkout.");
       }
 
-      // If user is logged in and opted to save recipient address to their address book
-      if (user && saveRecipientToAddressBook) {
-        await saveAddress({
-          firstName: recipient.firstName,
-          lastName: recipient.lastName,
-          street1: recipient.street1,
-          street2: recipient.street2,
-          city: recipient.city,
-          state: recipient.state,
-          zip: recipient.zip,
-          country: recipient.country,
-          label: `${recipient.firstName}'s Address`,
-          occasionType: recipientOccasion?.occasionType,
-          occasionTitle: recipientOccasion?.occasionTitle,
-          occasionMonth: recipientOccasion?.month,
-          occasionDay: recipientOccasion?.day,
-          occasionYear: recipientOccasion?.year,
-          remindMe: recipientOccasion?.remindMe,
-          remindDaysBefore: recipientOccasion?.remindDaysBefore,
-        }).catch((err) => console.warn("Notice saving recipient:", err));
+      const save = activeAddressBookOptIn;
+      if (save && save === latestAddressBookOptIn.current) {
+        // Freeze the first write's payload when retrying an ambiguous or partial save.
+        const progress = addressBookSaveProgress.current ??= {
+          key: save.key,
+          address: {
+            ...recipient,
+            label: `${recipient.firstName}'s Address`,
+            occasionType: recipientOccasion?.occasionType,
+            occasionTitle: recipientOccasion?.occasionTitle,
+            occasionMonth: recipientOccasion?.month,
+            occasionDay: recipientOccasion?.day,
+            occasionYear: recipientOccasion?.year,
+          },
+          saved: false,
+        };
+        if (!progress.saved) {
+          try {
+            await saveCheckoutAddress(progress.address, save);
+            progress.saved = true;
+          } catch {
+            console.warn("Could not save the recipient address.");
+          }
+        }
       }
 
       setOrderId(data.orderId);
-      if (data.viewToken && typeof window !== "undefined") {
-        sessionStorage.setItem(`order_token_${data.orderId}`, data.viewToken);
-        setViewToken(data.viewToken);
+      setViewToken(data.viewToken || null);
+      if (data.viewToken) {
+        try { sessionStorage.setItem(`order_token_${data.orderId}`, data.viewToken); } catch { /* Keep the token in memory. */ }
       }
       setClientSecret(data.clientSecret);
       if (data.publishableKey) {
@@ -543,17 +577,28 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
     }
   };
 
-  const handlePaymentSuccess = (completedOrderId: string) => {
+  const handlePaymentSuccess = async (completedOrderId: string) => {
     clearCheckoutDraftKey("legacy");
     trackEvent("payment_succeeded", 4, { orderId: completedOrderId });
-    const storedToken =
-      typeof window !== "undefined"
-        ? sessionStorage.getItem(`order_token_${completedOrderId}`)
-        : null;
-    const dest = storedToken
-      ? `/order/${completedOrderId}?token=${encodeURIComponent(storedToken)}`
-      : `/order/${completedOrderId}`;
-    router.push(dest);
+    const path = `/order/${encodeURIComponent(completedOrderId)}`;
+    const key = `order_token_${completedOrderId}`;
+    const token = completedOrderId === orderId ? viewToken : null;
+    try {
+      if (token) sessionStorage.setItem(key, token);
+      if (sessionStorage.getItem(key)) {
+        router.push(`${path}#checkout=1`);
+        return;
+      }
+    } catch { /* Browser storage is optional. */ }
+
+    if (token) {
+      try {
+        const { readToken } = await fetchOrderAccess(completedOrderId, token);
+        router.push(privateOrderPath(completedOrderId, readToken));
+        return;
+      } catch { /* Public order status remains available. */ }
+    }
+    router.push(path);
   };
 
   return (
@@ -868,8 +913,8 @@ export function VendingMachineBuilder(props?: VendingMachineBuilderProps) {
                 onChangeReturnAddress={handleUpdateReturn}
                 scheduledSendDate={scheduledSendDate}
                 onChangeScheduledSendDate={setScheduledSendDate}
-                saveRecipientToAddressBook={saveRecipientToAddressBook}
-                onToggleSaveRecipient={setSaveRecipientToAddressBook}
+                saveRecipientToAddressBook={Boolean(activeAddressBookOptIn)}
+                onToggleSaveRecipient={handleToggleSaveRecipient}
                 recipientOccasion={recipientOccasion}
                 onChangeRecipientOccasion={setRecipientOccasion}
               />

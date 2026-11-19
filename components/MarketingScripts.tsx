@@ -12,7 +12,7 @@ export function MarketingScripts() {
   // Discount codes and unsubscribe tokens are bearer-like private capabilities.
   // Suppress automatic Google/Meta page views on those URLs so query strings
   // cannot be sent to third parties by browser page-view collection.
-  if (pathname?.startsWith("/comp-payment/") || pathname === "/email/unsubscribe" || ["discount", "code", "promo"].some((parameter) => searchParams.has(parameter)) || searchParams.has("token") || searchParams.has("followupRef") || process.env.NEXT_PUBLIC_STAGING_REVIEW_ONLY === "true") return null;
+  if (pathname?.startsWith("/order/") || pathname?.startsWith("/orders/") || pathname?.startsWith("/comp-payment/") || pathname === "/email/unsubscribe" || ["discount", "code", "promo"].some((parameter) => searchParams.has(parameter)) || searchParams.has("token") || searchParams.has("viewToken") || searchParams.has("followupRef") || process.env.NEXT_PUBLIC_STAGING_REVIEW_ONLY === "true") return null;
   return <>
     <Script async src={`https://www.googletagmanager.com/gtag/js?id=${GOOGLE_TAG_ID || GOOGLE_ADS_ID}`} strategy="afterInteractive" />
     <Script id="smn-google-tag-init" strategy="afterInteractive" dangerouslySetInnerHTML={{ __html: `

@@ -1,3 +1,4 @@
+import { checkoutOrderPath } from "@/lib/order-tracking-links";
 import { validateFollowupLinkForCheckout } from "@/lib/post-purchase/attribution";
 import { isSameOrigin } from "@/lib/upload/http";
 import { verifyMultiSendTransferProof } from "@/lib/multi-send/checkout";
@@ -161,7 +162,7 @@ export async function POST(req: NextRequest) {
           if (!["requires_payment_method", "requires_confirmation"].includes(pi.status)) {
             await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
             activeMultiSendClaim = null;
-            const orderPath = `/order/${encodeURIComponent(existingOrder.id)}?token=${encodeURIComponent(existingOrder.viewToken || "")}`;
+            const orderPath = checkoutOrderPath(existingOrder.id, existingOrder.viewToken);
             return NextResponse.json({ error: "This payment is already complete or closed. Reopening the order to view its latest status.", code: "MULTI_SEND_PAYMENT_CLOSED", orderId: existingOrder.id, viewToken: existingOrder.viewToken, orderPath }, { status: 409 });
           }
           payment = { clientSecret: pi.client_secret, paymentIntentId: pi.id, isMock: false };
@@ -188,7 +189,7 @@ export async function POST(req: NextRequest) {
           if (!(error instanceof CheckoutResumeError) || !error.order) throw error;
           await blockMultiSendCheckout(multiSend.checkoutId, claim.leaseId);
           activeMultiSendClaim = null;
-          const orderPath = `/order/${encodeURIComponent(prior.id)}?token=${encodeURIComponent(prior.viewToken || "")}`;
+          const orderPath = checkoutOrderPath(prior.id, prior.viewToken);
           return NextResponse.json({ error: "The previous payment may have completed. Reopening its order so you can view the latest status.", code: "MULTI_SEND_LATE_PAYMENT", orderId: prior.id, viewToken: prior.viewToken, orderPath }, { status: 409 });
         }
       } else {

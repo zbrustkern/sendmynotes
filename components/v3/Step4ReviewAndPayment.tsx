@@ -36,6 +36,7 @@ import { emitMilestoneOnce } from "@/lib/telemetry-milestones";
 import { Sheet } from "@/components/flow/Sheet";
 import { CardPreview } from "@/components/CardPreview";
 import { markGoogleAdsCheckoutActive, clearGoogleAdsCheckoutActive } from "@/lib/google-ads";
+import { fetchOrderAccess, paymentReturnPath } from "@/lib/order-tracking-links";
 import {
   composeRecipientMessage,
   normalizeBodyText,
@@ -316,11 +317,14 @@ function InnerPaymentForm({
         return;
       }
 
+      if (!viewToken) throw new Error("Your private order return link is unavailable. Refresh checkout and try again.");
+      const access = await fetchOrderAccess(orderId, viewToken);
+      const returnUrl = new URL(paymentReturnPath(orderId, access.returnTicket), window.location.origin).toString();
       markGoogleAdsCheckoutActive(orderId, viewToken);
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/order/${orderId}`,
+          return_url: returnUrl,
         },
         redirect: "if_required",
       });
@@ -353,19 +357,18 @@ function InnerPaymentForm({
         try {
           const confirmRes = await fetch("/api/checkout/confirm-order", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
             body: JSON.stringify({
               orderId,
               paymentIntentId: paymentIntent.id,
               customerEmail,
-              viewToken,
               verifyOnly: true,
             }),
           });
           confirmData = await confirmRes.json();
           if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation || confirmData?.offerRedemption?.status === "reconciliation_required") {
             setIsProcessing(false);
-            onPaymentSuccess(orderId, confirmData?.viewToken || viewToken, "RECONCILING");
+            onPaymentSuccess(orderId, viewToken, "RECONCILING");
             return;
           }
           if (confirmRes.ok && confirmData.success) {
@@ -373,17 +376,16 @@ function InnerPaymentForm({
             void fetch("/api/checkout/confirm-order", {
               method: "POST",
               keepalive: true,
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
               body: JSON.stringify({
                 orderId,
                 paymentIntentId: paymentIntent.id,
                 customerEmail,
-                viewToken,
               }),
             }).catch((bgErr) => console.warn("[Checkout] Background fulfillment notice:", bgErr));
 
             setIsProcessing(false);
-            onPaymentSuccess(orderId, confirmData?.viewToken || viewToken, confirmData?.status);
+            onPaymentSuccess(orderId, viewToken, confirmData?.status);
             return;
           }
         } catch (confirmErr) {
@@ -482,7 +484,7 @@ function InnerPaymentForm({
       try {
         const confirmRes = await fetch("/api/checkout/confirm-order", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
           body: JSON.stringify({
             orderId,
             paymentIntentId: `pi_mock_${orderId}`,
@@ -500,7 +502,7 @@ function InnerPaymentForm({
           throw new Error(confirmData.error || "Failed to confirm simulated order.");
         }
         setIsProcessing(false);
-        onPaymentSuccess(orderId, confirmData.viewToken, confirmData.status);
+        onPaymentSuccess(orderId, viewToken, confirmData.status);
         return;
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : "Error confirming simulated order.";
@@ -535,11 +537,14 @@ function InnerPaymentForm({
     });
 
     try {
+      if (!viewToken) throw new Error("Your private order return link is unavailable. Refresh checkout and try again.");
+      const access = await fetchOrderAccess(orderId, viewToken);
+      const returnUrl = new URL(paymentReturnPath(orderId, access.returnTicket), window.location.origin).toString();
       markGoogleAdsCheckoutActive(orderId, viewToken);
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/order/${orderId}`,
+          return_url: returnUrl,
         },
         redirect: "if_required",
       });
@@ -572,19 +577,18 @@ function InnerPaymentForm({
         try {
           const confirmRes = await fetch("/api/checkout/confirm-order", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
             body: JSON.stringify({
               orderId,
               paymentIntentId: paymentIntent.id,
               customerEmail,
-              viewToken,
               verifyOnly: true,
             }),
           });
           confirmData = await confirmRes.json();
           if (confirmRes.status === 409 || confirmData?.requiresPriceReconfirmation || confirmData?.offerRedemption?.status === "reconciliation_required") {
             setIsProcessing(false);
-            onPaymentSuccess(orderId, confirmData?.viewToken || viewToken, "RECONCILING");
+            onPaymentSuccess(orderId, viewToken, "RECONCILING");
             return;
           }
           if (confirmRes.ok && confirmData.success) {
@@ -592,17 +596,16 @@ function InnerPaymentForm({
             void fetch("/api/checkout/confirm-order", {
               method: "POST",
               keepalive: true,
-              headers: { "Content-Type": "application/json" },
+              headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
               body: JSON.stringify({
                 orderId,
                 paymentIntentId: paymentIntent.id,
                 customerEmail,
-                viewToken,
               }),
             }).catch((bgErr) => console.warn("[Checkout] Background fulfillment notice:", bgErr));
 
             setIsProcessing(false);
-            onPaymentSuccess(orderId, confirmData?.viewToken || viewToken, confirmData?.status);
+            onPaymentSuccess(orderId, viewToken, confirmData?.status);
             return;
           }
         } catch (confirmErr) {

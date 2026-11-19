@@ -1,8 +1,24 @@
 import { resend } from "./resend";
 import { Order, MailingAddress } from "@/lib/types";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
+import { createOrderReadToken } from "@/lib/order-access-credentials";
+import { deferredAddressPath, privateOrderPath } from "@/lib/order-tracking-links";
 
 const SENDER_IDENTITY = "SendMyNotes Studio <orders@sendmynotes.com>";
+
+type ReceiptPayload = { from: string; to: string[]; subject: string; text: string; html: string };
+type ReceiptSendResult = { data?: { id?: string | null } | null; error?: { message?: string } | null };
+type ReceiptSender = (payload: ReceiptPayload) => Promise<ReceiptSendResult>;
+
+const sendReceiptEmail: ReceiptSender = async (payload) =>
+  await resend.emails.send(payload as never) as unknown as ReceiptSendResult;
+
+function privateOrderUrl(order: Order, appUrl: string): string | null {
+  if (!order.viewToken) return null;
+  const readToken = createOrderReadToken(order.id, order.viewToken);
+  if (!readToken) return null;
+  return new URL(privateOrderPath(order.id, readToken), `${appUrl}/`).toString();
+}
 
 function escapeHtml(text: string): string {
   return text
@@ -70,7 +86,7 @@ export interface SendDeferredAddressReceiptParams {
 export async function sendDeferredAddressReceiptEmail({
   order,
   customerEmail,
-}: SendDeferredAddressReceiptParams): Promise<{ success: boolean; id?: string; error?: string }> {
+}: SendDeferredAddressReceiptParams, sendEmail: ReceiptSender = sendReceiptEmail): Promise<{ success: boolean; id?: string; error?: string }> {
   if (!customerEmail || !customerEmail.includes("@")) {
     return { success: false, error: "Invalid customer email address" };
   }
@@ -78,8 +94,11 @@ export async function sendDeferredAddressReceiptEmail({
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://sendmynotes.com").replace(/\/$/, "");
   const orderId = order.id;
   const shortOrderId = orderId.replace(/^order_/, "").slice(0, 8).toUpperCase();
-  const addressToken = order.viewToken || "";
-  const completeAddressUrl = `${appUrl}/orders/${orderId}/complete-address?token=${encodeURIComponent(addressToken)}`;
+  const addressToken = order.viewToken;
+  const completeAddressUrl = addressToken
+    ? `${appUrl}${deferredAddressPath(orderId, addressToken)}`
+    : null;
+  const orderUrl = privateOrderUrl(order, appUrl);
 
   const recipientName =
     [order.recipientAddress?.firstName, order.recipientAddress?.lastName].filter(Boolean).join(" ").trim() ||
@@ -108,8 +127,11 @@ ${noteText || "(Blank inside note)"}
 -------------------------------------------------
 
 NEXT STEP — ADD MAILING ADDRESS:
-Whenever you have ${recipientName}'s mailing address handy, click the secure link below to enter it:
-${completeAddressUrl}
+${completeAddressUrl
+    ? `Whenever you have ${recipientName}'s mailing address handy, click the secure link below to enter it:\n${completeAddressUrl}`
+    : `The mailing address link is unavailable for this older order. Reply to this email for help adding the address.`}
+
+${orderUrl ? `VIEW MY ORDER (PRIVATE, READ-ONLY LINK):\n${orderUrl}\n` : ""}
 
 As soon as you add the address, our robotic pens will ink your words in real ballpoint pen and mail your card${mailingDetails.isInternational ? " internationally" : " via USPS First-Class Mail"}.
 
@@ -185,11 +207,13 @@ https://sendmynotes.com
       <strong>📮 Next Step:</strong> Whenever you're ready, add ${escapeHtml(recipientName)}'s mailing address using the button below. Once the address is added, we can prepare your card for mailing.
     </div>
 
-    <div class="cta-container">
+    ${completeAddressUrl ? `<div class="cta-container">
       <a href="${escapeHtml(completeAddressUrl)}" class="cta-button">
         Add Mailing Address Whenever You're Ready &rarr;
       </a>
-    </div>
+    </div>` : `<p class="intro">The mailing address link is unavailable for this older order. Reply to this email for help adding the address.</p>`}
+
+    ${orderUrl ? `<p class="intro" style="text-align:center"><a href="${escapeHtml(orderUrl)}">View my order</a> <span>(private, read-only link)</span></p>` : ""}
 
     <div class="footer">
       Receipt #${escapeHtml(shortOrderId)} &bull; Order ID: <code>${escapeHtml(orderId)}</code><br/>
@@ -202,7 +226,7 @@ https://sendmynotes.com
 `.trim();
 
   try {
-    const res = await resend.emails.send({
+    const res = await sendEmail({
       from: SENDER_IDENTITY,
       to: [customerEmail],
       subject,
@@ -211,16 +235,15 @@ https://sendmynotes.com
     });
 
     if (res.error) {
-      console.error("[Email] Error dispatching Scenario A email via Resend:", res.error);
-      return { success: false, error: res.error.message };
+      console.error("[Email] Scenario A receipt delivery failed.");
+      return { success: false, error: "Receipt email delivery failed." };
     }
 
     console.log(`[Email] Scenario A receipt email dispatched to ${customerEmail}. ID: ${res.data?.id}`);
-    return { success: true, id: res.data?.id };
+    return { success: true, id: res.data?.id || undefined };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[Email Exception] Failed to send Scenario A receipt:", msg);
-    return { success: false, error: msg };
+    console.error("[Email Exception] Scenario A receipt delivery failed.");
+    return { success: false, error: "Receipt email delivery failed." };
   }
 }
 
@@ -236,12 +259,14 @@ export interface SendOrderPenningReceiptParams {
 export async function sendOrderPenningReceiptEmail({
   order,
   customerEmail,
-}: SendOrderPenningReceiptParams): Promise<{ success: boolean; id?: string; error?: string }> {
+}: SendOrderPenningReceiptParams, sendEmail: ReceiptSender = sendReceiptEmail): Promise<{ success: boolean; id?: string; error?: string }> {
   if (!customerEmail || !customerEmail.includes("@")) {
     return { success: false, error: "Invalid customer email address" };
   }
 
   const orderId = order.id;
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "https://sendmynotes.com").replace(/\/$/, "");
+  const orderUrl = privateOrderUrl(order, appUrl);
   const shortOrderId = orderId.replace(/^order_/, "").slice(0, 8).toUpperCase();
   const batchCount = order.multiSend?.kind === "parent" ? order.multiSend.recipients.length : 0;
 
@@ -298,6 +323,7 @@ ${noteText || "(Blank inside note)"}
 -------------------------------------------------
 
 Order ID: ${orderId}
+${orderUrl ? `\nVIEW MY ORDER (PRIVATE, READ-ONLY LINK):\n${orderUrl}\n` : ""}
 
 Warm regards,
 SendMyNotes Studio
@@ -376,6 +402,8 @@ https://sendmynotes.com
       ${formatNoteHtml(noteText)}
     </div>
 
+    ${orderUrl ? `<p class="intro" style="text-align:center"><a href="${escapeHtml(orderUrl)}">View my order</a> <span>(private, read-only link)</span></p>` : ""}
+
     <div class="footer">
       Receipt #${escapeHtml(shortOrderId)} &bull; Order ID: <code>${escapeHtml(orderId)}</code><br/>
       SendMyNotes Studio &bull; Real pen handwritten cards, stamped & mailed for you.<br/>
@@ -387,7 +415,7 @@ https://sendmynotes.com
 `.trim();
 
   try {
-    const res = await resend.emails.send({
+    const res = await sendEmail({
       from: SENDER_IDENTITY,
       to: [customerEmail],
       subject,
@@ -396,15 +424,14 @@ https://sendmynotes.com
     });
 
     if (res.error) {
-      console.error("[Email] Error dispatching Scenario B email via Resend:", res.error);
-      return { success: false, error: res.error.message };
+      console.error("[Email] Scenario B receipt delivery failed.");
+      return { success: false, error: "Receipt email delivery failed." };
     }
 
     console.log(`[Email] Scenario B receipt email dispatched to ${customerEmail}. ID: ${res.data?.id}`);
-    return { success: true, id: res.data?.id };
+    return { success: true, id: res.data?.id || undefined };
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error("[Email Exception] Failed to send Scenario B receipt:", msg);
-    return { success: false, error: msg };
+    console.error("[Email Exception] Scenario B receipt delivery failed.");
+    return { success: false, error: "Receipt email delivery failed." };
   }
 }

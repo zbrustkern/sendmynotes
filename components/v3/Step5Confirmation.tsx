@@ -1,5 +1,6 @@
 "use client";
 
+import { deferredAddressPath } from "@/lib/order-tracking-links";
 import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import Link from "next/link";
@@ -20,9 +21,11 @@ import {
 import confetti from "canvas-confetti";
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { AddressData, isInternationalCountry } from "./Step3EnvelopeAddressing";
-import { cancelGoogleAdsPurchaseRetries, trackGoogleAdsPurchase } from "@/lib/google-ads";
+import { cancelGoogleAdsPurchaseRetries, hasGoogleAdsCheckoutProof, purchaseConsentAllowed, trackGoogleAdsPurchase } from "@/lib/google-ads";
 import { trackMetaPurchase } from "@/lib/meta-ads";
 import { MultiSendOrderStatus } from "@/components/multi-send/MultiSendOrderStatus";
+import { CopyPrivateOrderLink } from "@/components/CopyPrivateOrderLink";
+import { isCustomerPurchaseOrder } from "@/lib/customer-purchase-classification";
 import type { MultiSendView } from "@/lib/multi-send/presentation";
 import type { Order } from "@/lib/types";
 
@@ -68,12 +71,8 @@ export function Step5Confirmation({
   isPreviewHold = false,
 }: Step5ConfirmationProps) {
   const [batchOrder, setBatchOrder] = useState<(Order & {multiSendView: MultiSendView}) | null>(null);
-  useEffect(() => {
-    if (cardQuantity < 2 || !viewToken) return;
-    let active = true;
-    fetch(`/api/orders/${encodeURIComponent(orderId)}?token=${encodeURIComponent(viewToken)}`, { cache: "no-store" }).then(res => res.ok ? res.json() : null).then(data => { if (active && data?.order?.multiSendView && !data.order.multiSendView.redacted) setBatchOrder(data.order); }).catch(() => {});
-    return () => { active = false; };
-  }, [orderId, viewToken, cardQuantity]);
+  const [privateReadToken, setPrivateReadToken] = useState<string | null>(null);
+  const [magicLinkFallback, setMagicLinkFallback] = useState("");
   const deliveryEstimate = useMemo(() => calculateDeliveryEstimate(), []);
   const isInternational = isInternationalCountry(recipient.country);
   const isPreviewHoldActive = isPreviewHold && isInternational;
@@ -99,58 +98,67 @@ export function Step5Confirmation({
       }
     }
 
-    // Google Ads requires the server snapshot and an active checkout marker; receipt views alone cannot emit.
+    // Conversion reporting requires the same order-specific proof as the submitted checkout.
     const isReconciling = fulfillmentStatus === "RECONCILING";
     let cancelled = false;
-    if (orderId && viewToken && !isReconciling && !isPreviewHoldActive) {
-      try {
-        void fetch(`/api/orders/${encodeURIComponent(orderId)}?token=${encodeURIComponent(viewToken)}`)
-          .then((response) => response.ok ? response.json() : null)
-          .then((data) => {
-            if (cancelled || isPreviewHoldActive || !data?.order?.purchaseMeasurement) return;
-            trackGoogleAdsPurchase({ orderId, measurement: data.order.purchaseMeasurement, consent: data.order.attribution });
-          })
-          .catch(() => { /* measurement delivery must not affect confirmation */ });
-      } catch { /* synchronous fetch failures cannot affect confirmation */ }
-    }
-    if (orderId && !isReconciling && !isPreviewHoldActive) {
-      try {
-        trackMetaPurchase({
-          orderId,
-          itemCount: cardQuantity,
-          value: amountInCents ? amountInCents / 100 : 9.0,
-          customerEmail,
-          customerName: sender.fullName,
-          recipientCity: recipient.city,
-          recipientState: recipient.state,
-          recipientZip: recipient.zip,
-          itemName: cardTitle,
-        });
-      } catch { /* independent destination must not affect confirmation */ }
+    if (orderId && viewToken) {
+      void fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+        headers: { "x-view-token": viewToken },
+        cache: "no-store",
+      }).then((response) => response.ok ? response.json() : null)
+        .then((data) => {
+          if (cancelled || !data?.order) return;
+          if (typeof data.readToken === "string" && data.readToken) setPrivateReadToken(data.readToken);
+          const order = data.order as Order & { multiSendView?: MultiSendView };
+          if (cardQuantity > 1 && order.multiSendView && !order.multiSendView.redacted) {
+            setBatchOrder(order as Order & { multiSendView: MultiSendView });
+          }
+          if (isReconciling || isPreviewHoldActive || data.accessKind !== "checkout" || !hasGoogleAdsCheckoutProof(orderId) || order.purchaseMeasurement?.transactionId !== orderId || !order.purchaseMeasurement?.eligible || !purchaseConsentAllowed(order.attribution) || !isCustomerPurchaseOrder(order) || order.status === "PENDING_PAYMENT" || order.isInternationalPreview || order.fulfillmentStatus === "INTERNATIONAL_PREVIEW_HOLD") return;
+          if (order.purchaseMeasurement) {
+            trackGoogleAdsPurchase({ orderId, measurement: order.purchaseMeasurement, consent: order.attribution });
+          }
+          try {
+            trackMetaPurchase({
+              orderId: order.id,
+              itemCount: order.purchaseMeasurement?.itemCount || order.multiSendView?.quantity || 1,
+              value: order.purchaseMeasurement.amountInCents / 100,
+              customerEmail: order.customerEmail,
+              customerName: order.returnAddress?.firstName ? `${order.returnAddress.firstName} ${order.returnAddress.lastName || ""}`.trim() : undefined,
+              recipientCity: order.recipientAddress?.city,
+              recipientState: order.recipientAddress?.state,
+              recipientZip: order.recipientAddress?.zip,
+              itemName: order.occasion ? `${order.occasion} Card` : undefined,
+            });
+          } catch { /* independent destination must not affect confirmation */ }
+        })
+        .catch(() => { /* order access and conversion delivery must not affect confirmation */ });
     }
     return () => {
       cancelled = true;
       if (orderId) cancelGoogleAdsPurchaseRetries(orderId);
     };
-  }, [orderId, viewToken, fulfillmentStatus, amountInCents, customerEmail, cardTitle, sender.fullName, recipient.city, recipient.state, recipient.zip, isPreviewHoldActive]);
+  }, [orderId, viewToken, fulfillmentStatus, cardQuantity, isPreviewHoldActive]);
 
   // Deferred Address State & Magic Link Helpers
   const isDeferred = Boolean(isAddressDeferred || !recipient.street1?.trim());
 
   const magicLinkUrl = useMemo(() => {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://sendmynotes.com";
-    return `${origin}/orders/${orderId}/complete-address?token=${encodeURIComponent(viewToken || "")}`;
+    return viewToken ? `${origin}${deferredAddressPath(orderId, viewToken)}` : "";
   }, [orderId, viewToken]);
 
   const [linkCopied, setLinkCopied] = useState(false);
 
   const handleCopyLink = async () => {
+    const url = magicLinkUrl;
+    setMagicLinkFallback("");
     try {
-      await navigator.clipboard.writeText(magicLinkUrl);
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
+      await navigator.clipboard.writeText(url);
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 3000);
     } catch {
-      // fallback
+      setMagicLinkFallback(url);
     }
   };
 
@@ -168,17 +176,26 @@ export function Step5Confirmation({
         // user cancelled share
       }
     } else {
+      setMagicLinkFallback("");
       try {
+        if (!navigator.clipboard?.writeText) throw new Error("Clipboard unavailable");
         await navigator.clipboard.writeText(magicLinkUrl);
         setShareCopied(true);
         setTimeout(() => setShareCopied(false), 3000);
       } catch {
-        // fallback
+        setMagicLinkFallback(magicLinkUrl);
       }
     }
   };
 
-  if (cardQuantity > 1) return batchOrder ? <MultiSendOrderStatus order={batchOrder} view={batchOrder.multiSendView} /> : <section className="max-w-2xl mx-auto space-y-4"><h1 className="font-serif text-3xl">Your order is being confirmed</h1><p>Your {cardQuantity} purchased cards and their individual status are available on the secure order page.</p><Link className="underline text-emerald-800" href={`/order/${encodeURIComponent(orderId)}?token=${encodeURIComponent(viewToken || "")}`}>View all card deliveries</Link></section>;
+  if (cardQuantity > 1) return (
+    <div className="max-w-4xl mx-auto space-y-5">
+      <CopyPrivateOrderLink orderId={orderId} readToken={privateReadToken} />
+      {batchOrder
+        ? <MultiSendOrderStatus order={batchOrder} view={batchOrder.multiSendView} />
+        : <section className="space-y-4 rounded-2xl border border-stone-200 bg-white p-6"><h1 className="font-serif text-3xl">Your order is being confirmed</h1><p className="text-sm text-stone-600">Your {cardQuantity} purchased cards and their individual status are available on the private order page.</p></section>}
+    </div>
+  );
 
   return (
     <div className="max-w-4xl lg:max-w-5xl mx-auto space-y-7 pb-24 md:pb-12 animate-in fade-in duration-300">
@@ -208,8 +225,10 @@ export function Step5Confirmation({
         </div>
       </div>
 
+      <CopyPrivateOrderLink orderId={orderId} readToken={privateReadToken} />
+
       {/* DEFERRED ADDRESS HIGH-AFFORDANCE LINK DELIVERY CARD */}
-      {isDeferred && !isPreviewHoldActive && (
+      {isDeferred && magicLinkUrl && !isPreviewHoldActive && (
         <div className="bg-gradient-to-br from-amber-50 via-orange-50/70 to-yellow-50 rounded-3xl p-6 sm:p-7 border-2 border-amber-400 shadow-sm space-y-4 animate-in fade-in">
           <div className="flex items-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-amber-600 animate-pulse shrink-0" />
@@ -225,20 +244,6 @@ export function Step5Confirmation({
             <p className="text-xs sm:text-sm text-stone-700 leading-relaxed">
               Whenever you have {recipient.fullName || "their"}&apos;s street address handy, use your personal magic link below to enter it. We&apos;ve also emailed this link to <strong className="text-stone-900">{customerEmail}</strong>.
             </p>
-          </div>
-
-          {/* Magic Link URL Display Box */}
-          <div className="p-3 bg-white/95 rounded-2xl border border-amber-300 shadow-2xs space-y-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-500 block">
-              Your Unique Address Magic Link:
-            </span>
-            <input
-              type="text"
-              readOnly
-              value={magicLinkUrl}
-              onFocus={(e) => e.target.select()}
-              className="w-full text-xs font-mono bg-stone-50 text-stone-900 border border-stone-200 rounded-xl px-3 py-2.5 select-all focus:outline-none focus:ring-2 focus:ring-amber-500"
-            />
           </div>
 
           {/* 1-Tap Action Buttons: Copy Link & Share / Text Link to Myself */}
@@ -279,15 +284,28 @@ export function Step5Confirmation({
               )}
             </button>
 
-            <a
-              href={magicLinkUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={() => window.open(magicLinkUrl, "_blank", "noopener,noreferrer")}
               className="px-4 py-3 bg-emerald-700 hover:bg-emerald-800 active:bg-emerald-900 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 text-center shrink-0"
             >
               <span>Open &rarr;</span>
-            </a>
+            </button>
           </div>
+
+          {magicLinkFallback && (
+            <div className="rounded-xl border border-amber-300 bg-white p-3 space-y-1.5">
+              <label htmlFor={`deferred-address-link-${orderId}`} className="block text-[11px] font-semibold text-stone-700">Select and copy this address-completion link:</label>
+              <input
+                id={`deferred-address-link-${orderId}`}
+                type="text"
+                readOnly
+                value={magicLinkFallback}
+                onFocus={(event) => event.currentTarget.select()}
+                className="w-full rounded-lg border border-stone-200 bg-stone-50 px-3 py-2 font-mono text-[11px] text-stone-900"
+              />
+            </div>
+          )}
 
           <p className="text-[11px] text-stone-500 leading-relaxed">
             As soon as the mailing address is entered, your card is automatically released to our Phoenix studio robotic pen plotters and mailed via USPS First-Class.
@@ -418,21 +436,6 @@ export function Step5Confirmation({
           <span className="text-[10px] text-emerald-700 font-semibold block">{isPreviewHoldActive ? "Test mode" : "Paid"}</span>
         </div>
       </div>
-
-      {/* PROTECTED GUEST RECEIPT LINK */}
-      {viewToken && (
-        <div className="flex justify-center -mt-2">
-          <a
-            href={`/order/${orderId}?viewToken=${viewToken}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-amber-900 hover:text-amber-950 font-medium underline underline-offset-2 flex items-center gap-1.5 transition"
-          >
-            <span>View protected guest receipt</span>
-            <ArrowRight className="w-3.5 h-3.5" />
-          </a>
-        </div>
-      )}
 
       {/* CTA: SEND ANOTHER CARD */}
       <div className="pt-2 text-center">

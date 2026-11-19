@@ -3,56 +3,103 @@ import { stripPrivateOrderMedia } from "@/lib/upload/order-master";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderById } from "@/lib/firebase-admin";
 import { verifyAdminAuth } from "@/lib/admin-auth";
+import { canReadAccountOrder } from "@/lib/account/history";
 import { requireAccountActor } from "@/lib/account/http";
 import { listMultiSendDeliveries } from "@/lib/multi-send/orders";
 import { projectMultiSendView } from "@/lib/multi-send/presentation";
-import { Order } from "@/lib/types";
 import { projectPurchaseMeasurementForOrder } from "@/lib/purchase-measurement";
-
-function maskEmail(email?: string): string {
-  if (!email || !email.includes("@")) return "Customer";
-  const [local, domain] = email.split("@");
-  if (local.length <= 2) return `${local[0]}*@${domain}`;
-  return `${local[0]}***${local[local.length - 1]}@${domain}`;
-}
-
-function maskZip(zip?: string): string {
-  if (!zip) return "";
-  return "•••••";
-}
-
-function sanitizeOrderForPublicView(order: Order): Order {
-  const { adminCompQuoteId: _quoteId, adminCompQuote: _quote, adminCompLifecycle: _lifecycle,
-    adminCompPaymentRequestId: _requestId, adminCompPaymentRequestStatus: _requestStatus, ...publicOrder } = order;
-  return {
-    ...stripPrivateRetention(stripPrivateOrderMedia(publicOrder)),
-    multiSend: undefined,
-    printedMessage: order.multiSend ? "" : order.printedMessage,
-    customerEmail: maskEmail(order.customerEmail),
-    recipientAddress: {
-      ...order.recipientAddress,
-      lastName: order.recipientAddress.lastName ? `${order.recipientAddress.lastName[0]}.` : "",
-      street1: "••••••••",
-      street2: "",
-      zip: maskZip(order.recipientAddress.zip),
-    },
-    returnAddress: {
-      ...order.returnAddress,
-      street1: "••••••••",
-      street2: "",
-      zip: maskZip(order.returnAddress.zip),
-    },
-    handwrittenNote: "Handwritten card note protected for privacy. Verify billing email or delivery ZIP code to view full note.",
-    stripePaymentId: undefined,
-    purchaseMeasurement: undefined,
-    attribution: undefined,
-    viewToken: undefined,
-    isRedacted: true,
-  };
-}
+import type { MailingAddress, Order } from "@/lib/types";
+import {
+  constantTimeStringEqual,
+  createOrderReadToken,
+  verifyOrderReadToken,
+  verifyOrderReturnTicket,
+} from "@/lib/order-access-credentials";
 
 export const dynamic = "force-dynamic";
 const privateHeaders = { "Cache-Control": "private, no-store, max-age=0" };
+
+function projectAddress(address?: Partial<MailingAddress> | null): Partial<MailingAddress> | undefined {
+  if (!address) return undefined;
+  const result: Partial<MailingAddress> = {};
+  for (const key of ["firstName", "lastName", "street1", "street2", "city", "state", "zip", "country"] as const) {
+    const value = address[key];
+    if (typeof value === "string") result[key] = value;
+  }
+  return result;
+}
+
+function projectReadOnlyMultiSendView(view: ReturnType<typeof projectMultiSendView>) {
+  if (!view) return undefined;
+  return {
+    quantity: view.quantity,
+    redacted: view.redacted,
+    deliveries: view.deliveries.map((delivery) => ({
+      id: delivery.id,
+      name: delivery.name,
+      address: projectAddress(delivery.address),
+      greeting: delivery.greeting,
+      message: delivery.message,
+      status: delivery.status,
+      needsSupport: delivery.needsSupport,
+    })),
+  };
+}
+
+/** Customer-readable fields only. Keep this projection independent of the stored Order shape. */
+function projectReadOnlyOrder(order: Order, deliveries: Awaited<ReturnType<typeof listMultiSendDeliveries>>) {
+  const readToken = order.viewToken ? createOrderReadToken(order.id, order.viewToken) : null;
+  return {
+    readToken,
+    accessKind: "read",
+    order: {
+      id: order.id,
+      status: order.status,
+      origin: order.origin,
+      createdAt: order.createdAt,
+      updatedAt: order.updatedAt,
+      frontImageUrl: order.frontImageUrl,
+      printedMessage: order.printedMessage,
+      handwrittenNote: order.handwrittenNote,
+      fontStyleId: order.fontStyleId,
+      recipientAddress: projectAddress(order.recipientAddress),
+      returnAddress: projectAddress(order.returnAddress),
+      customerEmail: order.customerEmail,
+      contactEmailChoice: order.contactEmailChoice,
+      receiptEmailSentAt: order.receiptEmailSentAt,
+      fulfillmentStatus: order.fulfillmentStatus,
+      addressDeferred: order.addressDeferred,
+      address_deferred: order.address_deferred,
+      handwryttenOrderId: order.handwryttenOrderId,
+      handwryttenTrackingNumber: order.handwryttenTrackingNumber,
+      handwryttenTrackingUrl: order.handwryttenTrackingUrl,
+      handwryttenMailedDate: order.handwryttenMailedDate,
+      scheduledSendDate: order.scheduledSendDate,
+      amountInCents: order.amountInCents,
+      finalAmountInCents: order.finalAmountInCents,
+      totalCents: order.quote?.totalCents,
+      destinationCountryCode: order.quote?.countryCode || order.recipientAddress?.country,
+      isInternationalPreview: order.isInternationalPreview,
+      occasion: order.occasion,
+      isRedacted: false as const,
+      multiSendView: projectReadOnlyMultiSendView(
+        projectMultiSendView(order, deliveries, true),
+      ),
+    },
+  };
+}
+
+function publicOrder(order: Order, id: string) {
+  return {
+    order: {
+      id,
+      status: order.status,
+      origin: order.origin,
+      isRedacted: true,
+      multiSendView: projectMultiSendView(order, [], false),
+    },
+  };
+}
 
 export async function GET(
   req: NextRequest,
@@ -60,152 +107,73 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    if (!id) {
-      return NextResponse.json({ error: "Missing order ID" }, { status: 400 });
-    }
+    if (!id) return NextResponse.json({ error: "Missing order ID" }, { status: 400, headers: privateHeaders });
 
     const order = await getOrderById(id);
-    if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
+    if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404, headers: privateHeaders });
+
+    // A scoped credential is authoritative for this request, including when an
+    // admin cookie or legacy checkout token is also present.
+    const suppliedReadToken = req.headers.get("x-order-read-token");
+    const suppliedReturnTicket = req.headers.get("x-order-return-ticket");
+    if (suppliedReadToken !== null || suppliedReturnTicket !== null) {
+      const authorized = suppliedReadToken !== null
+        ? verifyOrderReadToken(id, order.viewToken || "", suppliedReadToken)
+        : verifyOrderReturnTicket(id, order.viewToken || "", suppliedReturnTicket);
+      if (authorized && order.id === id && order.viewToken) {
+        const deliveries = order.multiSend ? await listMultiSendDeliveries(order.id) : [];
+        return NextResponse.json(projectReadOnlyOrder(order, deliveries), { headers: privateHeaders });
+      }
+      return NextResponse.json(publicOrder(order, id), { headers: privateHeaders });
     }
 
-    // Check authorization:
-    // 1. URL search param ?token=... or ?viewToken=...
-    // 2. Header x-view-token
-    // 3. Admin authorization
+    // Full checkout links remain compatible with existing receipts. The
+    // raw checkout credential is accepted as authority but is never echoed.
     const url = new URL(req.url);
     const token =
       url.searchParams.get("token") ||
       url.searchParams.get("viewToken") ||
       req.headers.get("x-view-token");
 
-    let isAuthorized =
-      Boolean(order.viewToken && token && token === order.viewToken) ||
-      verifyAdminAuth(req);
-
-    if (!isAuthorized && order.multiSend && req.headers.get('authorization')) {
-      try { const actor = await requireAccountActor(req); isAuthorized = Boolean(order.userId && order.userId === actor.uid); } catch { /* A failed account proof never grants access. */ }
+    const validCheckoutToken = Boolean(order.viewToken && constantTimeStringEqual(token, order.viewToken));
+    const isAdmin = verifyAdminAuth(req);
+    if (!validCheckoutToken && !isAdmin && req.headers.get("authorization")) {
+      try {
+        const actor = await requireAccountActor(req);
+        if (canReadAccountOrder(order, actor)) {
+          const deliveries = order.multiSend ? await listMultiSendDeliveries(order.id) : [];
+          return NextResponse.json({ ...projectReadOnlyOrder(order, deliveries), accessKind: "owner" }, { headers: privateHeaders });
+        }
+      } catch { /* A failed account proof never grants access. */ }
     }
-    if (isAuthorized) {
+    if (validCheckoutToken || isAdmin) {
       const purchaseMeasurement = await projectPurchaseMeasurementForOrder(order, order.purchaseMeasurement);
+      const orderForResponse = stripPrivateRetention(stripPrivateOrderMedia(order)) as Order & { viewToken?: string };
+      delete orderForResponse.viewToken;
       return NextResponse.json({
+        accessKind: validCheckoutToken ? "checkout" : "admin",
         order: {
-          ...stripPrivateRetention(stripPrivateOrderMedia(order)),
+          ...orderForResponse,
           multiSend: undefined,
           multiSendView: projectMultiSendView(order, order.multiSend ? await listMultiSendDeliveries(order.id) : [], true),
           purchaseMeasurement,
           isRedacted: false,
         },
+        ...(order.viewToken ? { readToken: createOrderReadToken(order.id, order.viewToken) } : {}),
       }, { headers: privateHeaders });
     }
 
-    // Public / Unauthenticated requester receives PII-sanitized view
-    return NextResponse.json({
-      order: { ...sanitizeOrderForPublicView(order), multiSendView: projectMultiSendView(order, [], false) },
-    }, { headers: privateHeaders });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error fetching order";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    // This public projection must never inherit fields from a stored order.
+    return NextResponse.json(publicOrder(order, id), { headers: privateHeaders });
+  } catch {
+    return NextResponse.json({ error: "Order details are unavailable." }, { status: 500, headers: privateHeaders });
   }
 }
 
-// Throttles brute-force attempts on order verification (max 5 failed attempts per 15 min window)
-const failedUnlockAttempts = new Map<string, { count: number; resetAt: number }>();
-
-function checkUnlockRateLimit(key: string): boolean {
-  const now = Date.now();
-  const entry = failedUnlockAttempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    return true;
-  }
-  return entry.count < 5;
-}
-
-function recordFailedUnlock(key: string) {
-  const now = Date.now();
-  const entry = failedUnlockAttempts.get(key);
-  if (!entry || now > entry.resetAt) {
-    failedUnlockAttempts.set(key, { count: 1, resetAt: now + 15 * 60 * 1000 });
-  } else {
-    entry.count++;
-  }
-}
-
-function clearFailedUnlock(key: string) {
-  failedUnlockAttempts.delete(key);
-}
-
-/**
- * Verification endpoint: Allows the customer or recipient to unlock full details
- * by confirming the delivery ZIP code or purchaser email.
- */
-export async function POST(
-  req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params;
-    if (!id) {
-      return NextResponse.json({ error: "Missing order ID" }, { status: 400 });
-    }
-
-    const clientIp = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "127.0.0.1";
-    const rateLimitKey = `${clientIp}_${id}`;
-
-    if (!checkUnlockRateLimit(rateLimitKey)) {
-      return NextResponse.json(
-        { error: "Too many failed verification attempts. Please try again in 15 minutes." },
-        { status: 429 }
-      );
-    }
-
-    const order = await getOrderById(id);
-    if (!order) {
-      return NextResponse.json({ error: "Order not found" }, { status: 404 });
-    }
-
-    // Email/ZIP knowledge is insufficient to unlock an entire recipient list.
-    if (order.multiSend) return NextResponse.json({ error: "Use your secure receipt link or signed-in account to view this order." }, { status: 403 });
-    const body = await req.json();
-    const { email, zip } = body;
-
-    let isMatch = false;
-
-    if (email && typeof email === "string" && order.customerEmail) {
-      if (email.trim().toLowerCase() === order.customerEmail.trim().toLowerCase()) {
-        isMatch = true;
-      }
-    }
-
-    if (zip && typeof zip === "string" && order.recipientAddress?.zip) {
-      const cleanInputZip = zip.trim().substring(0, 5);
-      const cleanOrderZip = order.recipientAddress.zip.trim().substring(0, 5);
-      if (cleanInputZip === cleanOrderZip) {
-        isMatch = true;
-      }
-    }
-
-    if (!isMatch) {
-      recordFailedUnlock(rateLimitKey);
-      return NextResponse.json(
-        { error: "Verification failed. The entered email or ZIP code does not match this order." },
-        { status: 401 }
-      );
-    }
-
-    clearFailedUnlock(rateLimitKey);
-
-    return NextResponse.json({
-      success: true,
-      verified: true,
-      viewToken: order.viewToken,
-      order: {
-        ...stripPrivateRetention(stripPrivateOrderMedia(order)),
-        isRedacted: false,
-      },
-    });
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Error verifying order";
-    return NextResponse.json({ error: msg }, { status: 500 });
-  }
+// Older tracker pages may still submit the retired verification form.
+export async function POST(_req: NextRequest, _context: { params: Promise<{ id: string }> }) {
+  return NextResponse.json(
+    { error: "Open your private checkout link or sign in to your card history." },
+    { status: 403, headers: privateHeaders },
+  );
 }

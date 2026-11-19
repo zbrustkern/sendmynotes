@@ -43,6 +43,24 @@ async function run(){
   assert.equal(updated.version,2);
   await throwsCode(()=>updateContact(actor,contact.id,{displayName:'Stale'},1),'conflict');
 
+  const checkoutActor = { ...actor, uid: 'legacy-checkout-test-owner' };
+  const checkoutKey = 'legacy-checkout-address-001';
+  const saveCheckoutPerson = () => createContact(checkoutActor, { displayName: 'Synthetic recipient' }, checkoutKey);
+  const [checkoutPerson, replayedPerson] = await Promise.all([saveCheckoutPerson(), saveCheckoutPerson()]);
+  assert.equal(replayedPerson.id, checkoutPerson.id);
+  const saveCheckoutOccasion = () => createOccasion(checkoutActor, {
+    contactId: checkoutPerson.id, title: 'Birthday', type: 'birthday',
+    month: 9, day: 1, recurrence: 'annual', reminderEnabled: false,
+  }, checkoutKey);
+  const [checkoutOccasion, replayedOccasion] = await Promise.all([saveCheckoutOccasion(), saveCheckoutOccasion()]);
+  assert.equal(replayedOccasion.id, checkoutOccasion.id);
+  assert.equal(replayedOccasion.contactId, checkoutPerson.id);
+  assert.equal((await firestoreDb.collection('account_people').where('ownerUid', '==', checkoutActor.uid).get()).size, 1);
+  assert.equal((await firestoreDb.collection('account_occasions').where('ownerUid', '==', checkoutActor.uid).get()).size, 1);
+  assert.equal((await firestoreDb.collection('account_reminder_occurrences').where('ownerUid', '==', checkoutActor.uid).get()).size, 0);
+  assert.equal(await getContact(other, checkoutPerson.id), null);
+  assert.equal(await getOccasion(other, checkoutOccasion.id), null);
+
   // Keep this opt-in fixture outside the late-reminder window as the real date advances.
   const futureBirthday=shiftCivilDate(localCivilDate(Date.now(),'America/Chicago'),40);
   const event=await createOccasion(actor,{contactId:contact.id,title:'Birthday',type:'birthday',month:futureBirthday.month,day:futureBirthday.day,recurrence:'annual',reminderEnabled:true},'create-event-001');

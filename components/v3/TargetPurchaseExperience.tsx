@@ -1,5 +1,6 @@
 "use client";
 
+import { checkoutOrderPath } from "../../lib/order-tracking-links";
 import { checkoutDraftKey, clearCheckoutDraftKey } from "../../lib/checkout-draft-client";
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
@@ -395,7 +396,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
       const data = await res.json();
       if (res.status === 409 && data.code === "CHECKOUT_ALREADY_IN_PROGRESS" && data.orderId && data.viewToken) {
-        window.location.assign("/order/" + encodeURIComponent(data.orderId) + "?token=" + encodeURIComponent(data.viewToken));
+        window.location.assign(checkoutOrderPath(data.orderId, data.viewToken));
         return false;
       }
       if (!res.ok) {

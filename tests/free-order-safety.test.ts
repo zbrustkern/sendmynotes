@@ -15,19 +15,31 @@ async function main() {
   const now = Date.now();
 
   const makeOrder = (id: string, status: string, overrides: Record<string, unknown> = {}) => ({
-    id, status, amountInCents: 0, finalAmountInCents: 0, isTest: false,
+    id, status, viewToken: `checkout-token-${id}`, amountInCents: 0, finalAmountInCents: 0, isTest: false,
     discountCode: 'FREE100', createdAt: now, updatedAt: now,
     recipientAddress: { firstName: 'Pat', lastName: 'Sender', street1: '1 Main St', city: 'Chicago', state: 'IL', zip: '60601', country: 'US' },
     returnAddress: { firstName: 'Alex', lastName: 'Sender', street1: '2 Main St', city: 'Chicago', state: 'IL', zip: '60601', country: 'US' },
     ...overrides,
   });
-  const post = (id: string) => POST(new NextRequest('http://localhost/api/checkout/complete-free-order', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId: id, discountCode: 'FREE100' }),
+  const post = (id: string, viewToken: string | null = `checkout-token-${id}`) => POST(new NextRequest('http://localhost/api/checkout/complete-free-order', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ orderId: id, discountCode: 'FREE100', ...(viewToken ? { viewToken } : {}) }),
   }));
+
+  const { viewToken: removedToken, ...tokenlessOrder } = makeOrder('tokenless-free-order', 'PROCESSING_HANDWRYTTEN', {
+    handwryttenOrderId: 'synthetic-supplier-order',
+  });
+  await orders.doc(tokenlessOrder.id).set(tokenlessOrder);
+  for (const token of [null, removedToken]) {
+    const denied = await post(tokenlessOrder.id, token);
+    assert.equal(denied.status, 404);
+    assert.deepEqual(await denied.json(), { error: 'Order not found' });
+    assert.deepEqual((await orders.doc(tokenlessOrder.id).get()).data(), tokenlessOrder);
+  }
 
   for (const status of ['PROCESSING_HANDWRYTTEN', 'MAILED', 'AWAITING_RECIPIENT_ADDRESS', 'DISPATCH_UNCERTAIN']) {
     const id = `replay-${status.toLowerCase()}`;
     await orders.doc(id).set(makeOrder(id, status, { dispatchStartedAt: now - 60_000 }));
+    assert.equal((await post(id, 'a-different-order-token')).status, 404);
     const response = await post(id);
     const body = await response.json();
     assert.equal(response.status, status === 'DISPATCH_UNCERTAIN' ? 409 : 200, `${status} replay is closed without supplier resubmission`);

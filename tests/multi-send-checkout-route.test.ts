@@ -226,7 +226,7 @@ await withSafeTestHarness(async () => {
   assert.equal(processing.createCount, processing.before);
   const processingBody = await processing.response.json();
   assert.equal(processingBody.orderId, processing.orderId, "late/processing payment response identifies the authorized frozen order");
-  assert.match(processingBody.orderPath, /^\/order\/order_.*\?token=tok_/);
+  assert.match(processingBody.orderPath, /^\/order\/order_.*#viewToken=tok_/);
   const succeeded = await stripeScenario("123e4567-e89b-42d3-a456-426614174004", { priorStatus: "succeeded" });
   assert.equal(succeeded.response.status, 409, "late successful intent blocks replacement for reconciliation");
   assert.equal(succeeded.createCount, succeeded.before);

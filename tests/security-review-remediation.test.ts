@@ -25,6 +25,7 @@ import {
 } from "../lib/firebase-admin";
 import { Order, DiscountCode } from "../lib/types";
 import { fulfillHandwryttenOrder } from "../lib/handwrytten";
+import { calculateOrderQuote } from "../lib/order-pricing";
 
 let passed = 0;
 let failed = 0;
@@ -353,6 +354,7 @@ async function runSecurityRemediationTests() {
   const freeOrderId = `free_sec_test_${Date.now()}`;
   const freeOrder: Order = {
     id: freeOrderId,
+    viewToken: "synthetic-free-checkout-token",
     customerEmail: "freeuser@example.com",
     frontImageUrl: "/presets/botanical-monstera.jpg",
     printedMessage: "Thank You",
@@ -377,6 +379,8 @@ async function runSecurityRemediationTests() {
     status: "PENDING_PAYMENT",
     amountInCents: 0,
     discountCode: "FREE100TEST",
+    paymentMethod: "PROMO_CODE",
+    quote: calculateOrderQuote({ countryCode: "US", discountCents: 900 }),
     isTest: true,
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -393,20 +397,20 @@ async function runSecurityRemediationTests() {
   const completeReq1 = new NextRequest("http://localhost:3000/api/checkout/complete-free-order", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ orderId: freeOrderId, discountCode: "FREE100TEST" }),
+    body: JSON.stringify({ orderId: freeOrderId, viewToken: freeOrder.viewToken, discountCode: "FREE100TEST" }),
   });
   const completeRes1 = await completeFreeOrderPost(completeReq1);
   const completeData1 = await completeRes1.json();
   assert(
     completeRes1.status === 200 && completeData1.status === "PROCESSING_HANDWRYTTEN",
-    `Initial free order completion transitions to PROCESSING_HANDWRYTTEN (Status: ${completeRes1.status})`
+    `Initial free order completion transitions to PROCESSING_HANDWRYTTEN (Status: ${completeRes1.status}, error: ${completeData1.error || "none"})`
   );
 
   // Replay of same order returns alreadyProcessed: true without new fulfillment dispatch
   const replayReq = new NextRequest("http://localhost:3000/api/checkout/complete-free-order", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ orderId: freeOrderId, discountCode: "FREE100TEST" }),
+    body: JSON.stringify({ orderId: freeOrderId, viewToken: freeOrder.viewToken, discountCode: "FREE100TEST" }),
   });
   const replayRes = await completeFreeOrderPost(replayReq);
   const replayData = await replayRes.json();
@@ -420,12 +424,13 @@ async function runSecurityRemediationTests() {
   await saveOrder({
     ...freeOrder,
     id: secondFreeOrderId,
+    viewToken: "synthetic-second-free-checkout-token",
     status: "PENDING_PAYMENT",
   });
   const exhaustedReq = new NextRequest("http://localhost:3000/api/checkout/complete-free-order", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ orderId: secondFreeOrderId, discountCode: "FREE100TEST" }),
+    body: JSON.stringify({ orderId: secondFreeOrderId, viewToken: "synthetic-second-free-checkout-token", discountCode: "FREE100TEST" }),
   });
   const exhaustedRes = await completeFreeOrderPost(exhaustedReq);
   assert(
@@ -477,9 +482,9 @@ async function runSecurityRemediationTests() {
   }
 
   // ---------------------------------------------------------------------------
-  // 6. ORDER UNLOCKING PRIVACY & ATTEMPT THROTTLING (Finding 6)
+  // 6. ORDER TRACKER PRIVACY (Finding 6)
   // ---------------------------------------------------------------------------
-  console.log("\n--- 6. Testing Order Sanitization & Unlock Throttling ---");
+  console.log("\n--- 6. Testing Order Tracker Privacy ---");
 
   const privacyOrderId = `order_priv_${Date.now()}`;
   await saveOrder({
@@ -493,36 +498,16 @@ async function runSecurityRemediationTests() {
     viewToken: "tok_secure_view_12345",
   });
 
-  // Public GET must mask entire ZIP code (not leak 787••)
-  const pubReq = new NextRequest(`http://localhost:3000/api/orders/${privacyOrderId}`);
-  const pubRes = await orderGet(pubReq, { params: Promise.resolve({ id: privacyOrderId }) });
-  const pubData = await pubRes.json();
-  assert(
-    pubData.order?.recipientAddress?.zip === "•••••",
-    `Public order view masks entire 5-digit ZIP without revealing prefix digits (Got: "${pubData.order?.recipientAddress?.zip}")`
-  );
-
-  // Rate limiter: fail 5 times with wrong ZIP
-  let throttled = false;
-  for (let i = 0; i < 6; i++) {
-    const bruteReq = new NextRequest(`http://localhost:3000/api/orders/${privacyOrderId}`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        "x-forwarded-for": "198.51.100.42",
-      },
-      body: JSON.stringify({ zip: `9990${i}` }),
-    });
-    const bruteRes = await orderVerifyPost(bruteReq, { params: Promise.resolve({ id: privacyOrderId }) });
-    if (bruteRes.status === 429) {
-      throttled = true;
-      break;
-    }
-  }
-  assert(
-    throttled === true,
-    "After 5 failed attempts, brute-force ZIP verification is throttled with HTTP 429"
-  );
+  const trackerUrl = `http://localhost:3000/api/orders/${privacyOrderId}`;
+  const params = { params: Promise.resolve({ id: privacyOrderId }) };
+  const pubRes = await orderGet(new NextRequest(trackerUrl), params);
+  const { order: publicOrder } = await pubRes.json();
+  assert(publicOrder.isRedacted && !publicOrder.recipientAddress && !publicOrder.returnAddress, "Public tracker omits both addresses");
+  const response = await orderVerifyPost(new NextRequest(trackerUrl, {
+    method: "POST",
+    body: JSON.stringify({ zip: "78701", email: "private_owner@example.com" }),
+  }), params);
+  assert(response.status === 403, "Knowing contact details cannot reveal an order");
 
   // Restore env
   process.env = { ...originalEnv };

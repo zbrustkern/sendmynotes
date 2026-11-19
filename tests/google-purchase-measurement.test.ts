@@ -85,6 +85,7 @@ async function main() {
 
     const order = {
       id: "order_fixture_capture",
+      viewToken: "fixture-capture-token",
       stripePaymentId: "pi_fixture_capture",
       customerEmail: "fixture@example.test",
       frontImageUrl: "fixture",
@@ -146,7 +147,7 @@ async function main() {
     await saveOrder(order);
     const syncMismatch = await confirmPost(new NextRequest("https://sendmynotes.com/api/checkout/confirm-order", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-view-token": order.viewToken },
       body: JSON.stringify({ orderId: order.id, paymentIntentId: "pi_other_order" }),
     }));
     assert.equal(syncMismatch.status, 400, "synchronous confirmation rejects a PaymentIntent not bound to the order before retrieval");
@@ -342,14 +343,24 @@ async function main() {
         livemode: true,
       });
       const confirmation = await confirmPost(new NextRequest("https://sendmynotes.com/api/checkout/confirm-order", {
-        method: "POST", headers: { "content-type": "application/json" },
+        method: "POST", headers: { "content-type": "application/json", "x-view-token": syncRefundOrder.viewToken },
         body: JSON.stringify({ orderId: syncRefundOrder.id, paymentIntentId: syncRefundOrder.stripePaymentId }),
       }));
       const confirmationBody = await confirmation.json();
       assert.equal(confirmation.status, 200, "confirmation completes through the local mock path for an already-processed fixture");
+      assert.equal(confirmationBody.viewToken, undefined, "payment confirmation never echoes the checkout credential");
       assert.equal(confirmationBody.purchaseMeasurement.reason, "known_refund", "synchronous confirmation returns the full-refund projection too");
       assert.equal(confirmationBody.purchaseMeasurement.eligible, false, "synchronous confirmation cannot expose an eligible refunded Purchase");
       assert.equal((await getOrderById(syncRefundOrder.id))?.purchaseMeasurement?.refundStatus, "unknown", "synchronous response projection leaves persisted capture evidence immutable");
+      const verifyOnly = await confirmPost(new NextRequest("https://sendmynotes.com/api/checkout/confirm-order", {
+        method: "POST", headers: { "content-type": "application/json", "x-view-token": syncRefundOrder.viewToken },
+        body: JSON.stringify({ orderId: syncRefundOrder.id, verifyOnly: true }),
+      }));
+      const settled = await verifyOnly.json();
+      assert.equal(verifyOnly.status, 200, "active checkout proof still allows verify-only confirmation");
+      assert.equal(settled.status, "PAYMENT_RECEIVED");
+      assert.equal(settled.viewToken, undefined, "verify-only confirmation never echoes the checkout credential");
+
     } finally {
       if (originalAllowMock === undefined) delete process.env.ALLOW_LOCAL_MOCK_PAYMENTS;
       else process.env.ALLOW_LOCAL_MOCK_PAYMENTS = originalAllowMock;
