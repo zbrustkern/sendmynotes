@@ -1,0 +1,138 @@
+{
+  "project": "sendmynotes-staging",
+  "stagingRevision": {
+    "commit": "307472d059148dcc15d5ab7da43210711f8cb51a",
+    "build": "build-2026-11-19-016",
+    "trafficPercent": 100
+  },
+  "safety": {
+    "productionTouched": false,
+    "checkoutPausedAfterCutover": false,
+    "paymentMode": "stripe_test",
+    "supplierFulfillmentHeld": true,
+    "unauthenticatedCronStatus": 401,
+    "stagingRuntime": true,
+    "reviewOnly": true,
+    "heldFulfillment": true,
+    "publicStripeTestKey": true,
+    "schedulerAudienceMatches": true
+  },
+  "migration": {
+    "imported": {
+      "state": "fenced",
+      "seeded": 3,
+      "imported": 3,
+      "isolated": 0
+    },
+    "fencedInventory": {
+      "checkedAt": "2026-11-19T14:35:33.108Z",
+      "project": "sendmynotes-staging",
+      "state": "fenced",
+      "cutoverAt": null,
+      "versionRecords": 3,
+      "codeRecords": 3,
+      "distinctLegacyCodes": 3,
+      "activeHolds": 3,
+      "personalLimitSettings": 0,
+      "legacySpentCents": 0,
+      "legacySpentUses": 0,
+      "disputedSourceRecords": 0,
+      "isolated": 0,
+      "reconciledCodeBalances": 3
+    },
+    "activationRerun": {
+      "state": "active",
+      "seeded": 0,
+      "imported": 0,
+      "isolated": 0
+    },
+    "checkout": {
+      "mode": "resume",
+      "paused": false
+    },
+    "activeInventory": {
+      "checkedAt": "2026-11-19T14:37:13.001Z",
+      "project": "sendmynotes-staging",
+      "state": "active",
+      "cutoverAt": 1795098955888,
+      "versionRecords": 3,
+      "codeRecords": 3,
+      "distinctLegacyCodes": 3,
+      "activeHolds": 0,
+      "personalLimitSettings": 0,
+      "legacySpentCents": 0,
+      "legacySpentUses": 0,
+      "disputedSourceRecords": 0,
+      "isolated": 0,
+      "reconciledCodeBalances": 3
+    },
+    "activeFrom": "2026-11-19T14:35:55.888Z"
+  },
+  "scheduler": {
+    "httpTarget": {
+      "httpMethod": "POST",
+      "oidcToken": {
+        "audience": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/api/cron/offer-reconcile",
+        "serviceAccountEmail": "offer-reconciler@sendmynotes-staging.iam.gserviceaccount.com"
+      },
+      "uri": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/api/cron/offer-reconcile"
+    },
+    "lastAttemptTime": "2026-11-19T14:36:46.141055Z",
+    "name": "projects/sendmynotes-staging/locations/us-central1/jobs/offer-reconcile",
+    "schedule": "*/5 * * * *",
+    "state": "ENABLED",
+    "status": {},
+    "timeZone": "UTC",
+    "manualTriggerAt": "2026-11-19T14:36:44Z",
+    "authenticatedHttpStatus": 200,
+    "requestAt": "2026-11-19T14:36:46.180534Z",
+    "servingRevision": "sendmynotes-staging-build-2026-11-19-016"
+  },
+  "importedExposure": {
+    "before": {
+      "project": "sendmynotes-staging",
+      "checkedAt": "2026-11-19T14:36:00.035Z",
+      "checkoutPaused": false,
+      "metrics": {
+        "imported": 3,
+        "released": 0,
+        "expired": 0,
+        "consumed": 0,
+        "retained": 3,
+        "retainedDiscountCents": 1280,
+        "retainedPayableCents": 1420,
+        "unresolvedTerms": 0,
+        "retried": 0
+      },
+      "migratedCodeBalance": {
+        "heldUses": 3,
+        "heldCents": 1280,
+        "spentUses": 0,
+        "spentCents": 0
+      }
+    },
+    "after": {
+      "project": "sendmynotes-staging",
+      "checkedAt": "2026-11-19T14:37:11.807Z",
+      "checkoutPaused": false,
+      "metrics": {
+        "imported": 3,
+        "released": 0,
+        "expired": 3,
+        "consumed": 0,
+        "retained": 0,
+        "retainedDiscountCents": 0,
+        "retainedPayableCents": 0,
+        "unresolvedTerms": 0,
+        "retried": 0
+      },
+      "migratedCodeBalance": {
+        "heldUses": 0,
+        "heldCents": 0,
+        "spentUses": 0,
+        "spentCents": 0
+      }
+    },
+    "releasedDiscountCents": 1280
+  }
+}

@@ -1,0 +1,109 @@
+{
+  "project": "sendmynotes-staging",
+  "origin": "https://staging.sendmynotes.com",
+  "paymentMode": "stripe_test",
+  "currency": "USD",
+  "syntheticRecipients": true,
+  "recordedAt": "2026-11-19T14:40:38.327Z",
+  "stagingRevisions": {
+    "initialCheckoutAndCapture": {
+      "build": "build-2026-11-19-016",
+      "commit": "307472d059148dcc15d5ab7da43210711f8cb51a"
+    },
+    "repeatedConfirmations": {
+      "build": "build-2026-11-19-017",
+      "commit": "4c3c8bee312d945ac028f1f7f47066ac5df71197"
+    }
+  },
+  "capabilities": {
+    "internationalCheckout": "staging_review_only",
+    "domesticMultisend": true,
+    "heldSupplierFulfillment": true
+  },
+  "checks": {
+    "fourDomestic": {
+      "netCents": 3600,
+      "discountCents": 0,
+      "mailingCents": 0,
+      "reason": "minimum_quantity"
+    },
+    "fiveDomestic": {
+      "netCents": 3600,
+      "discountCents": 900,
+      "mailingCents": 0
+    },
+    "eightDomestic": {
+      "netCents": 6300,
+      "discountCents": 900,
+      "mailingCents": 0
+    },
+    "canada": {
+      "netCents": 1100,
+      "discountCents": 300,
+      "mailingCents": 500
+    },
+    "countryChangedToUS": {
+      "netCents": 900,
+      "discountCents": 0,
+      "mailingCents": 0,
+      "reason": "wrong_country"
+    },
+    "domesticMultisend": {
+      "amountCents": 3600,
+      "stripeTestCapture": true,
+      "redemption": "redeemed",
+      "orderStatus": "QUEUED_FOR_FULFILLMENT",
+      "fulfillmentStatus": "MULTI_SEND_HELD",
+      "supplier": "held",
+      "duplicateConfirmationHadNoNewCharge": true,
+      "frozenEnvelopeNetCents": [
+        720,
+        720,
+        720,
+        720,
+        720
+      ],
+      "stagingLedger": {
+        "exactBoundCaptureCents": 3600,
+        "frozenDiscountCents": 900,
+        "consumedHold": true,
+        "matchingQuoteAndPolicyVersion": true,
+        "redemptionBoundToCapture": true
+      }
+    },
+    "canadianSingle": {
+      "amountCents": 1100,
+      "stripeTestCapture": true,
+      "redemption": "redeemed",
+      "orderStatus": "QUEUED_FOR_FULFILLMENT",
+      "fulfillmentStatus": "INTERNATIONAL_PREVIEW_HOLD",
+      "supplier": "held",
+      "duplicateConfirmationHadNoNewCharge": true,
+      "stripeTestRefund": {
+        "amountCents": 1100,
+        "idempotentProviderRetry": true,
+        "ledgerVerified": true
+      },
+      "frozenComponentDiscountCents": [
+        {
+          "chargeType": "card_base",
+          "discountCents": 0
+        },
+        {
+          "chargeType": "destination_surcharge",
+          "discountCents": 300
+        }
+      ],
+      "stagingLedger": {
+        "exactBoundCaptureCents": 1100,
+        "frozenDiscountCents": 300,
+        "consumedHold": true,
+        "matchingQuoteAndPolicyVersion": true,
+        "redemptionBoundToCapture": true,
+        "refundBoundToCapture": true,
+        "refundRestoredUsage": false
+      }
+    }
+  },
+  "multisendChildRefundCoverage": "Synthetic ledger regression. The hosted test orders remained held without dispatched deliveries."
+}

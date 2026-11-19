@@ -140,7 +140,7 @@ export function BespokeOfferEditor({ environment }: { environment?: string }) {
     setCampaigns(data.campaigns ?? []);
     if (data.environment) setEnvironmentLabel(data.environment);
   }
-  async function selectCampaign(id: string) {
+  async function selectCampaign(id: string, retainedScenario?: Scenario) {
     invalidate();
     const request = sequence.current;
     setSelectedId(id); setItem(null); setRevision(null); setSavedTermsKey(""); setIssued([]); setHistory([]);
@@ -149,10 +149,10 @@ export function BespokeOfferEditor({ environment }: { environment?: string }) {
       const data = await get("campaign", id);
       if (request !== sequence.current) return;
       const detail = data.campaign as CampaignItem;
-      setItem(detail); setRevision(detail.draft?.revision ?? detail.campaign?.revision ?? null);
+      setItem(detail); setRevision(detail.campaign?.revision ?? null);
       const loadedTerms = termsFromItem(detail);
-      changeTerms(loadedTerms); setSavedTermsKey(JSON.stringify(loadedTerms));
-      changeScenario({ ...templates[loadedTerms.workflow === "single" ? 1 : loadedTerms.workflow === "wedding" ? 2 : 0].scenario,
+      changeTerms(loadedTerms); setSavedTermsKey(detail.draft?.revision === detail.campaign.revision ? JSON.stringify(loadedTerms) : "");
+      changeScenario(retainedScenario ?? { ...templates[loadedTerms.workflow === "single" ? 1 : loadedTerms.workflow === "wedding" ? 2 : 0].scenario,
         country: loadedTerms.countries.split(",")[0] || "US" });
       if (data.environment) setEnvironmentLabel(data.environment);
     } catch (e) { if (request === sequence.current) setError((e as Error).message); }
@@ -178,7 +178,9 @@ export function BespokeOfferEditor({ environment }: { environment?: string }) {
         const data = await post("draft-save", { ...(id ? { campaignId: id, revision: currentRevision } : {}), name: currentTerms.name, code: currentTerms.code || undefined, distribution: currentTerms.distribution, policy: policyFromTerms(currentTerms), maxUses: optionalNumber(currentTerms.maxUses), budgetCents: optionalNumber(currentTerms.budgetCents) });
         if (request + 1 !== sequence.current) return;
         const newId = data.campaign.id;
-        await refreshList(); await selectCampaign(newId);
+        await refreshList();
+        if (request + 1 !== sequence.current) return;
+        await selectCampaign(newId, currentScenario);
         setNotice("Draft saved. Run a fresh preview before publishing.");
       } else if (action === "preview") {
         if (!id || currentRevision == null || !savedTerms) throw new Error("Save the current terms before previewing.");
@@ -194,7 +196,7 @@ export function BespokeOfferEditor({ environment }: { environment?: string }) {
         const detail = await get("campaign", id);
         if (request !== sequence.current) return;
         setItem(detail.campaign); setRevision(detail.campaign.draft?.revision ?? detail.campaign.campaign?.revision ?? null);
-        setNotice("Campaign published. Save the new private code and link now; they will be hidden when you switch campaigns.");
+        setNotice(currentTerms.distribution === "private" ? "Campaign published. Copy the private code and link before switching campaigns." : "Campaign published. The public code is ready to share.");
       } else if (action === "clone") {
         const data = await post("campaign-clone", { campaignId: id, name: `${currentTerms.name} copy`, reason });
         if (request !== sequence.current) return;

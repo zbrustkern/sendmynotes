@@ -1,0 +1,95 @@
+{
+  "origin": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "processor": "stripe_test",
+  "fulfillment": "not_called",
+  "checks": [
+    {
+      "name": "staging_and_test_mode_guards",
+      "status": "PASS",
+      "flags": [
+        "--staging-test",
+        "--allow-test-captures"
+      ],
+      "origin": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app"
+    },
+    {
+      "name": "staging_capabilities",
+      "status": "PASS",
+      "previewOnly": true,
+      "checkoutEnabled": true,
+      "internationalSurchargeCents": 500
+    },
+    {
+      "name": "domestic_campaign_setup",
+      "status": "PASS",
+      "projectScoped": true,
+      "syntheticCode": true
+    },
+    {
+      "name": "domestic_split_20_plus_30",
+      "status": "PASS",
+      "capturedCents": [
+        14500,
+        20750
+      ],
+      "statuses": [
+        "held",
+        "held"
+      ],
+      "cards": [
+        20,
+        30
+      ]
+    },
+    {
+      "name": "mixed_campaign_setup",
+      "status": "PASS",
+      "projectScoped": true,
+      "syntheticCode": true
+    },
+    {
+      "name": "mixed_98_plus_2",
+      "status": "PASS",
+      "capturedCents": [
+        69850,
+        1850
+      ],
+      "statuses": [
+        "held",
+        "held"
+      ],
+      "cards": [
+        98,
+        2
+      ],
+      "grossCents": [
+        72350,
+        1850
+      ],
+      "discountCents": [
+        2500,
+        0
+      ]
+    },
+    {
+      "name": "runtime_test_hold_flags",
+      "status": "PASS",
+      "stagingReviewOnly": true,
+      "weddingCheckoutEnabled": true,
+      "stripeTestMode": true,
+      "allPaidBatchesHeld": true
+    },
+    {
+      "name": "position_99_refund",
+      "status": "PASS",
+      "operator": "staging_iam",
+      "refundedCents": 1200,
+      "retainedLastBatchCents": 650,
+      "retainedProjectCents": 70500
+    }
+  ],
+  "verifiedAt": "2026-11-19T14:45:22.373Z",
+  "noProductionAccess": true,
+  "noFulfillmentCalls": true,
+  "status": "PASS"
+}
