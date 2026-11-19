@@ -8,6 +8,8 @@
 should read the [canonical project brief](docs/CANONICAL_PROJECT_BRIEF.md) and
 [canonical product specifications](docs/CANONICAL_PRODUCT_SPECS.md) first.
 
+For changes queued on staging and checks to run together, see the [next production release](docs/NEXT_PRODUCTION_RELEASE.md).
+
 - **Audience:** personal senders, 100%.
 - **Value:** a thoughtful gesture made seamless. Customization contributes to
   thoughtfulness; stationery quality supports it.
