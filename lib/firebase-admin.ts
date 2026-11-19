@@ -472,7 +472,7 @@ export async function recordSystemIncident(
   }
 }
 
-export async function saveOrder(order: Order): Promise<void> {
+async function prepareOrder(order: Order) {
   const sanitized = sanitizeFirestoreData({ ...order });
   if (sanitized.frontImageUrl && sanitized.frontImageUrl.length > 800000) {
     try {
@@ -481,7 +481,22 @@ export async function saveOrder(order: Order): Promise<void> {
       console.warn("[saveOrder] Image optimization notice:", err);
     }
   }
-  await getOrdersCollection().doc(sanitized.id).set(sanitized);
+  return sanitized;
+}
+
+export async function saveOrder(order: Order): Promise<void> {
+  await getOrdersCollection().doc(order.id).set(await prepareOrder(order));
+}
+
+/** A delayed checkout response must never overwrite a payment or contact update. */
+export async function createOrderOnce(order: Order): Promise<boolean> {
+  try {
+    await getOrdersCollection().doc(order.id).create(await prepareOrder(order));
+    return true;
+  } catch (error) {
+    if ((error as { code?: number }).code === 6) return false;
+    throw error;
+  }
 }
 
 export async function getOrderById(orderId: string): Promise<Order | null> {

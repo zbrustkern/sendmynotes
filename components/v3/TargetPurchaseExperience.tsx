@@ -1,5 +1,6 @@
 "use client";
 
+import { checkoutDraftKey, clearCheckoutDraftKey } from "../../lib/checkout-draft-client";
 import React, { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 import { Step1CardSelection } from "./Step1CardSelection";
@@ -425,6 +426,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          checkoutDraftKey: checkoutDraftKey("target"),
           occasion,
           frontImageUrl: selectedCardUrl,
           printedMessage: "",
@@ -458,6 +460,10 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
       });
 
       const data = await res.json();
+      if (res.status === 409 && data.code === "CHECKOUT_ALREADY_IN_PROGRESS" && data.orderId && data.viewToken) {
+        window.location.assign("/order/" + encodeURIComponent(data.orderId) + "?token=" + encodeURIComponent(data.viewToken));
+        return false;
+      }
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize payment gateway.");
       }
@@ -563,6 +569,7 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
   // Send another card: resets card/note but preserves sender address
   const handleSendAnotherCard = () => {
+    clearCheckoutDraftKey("target");
     customerEmailEdited.current = false;
     setCustomerEmail(user?.email || "");
     setPaymentInFlight(false);

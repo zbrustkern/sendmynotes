@@ -63,6 +63,20 @@ export async function readOrderUploadMaster(master: UploadOrderMaster): Promise<
   return bytes;
 }
 
+/** Recheck current private-art permissions without rewriting the immutable order copy. */
+export async function verifyResumedOrderSelection(req: NextRequest, body: Record<string, unknown>, order: Order) {
+  if (!body.uploadDesign && !body.accountImage) return;
+  const saved = order.uploadMaster;
+  if (!saved) throw new UploadError('master_mismatch', 'Please review your private card front.', 409);
+  const verified = await pinUploadOrderMaster(req, body, order.id, {
+    ...defaultPinDependencies, write: async () => saved.masterKey,
+  });
+  if (!verified || verified.uid !== saved.uid || verified.masterSha256 !== saved.masterSha256 ||
+      verified.designId !== saved.designId || verified.revision !== saved.revision) {
+    throw new UploadError('master_mismatch', 'The saved card front has changed. Please review it again.', 409);
+  }
+}
+
 /** Private media never flows through public order JSON, email or image caches. */
 export function stripPrivateOrderMedia<T extends Order>(order: T): Omit<T, 'uploadMaster'> {
   const { uploadMaster: _master, ...safe } = order;

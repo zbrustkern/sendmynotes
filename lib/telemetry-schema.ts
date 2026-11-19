@@ -158,6 +158,7 @@ export type AllowedFieldType = "string" | "number" | "boolean";
 export interface FieldRule {
   type: AllowedFieldType;
   maxLength?: number;
+  pattern?: RegExp;
 }
 
 /**
@@ -398,6 +399,7 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
   payment_failed: {
     attemptId: { type: "string", maxLength: 100 },
     errorCategory: { type: "string", maxLength: 50 },
+    errorCode: { type: "string", pattern: /^(?!.*\d{4})[a-z][a-z0-9_]{0,49}$/ },
   },
   reminder_opt_in: {
     optIn: { type: "boolean" },
@@ -633,6 +635,7 @@ export function sanitizeMetadata(
     if (rule.type === "string") {
       if (typeof value === "string") {
         const trimmedVal = value.trim();
+        if (rule.pattern && !rule.pattern.test(trimmedVal)) continue;
         // Drop Bearer tokens
         if (/^bearer\s+/i.test(trimmedVal) || /bearer\s+[a-z0-9_-]+/i.test(trimmedVal)) {
           continue;

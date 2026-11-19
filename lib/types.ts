@@ -101,6 +101,7 @@ export interface OrderAttribution {
 
 export interface Order {
   id: string;
+  checkoutResumeVersion?: 1;
   operationId?: string;
   receiptEmailSentAt?: number;
   addressDeferredEmailSentAt?: number;
@@ -154,6 +155,8 @@ export interface Order {
   discountAmountInCents?: number;
   /** Legacy offer-engine quote reference retained for redemption/audit flows. */
   quoteId?: string;
+  appliedOfferId?: string;
+  appliedOfferVersion?: number;
   /** Immutable server-authored destination and price snapshot. */
   quote?: { version: string; countryCode: string; basePriceCents: number; discountCents: number; internationalSurchargeCents: number; totalCents: number; currency: "USD" };
   supplierCountryId?: number;

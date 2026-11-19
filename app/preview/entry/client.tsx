@@ -1,4 +1,5 @@
 "use client";
+import { checkoutDraftKey, clearCheckoutDraftKey, previousCheckoutProof } from "../../../lib/checkout-draft-client";
 import { getStoredFollowupLink } from "@/lib/post-purchase/link-client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -1678,6 +1679,8 @@ export function EntryPrototypeClient({
         method: "POST",
         headers: { "Content-Type": "application/json", ...(accountToken ? { Authorization: `Bearer ${accountToken}` } : {}) },
         body: JSON.stringify({
+          checkoutDraftKey: checkoutDraftKey("draft_" + draft.createdAt),
+          ...(wasRestored ? { previousCheckout: previousCheckoutProof() } : {}),
           occasion: currentCard.occasion,
           ...((draft.uploadSelection || draft.accountImage) ? {} : { frontImageUrl: currentCard.imageUrl }),
           ...(draft.uploadSelection ? { uploadDesign: draft.uploadSelection } : {}),
@@ -1723,6 +1726,10 @@ export function EntryPrototypeClient({
 
       const data = await res.json();
       if (privateCheckoutIsStale()) return false;
+      if (res.status === 409 && data.code === "CHECKOUT_ALREADY_IN_PROGRESS" && data.orderId && data.viewToken) {
+        window.location.assign("/order/" + encodeURIComponent(data.orderId) + "?token=" + encodeURIComponent(data.viewToken));
+        return false;
+      }
       if (!res.ok) {
         throw new Error(data.error || "Failed to initialize payment gateway.");
       }
@@ -1986,6 +1993,7 @@ export function EntryPrototypeClient({
 
   // Reset entire flow handler for "Clear draft" and "Send another card"
   const resetEntireFlow = () => {
+    clearCheckoutDraftKey("draft_" + draft.createdAt);
     telemetryDraftIdRef.current = null;
     emittedMilestonesRef.current.clear();
     customerEmailEdited.current = false;
