@@ -1,0 +1,220 @@
+
+> sendmynotes@0.1.0 build
+> next build
+
+   ▲ Next.js 15.5.26
+
+   Creating an optimized production build ...
+(node:24409) Warning: To load an ES module, set "type": "module" in the package.json or use the .mjs extension.
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ Compiled successfully in 5.7s
+   Linting and checking validity of types ...
+   Collecting page data ...
+(node:24425) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+(node:24428) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+(node:24427) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+(node:24424) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24423) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24426) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+(node:24429) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+(node:24423) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+(node:24428) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+   Generating static pages (0/125) ...
+(node:24433) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+(node:24434) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+   Generating static pages (31/125)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+(node:24435) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+(node:24437) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+   Generating static pages (62/125)
+   Generating static pages (93/125)
+[Firebase Admin] Connected to live Cloud Firestore via App Hosting ADC: sendmynotes-2a417
+(node:24436) ExperimentalWarning: Importing JSON modules is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+ ✓ Generating static pages (125/125)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                                                        Size  First Load JS
+┌ ƒ /                                                             564 B         291 kB
+├ ○ /_not-found                                                   997 B         103 kB
+├ ○ /.well-known/apple-developer-merchantid-domain-association    333 B         103 kB
+├ ○ /account                                                    2.15 kB         147 kB
+├ ○ /account/dates                                              6.96 kB         148 kB
+├ ○ /account/drafts                                             2.37 kB         153 kB
+├ ƒ /account/drafts/[id]                                        2.74 kB         154 kB
+├ ○ /account/history                                            1.86 kB         147 kB
+├ ƒ /account/history/[orderId]                                  5.87 kB         157 kB
+├ ○ /account/images                                             5.83 kB         146 kB
+├ ƒ /account/images/[id]                                         5.1 kB         146 kB
+├ ○ /account/people                                             12.4 kB         153 kB
+├ ƒ /account/people/[id]                                        5.25 kB         146 kB
+├ ○ /account/settings                                           6.06 kB         143 kB
+├ ○ /account/verify                                             8.17 kB         145 kB
+├ ○ /admin                                                        51 kB         220 kB
+├ ○ /admin/feature-flags                                          608 B         103 kB
+├ ○ /admin/measurement                                          1.85 kB         113 kB
+├ ○ /admin/uploads                                              6.97 kB         148 kB
+├ ƒ /api/account                                                  333 B         103 kB
+├ ƒ /api/account/drafts                                           333 B         103 kB
+├ ƒ /api/account/drafts/[id]                                      333 B         103 kB
+├ ƒ /api/account/history                                          333 B         103 kB
+├ ƒ /api/account/history/[orderId]                                333 B         103 kB
+├ ƒ /api/account/history/[orderId]/media                          333 B         103 kB
+├ ƒ /api/account/images                                           333 B         103 kB
+├ ƒ /api/account/images/[id]                                      333 B         103 kB
+├ ƒ /api/account/images/[id]/media                                333 B         103 kB
+├ ƒ /api/account/images/[id]/resolve                              333 B         103 kB
+├ ƒ /api/account/images/[id]/reuse                                333 B         103 kB
+├ ƒ /api/account/images/claim                                     333 B         103 kB
+├ ƒ /api/account/images/from-order                                333 B         103 kB
+├ ƒ /api/account/occasions                                        333 B         103 kB
+├ ƒ /api/account/occasions/[id]                                   333 B         103 kB
+├ ƒ /api/account/people                                           333 B         103 kB
+├ ƒ /api/account/people/[id]                                      333 B         103 kB
+├ ƒ /api/account/people/import                                    333 B         103 kB
+├ ƒ /api/account/preferences                                      333 B         103 kB
+├ ƒ /api/account/privacy-requests                                 333 B         103 kB
+├ ƒ /api/account/privacy-requests/[id]/preview                    333 B         103 kB
+├ ƒ /api/admin/ad-spend                                           350 B         120 kB
+├ ƒ /api/admin/auth                                               333 B         103 kB
+├ ƒ /api/admin/comp/catalog                                       333 B         103 kB
+├ ƒ /api/admin/comp/orders                                        350 B         120 kB
+├ ƒ /api/admin/comp/orders/[id]                                   350 B         120 kB
+├ ƒ /api/admin/comp/orders/[id]/payment-request                   350 B         120 kB
+├ ƒ /api/admin/comp/quotes                                        333 B         103 kB
+├ ƒ /api/admin/conversion-queue                                   333 B         103 kB
+├ ƒ /api/admin/decisions                                          333 B         103 kB
+├ ƒ /api/admin/discounts                                          333 B         103 kB
+├ ƒ /api/admin/dispatch-comp                                      350 B         120 kB
+├ ƒ /api/admin/feature-flags                                      333 B         103 kB
+├ ƒ /api/admin/followup-contacts                                  333 B         103 kB
+├ ƒ /api/admin/growth                                             350 B         120 kB
+├ ƒ /api/admin/handwrytten-balance                                333 B         103 kB
+├ ƒ /api/admin/incidents                                          333 B         103 kB
+├ ƒ /api/admin/investigations                                     350 B         120 kB
+├ ƒ /api/admin/manual-followup                                    333 B         103 kB
+├ ƒ /api/admin/mark-founder-device                                333 B         103 kB
+├ ƒ /api/admin/measurement-report                                 333 B         103 kB
+├ ƒ /api/admin/metrics                                            350 B         120 kB
+├ ƒ /api/admin/operational-controls                               333 B         103 kB
+├ ƒ /api/admin/order-proof                                        333 B         103 kB
+├ ƒ /api/admin/post-purchase                                      333 B         103 kB
+├ ƒ /api/admin/privacy-requests                                   333 B         103 kB
+├ ƒ /api/admin/promotions                                         350 B         120 kB
+├ ƒ /api/admin/reconcile                                          333 B         103 kB
+├ ƒ /api/admin/reliability                                        333 B         103 kB
+├ ƒ /api/admin/reporting                                          350 B         120 kB
+├ ƒ /api/admin/retry-fulfillment                                  350 B         120 kB
+├ ƒ /api/admin/scenarios                                          350 B         120 kB
+├ ƒ /api/admin/spend-cost                                         333 B         103 kB
+├ ƒ /api/admin/sync-handwrytten                                   333 B         103 kB
+├ ƒ /api/admin/sync-stripe                                        350 B         120 kB
+├ ƒ /api/admin/test-meta-capi                                     333 B         103 kB
+├ ƒ /api/admin/unflag-founder-sessions                            350 B         120 kB
+├ ƒ /api/admin/upload-access                                      333 B         103 kB
+├ ƒ /api/admin/upload-standards                                   333 B         103 kB
+├ ƒ /api/admin/valuation-assumptions                              333 B         103 kB
+├ ƒ /api/admin/waterfall                                          333 B         103 kB
+├ ƒ /api/artwork/recover                                          333 B         103 kB
+├ ƒ /api/checkout/complete-free-order                             350 B         120 kB
+├ ƒ /api/checkout/confirm-order                                   350 B         120 kB
+├ ƒ /api/checkout/contact                                         350 B         120 kB
+├ ƒ /api/checkout/create-intent                                   350 B         120 kB
+├ ƒ /api/comp-payment/[capability]                                350 B         120 kB
+├ ƒ /api/comp-payment/[capability]/payment-intent                 350 B         120 kB
+├ ƒ /api/cron/account-library-cleanup                             333 B         103 kB
+├ ƒ /api/cron/post-purchase                                       333 B         103 kB
+├ ƒ /api/cron/reminder-dispatch                                   333 B         103 kB
+├ ƒ /api/cron/upload-cleanup                                      333 B         103 kB
+├ ƒ /api/discount/validate                                        333 B         103 kB
+├ ƒ /api/feature-flags                                            333 B         103 kB
+├ ƒ /api/feedback                                                 333 B         103 kB
+├ ƒ /api/generate-cover                                           333 B         103 kB
+├ ƒ /api/mailing-options                                          333 B         103 kB
+├ ƒ /api/orders/[id]                                              333 B         103 kB
+├ ƒ /api/orders/[id]/complete-address                             922 B         127 kB
+├ ƒ /api/post-purchase/link                                       333 B         103 kB
+├ ƒ /api/post-purchase/unsubscribe                                333 B         103 kB
+├ ƒ /api/reminder-occurrences                                     333 B         103 kB
+├ ƒ /api/reminders                                                333 B         103 kB
+├ ƒ /api/reminders/unsubscribe                                    333 B         103 kB
+├ ƒ /api/telemetry                                                350 B         120 kB
+├ ƒ /api/telemetry/conversion-queue                               333 B         103 kB
+├ ƒ /api/upload/access                                            333 B         103 kB
+├ ƒ /api/upload/assets                                            333 B         103 kB
+├ ƒ /api/upload/assets/[id]                                       333 B         103 kB
+├ ƒ /api/upload/compositions                                      333 B         103 kB
+├ ƒ /api/upload/designs/[id]                                      333 B         103 kB
+├ ƒ /api/upload/designs/[id]/accept                               333 B         103 kB
+├ ƒ /api/upload/designs/[id]/edit                                 333 B         103 kB
+├ ƒ /api/upload/generations                                       333 B         103 kB
+├ ƒ /api/upload/generations/[id]                                  333 B         103 kB
+├ ƒ /api/upload/generations/[id]/abandon                          333 B         103 kB
+├ ƒ /api/upload/previews/[kind]/[id]                              333 B         103 kB
+├ ƒ /api/upload/studio/versions                                   333 B         103 kB
+├ ƒ /api/webhooks/handwrytten                                     333 B         103 kB
+├ ƒ /api/webhooks/resend                                          333 B         103 kB
+├ ƒ /api/webhooks/stripe                                          350 B         120 kB
+├ ○ /apple-icon.png                                                 0 B            0 B
+├ ƒ /comp-payment/[capability]                                  3.46 kB         112 kB
+├ ○ /create/upload                                              10.2 kB         151 kB
+├ ○ /email/unsubscribe                                          1.43 kB         104 kB
+├ ○ /icon.png                                                       0 B            0 B
+├ ○ /new                                                          195 B         267 kB
+├ ○ /opengraph-image.png                                            0 B            0 B
+├ ƒ /order/[id]                                                 15.7 kB         165 kB
+├ ƒ /order/[id]/complete-address                                  170 B         122 kB
+├ ƒ /orders/[id]/complete-address                                 170 B         122 kB
+├ ○ /preview                                                      333 B         103 kB
+├ ○ /preview/entry                                                195 B         267 kB
+├ ○ /privacy                                                      167 B         106 kB
+├ ○ /return-policy                                                167 B         106 kB
+├ ○ /robots.txt                                                   333 B         103 kB
+├ ƒ /send                                                         219 B         291 kB
+├ ● /send/[occasion]                                              219 B         291 kB
+├   ├ /send/thank-you
+├   ├ /send/sympathy
+├   ├ /send/congratulations
+├   └ [+4 more paths]
+├ ● /send/[occasion]/[slug]                                       219 B         291 kB
+├   ├ /send/thank-you/kindness-and-support
+├   ├ /send/thank-you/after-job-interview
+├   ├ /send/thank-you/to-mentor-or-advisor
+├   └ [+16 more paths]
+├ ○ /sitemap.xml                                                  333 B         103 kB
+├ ○ /terms                                                        167 B         106 kB
+└ ○ /twitter-image.png                                              0 B            0 B
++ First Load JS shared by all                                    102 kB
+  ├ chunks/162-174f4695fb3987fc.js                              46.3 kB
+  ├ chunks/81e83212-6c0567bda503c424.js                         54.2 kB
+  └ other shared chunks (total)                                 1.98 kB
+
+
+ƒ Middleware                                                    32.1 kB
+
+○  (Static)   prerendered as static content
+●  (SSG)      prerendered as static HTML (uses generateStaticParams)
+ƒ  (Dynamic)  server-rendered on demand
+

@@ -4,6 +4,18 @@
 Current authority: [project brief](CANONICAL_PROJECT_BRIEF.md) and
 [product specifications](CANONICAL_PRODUCT_SPECS.md).
 
+## November 9, 2026 status note
+
+This is the historical October 11 audit, not a current unresolved-work list.
+The supplier cost finding is now **resolved**: actual receipts confirm $4.88
+($3.75 card + $0.82 postage + $0.31 tax). The founder confirms $0.56 Stripe fees
+on a $9 undiscounted single-card charge, leaving $3.56 before advertising and
+other operating costs. White envelopes and general production/mailing guidance
+are supported by current supplier pages. See the updated
+[canonical specifications](CANONICAL_PRODUCT_SPECS.md) and
+[business evidence](evidence/business-facts-2026-11-09.md). Historical code
+findings below must be checked against current implementation before reopening.
+
 ## What was checked
 
 Inspected `lib/handwrytten.ts`, `lib/order-processor.ts`, `lib/stripe.ts`,

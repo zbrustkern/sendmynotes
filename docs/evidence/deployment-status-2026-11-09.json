@@ -1,0 +1,46 @@
+{
+  "checkedAt": "2026-11-09T14:45:56.171Z",
+  "readOnly": true,
+  "environments": [
+    {
+      "project": "sendmynotes-2a417",
+      "builds": [
+        {
+          "name": "build-2026-11-08-002",
+          "state": "READY",
+          "source": "1a55f4fa234309a15e5b95d145762f38d7f82790",
+          "traffic": 100
+        }
+      ],
+      "rollout": "SUCCEEDED",
+      "reconciling": false,
+      "flags": {
+        "ACCOUNT_REMINDER_DELIVERY_ACTIVE": "false",
+        "ATTRIBUTION_V2_ENABLED": "true",
+        "NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED": "true",
+        "POST_PURCHASE_AUTO_ENROLL_ACTIVE": "false",
+        "POST_PURCHASE_DELIVERY_ACTIVE": "false"
+      }
+    },
+    {
+      "project": "sendmynotes-staging",
+      "builds": [
+        {
+          "name": "build-2026-11-08-002",
+          "state": "READY",
+          "source": "eea521f8a87d7ab7e03b0b4fffb1e7c5949baa4d",
+          "traffic": 100
+        }
+      ],
+      "rollout": "SUCCEEDED",
+      "reconciling": false,
+      "flags": {
+        "ACCOUNT_REMINDER_DELIVERY_ACTIVE": "false",
+        "ATTRIBUTION_V2_ENABLED": "true",
+        "NEXT_PUBLIC_ATTRIBUTION_V2_ENABLED": "true",
+        "POST_PURCHASE_AUTO_ENROLL_ACTIVE": "false",
+        "POST_PURCHASE_DELIVERY_ACTIVE": "false"
+      }
+    }
+  ]
+}

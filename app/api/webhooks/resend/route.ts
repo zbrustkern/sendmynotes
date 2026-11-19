@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { acceptWebhookEvent, markWebhookInboxFailed, markWebhookInboxProcessed } from "@/lib/webhook-inbox";
 import { firestoreDb } from "@/lib/firebase-admin";
 import { enrollmentRef, messageRef } from "@/lib/post-purchase/repository";
+import { MANUAL_MESSAGES } from "@/lib/post-purchase/manual";
 import { suppressPostPurchaseSender } from "@/lib/post-purchase/preferences";
 
 export const runtime = "nodejs";
@@ -14,6 +15,14 @@ export async function POST(req: NextRequest) {
   let event: any;
   try { event = JSON.parse(raw); } catch { return response(400); }
   if (!event || typeof event.type !== "string" || !event.data || typeof event.data !== "object") return response(400);
+  // This provider account serves multiple products. Ignore explicitly foreign senders
+  // after signature verification, before recording any event metadata in our inbox.
+  if (event.data.from !== undefined) {
+    if (typeof event.data.from !== "string") return response(200);
+    const from = event.data.from.trim();
+    const address = (from.match(/<([^<>]+)>$/)?.[1] || from).trim();
+    if (!/^[^\s@<>]+@sendmynotes\.com$/i.test(address)) return response(200);
+  }
   try {
     const tagMessageId = readMessageTag(event.data.tags);
     const accepted = await acceptWebhookEvent({ provider: "resend", providerEventId: id, eventType: event.type, livemode: true, signatureVerified: true, payloadSummary: { resendMessageId: String(event.data.email_id || event.data.id || "").slice(0,160), messageId: tagMessageId, type: event.type.slice(0,100) } });
@@ -41,32 +50,43 @@ function verifySignature(secret: string, id: string, timestamp: string, signatur
   });
 }
 function readMessageTag(tags: unknown): string | null {
-  if (Array.isArray(tags)) { const t = tags.find((x: any) => x?.name === "message_id"); return typeof t?.value === "string" && /^[a-f0-9]{64}_(check_in|offer)$/.test(t.value) ? t.value : null; }
-  if (tags && typeof tags === "object") { const value = (tags as any).message_id; return typeof value === "string" && /^[a-f0-9]{64}_(check_in|offer)$/.test(value) ? value : null; }
+  if (Array.isArray(tags)) { const t = tags.find((x: any) => x?.name === "message_id"); return typeof t?.value === "string" && /^(?:[a-f0-9]{64}_(check_in|offer)|manual_[a-f0-9]{64})$/.test(t.value) ? t.value : null; }
+  if (tags && typeof tags === "object") { const value = (tags as any).message_id; return typeof value === "string" && /^(?:[a-f0-9]{64}_(check_in|offer)|manual_[a-f0-9]{64})$/.test(value) ? value : null; }
   return null;
 }
 async function applyEvent(type: string, data: any, messageId: string | null): Promise<void> {
   const providerId = String(data.email_id || data.id || "").slice(0,160);
   let ref: any; let msg: any;
   if (messageId) {
-    ref = messageRef(messageId); const snap = await ref.get(); if (!snap.exists) return; msg = snap.data();
+    ref = messageId.startsWith("manual_") ? firestoreDb.collection(MANUAL_MESSAGES).doc(messageId) : messageRef(messageId); const snap = await ref.get(); if (!snap.exists) return; msg = snap.data();
   } else if (providerId) {
     const matches = await firestoreDb.collection("post_purchase_messages").where("resendId", "==", providerId).limit(1).get();
-    if (matches.empty) return; ref = matches.docs[0].ref; msg = matches.docs[0].data();
+    if (matches.empty) {
+      const manual = await firestoreDb.collection(MANUAL_MESSAGES).where("resendId", "==", providerId).limit(1).get();
+      if (manual.empty) return; ref = manual.docs[0].ref; msg = manual.docs[0].data();
+    } else { ref = matches.docs[0].ref; msg = matches.docs[0].data(); }
   } else return;
-  if (msg.resendId && providerId && msg.resendId !== providerId) return;
-  const accepted = ["email.sent", "email.delivered", "email.delivery_delayed", "email.bounced", "email.complained", "email.suppressed", "email.failed"].includes(type);
-  const negative = ["email.bounced", "email.complained", "email.suppressed", "email.failed"].includes(type);
-  const existingFacts = msg.deliveryFacts || {};
-  const update: any = { resendId: msg.resendId || providerId, deliveryFacts: { ...existingFacts, [type.replace("email.", "")]: Date.now() } };
-  if (accepted && !msg.acceptedAt && (["dispatching", "uncertain", "failed"].includes(msg.state) || (msg.state === "scheduled" && Boolean(msg.dispatchAttemptedAt)))) { update.state = "accepted"; update.acceptedAt = Date.now(); update.followupFinalizedAt = msg.followupFinalizedAt ?? null; }
-  const priority: Record<string, number> = { failed: 1, bounced: 2, complained: 3, suppressed: 4 };
-  const currentOutcome = String(msg.deliveryOutcome || ""); const candidateOutcome = type.replace("email.", "");
-  if (negative && (!currentOutcome || (priority[candidateOutcome] || 0) > (priority[currentOutcome] || 0))) update.deliveryOutcome = candidateOutcome;
-  await ref.set(update, { merge: true });
+  const applied = await firestoreDb.runTransaction(async (tx: any) => {
+    const current = await tx.get(ref); if (!current.exists) return null;
+    const latest = current.data();
+    if (latest.resendId && providerId && latest.resendId !== providerId) return null;
+    if (latest.id?.startsWith("manual_") && !latest.dispatchAttemptedAt) return null;
+    const accepted = ["email.sent", "email.delivered", "email.delivery_delayed", "email.bounced", "email.complained", "email.suppressed", "email.failed"].includes(type);
+    const negative = ["email.bounced", "email.complained", "email.suppressed", "email.failed"].includes(type);
+    const eventName = type.replace("email.", ""); const now = Date.now();
+    const update: any = { resendId: latest.resendId || providerId, deliveryFacts: { ...(latest.deliveryFacts || {}), [eventName]: latest.deliveryFacts?.[eventName] || now } };
+    if (accepted && !latest.acceptedAt && (["dispatching", "uncertain", "failed"].includes(latest.state) || (latest.state === "scheduled" && Boolean(latest.dispatchAttemptedAt)))) {
+      update.state = "accepted"; update.acceptedAt = now; update.followupFinalizedAt = latest.followupFinalizedAt ?? null;
+    }
+    const priority: Record<string, number> = { failed: 1, bounced: 2, complained: 3, suppressed: 4 };
+    if (negative && (priority[eventName] || 0) > (priority[String(latest.deliveryOutcome || "")] || 0)) update.deliveryOutcome = eventName;
+    tx.set(ref, update, { merge: true }); return latest;
+  });
+  if (!applied) return;
+  msg = applied;
   if (["email.bounced", "email.complained", "email.suppressed"].includes(type)) {
-    const enrollment = await enrollmentRef(msg.enrollmentId).get(); if (!enrollment.exists) return;
-    const senderKey = String(enrollment.data()?.senderKey || ""); if (!senderKey) return;
+    const enrollment = msg.enrollmentId ? await enrollmentRef(msg.enrollmentId).get() : null;
+    const senderKey = String(msg.id?.startsWith("manual_") ? msg.senderKey || "" : enrollment?.data()?.senderKey || ""); if (!senderKey) return;
     const reason = type === "email.complained" ? "complained" : type === "email.bounced" ? "bounced" : "bounced";
     await suppressPostPurchaseSender(senderKey, reason);
     const enrollments = await firestoreDb.collection("post_purchase_enrollments").where("senderKey", "==", senderKey).where("programId", "==", "post_purchase_v1").limit(100).get();
