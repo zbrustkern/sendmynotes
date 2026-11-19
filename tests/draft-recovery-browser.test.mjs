@@ -19,7 +19,6 @@ const mocks = {
   "@/lib/google-ads": `exports.trackGA4ViewItem = exports.trackGA4BeginCheckout = exports.trackGA4AddShippingInfo = exports.trackGA4AddPaymentInfo = () => {};`,
   "@/lib/meta-ads": `exports.trackMetaViewContent = exports.trackMetaAddToCart = exports.trackMetaCustomizeProduct = exports.trackMetaInitiateCheckout = exports.trackMetaAddPaymentInfo = () => {};`,
   "@/components/AttributionTracker": `exports.getStoredAttribution = () => ({});`,
-  "@/components/v3/TargetPurchaseExperience": `exports.extractRecipientName = x => x; exports.extractSenderName = x => x;`,
   "@/components/v3/Step4ReviewAndPayment": `import React from 'react'; export const Step4ReviewAndPayment = () => React.createElement('div', null, 'Payment fixture');`,
   "@/components/v3/Step5Confirmation": `exports.Step5Confirmation = () => null;`,
 };

@@ -42,7 +42,6 @@ import { getStoredAttribution } from "@/components/AttributionTracker";
 import { useAuth } from "@/context/AuthContext";
 import { AlertCircle } from "lucide-react";
 import { parseScenarioNote, mapScenarioFontId } from "@/lib/seo-scenarios";
-import { extractRecipientName, extractSenderName } from "@/components/v3/TargetPurchaseExperience";
 import { extractOfferCodeFromUrlParams } from "@/lib/discount";
 import { restoreAccountDraft, inferAccountDraftResumeStep } from "@/lib/account/builder-state";
 import { useBuilderAccount } from "@/lib/account/use-builder-account";
@@ -390,7 +389,7 @@ export function EntryPrototypeClient({
   // Custom AI drawer state
   const [isCustomAiOpen, setIsCustomAiOpen] = useState(false);
 
-  // Salutation and signoff helper state (for note step auto-sync)
+  // Card greeting and sign-off
   const [salutation, setSalutation] = useState(parsedScenario?.salutation || "");
   const [signOff, setSignOff] = useState(parsedScenario?.signOff || "");
 
@@ -495,8 +494,6 @@ export function EntryPrototypeClient({
     zip: "",
   });
 
-  const [userCustomizedRecipientName, setUserCustomizedRecipientName] = useState(false);
-  const [userCustomizedSenderName, setUserCustomizedSenderName] = useState(false);
   const [userCustomizedNote, setUserCustomizedNote] = useState(false);
 
   // Payment & checkout state
@@ -582,7 +579,7 @@ export function EntryPrototypeClient({
       if(isInternationalCountry(nextRecipient.country)) setInternationalRecipient(nextRecipient); else setDomesticRecipient(nextRecipient);
       setSender(toAddressData(content.sender));
       setAccountLinks({contactId:content.contactId,occasionId:content.occasionId});
-      setUserCustomizedNote(true);setUserCustomizedRecipientName(true);setUserCustomizedSenderName(true);
+      setUserCustomizedNote(true);
       markUserCustomEdit();setStep("card");
     },
     onContact: (contact,occasion) => {
@@ -591,7 +588,8 @@ export function EntryPrototypeClient({
       resetAccountCheckout();setRecipient(next);
       if(isInternationalCountry(next.country))setInternationalRecipient(next);else setDomesticRecipient(next);
       dispatch({type:"UPDATE_RECIPIENT",payload:toAddressDraft(next)});
-      setAccountLinks({contactId:contact.id,occasionId:occasion?.id});setUserCustomizedRecipientName(true);markUserCustomEdit();
+      setAccountLinks({contactId:contact.id,occasionId:occasion?.id});
+      markUserCustomEdit();
       if(step==="pay")setStep("address");
     },
     onPrivateInvalidated:()=>{
@@ -714,9 +712,6 @@ export function EntryPrototypeClient({
       setRecipient(restoredRecipient);
       if (!isInternationalCountry(restoredRecipient.country)) setDomesticRecipient(restoredRecipient);
       else setInternationalRecipient(restoredRecipient);
-      if (draft.recipient.name) {
-        setUserCustomizedRecipientName(true);
-      }
     }
 
     if (draft.sender) {
@@ -727,9 +722,6 @@ export function EntryPrototypeClient({
         state: draft.sender.state || "",
         zip: draft.sender.zip || "",
       });
-      if (draft.sender.name) {
-        setUserCustomizedSenderName(true);
-      }
     }
 
     if (draft.appliedOffer) {
@@ -1325,7 +1317,6 @@ export function EntryPrototypeClient({
     }
   };
 
-  // Auto-sync Salutation -> Recipient Full Name and persist to draft
   const handleSalutationChange = (newSalutation: string) => {
     markUserCustomEdit();
     if (!userCustomizedNote) {
@@ -1334,24 +1325,8 @@ export function EntryPrototypeClient({
     }
     setSalutation(newSalutation);
     dispatch({ type: "UPDATE_NOTE", payload: { salutation: newSalutation } });
-    if (!userCustomizedRecipientName && !draft.multiSend) {
-      const extracted = extractRecipientName(newSalutation);
-      setRecipient((prev) => ({ ...prev, fullName: extracted }));
-      dispatch({
-        type: "UPDATE_RECIPIENT",
-        payload: {
-          name: extracted,
-          addressLine1: recipient.street1,
-          addressLine2: recipient.street2,
-          city: recipient.city,
-          state: recipient.state,
-          zip: recipient.zip,
-        },
-      });
-    }
   };
 
-  // Auto-sync Sign-Off -> Sender Full Name and persist to draft
   const handleSignOffChange = (newSignOff: string) => {
     markUserCustomEdit();
     if (!userCustomizedNote) {
@@ -1360,20 +1335,6 @@ export function EntryPrototypeClient({
     }
     setSignOff(newSignOff);
     dispatch({ type: "UPDATE_NOTE", payload: { signOff: newSignOff } });
-    if (!userCustomizedSenderName) {
-      const extracted = extractSenderName(newSignOff);
-      setSender((prev) => ({ ...prev, fullName: extracted }));
-      dispatch({
-        type: "UPDATE_SENDER",
-        payload: {
-          name: extracted,
-          addressLine1: sender.street1,
-          city: sender.city,
-          state: sender.state,
-          zip: sender.zip,
-        },
-      });
-    }
   };
 
   // Handle note body change
@@ -1405,7 +1366,6 @@ export function EntryPrototypeClient({
     markUserCustomEdit();
     if (field === "fullName") {
       setAccountLinks({});
-      setUserCustomizedRecipientName(true);
     }
     const updated = { ...recipient, [field]: value };
     setRecipient(updated);
@@ -1461,9 +1421,6 @@ export function EntryPrototypeClient({
   // Handle sender address updates
   const handleUpdateSender = (field: keyof AddressData, value: string) => {
     markUserCustomEdit();
-    if (field === "fullName") {
-      setUserCustomizedSenderName(true);
-    }
     const updated = { ...sender, [field]: value };
     setSender(updated);
 
@@ -1499,40 +1456,6 @@ export function EntryPrototypeClient({
         value: 9.0,
       });
     } else if (nextStep === "address") {
-      // Auto-carry names from salutation and sign-off into recipient and sender
-      const extractedRec = extractRecipientName(salutation);
-      if (!draft.multiSend && extractedRec && (!recipient.fullName.trim() || recipient.fullName.toLowerCase() === "friend")) {
-        setRecipient((prev) => ({ ...prev, fullName: extractedRec }));
-        dispatch({
-          type: "UPDATE_RECIPIENT",
-          payload: {
-            name: extractedRec,
-            addressLine1: recipient.street1,
-            addressLine2: recipient.street2,
-            city: recipient.city,
-            state: recipient.state,
-            zip: recipient.zip,
-            country: "USA",
-          },
-        });
-      }
-
-      const extractedSnd = extractSenderName(signOff);
-      if (extractedSnd && (!sender.fullName.trim() || sender.fullName.toLowerCase() === "friend")) {
-        setSender((prev) => ({ ...prev, fullName: extractedSnd }));
-        dispatch({
-          type: "UPDATE_SENDER",
-          payload: {
-            name: extractedSnd,
-            addressLine1: sender.street1,
-            city: sender.city,
-            state: sender.state,
-            zip: sender.zip,
-            country: "USA",
-          },
-        });
-      }
-
       const noteWasEdited = Boolean(
         userCustomizedNote ||
         hasCustomUserEdits ||
@@ -2218,8 +2141,6 @@ export function EntryPrototypeClient({
       state: "",
       zip: "",
     });
-    setUserCustomizedRecipientName(false);
-    setUserCustomizedSenderName(false);
     setOrderId("");
     setViewToken(null);
     setFulfillmentStatus(null);

@@ -46,7 +46,6 @@ const mocks = {
   "@/context/AuthContext": `const React=require("react"); exports.useAuth=()=>{const [user,setUser]=React.useState(window.__fixtureAuthUser); window.__setFixtureAuthUser=(value)=>{window.__fixtureAuthUser=value;setUser(value)}; return {user,account:null,saveAddress:async()=>{}};};`,
   "lucide-react": `const React=require("react"); ${iconNames.map((name) => `exports.${name}=(props)=>React.createElement("span", { ...props, "aria-hidden": props["aria-hidden"] ?? true });`).join("\n")}`,
   "@/lib/seo-scenarios": `exports.parseScenarioNote=()=>null; exports.mapScenarioFontId=()=>"hwDavid";`,
-  "@/components/v3/TargetPurchaseExperience": `exports.extractRecipientName=()=>"Friend"; exports.extractSenderName=()=>"Sender";`,
   "@/lib/discount": `exports.extractOfferCodeFromUrlParams=(params)=>params?.get?.("discount")||null;`,
 };
 

@@ -28,58 +28,6 @@ import { getStoredAttribution } from "@/components/AttributionTracker";
 import { Feather, ShieldCheck, AlertCircle } from "lucide-react";
 import { evaluateCheckoutInitTransition } from "@/lib/payment-mode";
 
-export function extractRecipientName(salutation: string): string {
-  if (!salutation) return "";
-  const trimmed = salutation.trim();
-  // Solitary greeting prefixes or single characters while typing (e.g. "D", "De", "Dear", "Hello")
-  if (/^(d|de|dea|dear|dearest|to|hello|hi|hey|happy)$/i.test(trimmed)) {
-    return "";
-  }
-  let cleaned = trimmed.replace(/^(dear|dearest|to|hello|hi|hey)[:,\s]+\s*/i, "");
-  cleaned = cleaned.replace(/[,!.:;]+$/, "").trim();
-  // Strip bracketed template placeholders (e.g. "[Friend's Name]", "[Name]")
-  cleaned = cleaned.replace(/^\[.*\]$/, "").trim();
-  if (cleaned.length < 2 || /^(dear|dearest|to|hello|hi|hey)$/i.test(cleaned)) {
-    return "";
-  }
-  return cleaned;
-}
-
-export function extractSenderName(signOff: string): string {
-  if (!signOff) return "";
-  const trimmed = signOff.trim();
-  if (/^(w|wa|war|warm|warmly|l|lo|lov|love|s|sin|sinc|sincerely|b|be|bes|best)$/i.test(trimmed)) {
-    return "";
-  }
-  const lines = trimmed
-    .replace(/\r\n?/g, "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
-  let candidate = trimmed;
-  if (
-    lines.length >= 2 &&
-    (/[,:]$/.test(lines[0]) ||
-      /^(warmly|with all our love|with love|lots of love|love always|much love|love|sincerely|warmest wishes|warm wishes|best wishes|best regards|kind regards|regards|all the best|best|cheers|yours truly|yours|affectionately|fondly|gratefully|with gratitude)[,:\s]*$/i.test(
-        lines[0]
-      ))
-  ) {
-    candidate = lines.slice(1).join(" ");
-  } else {
-    candidate = trimmed.replace(
-      /^(warmly|with all our love|with love|lots of love|love always|much love|love|sincerely|warmest wishes|warm wishes|best wishes|best regards|kind regards|regards|all the best|best|cheers|yours truly|yours|affectionately|fondly|gratefully|with gratitude)[,:\s]+/i,
-      ""
-    );
-  }
-  let cleaned = candidate.replace(/[,!.:;]+$/, "").trim();
-  // Strip bracketed template placeholders (e.g. "[Your Name]")
-  cleaned = cleaned.replace(/^\[.*\]$/, "").trim();
-  if (cleaned.length < 2 || /^(warmly|love|sincerely|best|cheers)$/i.test(cleaned)) {
-    return "";
-  }
-  return cleaned;
-}
-
 export interface TargetPurchaseExperienceProps {
   initialStep?: number;
   initialOccasion?: string;
@@ -118,10 +66,6 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
     props?.initialSignOff || ""
   );
   const [fontStyleId, setFontStyleId] = useState<string>("hwDavid");
-
-  // Track if user explicitly edited recipient/sender full names in Step 3
-  const [userCustomizedRecipientName, setUserCustomizedRecipientName] = useState(false);
-  const [userCustomizedSenderName, setUserCustomizedSenderName] = useState(false);
 
   // 4. Envelope Addressing State (Step 3)
   const [recipient, setRecipient] = useState<AddressData>({
@@ -195,7 +139,6 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         state: def.state || prev.state,
         zip: def.zip || prev.zip,
       }));
-      setUserCustomizedSenderName(true);
     }
   }, [user, account]);
 
@@ -246,7 +189,6 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
     if (toParam) {
       setSalutation(`Dear ${toParam},`);
       setRecipient((prev) => ({ ...prev, fullName: toParam }));
-      setUserCustomizedRecipientName(true);
     }
 
     const fontParam = searchParams.get("font") || searchParams.get("fontId");
@@ -255,31 +197,10 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
     }
   }, [searchParams]);
 
-  // Auto-sync Salutation -> Recipient Full Name
-  const handleSalutationChange = (newSalutation: string) => {
-    setSalutation(newSalutation);
-    if (!userCustomizedRecipientName) {
-      const extracted = extractRecipientName(newSalutation);
-      setRecipient((prev) => ({ ...prev, fullName: extracted }));
-    }
-  };
-
-  // Auto-sync Sign-Off -> Sender Full Name
-  const handleSignOffChange = (newSignOff: string) => {
-    setSignOff(newSignOff);
-    if (!userCustomizedSenderName) {
-      const extracted = extractSenderName(newSignOff);
-      setSender((prev) => ({ ...prev, fullName: extracted }));
-    }
-  };
-
   // Recipient address updates
   const handleUpdateRecipient = (field: keyof AddressData, value: string) => {
     if (checkoutRequestInFlight.current) return;
     addressRevision.current += 1;
-    if (field === "fullName") {
-      setUserCustomizedRecipientName(true);
-    }
     setRecipient((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -313,9 +234,6 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
 
   // Sender address updates
   const handleUpdateSender = (field: keyof AddressData, value: string) => {
-    if (field === "fullName") {
-      setUserCustomizedSenderName(true);
-    }
     setSender((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -603,7 +521,6 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
       state: "",
       zip: "",
     });
-    setUserCustomizedRecipientName(false);
     goToStep(1);
   };
 
@@ -672,11 +589,11 @@ export function TargetPurchaseExperience(props?: TargetPurchaseExperienceProps) 
         {currentStep === 2 && (
           <Step2NoteComposition
             salutation={salutation}
-            onChangeSalutation={handleSalutationChange}
+            onChangeSalutation={setSalutation}
             bodyNote={bodyNote}
             onChangeBodyNote={setBodyNote}
             signOff={signOff}
-            onChangeSignOff={handleSignOffChange}
+            onChangeSignOff={setSignOff}
             fontStyleId={fontStyleId}
             onChangeFontStyleId={setFontStyleId}
             occasion={occasion}

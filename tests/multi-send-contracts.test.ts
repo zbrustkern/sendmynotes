@@ -16,7 +16,6 @@ import { setHouseholdAcknowledgements } from "../lib/multi-send/household";
 import { parseMultiSendEditorBuffer } from "../lib/draft/multi-send-editor-buffer";
 import { resolvePreviewMessage, resolveStep2PreviewMessage } from "../lib/note-preview";
 import { buildSingleStepOrderPayload } from "../lib/handwrytten";
-import { extractSenderName } from "../components/v3/TargetPurchaseExperience";
 
 const note = { salutation: "Dear Friends,", text: "I hope you are well.", signOff: "Love, Sam", style: "warm" };
 assert.equal(resolveGreeting(note.salutation, { mode: "inherit" }), "Dear Friends,");
@@ -47,10 +46,6 @@ assert.equal(formatTwoLineSignOff("Warmly, Ezekiel"), "Warmly,\nEzekiel");
 assert.equal(formatTwoLineSignOff("With all our love, Sarah & Tom"), "With all our love,\nSarah & Tom");
 assert.equal(formatTwoLineSignOff("Warmly,\nEzekiel"), "Warmly,\nEzekiel");
 assert.equal(normalizeSignOffText("Warmly,\n\nEzekiel\n"), "Warmly,\nEzekiel");
-assert.equal(extractSenderName("Warmly,\nEzekiel"), "Ezekiel");
-assert.equal(extractSenderName("With all our love,\nSarah & Tom"), "Sarah & Tom");
-assert.equal(extractSenderName("Warmly, Ezekiel"), "Ezekiel");
-assert.equal(extractSenderName("Warmly,"), "");
 
 const twoLineSignOffNote = {
   salutation: "Dear Maya,",
