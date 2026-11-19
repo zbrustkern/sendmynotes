@@ -296,11 +296,12 @@
       "title": "Repeat buyers and observed customer value",
       "path": "docs/sprints/SPRINT-0030.md",
       "status": "implemented",
-      "acceptance_status": "local_checks_passed",
-      "release_target": "staging",
+      "acceptance_status": "staging_verified_production_candidate",
+      "release_target": "production",
       "evidence": "docs/sprints/evidence/SPRINT-0030/REVIEW.md",
       "proposal": "docs/proposals/2026-11-18-repeat-buyers/DESIGN_SPEC.md",
-      "updated_at": "2026-11-18"
+      "updated_at": "2026-11-18",
+      "staging_revision": "da3095b56640b45faf63709fb34a95d177a8ffa2"
     },
     {
       "id": "SPRINT-0032",
@@ -310,10 +311,11 @@
       "status": "implemented",
       "execution_model": "gpt-6-luna",
       "execution_method": "three_isolated_luna_workers_and_coordinator_integration",
-      "release_target": "staging_then_production",
+      "release_target": "production",
       "updated_at": "2026-11-18",
-      "acceptance_status": "local_feature_checks_passed",
-      "evidence": "docs/sprints/evidence/SPRINT-0032/REVIEW.md"
+      "acceptance_status": "staging_verified_production_candidate",
+      "evidence": "docs/sprints/evidence/SPRINT-0032/REVIEW.md",
+      "staging_revision": "da3095b56640b45faf63709fb34a95d177a8ffa2"
     }
   ]
 }
