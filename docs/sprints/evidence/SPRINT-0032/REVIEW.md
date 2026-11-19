@@ -1,4 +1,4 @@
-# Sprint 0031 review
+# Sprint 0032 review
 
 Three GPT-6-Luna workers prepared the picker and drawer, experiment and collector tests, and browser acceptance harness in isolated worktrees. The coordinator integrated the builder onto the production baseline, verified the visual and interactions, and kept the prepared artwork in the proposal and production sample byte-identical.
 

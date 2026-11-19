@@ -303,9 +303,9 @@
       "updated_at": "2026-11-18"
     },
     {
-      "id": "SPRINT-0031",
+      "id": "SPRINT-0032",
       "title": "A personal cover in the card picker",
-      "path": "docs/sprints/SPRINT-0031.md",
+      "path": "docs/sprints/SPRINT-0032.md",
       "proposal": "docs/proposals/2026-11-18-custom-cover-tile/DESIGN_SPEC.md",
       "status": "implemented",
       "execution_model": "gpt-6-luna",
@@ -313,7 +313,7 @@
       "release_target": "staging_then_production",
       "updated_at": "2026-11-18",
       "acceptance_status": "local_feature_checks_passed",
-      "evidence": "docs/sprints/evidence/SPRINT-0031/REVIEW.md"
+      "evidence": "docs/sprints/evidence/SPRINT-0032/REVIEW.md"
     }
   ]
 }
