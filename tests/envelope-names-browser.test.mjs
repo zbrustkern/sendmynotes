@@ -35,7 +35,7 @@ try {
 
     await page.goto(origin + '/birthday');
     const greeting = page.getByPlaceholder('e.g. Dear Sarah,');
-    const signOff = page.getByTestId('note-signoff-input');
+    const signOff = page.getByPlaceholder(/^e\.g\. Warmly,/);
     const continueToAddress = page.getByRole('button', { name: /^Continue to .*Address/i }).first();
     const recipient = page.getByLabel('Recipient name', { exact: true });
     const sender = page.getByLabel('Your name', { exact: true });
@@ -49,8 +49,9 @@ try {
     assert.equal(draft.recipient, null);
     if (!signedIn) assert.equal(draft.sender, null);
     await signOff.pressSequentially('y,');
-    await signOff.press('Enter');
-    await signOff.pressSequentially('Sammy');
+    const multiline = await signOff.evaluate(field => field.tagName === 'TEXTAREA');
+    if (multiline) await signOff.press('Enter');
+    await signOff.pressSequentially(multiline ? 'Sammy' : ' Sammy');
     await continueToAddress.click();
     assert.equal(await recipient.inputValue(), '');
     if (signedIn) {
@@ -66,7 +67,7 @@ try {
       await sender.fill('Sam Bell');
     }
     await page.goBack();
-    assert.equal(await signOff.inputValue(), 'Warmly,\nSammy');
+    assert.equal(await signOff.inputValue(), multiline ? 'Warmly,\nSammy' : 'Warmly, Sammy');
     await greeting.fill('Hey, birthday kid!');
     await signOff.fill('Love, me');
     await continueToAddress.click();
