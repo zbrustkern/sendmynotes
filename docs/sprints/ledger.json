@@ -347,6 +347,15 @@
       "evidence": "docs/sprints/evidence/SPRINT-0030/REVIEW.md",
       "proposal": "docs/proposals/2026-11-18-repeat-buyers/DESIGN_SPEC.md",
       "updated_at": "2026-11-18"
+    },
+    {
+      "id": "SPRINT-0031",
+      "title": "Wedding thank-you projects on staging",
+      "path": "docs/sprints/SPRINT-0031.md",
+      "status": "planned",
+      "acceptance_status": "awaiting_plan_validation",
+      "release_target": "staging",
+      "updated_at": "2026-11-18"
     }
   ]
 }
