@@ -29,12 +29,37 @@ export async function createWeddingProject(deviceId:string,sample=false) {
   const preset=CARD_PRESETS.find(p=>p.id==='preset-thankyou-botanical')!;
   const project:WeddingProject={id,revision:1,ownerId:actorId,sharedBody:'',signOff:'',handwriting:'hwDavid',cover:{kind:'preset',id:preset.id,url:preset.imageUrl},returnAddress:{...blankWeddingAddress(),firstName:'',lastName:''},templates:[],purchasedCount:0,activeBatchId:null,householdCount:sample?100:0,writingMode:'shared',createdAt:at,updatedAt:at,expiresAt:at+PROJECT_RETENTION_DAYS*WEDDING_DAY,claimedAt:null,pilotInviteId:null};
   const member:WeddingMember={id:actorId,role:'owner',uid:null,canPay:true,canExport:true,revoked:false,createdAt:at,updatedAt:at};
-  const rateRef=firestoreDb.collection('weddingStartLimits').doc(weddingHash(deviceId));
+  const limits=firestoreDb.collection('weddingStartLimits');
+  const rateRef=limits.doc(weddingHash(deviceId));
+  const hour=Math.floor(at/3_600_000), globalRef=limits.doc('deployment_'+hour);
+  const weight=sample?5:1;
   await firestoreDb.runTransaction(async tx=>{
-    const rate=(await tx.get(rateRef)).data();const fresh=!rate||Number(rate.expiresAt)<=at,used=fresh?0:Number(rate.count||0);
+    const [deviceLimit,deploymentLimit]=await Promise.all([tx.get(rateRef),tx.get(globalRef)]);
+    const total=Number(deploymentLimit.data()?.used||0);
+    if (total+weight>240) throw new WeddingError('project_intake_busy','Project starts are busy. Your saved project is still available. Try again in an hour.',429);
+    const rate=deviceLimit.data();const fresh=!rate||Number(rate.expiresAt)<=at,used=fresh?0:Number(rate.count||0);
     if(used>=5)throw new WeddingError('project_rate_limit','You have started several projects today. Resume one or try tomorrow.',429);
+    tx.set(globalRef,{used:total+weight,expiresAt:(hour+1)*3_600_000});
     tx.set(rateRef,{count:used+1,expiresAt:fresh?at+WEDDING_DAY:rate!.expiresAt});tx.create(weddingProjectRef(id),project);tx.create(weddingProjectRef(id).collection('members').doc(actorId),member);tx.create(weddingSessionRef(session.id),newWeddingSession(id,actorId));
-    if(sample)for(let n=1;n<=100;n++){const row=newWeddingHousehold(`sample_${String(n).padStart(3,'0')}`);Object.assign(row,{envelopeName:`Sample household ${n}`,firstName:`Sample ${n}`,insideName:`Sample ${n}`,insideNameConfirmed:true,identityConfirmed:true,gift:'A thoughtful wedding gift',address:{address1:`${100+n} Example Lane`,address2:'',city:'Chicago',state:'IL',zip:'60601',country:'US'},addressConfirmed:false});tx.create(weddingProjectRef(id).collection('households').doc(row.id),row);}
+    if (sample) {
+      const gifts = ['The blue serving bowl', 'The linen napkins', 'The picnic blanket', 'The recipe book', 'A wedding check', 'The tea set', 'The garden trowel', 'The cake stand'];
+      const missingStreet = new Set([7, 40, 68, 96]);
+      const households = weddingProjectRef(id).collection('households');
+      for (let n = 1; n <= 100; n++) {
+        const row = newWeddingHousehold('sample_' + String(n).padStart(3,'0'));
+        const country = n === 1 || n === 99 ? 'CA' : n === 2 ? 'GB' : 'US';
+        const mailing = country === 'CA' ? {city:'Toronto',state:'ON',zip:'M5V 2T6'} :
+          country === 'GB' ? {city:'London',state:'',zip:'SW1A 1AA'} : {city:'Chicago',state:'IL',zip:'60601'};
+        const confirmed = !missingStreet.has(n);
+        Object.assign(row,{
+          envelopeName:'Sample household '+n, firstName:'Sample household '+n, insideName:'Sample '+n,
+          insideNameConfirmed:true, identityConfirmed:true, gift:gifts[(n-1)%gifts.length],
+          address:{...mailing,country,address1:confirmed ? (100+n)+' Example Lane' : '',address2:''},
+          addressConfirmed:confirmed, addressEvidence:confirmed ? 'sender_confirmed' : 'unreviewed',
+        });
+        tx.create(households.doc(row.id),row);
+      }
+    }
   });
   return {projectId:id,actorId,token:session.token,sessionId:session.id};
 }

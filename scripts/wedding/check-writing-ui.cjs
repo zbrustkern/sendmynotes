@@ -6,6 +6,7 @@ if (
   ![
     "127.0.0.1",
     "localhost",
+    "staging.sendmynotes.com",
     "sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
   ].includes(new URL(base).hostname)
 )
@@ -20,6 +21,7 @@ if (
     viewport: { width: 390, height: 844 },
   });
   const page = await ctx.newPage();
+  let activePage = page;
   page.setDefaultTimeout(18000);
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
@@ -28,6 +30,14 @@ if (
   const capture = async (name) => {
     if (dir) {
       require("node:fs").mkdirSync(dir, { recursive: true });
+      await page.evaluate(async () => {
+        await document.fonts.ready;
+        document.activeElement?.blur?.();
+        window.scrollTo(0, 0);
+        await new Promise((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(r)),
+        );
+      });
       await page.screenshot({
         path: require("node:path").join(dir, name + ".png"),
         fullPage: false,
@@ -36,7 +46,22 @@ if (
   };
 
   try {
-    await page.goto(base + "/thank-you/wedding");
+    await page.goto(base + "/");
+    await page
+      .getByRole("link", { name: "Thank-you notes", exact: true })
+      .waitFor();
+    await page.goto(base + "/send?utm_source=validator");
+    await page
+      .getByRole("link", { name: "Thank-you notes", exact: true })
+      .click();
+    await page
+      .getByRole("link", { name: "Wedding thank-you notes", exact: true })
+      .click();
+    assert.equal(
+      new URL(page.url()).searchParams.get("utm_source"),
+      "validator",
+    );
+    run.push("discoverable from home and send, attribution retained");
     await page
       .getByRole("button", { name: "Start my thank-yous", exact: true })
       .click();
@@ -165,15 +190,123 @@ if (
     assert.equal(new URL(second.url()).hash, "");
     run.push("recovery on second device");
     await phone.close();
+    // A separate guest starts a synthetic 100-envelope project. Two personal
+    // bodies survive both the batch approval and a subsequent shared edit.
+    const familyContext = await browser.newContext({
+      viewport: { width: 1280, height: 850 },
+    });
+    const desk = await familyContext.newPage();
+    activePage = desk;
+    desk.setDefaultTimeout(30000);
+    desk.on("pageerror", (e) => errors.push(e.message));
+    await desk.goto(base + "/thank-you/wedding");
+    await desk
+      .getByRole("button", { name: "Try a sample list", exact: true })
+      .click();
+    await desk
+      .getByRole("heading", { name: "100 households", exact: true })
+      .waitFor();
+    await desk.getByRole("button", { name: "Your words", exact: true }).click();
+    await desk
+      .getByLabel("Your shared note", { exact: true })
+      .fill("Thank you for celebrating with us. We are so glad to know you.");
+    await desk
+      .getByLabel("Sign-off", { exact: true })
+      .fill("With love, Alex and Jamie");
+    for (const n of [1, 2]) {
+      await desk
+        .locator("label")
+        .filter({ hasText: /^Household/ })
+        .locator("select")
+        .selectOption({ label: "Sample household " + n });
+      await desk
+        .getByRole("button", { name: "Write personal wording", exact: true })
+        .click();
+      await desk
+        .getByLabel("Your words", { exact: true })
+        .fill(
+          "Thank you for the lovely gift. This is our personal note " + n + ".",
+        );
+      await desk
+        .getByRole("button", { name: "Approve & next", exact: true })
+        .click();
+      await desk
+        .getByText(n + " of 100 notes approved", { exact: true })
+        .waitFor();
+    }
+    await desk
+      .getByRole("button", { name: "Select 100 shown", exact: true })
+      .click();
+    await desk
+      .getByRole("button", {
+        name: "Review selected shared notes",
+        exact: true,
+      })
+      .click();
+    await desk
+      .getByRole("button", {
+        name: "Approve shared note for 98 selected households",
+        exact: true,
+      })
+      .click();
+    await desk
+      .getByText("100 of 100 notes approved", { exact: true })
+      .waitFor();
+    if (process.env.WEDDING_EXPECT_SAMPLE_READY === "96") {
+      await desk.getByText("96 ready to send", { exact: true }).waitFor();
+      await desk
+        .getByRole("button", { name: "Review & send", exact: true })
+        .click();
+      await desk
+        .getByText("96 ready · 4 held · 0 purchased.", { exact: true })
+        .waitFor();
+      await desk.getByText(/including 3 international/).waitFor();
+      await desk
+        .getByRole("button", { name: "Your words", exact: true })
+        .click();
+      run.push(
+        "96 confirmed, four held and three international sample envelopes",
+      );
+    }
+    if (dir) {
+      await desk.evaluate(async () => {
+        await document.fonts.ready;
+        window.scrollTo(0, 0);
+        await new Promise((r) =>
+          requestAnimationFrame(() => requestAnimationFrame(r)),
+        );
+      });
+      await desk.screenshot({
+        path: require("node:path").join(dir, "writing-100-households.png"),
+      });
+    }
+    await desk
+      .getByLabel("Your shared note", { exact: true })
+      .fill("Thank you for celebrating with us. We treasure the day.");
+    await desk.getByText("2 of 100 notes approved", { exact: true }).waitFor();
+    run.push(
+      "100 households, 2 personal and 98 shared approvals; inherited-only invalidation",
+    );
+    await familyContext.close();
     assert.deepEqual(errors, []);
-    console.log(JSON.stringify({ passed: run }, null, 2));
+    const receipt = {
+      host: new URL(base).host,
+      observedAt: new Date().toISOString(),
+      passed: run,
+    };
+    if (dir)
+      require("node:fs").writeFileSync(
+        require("node:path").join(dir, "writing-checks.json"),
+        JSON.stringify(receipt, null, 2) + "\n",
+      );
+    console.log(JSON.stringify(receipt, null, 2));
   } catch (e) {
     console.error(
       JSON.stringify(
         {
           passed: run,
-          headings: await page.locator("h1,h2").allTextContents(),
-          alerts: await page.getByRole("alert").allTextContents(),
+          headings: await activePage.locator("h1,h2").allTextContents(),
+          alerts: await activePage.getByRole("alert").allTextContents(),
           errors,
         },
         null,

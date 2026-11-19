@@ -1,6 +1,6 @@
 import {randomUUID} from 'node:crypto';
 import type {Firestore} from 'firebase-admin/firestore';
-import {ARTWORK_LIMITS, ARTWORK_POLICY, artworkComposition, artworkId, rasterMime, WeddingArtworkError} from './artwork-policy';
+import {ARTWORK_LIMITS, ARTWORK_POLICY, artworkComposition, artworkId, rasterMime, WeddingArtworkError, assertNormalizedWeddingFront} from './artwork-policy';
 import {artworkProjectSegment, artworkSha, ArtworkObjectStore, assertWeddingArtworkRuntime, firestoreDb, weddingArtworkObjects} from './artwork-storage';
 import {ProcessedArtwork, processWeddingArtwork} from './artwork-processing';
 export {WEDDING_ARTWORK_PRESETS, weddingArtworkPreset} from './artwork-policy';
@@ -135,6 +135,21 @@ export function createWeddingArtworkService(deps:Dependencies) {
   }
   return {
     intake:run,
+    /** Only trusted server callers may pass an owned accepted master. Preserve
+     * its exact bytes; retain quotas, immutable storage, and project isolation. */
+    async adoptNormalized(projectId:string,bytes:Buffer,sha256:string,ctx:Context & {authorize:()=>Promise<void>}) {
+      await check(projectId,ctx);
+      if(!/^[a-f0-9]{64}$/.test(sha256)||artworkSha(bytes)!==sha256)throw new WeddingArtworkError('asset_changed','The accepted front could not be verified.',409);
+      assertNormalizedWeddingFront(bytes);
+      const jobId=randomUUID();await claim(projectId,jobId);
+      try {
+        const result={source:bytes,master:bytes,width:ARTWORK_LIMITS.width,height:ARTWORK_LIMITS.height,sourceWidth:ARTWORK_LIMITS.width,sourceHeight:ARTWORK_LIMITS.height};
+        return await attach(projectId,result,artworkComposition({}),jobId,ctx);
+      } catch(error) {
+        await jobRef(jobId).set({verdict:'retryable',code:'adoption_incomplete',completedAt:now()},{merge:true});
+        throw error;
+      } finally {await release(projectId,jobId);}
+    },
     async compose(projectId:string,id:string,settings:unknown,ctx:Context={}) {
       return run(projectId,async()=>({bytes:await verifiedBytes(await getAsset(projectId,id),true),mime:'image/png'}),settings,ctx,true);
     },
@@ -211,6 +226,7 @@ export const intakeWeddingArtwork=service.intake;
 export const composeWeddingArtwork=service.compose;
 /** Trusted server callers must authorize the project and current pilot before invoking. */
 export const storeWeddingGeneratedArtwork=service.generated;
+export const adoptNormalizedWeddingArtwork=service.adoptNormalized;
 export const readWeddingArtwork=service.read;
 export const validateWeddingArtwork=service.validate;
 export const pinWeddingCover=service.pin;

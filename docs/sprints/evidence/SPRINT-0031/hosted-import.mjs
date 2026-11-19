@@ -1,3 +1,4 @@
+import { stagingRequest } from './staging-request.mjs';
 // Run from repo root: node docs/sprints/evidence/SPRINT-0031/hosted-import.mjs <private-invite-file> <metrics-json>
 // Input is a 0600 regular file with an unused, unbound staging pilot link on a single line.
 // The staging host is fixed. Cookies stay in process memory. No payment, notification or fulfillment endpoints.
@@ -6,7 +7,7 @@ import { lstat, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
-const origin='https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app';
+const origin='https://staging.sendmynotes.com';
 const fixtureDir='docs/proposals/2026-11-12-thank-you-portal/upload-fixtures';
 const [invitePath,resultPath]=process.argv.slice(2);
 const checks={}, metrics={checkedAt:new Date().toISOString(),host:new URL(origin).hostname,checks};
@@ -19,7 +20,7 @@ async function request(path,init={}, {accept,raw=false}={}) {
   verify(/^\/api\/wedding\/(?:project|import|artwork|ai)(?:\?|$)/.test(path),'unexpected_endpoint');
   const h=new Headers(init.headers);h.set('Origin',origin);
   if(jar.size)h.set('Cookie',[...jar].map(([k,v])=>k+'='+v).join('; '));
-  const response=await fetch(origin+path,{...init,headers:h,redirect:'error',signal:AbortSignal.timeout(100000)});
+  const response=await stagingRequest(origin+path,{...init,headers:h,redirect:'error',signal:AbortSignal.timeout(100000)});
   for(const cookie of response.headers.getSetCookie()){
     const [k,v]=cookie.split(';')[0].split('=');
     if(/^smn_wedding_[a-z]+$/.test(k)&&/^[a-f0-9]{64}$/.test(v))jar.set(k,v);
@@ -27,7 +28,8 @@ async function request(path,init={}, {accept,raw=false}={}) {
   const allowed=accept?accept.includes(response.status):response.ok;
   if(!allowed){
     const details=await response.json().catch(()=>({}));
-    throw new CheckFailure('unexpected_http_status',response.status,safeCode(details.code));
+    const operation = h.get('content-type')==='application/json' ? safeCode(JSON.parse(init.body||'{}').action) : undefined;
+    throw new CheckFailure('http_'+path.split('?')[0].split('/').pop()+'_'+(operation||init.method||'GET'),response.status,safeCode(details.code));
   }
   if(raw)return response;
   return response.json();
@@ -45,7 +47,7 @@ async function main(){
   const info=await lstat(invitePath);
   verify(info.isFile()&&(info.mode & 0o777)===0o600 && info.size<=1024,'private_invite_required');
   const link=new URL((await readFile(invitePath,'utf8')).trim(),origin);
-  verify([origin,'https://staging.sendmynotes.com'].includes(link.origin) && link.pathname==='/thank-you/wedding' && !link.search && !link.username && !link.password,'staging_invite_required');
+  verify([origin,'https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app'].includes(link.origin) && link.pathname==='/thank-you/wedding' && !link.search && !link.username && !link.password,'staging_invite_required');
   const token=new URLSearchParams(link.hash.slice(1)).get('wedding');
   verify(/^[a-f0-9]{64}$/.test(token||''),'invalid_invite');
   stage='pilot admission';let state=await project('create',{sample:false});

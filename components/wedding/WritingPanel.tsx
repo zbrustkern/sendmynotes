@@ -91,7 +91,7 @@ export function WritingPanel(props: WritingProps) {
   const [mode, setMode] = useState(p.writingMode || "shared"),
     [newName, setNewName] = useState(""),
     [lastAssignment, setLastAssignment] = useState<
-      { id: string; previous: string | null }[]
+      { id: string; previous: string | null; appliedRevision: number }[]
     >([]);
   const [showAI, setShowAI] = useState(false),
     [suggestions, setSuggestions] = useState<Record<string, string>>({});
@@ -174,6 +174,10 @@ export function WritingPanel(props: WritingProps) {
   const progress = households.filter((r) => isApproved(p, r)).length;
   const goto = (id: string) => {
     setCurrent(id);
+    if (mode === "individual")
+      requestAnimationFrame(() =>
+        document.getElementById("wed-current-writer")?.focus(),
+      );
     try {
       sessionStorage.setItem(cursorKey, id);
     } catch {}
@@ -198,7 +202,7 @@ export function WritingPanel(props: WritingProps) {
     setMode(m);
   }
   async function approve(row: Person) {
-    if (!(await rowFlush.current())) return;
+    if (!(await shared.flush()) || !(await rowFlush.current())) return;
     const active =
       latest.current.households.find((r) => r.id === row.id) || row;
     await mutate("approve", {
@@ -216,19 +220,39 @@ export function WritingPanel(props: WritingProps) {
     if (others[0]) goto(others[0].id);
   }
   async function assign(tid: string | null) {
-    const previous = selectedRows.map((r) => ({
-      id: r.id,
-      previous: r.templateId,
-    }));
-    await mutate("assignTemplate", {
+    const old = new Map(selectedRows.map((r) => [r.id, r.templateId]));
+    const result = await mutate("assignTemplate", {
       ids: selectedRows.map((r) => r.id),
       revisions: Object.fromEntries(
         selectedRows.map((r) => [r.id, r.revision]),
       ),
       templateId: tid,
     });
-    setLastAssignment(previous);
-    notify("Wording assigned to " + previous.length + " households.");
+    const installed = (result.households as Person[]).filter((r) =>
+      old.has(r.id),
+    );
+    setLastAssignment(
+      installed.map((r) => ({
+        id: r.id,
+        previous: old.get(r.id) ?? null,
+        appliedRevision: r.revision,
+      })),
+    );
+    notify("Wording assigned to " + installed.length + " households.");
+  }
+  async function undoAssignment() {
+    for (const previous of new Set(lastAssignment.map((a) => a.previous))) {
+      const group = lastAssignment.filter((a) => a.previous === previous);
+      const ids = group.map((a) => a.id);
+      await mutate("assignTemplate", {
+        ids,
+        revisions: Object.fromEntries(
+          group.map((a) => [a.id, a.appliedRevision]),
+        ),
+        templateId: previous,
+      });
+      setLastAssignment((left) => left.filter((a) => !ids.includes(a.id)));
+    }
   }
   return (
     <>
@@ -254,7 +278,11 @@ export function WritingPanel(props: WritingProps) {
           Write individual notes
         </button>
       </div>
-      <div className="wed-columns">
+      <div
+        className={
+          "wed-columns" + (mode === "individual" ? " wed-personal-mode" : "")
+        }
+      >
         <section className="wed-panel">
           <h2>
             {mode === "shared" ? "Your shared wording" : "Your writing list"}
@@ -466,28 +494,7 @@ export function WritingPanel(props: WritingProps) {
                 {lastAssignment.length > 0 && (
                   <button
                     disabled={busy}
-                    onClick={() =>
-                      void work(async () => {
-                        for (const previous of new Set(
-                          lastAssignment.map((a) => a.previous),
-                        )) {
-                          const group = lastAssignment.filter(
-                            (a) => a.previous === previous,
-                          );
-                          const rows = latest.current.households.filter((h) =>
-                            group.some((a) => a.id === h.id),
-                          );
-                          await mutate("assignTemplate", {
-                            ids: rows.map((r) => r.id),
-                            revisions: Object.fromEntries(
-                              rows.map((r) => [r.id, r.revision]),
-                            ),
-                            templateId: previous,
-                          });
-                        }
-                        setLastAssignment([]);
-                      })
-                    }
+                    onClick={() => void work(undoAssignment)}
                   >
                     Undo template assignment
                   </button>
@@ -542,7 +549,10 @@ export function WritingPanel(props: WritingProps) {
           <div className="wed-actions">
             <button
               disabled={!person && !selected.size}
-              onClick={() => setShowAI(!showAI)}
+              onClick={async () => {
+                if ((await shared.flush()) && (await rowFlush.current()))
+                  setShowAI(!showAI);
+              }}
             >
               Help me draft
             </button>
@@ -592,6 +602,8 @@ export function WritingPanel(props: WritingProps) {
                 key={person.id}
                 {...props}
                 row={person}
+                individual={mode === "individual"}
+                beforePersonal={shared.flush}
                 register={(cb) => {
                   rowFlush.current = cb;
                 }}
@@ -667,6 +679,8 @@ export function WritingPanel(props: WritingProps) {
   );
 }
 function RowWriter({
+  individual,
+  beforePersonal,
   state: { project: p },
   row,
   mutate,
@@ -677,14 +691,21 @@ function RowWriter({
   onAcceptSuggestion,
 }: PanelProps & {
   row: Person;
+  individual: boolean;
+  beforePersonal: () => Promise<boolean>;
   register: (cb: () => Promise<boolean>) => void;
   onApprove: () => Promise<void>;
   busy: boolean;
   suggestion?: string;
   onAcceptSuggestion: () => void;
 }) {
-  const [personal, setPersonal] = useState(row.bodyOverride !== null),
+  const [personal, setPersonal] = useState(
+      individual || row.bodyOverride !== null,
+    ),
     [restore, setRestore] = useState(false);
+  useEffect(() => {
+    if (individual) setPersonal(true);
+  }, [individual]);
   const draft = useWeddingDraft(
     {
       greeting: row.greeting,
@@ -708,7 +729,9 @@ function RowWriter({
     issues = weddingWordingIssues(p, view);
   return (
     <>
-      <h3>{row.envelopeName}</h3>
+      <h3 id="wed-current-writer" tabIndex={-1}>
+        {row.envelopeName}
+      </h3>
       <p>
         {row.gift ? "Gift: " + row.gift : "No gift listed."}{" "}
         {weddingAddressReady(row)
@@ -764,7 +787,11 @@ function RowWriter({
         </label>
       )}
       {!personal && draft.value.bodyOverride === null ? (
-        <button onClick={() => setPersonal(true)}>
+        <button
+          onClick={async () => {
+            if (await beforePersonal()) setPersonal(true);
+          }}
+        >
           Write personal wording
         </button>
       ) : (

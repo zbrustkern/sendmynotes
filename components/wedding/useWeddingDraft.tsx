@@ -67,7 +67,8 @@ export function useWeddingDraft<T extends object>(
       }
     })();
     inFlight.current = promise;
-    return promise;
+    const success = await promise;
+    return success && (!dirty.current || submit());
   }, []);
   useEffect(() => {
     mounted.current = true;
@@ -149,8 +150,12 @@ export function SaveStatus({
         </p>
         {other}
         <div className="wed-actions">
-          <button onClick={draft.keepMine}>Save my version</button>
-          <button onClick={draft.useTheirs}>Use the saved version</button>
+          <button type="button" onClick={draft.keepMine}>
+            Save my version
+          </button>
+          <button type="button" onClick={draft.useTheirs}>
+            Use the saved version
+          </button>
         </div>
       </div>
     );
@@ -158,7 +163,9 @@ export function SaveStatus({
     return (
       <div role="alert" className="wed-notice">
         {draft.error}{" "}
-        <button onClick={() => void draft.flush()}>Retry save</button>
+        <button type="button" onClick={() => void draft.flush()}>
+          Retry save
+        </button>
       </div>
     );
   return (

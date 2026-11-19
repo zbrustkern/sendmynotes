@@ -37,9 +37,8 @@ export async function cleanupWeddingDrafts(at=Date.now(),limit=10) {
   // Expired credentials contain only scoped identifiers. Revocation/expiry is
   // checked before every read even when cleanup is delayed.
   let credentials=0;
-  for(const name of ['weddingSessions','weddingAddressSessions','weddingInvites','weddingStartLimits','weddingPilotIssueLimits']){
-    const expired=await firestoreDb.collection(name).where('expiresAt','<=',at).limit(100).get();
-    for(const row of expired.docs){await firestoreDb.runTransaction(async tx=>{const current=(await tx.get(row.ref)).data();if(current&&Number(current.expiresAt)<=at){tx.delete(row.ref);credentials++;}});}
+  for(const name of ['weddingSessions','weddingAddressSessions','weddingInvites','weddingStartLimits','weddingPilotIssueLimits','weddingAccountSessionLimits']){
+    credentials+=await firestoreDb.runTransaction(async tx=>{const expired=await tx.get(firestoreDb.collection(name).where('expiresAt','<=',at).limit(100));expired.docs.forEach(row=>tx.delete(row.ref));return expired.size;});
   }
   return {scanned:page.size,purged,held,credentials};
 }
@@ -61,14 +60,16 @@ export async function cleanupWeddingDraftArtwork(remove?: (key:string)=>Promise<
   const jobs=await firestoreDb.collection('weddingDraftCleanup').where('state','==','artwork_pending').limit(1).get();let deleted=0;
   for(const job of jobs.docs){const projectId=String(job.data().projectId),ref=weddingProjectRef(projectId),project=(await ref.get()).data() as WeddingProject|undefined;
     if(!project?.deletedAt||project.purchasedCount||project.activeBatchId||Object.keys(project.paidHouseholds||{}).length)continue;
+    let blocked=false;
     const assets=await ref.collection('artwork').limit(20).get(),prefix=`wedding-normalized/staging/${weddingHash(projectId).slice(0,32)}/`;
-    for(const asset of assets.docs){const data=asset.data();if(data.projectId!==projectId||data.policy!=='wedding-raster-v1'||data.verdict!=='accepted_for_import')continue;
-      const paths=[...new Set<string>([data.storageKey,data.sourceKey])];if(paths.some(key=>typeof key!=='string'||!key.startsWith(prefix)||!/^[a-f0-9]{64}\.png$/.test(key.slice(prefix.length))))continue;
+    for(const asset of assets.docs){const data=asset.data();if(data.projectId!==projectId||data.policy!=='wedding-raster-v1'||data.verdict!=='accepted_for_import'){blocked=true;continue;}
+      const paths=[...new Set<string>([data.storageKey,data.sourceKey])];if(paths.some(key=>typeof key!=='string'||!key.startsWith(prefix)||!/^[a-f0-9]{64}\.png$/.test(key.slice(prefix.length)))){blocked=true;continue;}
       const removeObject=remove||(await import('./artwork-storage')).weddingArtworkObjects.removeOrphan!;
       for(const key of paths)await removeObject(key);
       await asset.ref.delete();deleted++;
     }
-    if(assets.size<20)await job.ref.set({state:'complete',completedAt:Date.now()},{merge:true});
+    if(blocked)await job.ref.set({state:'operator_review',reason:'invalid_artwork_scope'},{merge:true});
+    else if(assets.size<20)await job.ref.set({state:'complete',completedAt:Date.now()},{merge:true});
   }
   return {deleted};
 }

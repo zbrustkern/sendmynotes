@@ -43,7 +43,8 @@ export function WeddingWorkspace({
   const { loading: authLoading } = useAuth();
   const mounted = useRef(true),
     initialized = useRef(false),
-    fragment = useRef<string | null>(null);
+    fragment = useRef<string | null>(null),
+    paymentReturn = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
   const flushers = useRef(new Set<() => Promise<boolean>>());
   const registerFlush = useCallback((cb: () => Promise<boolean>) => {
@@ -98,15 +99,19 @@ export function WeddingWorkspace({
     };
   }, []);
   useEffect(() => {
+    if (location.hash) {
+      fragment.current = new URLSearchParams(location.hash.slice(1)).get(
+        "wedding",
+      );
+      history.replaceState(null, "", location.pathname + location.search);
+    }
+    if (new URLSearchParams(location.search).get("return") === "payment") {
+      paymentReturn.current = true;
+      history.replaceState(null, "", location.pathname);
+    }
     if (initialized.current || authLoading) return;
     initialized.current = true;
-    const hash = new URLSearchParams(location.hash.slice(1)),
-      token = hash.get("wedding"),
-      params = new URLSearchParams(location.search),
-      paymentReturn = params.get("return") === "payment";
-    if (location.hash || paymentReturn)
-      history.replaceState(null, "", location.pathname);
-    fragment.current = token;
+    const token = fragment.current;
     void (async () => {
       try {
         let data: Snapshot;
@@ -137,7 +142,7 @@ export function WeddingWorkspace({
             Number(sessionStorage.getItem("wed-step-" + data.project.id)) || 0;
         } catch {}
         setStep(
-          paymentReturn || data.project.activeBatchId
+          paymentReturn.current || data.project.activeBatchId
             ? 3
             : Math.max(0, Math.min(3, initial)),
         );
@@ -312,7 +317,12 @@ export function WeddingWorkspace({
               <CardPanel {...props} registerFlush={registerFlush} />
             )}
             {step === 1 && (
-              <PeoplePanel {...props} editId={editId} onEdit={setEditId} />
+              <PeoplePanel
+                {...props}
+                editId={editId}
+                onEdit={setEditId}
+                registerFlush={registerFlush}
+              />
             )}
             {step === 2 && (
               <WritingPanel {...props} registerFlush={registerFlush} />

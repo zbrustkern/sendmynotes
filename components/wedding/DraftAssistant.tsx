@@ -1,9 +1,11 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import { prepareWeddingAiDraftFields } from "@/lib/wedding/ai-schema";
 import {
   errorMessage,
   postWedding,
   weddingRequest,
+  WeddingRequestError,
   type PanelProps,
 } from "./client";
 type Suggestion = { id: string; text: string };
@@ -46,13 +48,27 @@ export function DraftAssistant({
     [job, setJob] = useState<Job | null>(null),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    [needsAuth, setNeedsAuth] = useState(false),
+    [resuming, setResuming] = useState(false),
+    [jobIds, setJobIds] = useState<string[]>([]),
     [running, setRunning] = useState(false);
   const runningRef = useRef(false),
     mounted = useRef(true),
     intent = useRef<{ sig: string; key: string } | null>(null);
   const key = "wed-drafts-" + state.project.id;
-  const signature = JSON.stringify([ids, tone]);
-  const applicable = state.households.filter((h) => ids.includes(h.id));
+  const requestedIds = resuming ? jobIds : ids;
+  const applicable = state.households
+    .filter((h) => requestedIds.includes(h.id))
+    .map((h) => ({
+      id: h.id,
+      ...prepareWeddingAiDraftFields(h, state.project.returnAddress),
+    }));
+  const signature = JSON.stringify([
+    requestedIds,
+    tone,
+    applicable,
+    model.model,
+  ]);
   useEffect(() => {
     setConsent(false);
   }, [signature]);
@@ -66,13 +82,14 @@ export function DraftAssistant({
       saved = sessionStorage.getItem(key) || "";
     } catch {}
     if (saved)
-      weddingRequest<{ job: Job & { result?: Job } }>(
-        "ai?jobId=" + encodeURIComponent(saved),
-      )
+      weddingRequest<{
+        job: Job & { result?: Job; sourceRevisions?: { id: string }[] };
+      }>("ai?jobId=" + encodeURIComponent(saved))
         .then((d) => {
           if (mounted.current && d.job) {
             const j = { ...d.job, ...d.job.result };
             setJob(j);
+            setJobIds(d.job.sourceRevisions?.map((r) => r.id) || []);
             onSuggestions(j.suggestions || []);
           }
         })
@@ -93,9 +110,11 @@ export function DraftAssistant({
     setRunning(true);
     setBusy(true);
     setError("");
+    setNeedsAuth(false);
     try {
       let latest = job;
       if (!resume) {
+        setJobIds(ids);
         latest = await postWedding<Job>("ai", {
           action: "draft",
           ids,
@@ -134,7 +153,12 @@ export function DraftAssistant({
         latest = next;
       }
     } catch (e) {
-      if (mounted.current) setError(errorMessage(e));
+      if (mounted.current) {
+        setError(errorMessage(e));
+        setNeedsAuth(
+          e instanceof WeddingRequestError && e.code === "ai_sign_in_required",
+        );
+      }
     } finally {
       runningRef.current = false;
       if (mounted.current) {
@@ -147,8 +171,8 @@ export function DraftAssistant({
     <div className="wed-notice">
       <h3>Draft a note body</h3>
       <p>
-        {ids.length} selected. Each suggestion comes back for you to read and
-        accept.
+        {requestedIds.length} selected. Each suggestion comes back for you to
+        read and accept.
       </p>
       <p className="wed-meta">
         Review the gift and memory below.{" "}
@@ -166,7 +190,11 @@ export function DraftAssistant({
       </ul>
       <label>
         Tone
-        <select value={tone} onChange={(e) => setTone(e.target.value)}>
+        <select
+          disabled={resuming || running}
+          value={tone}
+          onChange={(e) => setTone(e.target.value)}
+        >
           <option value="warm">Warm</option>
           <option value="short">Short</option>
           <option value="personal">Personal</option>
@@ -185,6 +213,7 @@ export function DraftAssistant({
           disabled={
             busy ||
             !ids.length ||
+            resuming ||
             !consent ||
             !state.actor.pilot ||
             !model.model ||
@@ -195,8 +224,20 @@ export function DraftAssistant({
           Draft {ids.length} {ids.length === 1 ? "suggestion" : "suggestions"}
         </button>
         {job && !done(job) && !running && (
-          <button disabled={!consent || busy} onClick={() => void run(true)}>
-            Resume drafting
+          <button
+            disabled={busy || (resuming && (!consent || !jobIds.length))}
+            onClick={() => {
+              if (resuming) {
+                void run(true);
+              } else {
+                setResuming(true);
+                setConsent(false);
+              }
+            }}
+          >
+            {resuming
+              ? "Resume drafting"
+              : "Review the previous batch to resume"}
           </button>
         )}
         {running && (
@@ -209,10 +250,26 @@ export function DraftAssistant({
           </button>
         )}
       </div>
+      {resuming && !running && (
+        <button
+          onClick={() => {
+            setResuming(false);
+            setConsent(false);
+          }}
+        >
+          Return to the current selection
+        </button>
+      )}
       {job && (
         <p role="status">
           {job.suggestions?.length || 0} suggestions ready across {job.total}{" "}
           selected cards. Open each household to review its words.
+        </p>
+      )}
+      {model.available === false && (
+        <p className="wed-notice">
+          AI drafting is currently unavailable. Your shared and personal writing
+          tools are ready to use.
         </p>
       )}
       {model.resetsAt && (
@@ -224,7 +281,9 @@ export function DraftAssistant({
       {(!state.actor.pilot || error) && (
         <div>
           {error || "AI assistance is available to invited testers."}{" "}
-          <button onClick={signIn}>Sign in</button>
+          {(!state.actor.pilot || needsAuth) && (
+            <button onClick={signIn}>Sign in</button>
+          )}
         </div>
       )}
     </div>

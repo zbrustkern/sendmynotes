@@ -8,7 +8,10 @@ env:
     value: "true"
     availability: [RUNTIME]
   - variable: WEDDING_CHECKOUT_ENABLED
-    value: "false"
+    value: "true"
+    availability: [BUILD, RUNTIME]
+  - variable: WEDDING_AI_TEXT_MODEL
+    value: gemini-3.8-flash
     availability: [RUNTIME]
   - variable: WEDDING_SCHEDULER_IDENTITY
     value: wedding-reconciler@sendmynotes-staging.iam.gserviceaccount.com

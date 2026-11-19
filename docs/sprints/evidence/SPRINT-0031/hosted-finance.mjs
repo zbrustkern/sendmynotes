@@ -1,10 +1,14 @@
+import { stagingRequest } from './staging-request.mjs';
 /**
  * Run from the release checkout: node docs/sprints/evidence/SPRINT-0031/hosted-finance.mjs --staging-test
  * Uses only the staging portal and Stripe's public test API. Re-run to resume.
  * Optional WEDDING_ADMIN_COOKIE_FILE: mode 0600 file containing smn_admin_session=...
  * Optional WEDDING_FINANCE_STATE: a new path below /private/tmp for another independent run.
+ * Alternatively add --staging-iam-refund to use the logged-in staging operator for H099.
  * Output is sanitized JSON. Private recovery state is never written inside the repository.
  */
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import {
   readFileSync,
@@ -81,7 +85,7 @@ async function request(path, ctx, body, cookieOverride) {
     headers.cookie = Object.entries(ctx.cookies)
       .map(([k, v]) => k + "=" + v)
       .join("; ");
-  const response = await fetch(origin + path, {
+  const response = await stagingRequest(origin + path, {
     redirect: "error",
     headers,
     method: body ? "POST" : "GET",
@@ -193,6 +197,10 @@ async function setUp(ctx, mixed) {
       },
     });
   }
+  if (!ctx.imported && !ctx.runId) {
+    ctx.runId = randomUUID();
+    save();
+  }
   if (!ctx.imported) {
     for (let start = 0; start < 100; start += 25) {
       const portion = Array.from({ length: 25 }, (_, n) => {
@@ -205,7 +213,7 @@ async function setUp(ctx, mixed) {
       });
       await request(projectPath, ctx, {
         action: "importHouseholds",
-        importId: "finance_fixture_" + start,
+        importId: "finance_" + ctx.runId + "_" + start,
         rows: portion,
       });
     }
@@ -407,7 +415,7 @@ async function runBatch(
       fail(
         "Closed-browser test capture is waiting on the staging scheduler. Re-run to resume.",
       );
-    await delay(7000);
+    await delay(20000);
   } while (true);
   stageCheck(
     status.capturedCents === expectedCents,
@@ -491,34 +499,92 @@ async function runScenario(key, mixed) {
     }
   }
   let refund = "unrequested";
+  let refundWebhook = "unverified";
   let stateView = await projectState(ctx);
   stageCheck(
     stateView.project.purchasedCount === 100,
     "Exactly 100 purchased ordinals.",
   );
-  if (mixed && process.env.WEDDING_ADMIN_COOKIE_FILE) {
-    const admin = privateState(process.env.WEDDING_ADMIN_COOKIE_FILE).trim();
+  const iam = process.argv.includes("--staging-iam-refund");
+  if (mixed && (process.env.WEDDING_ADMIN_COOKIE_FILE || iam)) {
     stageCheck(
-      /^smn_admin_session=[^;\s]+$/.test(admin),
-      "Private operator file should contain the authenticated staging admin cookie pair.",
+      !(process.env.WEDDING_ADMIN_COOKIE_FILE && iam),
+      "Choose one refund authorization.",
     );
     const child = chosen(stateView, 99, 99)[0];
-    const action = {
-      batchId: ctx.second.id,
-      householdId: child.id,
-      idempotencyKey: "sprint0031_refund_H099",
-    };
-    for (let i = 0; i < 2; i++) {
-      const result = await request(
-        "/api/admin/wedding/refund",
-        null,
-        action,
-        admin,
-      );
+    if (iam) {
       stageCheck(
-        result.status === "succeeded" && result.amountCents === 1200,
-        "H099 must have exactly one successful $12 refund.",
+        ctx.runId &&
+          child.provenance.some(
+            (v) => v.importId === "finance_" + ctx.runId + "_75",
+          ),
+        "Operator mode requires the current synthetic run provenance.",
       );
+      const runner = fileURLToPath(
+        new URL("./finance-operator.mjs", import.meta.url),
+      );
+      const env = Object.fromEntries(
+        ["PATH", "HOME", "TMPDIR", "CLOUDSDK_CONFIG"]
+          .filter((k) => process.env[k])
+          .map((k) => [k, process.env[k]]),
+      );
+      const worker = spawnSync(
+        process.execPath,
+        ["--import", "tsx", runner, "--staging-iam-refund"],
+        {
+          env,
+          input: JSON.stringify({
+            projectId: ctx.projectId,
+            firstId: ctx.first.id,
+            lastId: ctx.second.id,
+            householdId: child.id,
+            runId: ctx.runId,
+          }),
+          encoding: "utf8",
+          timeout: 150000,
+          maxBuffer: 32768,
+          stdio: ["pipe", "pipe", "pipe"],
+        },
+      );
+      if (
+        worker.status !== 0 ||
+        !worker.stdout.includes("STAGING_IAM_REFUND_CONFIRMED")
+      ) {
+        const reason = worker.stderr?.match(
+          /Staging operator refused or unavailable \(([a-zA-Z0-9_]+)\)/,
+        )?.[1];
+        fail(
+          "The staging IAM refund could not be verified (" +
+            (reason || "operator_failed") +
+            "). Resume this run after reviewing the operator account.",
+        );
+      }
+      refundWebhook = worker.stdout.includes("webhook=observed")
+        ? "observed"
+        : "pending";
+    } else {
+      const admin = privateState(process.env.WEDDING_ADMIN_COOKIE_FILE).trim();
+      stageCheck(
+        /^smn_admin_session=[^;\s]+$/.test(admin),
+        "Private operator file should contain the authenticated staging admin cookie pair.",
+      );
+      const action = {
+        batchId: ctx.second.id,
+        householdId: child.id,
+        idempotencyKey: "sprint0031_refund_H099",
+      };
+      for (let i = 0; i < 2; i++) {
+        const result = await request(
+          "/api/admin/wedding/refund",
+          null,
+          action,
+          admin,
+        );
+        stageCheck(
+          result.status === "succeeded" && result.amountCents === 1200,
+          "H099 must have exactly one successful $12 refund.",
+        );
+      }
     }
     const receipt = await request(checkoutPath, ctx, {
       action: "status",
@@ -537,9 +603,15 @@ async function runScenario(key, mixed) {
       "Tracker must reflect the refunded card.",
     );
     second.refundCents = 1200;
-    refund = "succeeded";
-  } else if (mixed) refund = "needs_verified_admin_session";
-  return { first, second, earned: stateView.project.purchasedCount, refund };
+    refund = iam ? "succeeded_staging_iam" : "succeeded_admin_session";
+  } else if (mixed) refund = "needs_verified_admin_or_staging_iam";
+  return {
+    first,
+    second,
+    earned: stateView.project.purchasedCount,
+    refund,
+    refundWebhook,
+  };
 }
 async function main() {
   stageCheck(

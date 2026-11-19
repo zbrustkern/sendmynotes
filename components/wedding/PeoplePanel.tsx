@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { SaveStatus, useWeddingDraft } from "./useWeddingDraft";
 import { useAuth } from "@/context/AuthContext";
 import { newWeddingHousehold, weddingAddressReady } from "@/lib/wedding/domain";
 import type { WeddingImportRow } from "@/lib/wedding/import-contract";
@@ -61,6 +62,7 @@ function importPatch(r: WeddingImportRow, rows: WeddingImportRow[]) {
 }
 export function PeoplePanel(
   props: PanelProps & {
+    registerFlush: (save: () => Promise<boolean>) => () => void;
     editId: string | null;
     onEdit: (id: string | null) => void;
   },
@@ -74,6 +76,12 @@ export function PeoplePanel(
     [error, setError] = useState(""),
     [contact, setContact] = useState("");
   const { account, user } = useAuth();
+  const formSave = useRef<() => Promise<boolean>>(async () => true);
+  const [newId, setNewId] = useState("");
+  useEffect(
+    () => props.registerFlush(() => formSave.current()),
+    [props.registerFlush],
+  );
   const source = state.households.find((r) => r.id === editId);
   const [prefill, setPrefill] = useState<Person | null>(null);
   const visible = state.households
@@ -99,11 +107,14 @@ export function PeoplePanel(
       setError(errorMessage(e));
     }
   };
-  function newRow() {
+  async function newRow() {
+    if (!(await formSave.current())) return false;
+    setNewId("wh_" + crypto.randomUUID());
     onEdit(null);
     setPrefill(null);
     setAdding(true);
     setLink("");
+    return true;
   }
   async function apply(rows: WeddingImportRow[], importId: string) {
     await mutate("importHouseholds", {
@@ -127,6 +138,15 @@ export function PeoplePanel(
       </div>
       {importing && (
         <section className="wed-panel">
+          {!state.actor.pilot && (
+            <p className="wed-notice">
+              File imports and assisted mapping are available to invited staging
+              testers. You can add a household manually now, use your tester
+              link, or{" "}
+              <button onClick={signIn}>sign in with an approved account</button>
+              .
+            </p>
+          )}
           <WeddingListImport
             existingHouseholds={state.households}
             onApply={apply}
@@ -155,12 +175,12 @@ export function PeoplePanel(
             </label>
             <button
               disabled={!contact}
-              onClick={() => {
+              onClick={async () => {
                 const a = account?.savedAddresses?.find(
                   (a) => a.id === contact,
                 );
                 if (!a) return;
-                newRow();
+                if (!(await newRow())) return;
                 setPrefill({
                   ...newWeddingHousehold("new"),
                   envelopeName: [a.firstName, a.lastName]
@@ -223,7 +243,8 @@ export function PeoplePanel(
             {visible.map((r) => (
               <li key={r.id}>
                 <button
-                  onClick={() => {
+                  onClick={async () => {
+                    if (!(await formSave.current())) return;
                     setAdding(false);
                     setPrefill(null);
                     setLink("");
@@ -252,8 +273,15 @@ export function PeoplePanel(
         <section className="wed-note">
           {source || adding ? (
             <PersonForm
-              key={source?.id || prefill?.envelopeName || "new"}
-              row={source || prefill || newWeddingHousehold("new")}
+              key={source?.id || newId}
+              row={
+                source ||
+                state.households.find((h) => h.id === newId) || {
+                  ...(prefill || newWeddingHousehold(newId)),
+                  id: newId,
+                }
+              }
+              register={formSave}
               existing={!!source}
               mutate={mutate}
               onDone={() => {
@@ -335,40 +363,60 @@ function PersonForm({
   existing,
   mutate,
   onDone,
+  register,
 }: {
   row: Person;
   existing: boolean;
   mutate: PanelProps["mutate"];
   onDone: () => void;
+  register: React.MutableRefObject<() => Promise<boolean>>;
 }) {
-  const [form, setForm] = useState(() => ({ ...row })),
-    [base, setBase] = useState(row.revision),
-    [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
-  const edit = (v: Partial<Person>) => setForm({ ...form, ...v });
-  async function save() {
-    setBusy(true);
-    setError("");
-    try {
+  const initial = {
+    envelopeName: row.envelopeName,
+    firstName: row.firstName,
+    lastName: row.lastName,
+    insideName: row.insideName,
+    identityConfirmed: row.identityConfirmed,
+    gift: row.gift,
+    address: row.address,
+    addressConfirmed: row.addressConfirmed,
+    excluded: row.excluded,
+  };
+  const [busy, setBusy] = useState(false);
+  const draft = useWeddingDraft(
+    initial,
+    row.revision,
+    async (form, revision) => {
       const patch = {
-        envelopeName: form.envelopeName,
+        ...form,
         firstName: form.firstName || form.envelopeName,
-        lastName: form.lastName,
-        insideName: form.insideName,
         insideNameConfirmed: Boolean(form.insideName.trim()),
-        identityConfirmed: form.identityConfirmed,
-        gift: form.gift,
-        address: form.address,
-        addressConfirmed: form.addressConfirmed,
-        excluded: form.excluded,
       };
-      await mutate("saveHousehold", {
-        ...(existing ? { id: row.id, revision: base } : {}),
+      if (!form.envelopeName.trim())
+        throw Error("Enter the name for this envelope to save it.");
+      const next = await mutate("saveHousehold", {
+        id: row.id,
+        revision,
         patch,
       });
-      onDone();
-    } catch (e) {
-      setError(errorMessage(e));
+      return (next.households as Person[]).find((h) => h.id === row.id)!
+        .revision;
+    },
+  );
+  useEffect(() => {
+    register.current = draft.flush;
+    return () => {
+      register.current = async () => true;
+    };
+  }, [register, draft.flush]);
+  const form = draft.value;
+  const edit = (patch: Partial<typeof initial>) =>
+    draft.update({ ...form, ...patch });
+  async function save() {
+    setBusy(true);
+    try {
+      if (!existing && !draft.dirty) draft.update({ ...form });
+      if (await draft.flush()) onDone();
     } finally {
       setBusy(false);
     }
@@ -458,25 +506,20 @@ function PersonForm({
           />
           Exclude this card (already thanked or not sending).
         </label>
-        {error && (
-          <p role="alert" className="wed-notice">
-            {error}
-          </p>
-        )}
-        {existing && base !== row.revision && (
-          <div className="wed-notice">
-            Another edit was saved.<pre>{formatAddress(row)}</pre>
-            <button
-              type="button"
-              onClick={() => {
-                setBase(row.revision);
-                setError("");
-              }}
-            >
-              Keep my edits against this version
-            </button>
-          </div>
-        )}
+        <SaveStatus
+          draft={draft}
+          other={
+            <pre className="wed-letter">
+              {[
+                formatAddress(draft.server),
+                draft.server.insideName,
+                draft.server.gift,
+              ]
+                .filter(Boolean)
+                .join("\n")}
+            </pre>
+          }
+        />
         <button className="wed-primary" type="submit">
           Save household
         </button>

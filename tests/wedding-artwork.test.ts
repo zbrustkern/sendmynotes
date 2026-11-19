@@ -14,7 +14,8 @@ async function main(){
   const dir=await mkdtemp(join(tmpdir(),'wedding-art-tests-'));
   process.env.SMN_TEST_DATA_DIR=dir;
   try {
-    const {firestoreDb:db}=await import('../lib/firebase-admin');
+    const {firestoreDb:db,isFirestoreMock}=await import('../lib/firebase-admin');
+    assert.equal(isFirestoreMock,true,'Artwork tests require the isolated mock Firestore; run via npm run test:wedding with sanitized environment.');
     const {createWeddingArtworkService}=await import('../lib/wedding/artwork');
     const {createWeddingArtworkHandlers,readArtworkRequest,parseArtworkMultipart}=await import('../lib/wedding/artwork-http');
     const {artworkSha}=await import('../lib/wedding/artwork-storage');

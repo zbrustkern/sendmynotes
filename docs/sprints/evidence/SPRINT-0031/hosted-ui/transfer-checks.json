@@ -1,0 +1,12 @@
+{
+  "host": "staging.sendmynotes.com",
+  "observedAt": "2026-11-19T04:01:09.842Z",
+  "passed": {
+    "households": 2,
+    "customGreeting": true,
+    "blankGreeting": true,
+    "notesUnapproved": true,
+    "sharedBody": true,
+    "previousDraftRetained": true
+  }
+}

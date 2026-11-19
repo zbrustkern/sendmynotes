@@ -344,3 +344,9 @@
     transition: none !important;
   }
 }
+
+@media (max-width: 690px) {
+  .wed-personal-mode > .wed-note {
+    order: -1;
+  }
+}

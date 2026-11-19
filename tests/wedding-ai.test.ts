@@ -215,6 +215,8 @@ async function main(){
       global.fetch=(async(_url:any,init:any)=>{body=JSON.parse(init.body);return new Response(JSON.stringify({candidates:[{finishReason:'STOP',content:{parts:[{inlineData:{mimeType:'image/png',data:Buffer.from('synthetic png').toString('base64')}}]}}]}),{status:200});}) as typeof fetch;
       await provider.image('Blue flowers',undefined,new AbortController().signal);assert.equal(body.contents[0].parts.length,1);assert.deepEqual(body.generationConfig.responseModalities,['TEXT','IMAGE']);assert.equal(body.tools,undefined);
       await provider.image('Watercolor flowers',Buffer.from('normalized reference'),new AbortController().signal);assert.equal(body.contents[0].parts.length,2);assert.equal(Buffer.from(body.contents[0].parts[1].inlineData.data,'base64').toString(),'normalized reference');
+      global.fetch=(async()=>new Response(new ReadableStream({start(controller){controller.error(new TypeError('synthetic connection closed'));}}),{status:200})) as typeof fetch;
+      await assert.rejects(()=>provider.map({headers:['Gift']},new AbortController().signal),(e:any)=>e.outcome==='uncertain');
     }finally{global.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
   });
   await test('runtime never activates the test adapter or a live provider against mock storage',async()=>{

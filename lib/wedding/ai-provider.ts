@@ -20,7 +20,7 @@ function configuredKey() {
   return /your_.*(?:api|key)|placeholder/i.test(key) ? '' : key;
 }
 export function weddingAiProviderInfo(): WeddingAiProviderInfo {
-  const model = (process.env.WEDDING_AI_TEXT_MODEL || 'gemini-2.5-flash').trim();
+  const model = (process.env.WEDDING_AI_TEXT_MODEL || 'gemini-3.8-flash').trim();
   const imageModel = (process.env.WEDDING_AI_IMAGE_MODEL || process.env.UPLOAD_IMAGE_MODEL || 'gemini-nano-banana-2.1').trim();
   const valid = [model,imageModel].every(v => /^[A-Za-z0-9._-]{3,100}$/.test(v));
   const available = !!configuredKey() && valid;
@@ -68,12 +68,16 @@ async function invoke(model: string, body: unknown, signal: AbortSignal, image: 
   }
   const max = image ? 22 * 1024 * 1024 : 48 * 1024;
   if (Number(response.headers.get('content-length')) > max) { void response.body?.cancel().catch(() => {}); throw new WeddingAiProviderError('provider_response_too_large', 'complete'); }
-  let data: Record<string, any>;
-  try { data = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readWeddingAiBody(response.body, max, signal))); }
+  let bytes: Uint8Array;
+  try { bytes=await readWeddingAiBody(response.body,max,signal); }
   catch (error) {
-    if (signal.aborted || !(error instanceof WeddingAiError || error instanceof SyntaxError || error instanceof TypeError)) throw new WeddingAiProviderError('provider_outcome_unknown', 'uncertain');
-    throw new WeddingAiProviderError('provider_invalid_response', 'complete');
+    // A broken response stream is NOT evidence that the paid call failed.
+    if(error instanceof WeddingAiError && error.code==='request_too_large')throw new WeddingAiProviderError('provider_response_too_large','complete');
+    throw new WeddingAiProviderError('provider_outcome_unknown','uncertain');
   }
+  let data: Record<string, any>;
+  try {data=JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}
+  catch {throw new WeddingAiProviderError('provider_invalid_response','complete');}
   if (!data || typeof data !== 'object' || data.promptFeedback?.blockReason || !Array.isArray(data.candidates) || data.candidates.length !== 1) throw new WeddingAiProviderError('provider_safety', 'complete');
   const candidate = data.candidates[0];
   if (candidate.finishReason !== 'STOP' || candidate.safetyRatings?.some((rating: any) => rating.blocked === true || ['HIGH','MEDIUM'].includes(rating.probability))) throw new WeddingAiProviderError('provider_safety', 'complete');

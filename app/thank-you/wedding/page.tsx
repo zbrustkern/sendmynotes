@@ -1,4 +1,7 @@
 import { WeddingWorkspace } from "@/components/wedding/WeddingWorkspace";
+
+export const dynamic = "force-dynamic";
+
 export default function WeddingPage() {
   return (
     <WeddingWorkspace

@@ -45,14 +45,34 @@ export function TransferToWedding({
     setBusy(true);
     setError("");
     try {
+      const headers = {
+        "Content-Type": "application/json",
+        ...(await authHeaders()),
+      };
+      if (previousCheckout) {
+        const bridge = await fetch("/api/checkout/create-intent", {
+          method: "POST",
+          credentials: "same-origin",
+          cache: "no-store",
+          headers,
+          body: JSON.stringify({
+            action: "authorize-wedding-transfer",
+            checkoutId: draft.multiSend.checkoutId,
+            previousCheckout,
+          }),
+        });
+        const result = await bridge.json();
+        if (!bridge.ok || result.authorized !== true)
+          throw Error(
+            result.error ||
+              "Open the original device or account to transfer this batch.",
+          );
+      }
       const response = await fetch("/api/wedding/transfer", {
         method: "POST",
         credentials: "same-origin",
         cache: "no-store",
-        headers: {
-          "Content-Type": "application/json",
-          ...(await authHeaders()),
-        },
+        headers,
         body: JSON.stringify({
           draft,
           previousCheckout,

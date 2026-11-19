@@ -1,6 +1,6 @@
 import { firestoreDb } from '../firebase-admin';
 import { WEDDING_DAY, weddingApprovalFingerprint, type WeddingActor, type WeddingHousehold } from './domain';
-import { assertWeddingActorInTransaction, assertWeddingMutable, weddingId, weddingProjectRef, weddingSessionRef, WeddingError } from './server';
+import { assertWeddingActorInTransaction, assertWeddingMutable, weddingId, weddingProjectRef, WeddingError } from './server';
 import { matchVersion, object } from './validation';
 
 export async function editWeddingSelection(actor:WeddingActor, input:Record<string,unknown>) {
@@ -32,17 +32,5 @@ export async function editWeddingSelection(actor:WeddingActor, input:Record<stri
     });
     const at=Date.now();
     tx.update(ref,{revision:project.revision+1,updatedAt:at,expiresAt:at+180*WEDDING_DAY});
-  });
-}
-
-export async function revokeWeddingDevice(actor:WeddingActor,input:Record<string,unknown>) {
-  const sessionId=weddingId(input.sessionId);
-  await firestoreDb.runTransaction(async tx => {
-    const {project} = await assertWeddingActorInTransaction(tx,actor,'owner');
-    const ref=weddingSessionRef(sessionId);
-    const session=(await tx.get(ref)).data();
-    if (!session || session.projectId!==project.id) throw new WeddingError('unknown_device','This device is unavailable.',404);
-    if (sessionId===actor.sessionId) throw new WeddingError('current_device','Use another linked device to revoke this session.',409);
-    tx.update(ref,{revoked:true});
   });
 }

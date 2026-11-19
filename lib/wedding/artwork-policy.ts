@@ -57,6 +57,21 @@ export function assertStillArtwork(bytes: Buffer, mime: string): void {
   }
   throw new WeddingArtworkError('invalid_image','This PNG is incomplete. Choose another file.');
 }
+/** For already authorized, hash-verified private masters only. This does not
+ * decode, resize, strip metadata, or accept a new user upload. */
+export function assertNormalizedWeddingFront(bytes:Buffer):void {
+  if(!bytes.length||bytes.length>ARTWORK_LIMITS.inputBytes)throw new WeddingArtworkError('normalized_front_required','Choose an approved normalized card front.',409);
+  assertStillArtwork(bytes,'image/png');
+  if(bytes.length<33||bytes.readUInt32BE(8)!==13||bytes.toString('ascii',12,16)!=='IHDR'||bytes.readUInt32BE(16)!==ARTWORK_LIMITS.width||bytes.readUInt32BE(20)!==ARTWORK_LIMITS.height||bytes[24]!==8||![2,6].includes(bytes[25])||bytes[26]!==0||bytes[27]!==0||bytes[28]!==0)throw new WeddingArtworkError('normalized_front_required','Choose an approved A2 PNG front.',409);
+  let offset=8,hasPixels=false;
+  const permitted=new Set(['IHDR','IDAT','IEND','pHYs','sRGB','gAMA','cHRM']);
+  while(offset+12<=bytes.length){const length=bytes.readUInt32BE(offset),type=bytes.toString('ascii',offset+4,offset+8);
+    if(!permitted.has(type))throw new WeddingArtworkError('normalized_front_required','This front needs authenticated re-selection before transfer.',409);
+    if(type==='IDAT')hasPixels=true;
+    offset+=length+12;
+    if(type==='IEND'){if(!hasPixels||length!==0||offset!==bytes.length)throw new WeddingArtworkError('normalized_front_required','Choose an approved normalized card front.',409);return;}
+  }
+}
 export const WEDDING_ARTWORK_PRESETS = Object.freeze({
   'preset-thankyou-botanical': '/presets/thank-you-botanical.jpg',
   'preset-thankyou-laurel': '/presets/thank-you-laurel-wreath.jpg',

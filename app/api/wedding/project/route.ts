@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { WEDDING_DEVICE_COOKIE, WEDDING_PRIVATE_HEADERS, assertWeddingOrigin, assertWeddingRuntime, newWeddingSecret, readWeddingBody, requireWeddingActor, setWeddingCookie, weddingCookie, weddingErrorResponse, weddingIdentity, weddingJson, WeddingError } from '@/lib/wedding/server';
 import { acceptWeddingAddress, approveWeddingHouseholds, changeWeddingGrant, claimWeddingMembership, createWeddingProject, exportWeddingTracker, extendWeddingProject, importWeddingHouseholds, inviteWeddingMember, redeemWeddingInvite, revokeWeddingInvite, revokeWeddingSession, saveWeddingHousehold, saveWeddingProject, weddingState } from '@/lib/wedding/project';
 import { issueWeddingPilot } from '@/lib/wedding/pilot';
-import {editWeddingSelection,revokeWeddingDevice} from '@/lib/wedding/project-commands';
+import {editWeddingSelection} from '@/lib/wedding/project-commands';
 export const runtime='nodejs';
 function csvResponse(csv:string){return new NextResponse(csv,{headers:{...WEDDING_PRIVATE_HEADERS,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="thank-you-tracker.csv"'}});}
 function withSession(req:Request,token:string){const headers=new Headers(req.headers);headers.set('cookie',`smn_wedding_session=${token}`);return new Request(req.url,{headers,method:'GET'});}
@@ -34,7 +34,6 @@ export async function POST(req:Request) {
       case 'saveHousehold':extra=await saveWeddingHousehold(actor,body);break;
       case 'importHouseholds':extra=await importWeddingHouseholds(actor,body);break;
       case 'assignTemplate':case 'undoApproval':await editWeddingSelection(actor,body);break;
-      case 'revokeSession':await revokeWeddingDevice(actor,body);break;
       case 'approve':extra=await approveWeddingHouseholds(actor,body);break;
       case 'invite':
         if(body.kind==='pilot'){if(actor.role!=='owner')throw new WeddingError('owner_required','Only the owner can invite a pilot tester.',403);extra=await issueWeddingPilot((await weddingIdentity(req,true))!,actor.projectId);}

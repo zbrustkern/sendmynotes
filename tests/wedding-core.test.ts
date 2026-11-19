@@ -143,7 +143,7 @@ async function main(){
     await assert.rejects(()=>P.saveWeddingHousehold(owner,{patch:rowInput('Expired')}),{code:'project_expired'});await P.extendWeddingProject(owner);assert.equal((await state()).expired,false);assert.equal((await state()).project.purchasedCount,2);
   });
   await check('signed-in unclaimed projects remain usable and account recovery requires current membership',async()=>{
-    const fresh=await setup();const signed=await S.requireWeddingActor(request(undefined,fresh.token,'unclaimed_fixture'));assert.equal(signed.verified,false);await P.weddingState(signed);
+    const fresh=await setup();const failedSignIn=request(undefined,fresh.token);failedSignIn.headers.set('authorization','Bearer invalid_fixture');assert.equal((await S.requireWeddingActor(failedSignIn)).verified,false);await P.weddingState(await S.requireWeddingActor(failedSignIn));const signed=await S.requireWeddingActor(request(undefined,fresh.token,'unclaimed_fixture'));assert.equal(signed.verified,false);await P.weddingState(signed);
     const listed=await P.listWeddingAccountProjects(ownerIdentity);assert.ok(listed.projects.some(p=>p.projectId===owner.projectId));
     const resumed=await P.resumeWeddingAccount(ownerIdentity,{projectId:owner.projectId,actorId:owner.actorId});const actor=await S.requireWeddingActor(request(undefined,resumed.token,ownerIdentity.uid));assert.equal(actor.verified,true);
     await assert.rejects(()=>P.resumeWeddingAccount(partnerIdentity,{projectId:owner.projectId,actorId:owner.actorId}),{code:'account_mismatch'});
@@ -163,6 +163,13 @@ async function main(){
     assert.equal((await S.weddingProjectRef(owner.projectId).collection('artworkPins').doc('paid').get()).data()!.storageKey,paidMaster);
     assert.ok(!(await S.weddingProjectRef(active.projectId).get()).data()!.deletedAt);
     const later=await setup();await S.weddingProjectRef(later.projectId).update({expiresAt:old+1});for(let i=0;i<5;i++)await Retention.cleanupWeddingDrafts(Date.now(),1);assert.ok((await S.weddingProjectRef(later.projectId).get()).data()!.deletedAt);
+  });
+  await check('revoking a consumed partner invitation removes account recovery and fences its existing intent',async()=>{
+    const fresh=await setup(),invite=await P.inviteWeddingMember(fresh.actor,{kind:'partner'}),redeemed=await P.redeemWeddingInvite(invite.link.split('=')[1]);
+    const editor=await S.requireWeddingActor(request(undefined,redeemed.token!));await P.claimWeddingMembership(editor,partnerIdentity);
+    const ref=S.weddingProjectRef(fresh.projectId);await ref.update({activeBatchId:'wb_link_fixture',checkoutActorId:editor.actorId});
+    await P.revokeWeddingInvite(fresh.actor,invite.inviteId);const current=(await ref.get()).data()!;assert.equal(current.activeBatchId,'wb_link_fixture');assert.equal(current.paymentReconciliationRequired,true);
+    await assert.rejects(()=>P.resumeWeddingAccount(partnerIdentity,{projectId:fresh.projectId,actorId:editor.actorId}),{code:'account_mismatch'});
   });
   await check('production is disabled without explicit staged runtime',()=>{const env=process.env.NODE_ENV;Object.assign(process.env,{NODE_ENV:'production'});try{assert.throws(()=>S.assertWeddingRuntime(),{code:'wedding_disabled'});}finally{Object.assign(process.env,{NODE_ENV:env});}});
   console.log(`Wedding core: ${checks} isolated checks passed. No cloud or fulfillment access.`);

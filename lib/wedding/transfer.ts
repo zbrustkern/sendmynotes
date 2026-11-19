@@ -15,6 +15,9 @@ import { canonicalWeddingJSON, weddingHash } from './hash';
 import { newWeddingHousehold, type WeddingActor, type WeddingHousehold, type WeddingProject, type WeddingReturnAddress } from './domain';
 import { WeddingError, WEDDING_DEVICE_COOKIE, assertWeddingActorInTransaction, assertWeddingOrigin, assertWeddingRuntime, newWeddingSecret, newWeddingSession, weddingCookie, weddingId, weddingProjectRef, weddingSessionRef } from './server';
 import { object, text } from './validation';
+import { transferArtworkBoundary, weddingTransferArtworkSource, weddingTransferArtworkIdentity, type TransferArtworkSource } from './transfer-artwork';
+import { ARTWORK_POLICY } from './artwork-policy';
+import { artworkProjectSegment } from './artwork-storage';
 
 const LEASE_MS = 60_000;
 type Proof = {orderId:string;viewToken:string};
@@ -30,7 +33,7 @@ function draftAddress(value:unknown) {
 }
 /** Copy only EntryPrototypeClient's content fields. Never trust client approval,
  * payment, ownership, price, private asset URLs, or v1's implicit US default. */
-export function parseWeddingTransfer(body:Record<string,unknown>):TransferInput {
+export function parseWeddingTransfer(body:Record<string,unknown>,ownedSource?:TransferArtworkSource):TransferInput {
   const draft=object(body.draft),batch=object(draft.multiSend),note=object(draft.note);
   const checkoutId=weddingId(batch.checkoutId);
   if(batch.version!==1||!Array.isArray(batch.recipients)||batch.recipients.length<1||batch.recipients.length>25)failure('TRANSFER_INVALID_DRAFT','Choose a general batch with 1–25 draft recipients.',400);
@@ -41,9 +44,9 @@ export function parseWeddingTransfer(body:Record<string,unknown>):TransferInput 
   const selected=draft.selectedDesign==null?{}:object(draft.selectedDesign);
   const resolution=body.coverResolution==null?null:object(body.coverResolution);
   const privateCover=!!(draft.uploadSelection||draft.accountImage||draft.privateUploadRecovery||draft.coverChoiceRequired||selected.uploadSelection||selected.source!=='preset');
-  if(!resolution&&privateCover)failure('TRANSFER_COVER_RESOLUTION_REQUIRED','Keep your original design and choose a preset explicitly, or select your authorized artwork in the wedding project.');
+  if(!resolution&&privateCover&&!ownedSource)failure('TRANSFER_COVER_RESOLUTION_REQUIRED','Keep your original design and choose a preset explicitly, or select your authorized artwork in the wedding project.');
   const preset=CARD_PRESETS.find(p=>p.id===(resolution?.presetId??selected.presetId));
-  if(!preset)failure('TRANSFER_COVER_RESOLUTION_REQUIRED','Choose an available preset explicitly before transferring.');
+  if(!preset&&!ownedSource)failure('TRANSFER_COVER_RESOLUTION_REQUIRED','Choose an available preset explicitly before transferring.');
   const sharedBody=text(note.text,16000),signOff=text(note.signOff??'',2000),salutation=text(note.salutation??'',2000),handwriting=text(note.style,80);
   if(!ALL_FONT_CANDIDATES.some(f=>f.id===handwriting))failure('TRANSFER_INVALID_DRAFT','Choose a supported handwriting style.',400);
   // Unknown inherited openings (including bare names) remain disputed too.
@@ -62,7 +65,10 @@ export function parseWeddingTransfer(body:Record<string,unknown>):TransferInput 
   if(new Set(households.map(r=>r.id)).size!==households.length)failure('TRANSFER_INVALID_DRAFT','Each recipient needs a distinct ID.',400);
   const {name,...sender}=draftAddress(draft.sender);
   if(sender.country&&!['US','USA','United States','United States of America'].includes(sender.country))failure('TRANSFER_INVALID_DRAFT','Use a personal United States return address.',400);
-  const content:TransferContent={checkoutId,sharedBody,signOff,handwriting,cover:{kind:'preset',id:preset.id,url:preset.imageUrl},returnAddress:{...sender,country:sender.country?'US':'',firstName:name,lastName:''},households};
+  // The source reference fixes retry identity before a destination exists. This
+  // internal placeholder is never stored or returned as an accepted front.
+  const cover:WeddingProject['cover']=ownedSource?{kind:'upload',id:`transfer_${weddingTransferArtworkIdentity(ownedSource)}`,url:''}:{kind:'preset',id:preset!.id,url:preset!.imageUrl};
+  const content:TransferContent={checkoutId,sharedBody,signOff,handwriting,cover,returnAddress:{...sender,country:sender.country?'US':'',firstName:name,lastName:''},households};
   return {content,inputHash:weddingHash(canonicalWeddingJSON(content)),paymentAttempted:body.paymentAttempted||!!draft.checkoutSnapshotId||draft.completed===true,proof};
 }
 function authorizedStatus(order:Order,paymentState:'paid'|'pending'|'uncertain'):never {
@@ -116,7 +122,7 @@ async function sourceClaim(input:TransferInput,ownerKey:string) {
 }
 /** Credentials come only from verified Firebase identity or the v1 HttpOnly
  * cookie. previousCheckout is an additional proof, never an ownership grant. */
-export async function transferWeddingDraft(req:NextRequest,body:Record<string,unknown>,onCapability?:(name:string,value:string)=>void) {
+export async function transferWeddingDraft(req:NextRequest,body:Record<string,unknown>,onCapability?:(name:string,value:string)=>void,artwork=transferArtworkBoundary) {
   assertWeddingRuntime();assertWeddingOrigin(req);
   const checkoutId=weddingId(object(object(body.draft).multiSend).checkoutId);
   const account=req.headers.has('authorization')?await requireAccountActor(req,true).catch(error=>{if(error instanceof AccountError)throw new WeddingTransferError(error.code,error.message,error.status);throw error;}):null;
@@ -127,6 +133,7 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
   const ownerKey=multiSendCheckoutOwnerKey({checkoutId,userId:account?.uid,guestCapability:capability});
   // Paid status must be reachable even when the editable draft now needs cover
   // resolution. This read does not grant ownership or permit a transfer.
+  let knownPrior:Order|undefined;
   if(body.previousCheckout!=null) {
     const proof=object(body.previousCheckout),orderId=weddingId(proof.orderId),viewToken=text(proof.viewToken,256);
     await firestoreDb.runTransaction(async tx=>{
@@ -135,11 +142,18 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
       const order=group.currentOrderId?(await tx.get(firestoreDb.collection('orders').doc(group.currentOrderId))).data() as Order|undefined:undefined;
       if(!order?.viewToken||group.currentOrderId!==orderId||order.viewToken!==viewToken||order.multiSend?.checkoutId!==checkoutId)failure('TRANSFER_PAYMENT_PROOF_REQUIRED','Provide the previous checkout proof before transferring.');
       if(paidOrder(order))authorizedStatus(order,'paid');
+      knownPrior=order;
     });
   }
-  const input=parseWeddingTransfer(body);
+  const artworkSource=weddingTransferArtworkSource(body),input=parseWeddingTransfer(body,artworkSource);
+  const ref=multiSendCheckoutRef(checkoutId);
+  // A completed transfer owns its independent copy. Replays must not require a
+  // still-live source library item or grant, and cannot replace that copy.
+  const observed=artworkSource?(await ref.get()).data() as CheckoutGroup|undefined:undefined;
+  if(observed&&observed.ownerKey!==ownerKey)failure('TRANSFER_OWNER_MISMATCH','Use the original checkout account or device.',403);
+  const ownedFront=artworkSource&&observed?.state!=='transferred'?await artwork.resolve(req,account,artworkSource,knownPrior):undefined;
   const deviceToken=weddingCookie(req,WEDDING_DEVICE_COOKIE)||newWeddingSecret().token;
-  const claim=await sourceClaim(input,ownerKey),ref=multiSendCheckoutRef(checkoutId);
+  const claim=await sourceClaim(input,ownerKey);
   if(!account)onCapability?.(cookieName,capability);
   try {
     if(!claim.replay&&claim.order){await reconcileWeddingTransferPayment(claim.order);await releaseOfferReservation(claim.order.id,'removed');}
@@ -147,6 +161,16 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
     // and source fence finish. Failure can leave only an empty expiring project.
     const fresh=claim.replay?null:await createWeddingProject(account?ownerKey:deviceToken);
     const session=claim.replay?newWeddingSecret():{token:fresh!.token,id:fresh!.sessionId};
+    let adopted:{assetId:string;url:string}|undefined;
+    if(!claim.replay&&ownedFront) {
+      const authorize=async()=>{await firestoreDb.runTransaction(async tx=>{
+        const current=(await tx.get(ref)).data() as CheckoutGroup|undefined;
+        if(current?.state!=='transferring'||current.ownerKey!==ownerKey||current.leaseId!==claim.leaseId)failure('TRANSFER_CHECKOUT_BUSY','This transfer changed. Retry to open its project.');
+        await assertWeddingActorInTransaction(tx,{projectId:fresh!.projectId,actorId:fresh!.actorId,role:'owner',verified:false,pilot:false,sessionId:fresh!.sessionId},'owner');
+        await ownedFront.assertCurrent(tx);
+      });};
+      adopted=await artwork.adopt(fresh!.projectId,ownedFront.bytes,ownedFront.sha256,{signal:req.signal,authorize});
+    }
     const result=await firestoreDb.runTransaction(async tx=>{
       const group=(await tx.get(ref)).data() as CheckoutGroup|undefined;
       if(!group||group.ownerKey!==ownerKey||group.weddingTransfer?.inputHash!==input.inputHash||(!claim.replay&&(group.leaseId!==claim.leaseId||group.state!=='transferring')))failure('TRANSFER_CHECKOUT_BUSY','The transfer changed. Retry to open the current project.');
@@ -169,8 +193,17 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
       if(project.householdCount||project.activeBatchId||project.purchasedCount)failure('TRANSFER_PROJECT_CONFLICT','The new project is no longer empty.');
       const {households,...content}=input.content;
       const {checkoutId:_source,...settings}=content;
+      if(artworkSource) {
+        if(!adopted||!ownedFront)failure('TRANSFER_COVER_RESOLUTION_REQUIRED','Reselect your approved front before transferring.');
+        await ownedFront.assertCurrent(tx);
+        const asset=(await tx.get(weddingProjectRef(projectId).collection('artwork').doc(adopted.assetId))).data();
+        const key=`wedding-normalized/staging/${artworkProjectSegment(projectId)}/${ownedFront.sha256}.png`;
+        if(!asset||asset.projectId!==projectId||asset.id!==adopted.assetId||asset.policy!==ARTWORK_POLICY||asset.verdict!=='accepted_for_import'||asset.deletedAt||!asset.generation||!asset.sourceGeneration||asset.sha256!==ownedFront.sha256||asset.sourceSha256!==ownedFront.sha256||asset.storageKey!==key||asset.sourceKey!==key)failure('TRANSFER_COVER_RESOLUTION_REQUIRED','The private front could not be attached. Retry your transfer.');
+        settings.cover={kind:'upload',id:asset.id,url:`/api/wedding/artwork?id=${asset.id}`,hash:asset.sha256,masterKey:asset.storageKey};
+      }
       const greetingReviewIds=households.filter(r=>r.greetingNeedsReview).map(r=>r.id);
       tx.update(weddingProjectRef(projectId),{...settings,revision:project.revision+1,householdCount:households.length,updatedAt:Date.now(),paymentReconciliationRequired:false});
+      if(artworkSource&&ownedFront&&adopted)tx.create(weddingProjectRef(projectId).collection('transferSources').doc('cover'),{version:1,source:artworkSource,ownerUid:account!.uid,sha256:ownedFront.sha256,assetId:adopted.assetId,createdAt:Date.now()});
       for(const row of households)tx.create(weddingProjectRef(projectId).collection('households').doc(row.id),row);
       if(prior)tx.update(firestoreDb.collection('orders').doc(prior.id),{status:'FAILED',fulfillmentStatus:'WEDDING_TRANSFERRED',fulfillmentError:'Prior unpaid payment was canceled before transfer.',updatedAt:Date.now()});
       tx.update(ref,{state:'transferred',leaseId:null,updatedAt:Date.now(),weddingTransfer:{inputHash:input.inputHash,leaseUntil:0,projectId,actorId,sessionId:originalSessionId,copiedCount:households.length,greetingReviewIds}});

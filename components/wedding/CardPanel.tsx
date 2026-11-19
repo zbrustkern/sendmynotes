@@ -10,6 +10,7 @@ import {
   postWedding,
   safePreview,
   weddingRequest,
+  WeddingRequestError,
   type Cover,
   type PanelProps,
   type Project,
@@ -50,7 +51,15 @@ export function handFont(id: string) {
   );
 }
 type Asset = { assetId: string; url: string };
-type Meta = { provider?: string; model?: string; imageModel?: string };
+type Meta = {
+  provider?: string;
+  model?: string;
+  imageModel?: string;
+  available?: boolean;
+  imageStepUpRequired?: boolean;
+  remaining?: { images: number };
+  resetsAt?: number;
+};
 export function CardPanel({
   state,
   mutate,
@@ -72,21 +81,33 @@ export function CardPanel({
     [consent, setConsent] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
+    [needsAuth, setNeedsAuth] = useState(false),
     [meta, setMeta] = useState<Meta>({});
   const [modified, setModified] = useState(false);
   const [aiIntent, setAiIntent] = useState(() => crypto.randomUUID());
-  useEffect(() => {
+  const refreshAI = () =>
     weddingRequest<Meta>("ai")
       .then(setMeta)
       .catch(() => {});
-  }, []);
+  useEffect(() => {
+    void refreshAI();
+  }, [state.actor.verified, state.actor.pilot]);
+  useEffect(() => {
+    setConsent(false);
+    setAiIntent(crypto.randomUUID());
+  }, [asset?.assetId]);
   async function work(fn: () => Promise<void>) {
     setBusy(true);
     setError("");
+    setNeedsAuth(false);
     try {
       await fn();
     } catch (e) {
       setError(errorMessage(e));
+      setNeedsAuth(
+        e instanceof WeddingRequestError &&
+          (e.code === "ai_sign_in_required" || e.code === "unauthorized"),
+      );
     } finally {
       setBusy(false);
     }
@@ -346,6 +367,8 @@ export function CardPanel({
               !state.actor.pilot ||
               !consent ||
               !prompt.trim() ||
+              meta.available === false ||
+              meta.remaining?.images === 0 ||
               !meta.provider
             }
             onClick={() =>
@@ -359,6 +382,7 @@ export function CardPanel({
                 });
                 setAsset(a);
                 setOriginal(a);
+                void refreshAI();
                 setConsent(false);
                 setModified(false);
                 setAiIntent(crypto.randomUUID());
@@ -367,10 +391,30 @@ export function CardPanel({
           >
             Generate artwork
           </button>
+          {meta.imageStepUpRequired && !state.actor.verified && (
+            <p className="wed-notice">
+              Verify your account before requesting another cover.{" "}
+              <button onClick={signIn}>Sign in</button>
+            </p>
+          )}
+          {meta.available === false && (
+            <p className="wed-notice">
+              AI artwork is temporarily unavailable. You can still upload a
+              photo or choose a preset.
+            </p>
+          )}
+          {meta.remaining && (
+            <p className="wed-meta">
+              {meta.remaining.images} artwork requests remaining
+              {meta.resetsAt
+                ? " · resets " + new Date(meta.resetsAt).toLocaleString()
+                : ""}
+            </p>
+          )}
         </details>
         {error && (
           <div role="alert" className="wed-notice">
-            {error} <button onClick={signIn}>Sign in</button>
+            {error} {needsAuth && <button onClick={signIn}>Sign in</button>}
           </div>
         )}
         {busy && <p role="status">Preparing your card…</p>}
