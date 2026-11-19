@@ -100,7 +100,6 @@ const mockModules = {
   "@/components/v3/Step4ReviewAndPayment": childMocks,
   "@/components/v3/Step5Confirmation": childMocks,
   "@/components/v3/CustomAiCommissionDrawer": childMocks,
-  "@/components/v3/TargetPurchaseExperience": `exports.extractRecipientName = () => "Friend"; exports.extractSenderName = () => "Sender";`,
   "@/lib/payment-mode": `exports.evaluateCheckoutInitTransition = () => ({ canAdvance: true }); exports.evaluatePaymentSubmission = ({ isZeroCost, isMock, hasStripe, hasElements }) => isZeroCost ? { mode: "free" } : isMock ? { mode: "local_mock" } : hasStripe && hasElements ? { mode: "stripe" } : { mode: "blocked_error", errorMessage: "Payment processor unavailable" };`,
   "@/lib/telemetry": `exports.trackEvent = exports.trackEventV2 = () => {}; exports.getSessionId = () => "parent-test-session";`,
   "@/lib/google-ads": `exports.trackGA4ViewItem = exports.trackGA4BeginCheckout = exports.trackGA4AddShippingInfo = exports.trackGA4AddPaymentInfo = exports.trackGA4CustomEvent = () => {};`,

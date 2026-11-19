@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import http from "node:http";
 import os from "node:os";
+import { pathToFileURL } from "node:url";
 import { build } from "esbuild";
 const root=process.cwd();
 const dir=await fs.mkdtemp(path.join(os.tmpdir(), "smn-sitelink-fixture-"));
@@ -10,12 +11,11 @@ const mocks = {
   "next/navigation": `exports.useSearchParams = () => new URLSearchParams(window.location.search);`,
   "next/image": `import React from 'react'; export default ({fill, priority, unoptimized, ...props}) => React.createElement('img', props);`,
   "next/link": `import React from 'react'; export default (props) => React.createElement('a', props);`,
-  "@/context/AuthContext": `exports.useAuth = () => ({ user: null, account: null, loading: false });`,
+  "@/context/AuthContext": `exports.useAuth = () => ({ user: window.__fixtureUser || null, account: null, loading: false });`,
   "@/lib/telemetry": `exports.trackEvent = exports.trackEventV2 = (name, props) => { (window.__events ||= []).push({name, props}); }; exports.getSessionId = () => 'sess_fixture';`,
   "@/lib/google-ads": `exports.trackGA4ViewItem = exports.trackGA4BeginCheckout = exports.trackGA4AddShippingInfo = exports.trackGA4AddPaymentInfo = () => {};`,
   "@/lib/meta-ads": `exports.trackMetaViewContent = exports.trackMetaAddToCart = exports.trackMetaCustomizeProduct = exports.trackMetaInitiateCheckout = exports.trackMetaAddPaymentInfo = () => {};`,
   "@/components/AttributionTracker": `exports.getStoredAttribution = () => ({});`,
-  "@/components/v3/TargetPurchaseExperience": `exports.extractRecipientName = x => x; exports.extractSenderName = x => x;`,
   "@/components/v3/Step4ReviewAndPayment": `import React from 'react'; export const Step4ReviewAndPayment = () => React.createElement('div', null, 'Payment fixture');`,
   "@/components/v3/Step5Confirmation": `exports.Step5Confirmation = () => null;`,
 };
@@ -38,7 +38,7 @@ const cssRoot=process.env.SMN_FIXTURE_CSS_DIR || path.join(root,'.next/static/cs
 let css='';try{for(const file of await fs.readdir(cssRoot))if(file.endsWith('.css'))css+=await fs.readFile(path.join(cssRoot,file),'utf8');}catch{}
 const links=['client','interview','sympathy','thanks','birthday','anniversary','generic'].map(name=>`<a href="/${name}?utm_source=google&utm_medium=cpc&utm_campaign=fixture&utm_content=${name}">${name}</a>`).join(' | ');
 const page=`<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><title>Isolated sitelink test</title><link rel="stylesheet" href="/style.css"></head><body><aside style="background:#eef6ff;padding:8px;font:12px system-ui">Local fixture: ${links}<br><button id="seed">Seed edited legacy client draft</button> | <button id="reset">Reset fixture drafts</button></aside><div id="root"></div><script src="/bundle.js"></script></body></html>`;
-http.createServer(async(req,res)=>{
+export const server = http.createServer(async(req,res)=>{
 const url=new URL(req.url,'http://localhost');
 if(url.pathname==='/bundle.js'){res.setHeader('Content-Type','text/javascript');return res.end(bundle);}
 if(url.pathname==='/style.css'){res.setHeader('Content-Type','text/css');return res.end(css);}
@@ -46,4 +46,7 @@ if(url.pathname==='/api/mailing-options'){res.setHeader('Content-Type','applicat
 if(url.pathname.startsWith('/api/')){res.statusCode=409;return res.end(JSON.stringify({error:'All other APIs blocked in fixture'}));}
 if(url.pathname.startsWith('/presets/')||url.pathname.startsWith('/fonts/')){try{const data=await fs.readFile(path.join(root,'public',url.pathname));res.setHeader('Content-Type',url.pathname.endsWith('.jpg')?'image/jpeg':'application/octet-stream');return res.end(data);}catch{res.statusCode=404;return res.end();}}
 res.setHeader('Content-Type','text/html');res.end(page);
-}).listen(4317,'127.0.0.1',()=>console.log('Fixture ready at http://127.0.0.1:4317/generic'));
+});
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+  server.listen(4317,'127.0.0.1',()=>console.log('Fixture ready at http://127.0.0.1:4317/generic'));
+}

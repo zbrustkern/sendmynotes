@@ -2,7 +2,6 @@ import fs from "fs";
 import path from "path";
 import { CARD_PRESETS, OCCASIONS } from "../lib/card-presets";
 import { HANDWRITING_STYLES } from "../components/v3/Step2NoteComposition";
-import { extractRecipientName, extractSenderName } from "../components/v3/TargetPurchaseExperience";
 import { detectCardIntent } from "../lib/card-intent";
 import { calculateDeliveryEstimate } from "../lib/delivery-estimate";
 
@@ -77,72 +76,8 @@ async function runTargetExperienceTests() {
     );
   });
 
-  // 3. Salutation & Sign-off Auto-Sync Helpers
-  console.log("\n--- 3. Testing Salutation & Sign-off Auto-Sync ---");
-  assert(
-    extractRecipientName("Dear Eleanor,") === "Eleanor",
-    `Salutation 'Dear Eleanor,' extracts 'Eleanor'`
-  );
-  assert(
-    extractRecipientName("Dear Eleanor Vance,") === "Eleanor Vance",
-    `Salutation 'Dear Eleanor Vance,' extracts 'Eleanor Vance'`
-  );
-  assert(
-    extractRecipientName("Dearest Sarah!") === "Sarah",
-    `Salutation 'Dearest Sarah!' extracts 'Sarah'`
-  );
-  assert(
-    extractRecipientName("To: Grandma Rose") === "Grandma Rose",
-    `Salutation 'To: Grandma Rose' extracts 'Grandma Rose'`
-  );
-  assert(
-    extractRecipientName("D") === "",
-    `Single character typing 'D' does not populate recipient name`
-  );
-  assert(
-    extractRecipientName("Dear") === "",
-    `Greeting word 'Dear' does not populate recipient name`
-  );
-  assert(
-    extractRecipientName("Dear ") === "",
-    `Greeting 'Dear ' does not populate recipient name`
-  );
-  assert(
-    extractRecipientName("Dear [Interviewer Name],") === "",
-    `Bracket template placeholder 'Dear [Interviewer Name],' does not populate recipient name`
-  );
-
-  assert(
-    extractSenderName("Warmly, Thomas") === "Thomas",
-    `Sign-off 'Warmly, Thomas' extracts 'Thomas'`
-  );
-  assert(
-    extractSenderName("Warmly, Thomas Miller") === "Thomas Miller",
-    `Sign-off 'Warmly, Thomas Miller' extracts 'Thomas Miller'`
-  );
-  assert(
-    extractSenderName("With love, Mom & Dad") === "Mom & Dad",
-    `Sign-off 'With love, Mom & Dad' extracts 'Mom & Dad'`
-  );
-  assert(
-    extractSenderName("Sincerely, Jessica Davis") === "Jessica Davis",
-    `Sign-off 'Sincerely, Jessica Davis' extracts 'Jessica Davis'`
-  );
-  assert(
-    extractSenderName("W") === "",
-    `Single character typing 'W' does not populate sender name`
-  );
-  assert(
-    extractSenderName("Warmly,") === "",
-    `Sign-off 'Warmly,' without name does not populate sender name`
-  );
-  assert(
-    extractSenderName("Best regards,\n[Your Name]") === "",
-    `Template bracket '[Your Name]' does not populate sender name`
-  );
-
-  // 4. Character Limit & Fit Boundary
-  console.log("\n--- 4. Testing Physical Leaf Character Limits (420 warning, 450 hard cap) ---");
+  // 3. Character Limit & Fit Boundary
+  console.log("\n--- 3. Testing Physical Leaf Character Limits (420 warning, 450 hard cap) ---");
   const shortNote = "Happy Birthday! Wishing you lots of love and fun today.";
   assert(
     shortNote.length < 420,
@@ -161,8 +96,8 @@ async function runTargetExperienceTests() {
     `Hard cap exactly at 450 characters`
   );
 
-  // 5. Delivery Window SLA Calculation
-  console.log("\n--- 5. Testing USPS First-Class SLA Delivery Window ---");
+  // 4. Delivery Window SLA Calculation
+  console.log("\n--- 4. Testing USPS First-Class SLA Delivery Window ---");
   const estimate = calculateDeliveryEstimate();
   assert(
     typeof estimate.earliestDate === "string" && typeof estimate.latestDate === "string",
@@ -173,8 +108,8 @@ async function runTargetExperienceTests() {
     `Formatted delivery range available: '${estimate.formattedRange}'`
   );
 
-  // 6. Post-Purchase Retention & Intent Classification
-  console.log("\n--- 6. Testing Post-Purchase Occasion Intent ---");
+  // 5. Post-Purchase Retention & Intent Classification
+  console.log("\n--- 5. Testing Post-Purchase Occasion Intent ---");
   const bdayIntent = detectCardIntent({
     occasion: "Birthday",
     handwrittenNote: "Happy Birthday Eleanor!",
