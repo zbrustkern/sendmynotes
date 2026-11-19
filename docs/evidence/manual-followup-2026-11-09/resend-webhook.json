@@ -1,0 +1,19 @@
+{
+  "checkedAt": "2026-11-09T15:06:20.851Z",
+  "project": "sendmynotes-2a417",
+  "id": "resend-webhook-secret",
+  "version": "1",
+  "webhookId": "4eebae63-ec3d-4341-a7fb-575687348559",
+  "endpoint": "https://sendmynotes.com/api/webhooks/resend",
+  "events": [
+    "email.bounced",
+    "email.complained",
+    "email.delivered",
+    "email.delivery_delayed",
+    "email.failed",
+    "email.sent",
+    "email.suppressed"
+  ],
+  "valuesLogged": false,
+  "emailsSent": 0
+}

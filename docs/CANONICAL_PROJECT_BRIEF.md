@@ -1,6 +1,6 @@
 # Send My Notes: canonical project brief
 
-**Established by the founder: October 11, 2026.**
+**Established October 11, 2026; founder-confirmed business update November 9, 2026.**
 **Read first.** This is the current source of truth for audience, positioning,
 brand roles, commercial baseline, payment evidence, and use of photography.
 Product claims are governed by [canonical product specifications](CANONICAL_PRODUCT_SPECS.md).
@@ -16,13 +16,15 @@ not itself evidence.
 | Primary value | A thoughtful gesture made seamless. | The emotional impact of a physical personal note leads; phone convenience removes the work of sending it. |
 | Customization | The custom aspect is part of thoughtfulness. | Preserve personal words and meaningful design choice. The placement of custom artwork generation remains a design hypothesis; the founder has not approved hiding or removing it. |
 | Stationery quality | Secondary to the thoughtful gesture. | Quality supports the emotional promise. Paper specifications and atelier language must not dominate the sending flow. |
-| Commercial baseline | Zero independent customer conversions. The one paid order was the founder's test. | Exclude founder tests and comps from customer conversion and acquisition reporting. The previously displayed 0.6% is not a customer conversion baseline. |
+| Commercial baseline | **Six confirmed purchases outside friends and family**, confirmed by the founder November 9, 2026. October 11 had zero independent purchases and one founder test; that is historical. | Count purchases, not six assumed unique buyers. Exclude founder/friends/family testing, free orders and comps from independent acquisition reporting. Do not infer a conversion rate without an eligible-session denominator. |
+| Single-card economics | **$9.00 price − $4.88 Handwrytten − $0.56 Stripe = $3.56 contribution (39.6%)**, for an undiscounted single domestic card. | Founder-confirmed November 9; two supplier receipts independently corroborate $4.88. Before advertising and other operating costs; not net profit or a universal fee schedule. |
+| Follow-up policy | Founder chooses each email manually from admin. One-tap draft generation and editable preview; no automatic sending. | Sympathy and other sensitive occasions require considered copy. A captured email permits drafting, not inferred marketing consent. Manual service outreach, promotional offers and automated enrollment remain distinct. |
 | Payments | The founder successfully paid through Stripe. Apple Pay has not been personally tested. | A successful Stripe payment does not verify Apple Pay availability or payment in Safari or Meta's in-app browsers. |
 | SendMyNotes brand | Sender-facing convenience service. The founder's intended direction is to purge Aster & Blanche from SendMyNotes. | Use SendMyNotes throughout its customer journey. This documentation decision is not a claim that the live UI has already been changed. |
 | Aster & Blanche brand | Recipient-facing landing page reinforcing the quality and thoughtfulness of the card if a recipient looks it up. A small optional sending funnel already exists there. | Preserve the physical stationery identity and a restrained recipient experience. Do not turn it into an advertisement for the sender's convenience shortcut. The small existing funnel need not be removed. |
 | Photography | Existing physical-product photos are authorized for marketing, provided the founder's personal information is excluded or edited out. | Only publish visually reviewed, sanitized derivatives. Never expose names, addresses, emails, order identifiers, or identifying codes from originals. |
 
-## Current ad evidence
+## Historical ad evidence — October 11, 2026
 
 Three founder-supplied previews were reviewed on October 11: Facebook feed,
 Instagram Stories, and Audience Network mobile native. Visible copy includes:
@@ -40,14 +42,15 @@ should continue that promise. In the Stories preview, placement controls overlap
 the headline and price region; this is a visible layout issue, not evidence of its
 effect on clicks or sales.
 
-The displayed domain does not establish the actual configured destination URL,
+At that review, the displayed domain did not establish the actual configured destination URL,
 UTMs, campaign optimization event, outbound clicks, landing-page views, or
-placement spend. These remain unknown. Do not infer an ad destination from an
+placement spend. Those were unknown in the October 11 preview review. See the dated
+[current business and release status](PROJECT_STATUS_2026-11-09.md) for newer evidence. Do not infer an ad destination from an
 unrelated professional thank-you route in the old dashboard.
 
 ## Measurement rules
 
-The supplied dashboard snapshot reports 160 visits, 5 cover selections, 6 notes
+The October 11 dashboard snapshot reports 160 visits, 5 cover selections, 6 notes
 written, 5 address entries, 1 checkout initiation, and 1 paid order. These are
 historical dashboard outputs, not a validated sequence of unique customer
 completions. The existing metrics rollup increments event counters and counts
@@ -92,9 +95,13 @@ card lacked those details. Avoid altering the depicted handwriting or product
 quality in a way that misrepresents fulfillment. Authorization to use photography
 does not mean existing raw files are ready to publish.
 
-## Outstanding evidence
+## Evidence maintenance
 
-See [the integration audit](HANDWRYTTEN_INTEGRATION_AUDIT.md) for verified dimensions
-and open supplier details. Remaining inputs are exact stock/envelope specifications,
-actual custom-card fulfillment charges, a real Apple Pay test through the ad
-journey, ad destination and click/landing metrics, and the dashboard time window.
+Supplier charges and the current independent-purchase baseline are resolved as of
+November 9. See [business evidence](evidence/business-facts-2026-11-09.md) and the
+[product specifications](CANONICAL_PRODUCT_SPECS.md). Keep the October 11
+[integration audit](HANDWRYTTEN_INTEGRATION_AUDIT.md) as historical evidence, not a
+current defect list. Apple Pay end-to-end, exact physical message fit, and any
+unrecorded paper/envelope manufacturing details still require their own evidence.
+The old dashboard window is a historical measurement limitation, not a block on
+reporting the founder-confirmed six purchases.

@@ -216,7 +216,7 @@ async function setState(id: string, state: string, reason: string) {
     tx.set(ref, { state, suppressionReason: reason, leaseUntil: 0 }, { merge: true });
   });
 }
-async function ensureUnsubscribeToken(senderKey: string): Promise<string> {
+export async function ensureUnsubscribeToken(senderKey: string): Promise<string> {
   const secret = process.env.POST_PURCHASE_UNSUBSCRIBE_SECRET;
   if (!secret || secret.length < 32) throw new Error("unsubscribe_secret_missing");
   const token = crypto.createHmac("sha256", secret).update(`post-purchase-unsubscribe:${senderKey}`).digest("base64url"); const hash = crypto.createHmac("sha256", secret).update(token).digest("hex");

@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-11-09T15:15:38.961Z",
+  "emailsSent": 0,
+  "customerRecordsChanged": false,
+  "checks": [
+    {
+      "path": "/api/admin/manual-followup?orderId=smn-readiness-missing",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "path": "/api/admin/followup-contacts?sourceType=feedback",
+      "status": 401,
+      "expected": 401
+    },
+    {
+      "test": "unsigned webhook rejected",
+      "status": 400,
+      "expected": 400
+    },
+    {
+      "test": "signed synthetic webhook with nonexistent message accepted",
+      "status": 200,
+      "expected": 200,
+      "eventId": "smn_setup_c62cf466-9e12-455f-8740-1b0e8e681c6d"
+    }
+  ],
+  "pass": true
+}
