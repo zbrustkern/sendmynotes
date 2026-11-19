@@ -2,12 +2,12 @@
 'use strict';
 
 /**
- * Independent hosted acceptance harness for Sprint 0031.
+ * Independent hosted acceptance harness for Sprint 0032.
  *
  * Usage:
- *   node docs/sprints/evidence/SPRINT-0031/hosted-browser.cjs \
+ *   node docs/sprints/evidence/SPRINT-0032/hosted-browser.cjs \
  *     --origin https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app \
- *     --output docs/sprints/evidence/SPRINT-0031/passed/staging
+ *     --output docs/sprints/evidence/SPRINT-0032/passed/staging
  *
  * Optional explicit arms:
  *   --control-session sess_smn31_control --treatment-session sess_smn31_treatment
@@ -115,7 +115,7 @@ async function createContext(browser, sessionId, viewport) {
     }
     if (/^\/api\/.*(?:checkout|payment|order|fulfillment|fulfilment|handwrytten)/.test(pathname) || /\/create-payment-intent|\/submit-order|\/fulfill(?:ment)?\//.test(pathname)) {
       intercepted.deniedSideEffects++;
-      return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Denied by Sprint 0031 browser acceptance harness' }) });
+      return route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: 'Denied by Sprint 0032 browser acceptance harness' }) });
     }
     if (url.origin !== baseOrigin && /^https?:$/.test(url.protocol)) return route.abort();
     if (request.method() !== 'GET' && request.method() !== 'HEAD') {
@@ -378,6 +378,6 @@ async function findArm(browser, wanted, explicitSession) {
     await browser.close();
   }
 })().catch((error) => {
-  console.error(`Sprint 0031 browser acceptance failed: ${error.stack || error.message}`);
+  console.error(`Sprint 0032 browser acceptance failed: ${error.stack || error.message}`);
   process.exitCode = 1;
 });
