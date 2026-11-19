@@ -435,6 +435,7 @@ export function EntryPrototypeClient({
         { id: firstRecipientId, address: toAddressDraft(recipient), greeting: { mode: "inherit" } },
       ],
     } });
+    trackJourneyEvent("multi_send_started", { recipientCount: 1, fromDeferred: wasDeferred });
     if (wasDeferred) setEditBatchAddressId(firstRecipientId);
     else setOpenNewBatchRecipient(true);
   };
@@ -450,6 +451,7 @@ export function EntryPrototypeClient({
     const batch = draft.multiSend;
     const survivor = batch?.recipients[0];
     dispatch({ type: "SET_MULTI_SEND", payload: null });
+    trackJourneyEvent("multi_send_reverted", { previousRecipientCount: batch?.recipients.length || 1 });
     if (survivor) {
       setRecipient(toAddressData(survivor.address));
       dispatch({ type: "UPDATE_RECIPIENT", payload: survivor.address });
@@ -1647,6 +1649,8 @@ export function EntryPrototypeClient({
       emitJourneyMilestone("address_confirmed", {
         hasReturnAddress: Boolean(sender.street1 && sender.city),
         hasRecipientStreet2: Boolean(recipient.street2),
+        isMultiSend: Boolean(draft.multiSend),
+        recipientCount: draft.multiSend ? draft.multiSend.recipients.length : 1,
       }, { dedupeKey: "address_path" });
     }
     initializeCheckout();
@@ -1732,6 +1736,8 @@ export function EntryPrototypeClient({
         amountInCents: currentDisplayTotalCents,
         hasDiscount: Boolean(discountCodeToUse),
         isAddressDeferred,
+        isMultiSend: Boolean(draft.multiSend),
+        recipientCount: draft.multiSend ? draft.multiSend.recipients.length : 1,
       });
 
       const fullHandwrittenMessage = composeRecipientMessage(
@@ -1915,6 +1921,8 @@ export function EntryPrototypeClient({
         isMock: Boolean(data.isMock),
         isFree: Boolean(data.isFree),
         amountInCents: data.quote?.totalCents ?? data.finalAmountInCents ?? data.amountInCents ?? 900,
+        isMultiSend: Boolean(draft.multiSend),
+        recipientCount: draft.multiSend ? draft.multiSend.recipients.length : 1,
       }, { orderId: data.orderId, scopeSuffix: `order:${data.orderId}` });
       trackGA4AddShippingInfo({
         itemId: currentCard.presetId || "card",

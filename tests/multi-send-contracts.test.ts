@@ -16,6 +16,7 @@ import { setHouseholdAcknowledgements } from "../lib/multi-send/household";
 import { parseMultiSendEditorBuffer } from "../lib/draft/multi-send-editor-buffer";
 import { resolvePreviewMessage, resolveStep2PreviewMessage } from "../lib/note-preview";
 import { buildSingleStepOrderPayload } from "../lib/handwrytten";
+import { ALLOWED_BROWSER_EVENT_NAMES, sanitizeMetadata } from "../lib/telemetry-schema";
 
 const note = { salutation: "Dear Friends,", text: "I hope you are well.", signOff: "Love, Sam", style: "warm" };
 assert.equal(resolveGreeting(note.salutation, { mode: "inherit" }), "Dear Friends,");
@@ -163,4 +164,64 @@ assert.deepEqual(editedHousehold.find((row) => row.id === "c")?.householdAcknowl
 const editorBuffer = { checkoutId: valid.checkoutId, mode: "greeting", recipientId: "r2", text: "" };
 assert.deepEqual(parseMultiSendEditorBuffer(JSON.stringify(editorBuffer), valid.checkoutId), editorBuffer);
 assert.equal(parseMultiSendEditorBuffer(JSON.stringify(editorBuffer), "different-checkout"), null);
+
+// Multi-send browser telemetry allowlist & metadata sanitization
+for (const eventName of [
+  "multi_send_started",
+  "multi_send_recipient_saved",
+  "multi_send_greeting_personalized",
+  "multi_send_reverted",
+]) {
+  assert(ALLOWED_BROWSER_EVENT_NAMES.has(eventName), `${eventName} must be in ALLOWED_BROWSER_EVENT_NAMES`);
+}
+
+assert.deepEqual(
+  sanitizeMetadata("multi_send_started", {
+    recipientCount: 1,
+    fromDeferred: true,
+    salutation: "Dear Maya,",
+    recipientAddress: "1 Main St",
+  }).sanitized,
+  { recipientCount: 1, fromDeferred: true },
+);
+
+assert.deepEqual(
+  sanitizeMetadata("multi_send_recipient_saved", {
+    recipientCount: 2,
+    isNewRecipient: true,
+    householdConfirmed: false,
+    recipientAddress: "1 Main St",
+  }).sanitized,
+  { recipientCount: 2, isNewRecipient: true, householdConfirmed: false },
+);
+
+assert.deepEqual(
+  sanitizeMetadata("multi_send_greeting_personalized", {
+    recipientCount: 3,
+    greetingMode: "custom",
+    salutation: "Dear Uncle Bob,",
+  }).sanitized,
+  { recipientCount: 3, greetingMode: "custom" },
+);
+
+assert.deepEqual(
+  sanitizeMetadata("multi_send_reverted", {
+    previousRecipientCount: 3,
+    recipientAddress: "2 Oak Ave",
+  }).sanitized,
+  { previousRecipientCount: 3 },
+);
+
+for (const funnelEvent of ["address_confirmed", "checkout_requested", "checkout_created"]) {
+  assert.deepEqual(
+    sanitizeMetadata(funnelEvent, {
+      isMultiSend: true,
+      recipientCount: 3,
+      salutation: "Dear Friends,",
+      recipientAddress: "1 Main St",
+    }).sanitized,
+    { isMultiSend: true, recipientCount: 3 },
+  );
+}
+
 console.log("multi-send contracts passed");

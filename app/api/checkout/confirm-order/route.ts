@@ -11,6 +11,7 @@ import { buildPurchaseMeasurement, persistPurchaseMeasurement, projectPurchaseMe
 import { effectiveOrderEmail } from "@/lib/checkout-contact";
 import { claimReceiptEmailDelivery, finishReceiptEmailDelivery } from "@/lib/receipt-email-delivery";
 import { sendDeferredAddressReceiptEmail, sendOrderPenningReceiptEmail } from "@/lib/email/transactional";
+import { runMultiSendWorkerPass } from "@/lib/multi-send/orders";
 
 export async function POST(req: NextRequest) {
   try {
@@ -372,6 +373,22 @@ export async function POST(req: NextRequest) {
     }
 
     await trySyncPostPurchaseOrder(orderId);
+
+    if (
+      result.success &&
+      order.multiSend?.kind === "parent" &&
+      paymentMode === "live" &&
+      !isTest &&
+      process.env.STAGING_REVIEW_ONLY !== "true" &&
+      process.env.HANDWRYTTEN_TEST_MODE !== "true" &&
+      process.env.NODE_ENV !== "test"
+    ) {
+      try {
+        await runMultiSendWorkerPass({ targetOrderId: orderId, maxChildren: 25 });
+      } catch (dispatchErr) {
+        console.warn("[Confirm Order] Multi-send immediate dispatch pass deferred to worker:", dispatchErr);
+      }
+    }
 
     return NextResponse.json({
       success: result.success,

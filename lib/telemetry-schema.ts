@@ -151,6 +151,10 @@ export const ALLOWED_BROWSER_EVENT_NAMES = new Set<string>([
   "recovery_offer_viewed",
   "recovery_purchase_linked",
   "experiment_exposed",
+  "multi_send_started",
+  "multi_send_recipient_saved",
+  "multi_send_greeting_personalized",
+  "multi_send_reverted",
 ]);
 
 export type AllowedFieldType = "string" | "number" | "boolean";
@@ -204,6 +208,8 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     orderId: { type: "string", maxLength: 100 },
     used_address_deferral: { type: "boolean" },
     requestId: { type: "string", maxLength: 100 },
+    isMultiSend: { type: "boolean" },
+    recipientCount: { type: "number" },
   },
   checkout_created: {
     amountInCents: { type: "number" },
@@ -212,6 +218,8 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     isMock: { type: "boolean" },
     paymentMode: { type: "string", maxLength: 50 },
     requestId: { type: "string", maxLength: 100 },
+    isMultiSend: { type: "boolean" },
+    recipientCount: { type: "number" },
   },
   payment_ui_ready: {
     mode: { type: "string", maxLength: 50 },
@@ -471,6 +479,10 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     paymentIntentId: { type: "string", maxLength: 100 },
     amountInCents: { type: "number" },
     customerType: { type: "string", maxLength: 50 },
+    isMultiSend: { type: "boolean" },
+    recipientCount: { type: "number" },
+    isTest: { type: "boolean" },
+    paymentMode: { type: "string", maxLength: 50 },
   },
   fulfillment_submitted: {
     orderId: { type: "string", maxLength: 100 },
@@ -525,10 +537,28 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
     hasReturnAddress: { type: "boolean" },
     isInternational: { type: "boolean" },
     used_address_deferral: { type: "boolean" },
+    isMultiSend: { type: "boolean" },
+    recipientCount: { type: "number" },
   },
   address_deferred: {
     used_address_deferral: { type: "boolean" },
     reason: { type: "string", maxLength: 100 },
+  },
+  multi_send_started: {
+    recipientCount: { type: "number" },
+    fromDeferred: { type: "boolean" },
+  },
+  multi_send_recipient_saved: {
+    recipientCount: { type: "number" },
+    isNewRecipient: { type: "boolean" },
+    householdConfirmed: { type: "boolean" },
+  },
+  multi_send_greeting_personalized: {
+    recipientCount: { type: "number" },
+    greetingMode: { type: "string", maxLength: 20 },
+  },
+  multi_send_reverted: {
+    previousRecipientCount: { type: "number" },
   },
   wallet_selected: {
     walletType: { type: "string", maxLength: 50 },

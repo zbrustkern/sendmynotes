@@ -348,6 +348,11 @@ export type TelemetryEventName =
   | "payment_canceled"
   | "reminder_opt_in"
   | "conversion_queue_observed"
+  // Multi-send browser telemetry events:
+  | "multi_send_started"
+  | "multi_send_recipient_saved"
+  | "multi_send_greeting_personalized"
+  | "multi_send_reverted"
   // Server-only authority events (§10):
   | "purchase_verified"
   | "fulfillment_submitted"

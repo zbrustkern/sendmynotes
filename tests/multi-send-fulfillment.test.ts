@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { withSafeTestHarness } from "../lib/testing/safe-harness";
 import { firestoreDb, getOrdersCollection } from "../lib/firebase-admin";
 import { recordPaymentCaptureFact } from "../lib/financial-ledger";
-import { dispatchMultiSendChildren, listMultiSendDeliveries, preparePaidMultiSend, resumeHeldMultiSend } from "../lib/multi-send/orders";
+import { dispatchMultiSendChildren, listMultiSendDeliveries, preparePaidMultiSend, resumeHeldMultiSend, runMultiSendWorkerPass } from "../lib/multi-send/orders";
 import { reconcileMultiSendRefund, refundMultiSendDelivery } from "../lib/multi-send/refunds";
 import { getOperationalControls, updateOperationalControl } from "../lib/operational-controls";
 import { submitPreparedHandwryttenOrder } from "../lib/handwrytten";
@@ -197,6 +197,17 @@ async function main() {
     const uncertainPrepOrder = (await uncertainPrepRef.get()).data() as Order;
     await uncertainPrepRef.update({ fulfillmentStatus: "MULTI_SEND_HELD", multiSend: { ...uncertainPrepOrder.multiSend!, preparationState: "uncertain" } } as any);
     await assert.rejects(resumeHeldMultiSend({ orderId: resumeParent.id, reason: "Do not recreate shared card", idempotencyKey: "resume_batch_prep_uncertain", actor: "operator@example.invalid" }), /preparation is uncertain/);
+
+    process.env.STAGING_REVIEW_ONLY = "true";
+    try {
+      const heldPass = await runMultiSendWorkerPass();
+      assert.equal(heldPass.status, 202);
+      assert.equal(heldPass.data.state, "held_by_environment");
+      assert.equal(heldPass.data.processed, 0);
+    } finally {
+      delete process.env.STAGING_REVIEW_ONLY;
+    }
+
     console.log("multi-send fulfillment: fake-adapter recovery scenarios passed (distinct payloads, uncertain/thrown/systemic outcomes, preparation recovery, concurrent fences, late result fencing, capture mismatch, correction requeue, refund allocation race, no-ID reconciliation).");
   });
 }

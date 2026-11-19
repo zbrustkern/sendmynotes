@@ -403,6 +403,49 @@ export async function processPaidOrder(
       });
       return { progressed: stillBatchProgressed, status: nextStatus, fulfillmentStatus: nextFulfillmentStatus };
     });
+    if (!convergence.progressed) {
+      if (authorityOrder.discountCode) {
+        try {
+          await recordDiscountUsage(authorityOrder.discountCode, authorityOrder.discountAmountInCents || 0);
+        } catch (discErr) {
+          console.warn("[OrderProcessor] Notice recording multi-send discount code usage:", discErr);
+        }
+      }
+      const verifiedAmountInCents = authorityOrder.finalAmountInCents ?? authorityOrder.amountInCents;
+      const isEligibleLiveCustomerPayment =
+        Number.isInteger(verifiedAmountInCents) &&
+        verifiedAmountInCents > 0 &&
+        authorityOrder.origin !== "ADMIN_COMP" &&
+        isLivePayment &&
+        !localMockAllowed &&
+        !authorityOrder.isTest &&
+        !authorityOrder.isComp &&
+        !authorityOrder.isFounderTest &&
+        authorityOrder.paymentMethod === "STRIPE";
+      if (isEligibleLiveCustomerPayment) {
+        try {
+          const rawSessionId =
+            (authorityOrder.attribution as any)?.sessionId ||
+            authorityOrder.sessionId ||
+            `sess_${orderId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 16)}`;
+          await recordServerTelemetry({
+            eventName: "purchase_verified",
+            sessionId: rawSessionId,
+            orderId,
+            metadata: {
+              amountInCents: capturedAmountCents,
+              isTest: false,
+              paymentMode: "live",
+              isMultiSend: true,
+              recipientCount: authorityOrder.multiSend.recipients.length,
+            },
+            experienceVersion: authorityOrder.experienceVersion,
+          });
+        } catch (telErr) {
+          console.warn("[OrderProcessor] Notice recording multi-send purchase_verified telemetry:", telErr);
+        }
+      }
+    }
     return { success: true, status: convergence.status, alreadyProcessed: convergence.progressed };
   }
 
