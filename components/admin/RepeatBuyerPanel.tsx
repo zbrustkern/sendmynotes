@@ -37,7 +37,7 @@ export function RepeatBuyerPanel({ staging }: { staging: boolean }) {
   const coverage = data?.coverage;
   const observed = summary?.rows.some(r => r.gapPerBuyer !== null);
   return <main className="mx-auto min-h-screen max-w-7xl space-y-6 bg-stone-50 p-4 text-stone-900 sm:p-8">
-    <Link href="/admin/measurement" className="text-sm underline">← Measurement</Link>
+    <Link href="/admin?tab=measurement" className="text-sm underline">← Measurement</Link>
     <header><h1 className="text-3xl font-semibold">Repeat buyers</h1>
       <p className="mt-2 text-stone-600">How much have buyers contributed since their first paid order, and when does it cover acquisition cost?</p></header>
     {staging && <label className="block text-sm font-medium">Data source<select className={selectStyle} value={example ? "example" : "staging"} onChange={e => {
