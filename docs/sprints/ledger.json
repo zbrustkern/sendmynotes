@@ -342,11 +342,13 @@
       "title": "Repeat buyers and observed customer value",
       "path": "docs/sprints/SPRINT-0030.md",
       "status": "implemented",
-      "acceptance_status": "local_checks_passed",
-      "release_target": "staging",
+      "acceptance_status": "production_verified",
+      "release_target": "production",
       "evidence": "docs/sprints/evidence/SPRINT-0030/REVIEW.md",
       "proposal": "docs/proposals/2026-11-18-repeat-buyers/DESIGN_SPEC.md",
-      "updated_at": "2026-11-18"
+      "updated_at": "2026-11-18",
+      "production_revision": "2a9a891a2307219fc75451a0cd4468fc5dd3899a",
+      "release_receipt": "docs/sprints/evidence/SPRINT-0032/RELEASE.json"
     },
     {
       "id": "SPRINT-0032",
@@ -356,10 +358,12 @@
       "status": "implemented",
       "execution_model": "gpt-6-luna",
       "execution_method": "three_isolated_luna_workers_and_coordinator_integration",
-      "release_target": "staging_then_production",
+      "release_target": "production",
       "updated_at": "2026-11-18",
-      "acceptance_status": "local_feature_checks_passed",
-      "evidence": "docs/sprints/evidence/SPRINT-0032/REVIEW.md"
+      "acceptance_status": "production_verified",
+      "evidence": "docs/sprints/evidence/SPRINT-0032/REVIEW.md",
+      "production_revision": "2a9a891a2307219fc75451a0cd4468fc5dd3899a",
+      "release_receipt": "docs/sprints/evidence/SPRINT-0032/RELEASE.json"
     }
   ]
 }

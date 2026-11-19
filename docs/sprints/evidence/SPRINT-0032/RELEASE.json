@@ -1,0 +1,124 @@
+{
+  "staging": {
+    "hostname": "https://staging.sendmynotes.com",
+    "traffic": {
+      "build": "build-2026-11-19-007",
+      "state": "READY",
+      "source": "da3095b56640b45faf63709fb34a95d177a8ffa2",
+      "percent": 100
+    },
+    "rollout": {
+      "id": "rollout-2026-11-19-007",
+      "state": "SUCCEEDED",
+      "build": "build-2026-11-19-007"
+    },
+    "trafficCheckedAt": "2026-11-19T02:28:25.424Z",
+    "browserCheckedAt": "2026-11-19T02:26:13.087Z",
+    "galleryChecks": [
+      "Experiment arms observed on normal /new entry",
+      "Quick root/paid entry reaches the control picker",
+      "Control picker: no horizontal overflow",
+      "Invitation placement in all",
+      "Treatment All: no horizontal overflow",
+      "Invitation placement in short",
+      "Treatment short filter: no horizontal overflow",
+      "Escape restores focus, filter, selection, draft and scroll",
+      "Top shortcut opens shared drawer and close returns focus and scroll",
+      "Invitation placement in all",
+      "Treatment 320: no horizontal overflow",
+      "Invitation placement in all",
+      "Treatment 1200: no horizontal overflow",
+      "Synthetic failure preserves the idea and explicit retry and acceptance reach note",
+      "Accepted custom cover suppresses generic invitation on return",
+      "Side-effecting endpoints remained unused"
+    ],
+    "envelopeChecks": [
+      "obsolete envelope autofill hint absent",
+      "saved address step resumes after reload",
+      "old partial names editable",
+      "correct recipient and sender visible in review",
+      "original greeting, note and sign-off visible in review",
+      "mock checkout received corrected names and unchanged card message plus a stable draft key"
+    ],
+    "simulatedArtworkResponses": 2,
+    "simulatedCheckoutResponses": 1,
+    "routes": [
+      {
+        "path": "/new",
+        "status": 200,
+        "type": "text/html; charset=utf-8"
+      },
+      {
+        "path": "/sample-cat-cover.webp",
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "/api/admin/repeat-buyers",
+        "status": 401,
+        "type": "application/json"
+      }
+    ]
+  },
+  "production": {
+    "hostname": "https://sendmynotes.com",
+    "traffic": {
+      "build": "build-2026-11-19-001",
+      "state": "READY",
+      "source": "2a9a891a2307219fc75451a0cd4468fc5dd3899a",
+      "percent": 100
+    },
+    "rollout": {
+      "id": "rollout-2026-11-19-001",
+      "state": "SUCCEEDED",
+      "build": "build-2026-11-19-001"
+    },
+    "trafficCheckedAt": "2026-11-19T02:31:57.701Z",
+    "browserCheckedAt": "2026-11-19T02:32:27.947Z",
+    "galleryChecks": [
+      "Experiment arms observed on normal /new entry",
+      "Quick root/paid entry reaches the control picker",
+      "Control picker: no horizontal overflow",
+      "Invitation placement in all",
+      "Treatment All: no horizontal overflow",
+      "Invitation placement in short",
+      "Treatment short filter: no horizontal overflow",
+      "Escape restores focus, filter, selection, draft and scroll",
+      "Top shortcut opens shared drawer and close returns focus and scroll",
+      "Invitation placement in all",
+      "Treatment 320: no horizontal overflow",
+      "Invitation placement in all",
+      "Treatment 1200: no horizontal overflow",
+      "Synthetic failure preserves the idea and explicit retry and acceptance reach note",
+      "Accepted custom cover suppresses generic invitation on return",
+      "Side-effecting endpoints remained unused"
+    ],
+    "envelopeChecks": [
+      "obsolete envelope autofill hint absent",
+      "saved address step resumes after reload",
+      "old partial names editable",
+      "correct recipient and sender visible in review",
+      "original greeting, note and sign-off visible in review",
+      "mock checkout received corrected names and unchanged card message plus a stable draft key"
+    ],
+    "simulatedArtworkResponses": 2,
+    "simulatedCheckoutResponses": 1,
+    "routes": [
+      {
+        "path": "/new",
+        "status": 200,
+        "type": "text/html; charset=utf-8"
+      },
+      {
+        "path": "/sample-cat-cover.webp",
+        "status": 200,
+        "type": "image/webp"
+      },
+      {
+        "path": "/api/admin/repeat-buyers",
+        "status": 401,
+        "type": "application/json"
+      }
+    ]
+  }
+}

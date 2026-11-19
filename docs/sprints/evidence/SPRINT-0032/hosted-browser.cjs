@@ -366,7 +366,7 @@ async function findArm(browser, wanted, explicitSession) {
     assert.equal(intercepted.deniedSideEffects, 0, 'No payment, order or fulfillment side-effect route was attempted');
     record('Side-effecting endpoints remained unused', { deniedAttempts: intercepted.deniedSideEffects });
     const report = {
-      sprint: '0031', checkedAt: new Date().toISOString(), origin: baseOrigin,
+      sprint: '0032', checkedAt: new Date().toISOString(), origin: baseOrigin,
       passed: true, syntheticIdentity: true, arms: { control: control.sessionId, treatment: treatment.sessionId },
       checks, screenshots,
       network: { ...intercepted, paymentOrdersFulfillmentAttempted: intercepted.deniedSideEffects },
