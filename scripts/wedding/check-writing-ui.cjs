@@ -69,9 +69,22 @@ if (
       .getByRole("heading", { name: "Your card", exact: true })
       .waitFor();
     run.push("blank guest project");
+    assert.equal(await page.getByLabel("Choose photo").count(), 1);
+    let peopleFocused = false;
+    for (let tab = 0; tab < 60 && !peopleFocused; tab++) {
+      await page.keyboard.press("Tab");
+      peopleFocused = await page
+        .getByRole("button", { name: "Your people", exact: true })
+        .evaluate((el) => el === document.activeElement);
+    }
+    assert.equal(peopleFocused, true);
+    await page.keyboard.press("Enter");
     await page
-      .getByRole("button", { name: "Your people", exact: true })
-      .click();
+      .getByRole("button", { name: "Upload a guest or gift list" })
+      .waitFor();
+    run.push(
+      "keyboard navigation and distinct photo and address upload controls",
+    );
     await page
       .getByRole("button", { name: "Add a household", exact: true })
       .click();
@@ -171,6 +184,13 @@ if (
     );
     run.push("320px layout");
     await capture("review-mobile");
+    const device = await ctx.newCDPSession(page);
+    await device.send("Emulation.setPageScaleFactor", { pageScaleFactor: 2 });
+    assert.equal(await page.evaluate(() => visualViewport.scale), 2);
+    assert.equal(await page.getByText(/1 ready · 0 held/).isVisible(), true);
+    await device.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
+    await device.detach();
+    run.push("mobile review remains readable at 200% browser magnification");
     await page.getByText("Manage sharing, recovery and tracker").click();
     await page
       .getByRole("button", { name: "Recovery or add-device link" })
@@ -287,6 +307,32 @@ if (
     run.push(
       "100 households, 2 personal and 98 shared approvals; inherited-only invalidation",
     );
+    await desk.getByRole("button", { name: "Write individual notes" }).click();
+    await desk.getByRole("heading", { name: "Your writing list" }).waitFor();
+    const current = desk.locator("#wed-current-writer");
+    const previousName = await current.innerText();
+    const next = desk.getByRole("button", { name: "Approve & next" });
+    await desk.waitForFunction(() => {
+      const button = [...document.querySelectorAll("button")].find(
+        (item) => item.textContent.trim() === "Approve & next",
+      );
+      return button && !button.disabled;
+    });
+    await next.press("Enter");
+    await desk.waitForFunction((previous) => {
+      const heading = document.getElementById("wed-current-writer");
+      return (
+        heading === document.activeElement && heading?.textContent !== previous
+      );
+    }, previousName);
+    await desk
+      .getByRole("status")
+      .filter({ hasText: "Approved " })
+      .first()
+      .waitFor();
+    run.push(
+      "keyboard approval moves focus to the next household and announces the saved card",
+    );
     await familyContext.close();
     assert.deepEqual(errors, []);
     const receipt = {
@@ -307,6 +353,11 @@ if (
           passed: run,
           headings: await activePage.locator("h1,h2").allTextContents(),
           alerts: await activePage.getByRole("alert").allTextContents(),
+          focus: await activePage.evaluate(() => ({
+            tag: document.activeElement?.tagName,
+            id: document.activeElement?.id,
+            writer: document.getElementById("wed-current-writer")?.textContent,
+          })),
           errors,
         },
         null,

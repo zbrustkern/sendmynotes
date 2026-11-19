@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   authHeaders,
+  postWedding,
   errorMessage,
   type PanelProps,
   type Member,
@@ -14,6 +15,7 @@ export function SharingPanel({ state, mutate, signIn, notify }: PanelProps) {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [includeGift, setIncludeGift] = useState(false);
+  const [testerInvite, setTesterInvite] = useState<{ link: string; inviteId: string } | null>(null);
   const { user, reloadUserAndRefreshToken, sendVerificationEmail } = useAuth();
   const owner = state.actor.role === "owner";
   const work = async (fn: () => Promise<void>) => {
@@ -123,6 +125,33 @@ export function SharingPanel({ state, mutate, signIn, notify }: PanelProps) {
             Revoke this link
           </button>
         </>
+      )}
+      {state.actor.canIssuePilotInvites && (
+        <div className="wed-notice">
+          <h3>Invite a staging tester</h3>
+          <p>A tester can start their own project, upload files and try AI. Each invitation can be used once within seven days.</p>
+          <button
+            disabled={busy}
+            onClick={() => void work(async () => {
+              setTesterInvite(await postWedding<{link: string; inviteId: string}>("pilot", {action: "issue"}));
+              notify("Tester invitation ready to copy.");
+            })}
+          >
+            Create tester invitation
+          </button>
+          {testerInvite && (
+            <>
+              <PrivateLink key={testerInvite.inviteId} link={testerInvite.link} />
+              <button disabled={busy} onClick={() => void work(async () => {
+                await postWedding("pilot", {action: "revoke", inviteId: testerInvite.inviteId});
+                setTesterInvite(null);
+                notify("Tester invitation revoked.");
+              })}>
+                Revoke tester invitation
+              </button>
+            </>
+          )}
+        </div>
       )}
       {!state.actor.verified && (
         <div className="wed-notice">

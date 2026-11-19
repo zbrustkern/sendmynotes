@@ -103,14 +103,17 @@ function checkProof(group:CheckoutGroup,order:Order|undefined,input:TransferInpu
   if(!input.proof||input.proof.orderId!==group.currentOrderId||!order?.viewToken||input.proof.viewToken!==order.viewToken)failure('TRANSFER_PAYMENT_PROOF_REQUIRED','Provide the previous checkout proof before transferring.');
   if(order.id!==group.currentOrderId||order.multiSend?.kind!=='parent'||order.multiSend.version!==1||order.multiSend.checkoutId!==input.content.checkoutId||order.multiSend.contentRevision!==group.currentRevision)failure('TRANSFER_RECONCILIATION_REQUIRED','The previous order does not match this checkout.');
 }
-async function sourceClaim(input:TransferInput,ownerKey:string) {
+async function sourceClaim(input:TransferInput,ownerKey:string,explicitCoverResolution=false) {
   const ref=multiSendCheckoutRef(input.content.checkoutId),leaseId=randomUUID();
   return firestoreDb.runTransaction(async tx=>{
     const group=(await tx.get(ref)).data() as CheckoutGroup|undefined;
     if(group&&group.ownerKey!==ownerKey)failure('TRANSFER_OWNER_MISMATCH','Use the original checkout account or device.',403);
     const order=group?.currentOrderId?(await tx.get(firestoreDb.collection('orders').doc(group.currentOrderId))).data() as Order|undefined:undefined;
     if(group)checkProof(group,order,input);else if(input.paymentAttempted||input.proof)failure('TRANSFER_RECONCILIATION_REQUIRED','The previous checkout cannot be verified.');
-    if(group?.weddingTransfer&&group.weddingTransfer.inputHash!==input.inputHash)failure('TRANSFER_CONTENT_CONFLICT','This batch already has a different transfer. Resume its project or restore the original transfer content.');
+    // An explicitly chosen fallback may replace an unfinished, released claim.
+    // Completed copies are immutable; rotating the lease fences any old worker.
+    const resolvingUnfinished=explicitCoverResolution&&group?.state==='transferring'&&!group.weddingTransfer?.projectId&&Number(group.weddingTransfer?.leaseUntil)<=Date.now();
+    if(group?.weddingTransfer&&group.weddingTransfer.inputHash!==input.inputHash&&!resolvingUnfinished)failure('TRANSFER_CONTENT_CONFLICT','This batch already has a different transfer. Resume its project or restore the original transfer content.');
     if(group?.state==='transferred')return {group,order,replay:true,leaseId};
     if(group?.state==='creating'||group?.state==='replacing')failure('TRANSFER_CHECKOUT_BUSY','Checkout is still updating. Check its status before transferring.');
     if(group?.state==='transferring'&&group.weddingTransfer!.leaseUntil>Date.now())failure('TRANSFER_CHECKOUT_BUSY','This transfer is already running. Retry shortly.');
@@ -153,7 +156,7 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
   if(observed&&observed.ownerKey!==ownerKey)failure('TRANSFER_OWNER_MISMATCH','Use the original checkout account or device.',403);
   const ownedFront=artworkSource&&observed?.state!=='transferred'?await artwork.resolve(req,account,artworkSource,knownPrior):undefined;
   const deviceToken=weddingCookie(req,WEDDING_DEVICE_COOKIE)||newWeddingSecret().token;
-  const claim=await sourceClaim(input,ownerKey);
+  const claim=await sourceClaim(input,ownerKey,body.coverResolution!=null);
   if(!account)onCapability?.(cookieName,capability);
   try {
     if(!claim.replay&&claim.order){await reconcileWeddingTransferPayment(claim.order);await releaseOfferReservation(claim.order.id,'removed');}
@@ -184,7 +187,9 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
       const actorId=claim.replay?group.weddingTransfer!.actorId!:fresh!.actorId;
       const originalSessionId=claim.replay?group.weddingTransfer!.sessionId!:fresh!.sessionId;
       const actor:WeddingActor={projectId,actorId,role:'owner',verified:false,pilot:false,canPay:true,canExport:true,sessionId:originalSessionId};
-      const {project}=await assertWeddingActorInTransaction(tx,actor,'owner');
+      const {project,member}=await assertWeddingActorInTransaction(tx,actor,'owner');
+      if(claim.replay&&member.uid&&member.uid!==account?.uid)failure('TRANSFER_OWNER_MISMATCH','Sign in with the account now linked to this private project.',403);
+      if(member.uid&&member.uid===account?.uid){actor.uid=account.uid;actor.verified=account.emailVerified;}
       if(project.expiresAt<=Date.now())failure('project_expired','Open your project recovery link and extend the project.',410);
       if(claim.replay){
         tx.create(weddingSessionRef(session.id),newWeddingSession(projectId,actorId));
@@ -213,7 +218,7 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
   } catch(error) {
     // Release only the transfer lease. The source remains fenced from all v1
     // intent creation/retry/recovery, including uncertain Stripe outcomes.
-    if(!claim.replay)await firestoreDb.runTransaction(async tx=>{const current=(await tx.get(ref)).data() as CheckoutGroup|undefined;if(current?.state==='transferring'&&current.leaseId===claim.leaseId)tx.update(ref,{'weddingTransfer.leaseUntil':0});});
+    if(!claim.replay)await firestoreDb.runTransaction(async tx=>{const current=(await tx.get(ref)).data() as CheckoutGroup|undefined;if(current?.state==='transferring'&&current.leaseId===claim.leaseId&&current.weddingTransfer)tx.update(ref,{weddingTransfer:{...current.weddingTransfer,leaseUntil:0}});});
     throw error;
   }
 }

@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
       signatureVerified: true,
       payloadSummary: {
         eventId: event.id,
+        signatureVerified: !isTestEnvironment,
         type: event.type,
         objectId: (event.data.object as any)?.id,
         operationId: (event.data.object as any)?.metadata?.operationId || null,

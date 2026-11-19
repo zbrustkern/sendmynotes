@@ -108,6 +108,7 @@ export async function requireWeddingActor(req:Request,scope:WeddingScope='edit')
   if(identity&&member.uid&&member.uid!==identity.uid)throw new WeddingError('account_mismatch','Use the account linked to this project membership.',403);
   const permissionActor={...actor,uid:member.uid?actor.uid:null};assertWeddingPermission(project,member,permissionActor,scope);
   const allowlisted=!!identity && actor.verified && (identity.admin || (process.env.WEDDING_PILOT_UIDS||'').split(',').map(v=>v.trim()).includes(identity.uid));
+  actor.canIssuePilotInvites=actor.verified && identity?.admin===true;
   const pilotId=project.pilotInviteId;
   const pilot=pilotId?(await weddingInviteRef(pilotId).get()).data() as WeddingInvite|undefined:undefined;
   actor.pilot=allowlisted||!!(pilot&&pilot.kind==='pilot'&&!pilot.revoked&&pilot.expiresAt>Date.now()&&pilot.consumedProjectId===project.id);
@@ -116,7 +117,7 @@ export async function requireWeddingActor(req:Request,scope:WeddingScope='edit')
 export async function requireWeddingPilot(req:Request,scope:WeddingScope='edit') {
   const actor=await requireWeddingActor(req,scope);if(!actor.pilot)throw new WeddingError('pilot_required','An active staging tester invitation is required.',403);return actor;
 }
-export function publicWeddingActor(actor:WeddingActor) {return {projectId:actor.projectId,actorId:actor.actorId,role:actor.role,verified:actor.verified,pilot:actor.pilot,canPay:!!actor.canPay,canExport:!!actor.canExport};}
+export function publicWeddingActor(actor:WeddingActor) {return {projectId:actor.projectId,actorId:actor.actorId,role:actor.role,verified:actor.verified,pilot:actor.pilot,canIssuePilotInvites:!!actor.canIssuePilotInvites,canPay:!!actor.canPay,canExport:!!actor.canExport};}
 export function assertWeddingMutable(project:WeddingProject) {
   if(project.expiresAt<=Date.now())throw new WeddingError('project_expired','Extend this project to continue writing.',410);
   if(project.activeBatchId||project.paymentReconciliationRequired)throw new WeddingError('checkout_reserved','Finish or cancel the current checkout before editing.',409);

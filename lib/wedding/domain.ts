@@ -30,7 +30,7 @@ export interface WeddingHousehold {
 }
 export interface WeddingActor {
   projectId: string; actorId: string; role: 'owner'|'editor'; verified: boolean; pilot: boolean;
-  uid?: string|null; canPay?: boolean; canExport?: boolean; authTime?: number;
+  uid?: string|null; canIssuePilotInvites?: boolean; canPay?: boolean; canExport?: boolean; authTime?: number;
   /** Internal capability context, never serialized to browsers. */
   sessionId?: string; pilotInviteId?: string|null;
 }

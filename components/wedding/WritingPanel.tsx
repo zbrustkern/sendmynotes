@@ -96,6 +96,7 @@ export function WritingPanel(props: WritingProps) {
   const [showAI, setShowAI] = useState(false),
     [suggestions, setSuggestions] = useState<Record<string, string>>({});
   const rowFlush = useRef<() => Promise<boolean>>(async () => true);
+  const focusOnArrival = useRef<string | null>(null);
   const latest = useRef(props.state);
   latest.current = props.state;
   const group = p.templates.find((t) => t.id === template);
@@ -150,6 +151,12 @@ export function WritingPanel(props: WritingProps) {
         .includes(query.toLowerCase()),
   );
   const person = visible.find((r) => r.id === current) || visible[0];
+  useEffect(() => {
+    if (person?.id && focusOnArrival.current === person.id) {
+      document.getElementById("wed-current-writer")?.focus();
+      focusOnArrival.current = null;
+    }
+  }, [person?.id, current]);
   const selectedRows = visible.filter((r) => selected.has(r.id));
   const eligible = selectedRows.filter(
     (r) =>
@@ -173,11 +180,8 @@ export function WritingPanel(props: WritingProps) {
   );
   const progress = households.filter((r) => isApproved(p, r)).length;
   const goto = (id: string) => {
+    if (mode === "individual") focusOnArrival.current = id;
     setCurrent(id);
-    if (mode === "individual")
-      requestAnimationFrame(() =>
-        document.getElementById("wed-current-writer")?.focus(),
-      );
     try {
       sessionStorage.setItem(cursorKey, id);
     } catch {}

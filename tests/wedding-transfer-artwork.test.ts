@@ -57,9 +57,13 @@ async function main(){
   const provenance=(await db.collection('weddingProjects').doc(first.body.projectId).collection('transferSources').doc('cover').get()).data()!;
   assert.equal(provenance.ownerUid,'pilot-owner');assert.equal(provenance.source.imageId,image.selection.imageId);assert.equal(provenance.sha256,sha(png));assert.ok(!publicBody.includes('ownerUid'));
   const reads=sourceReads,writes=copyWrites;
+  const completedFallback=structuredClone(b);completedFallback.coverResolution={presetId:'preset-thankyou-botanical'};
+  await assert.rejects(()=>transfer(completedFallback,'pilot-owner'),code('TRANSFER_CONTENT_CONFLICT'),'explicit fallback cannot replace a completed copy');
   await image.ref.update({state:'deleted',deletedAt:Date.now()});originals.delete(image.key);env.WEDDING_PILOT_UIDS='foreign-owner,other-pilot';
   const replay=await transfer(b,'pilot-owner');assert.equal(replay.body.projectId,first.body.projectId);assert.equal(replay.body.replay,true);assert.equal(sourceReads,reads);assert.equal(copyWrites,writes,'completed retry does not reacquire source data or permissions');
   const source=(await multiSendCheckoutRef(b.draft.multiSend.checkoutId).get()).data()!;
+  const member=db.collection('weddingProjects').doc(first.body.projectId).collection('members').doc(source.weddingTransfer.actorId);
+  await member.update({uid:'another-claimed-account'});await assert.rejects(()=>transfer(b,'pilot-owner'),code('TRANSFER_OWNER_MISMATCH'),'old v1 ownership cannot bypass a subsequently claimed project identity');await member.update({uid:null});
   await db.collection('weddingSessions').doc(source.weddingTransfer.sessionId).update({revoked:true});
   await assert.rejects(()=>transfer(b,'pilot-owner'),code('unauthorized'));assert.equal(copyWrites,writes,'retired destination session cannot be resurrected via v1');
   env.WEDDING_PILOT_UIDS='pilot-owner,foreign-owner,other-pilot';
@@ -90,6 +94,8 @@ async function main(){
   afterWrite=async()=>{afterWrite=undefined;await grant('revoked-during-copy',true);};
   await assert.rejects(()=>transfer(race,'revoked-during-copy'),resolution);
   const fenced=(await multiSendCheckoutRef(race.draft.multiSend.checkoutId).get()).data()!;assert.equal(fenced.state,'transferring');assert.ok(!fenced.weddingTransfer.projectId,'revocation leaves no completed/payable transfer');
+  race.coverResolution={presetId:'preset-thankyou-botanical'};
+  assert.equal((await transfer(race,'revoked-during-copy')).body.project.cover.kind,'preset','explicit fallback can recover an unfinished failed adoption without bypassing the source fence');
 
   // Already accepted generated order master: owner + v1 proof + exact private
   // generated identity are required. A cache ID/remote URL can never select it.

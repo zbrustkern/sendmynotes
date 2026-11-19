@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -32,7 +32,26 @@ async function main() {
     "../lib/firebase-admin"
   );
   assert.ok(isFirestoreMock, "Use the isolated Firestore fixture.");
-  const { setStripeClientFactoryForTests } = await import("../lib/stripe");
+  const { getStripeClient, setStripeClientFactoryForTests } = await import("../lib/stripe");
+  const { NextRequest } = await import("next/server");
+  const { POST: receiveStripeEvent } = await import("../app/api/webhooks/stripe/route");
+  const localSecret = randomBytes(32).toString("hex");
+  process.env.STRIPE_WEBHOOK_SECRET = localSecret;
+  for (const bypass of [false, true]) {
+    process.env.TEST_BYPASS_WEBHOOK_SIGNATURE = String(bypass);
+    const event = { id: "evt_" + randomUUID(), type: "customer.created", livemode: false, data: { object: { id: "cus_fixture" } } };
+    const payload = JSON.stringify(event);
+    const signature = getStripeClient().webhooks.generateTestHeaderString({ payload, secret: localSecret });
+    const response = await receiveStripeEvent(new NextRequest("http://localhost/api/webhooks/stripe", {
+      method: "POST", body: payload, headers: bypass ? {} : { "stripe-signature": signature },
+    }));
+    assert.equal(response.status, 200);
+    const row = (await db.collection("provider_webhook_inbox").doc("inbox_stripe_" + event.id).get()).data();
+    assert.equal(row.payloadSummary.signatureVerified, !bypass);
+    assert.equal(row.payloadSummary.eventId, event.id);
+    assert.equal(row.eventType, event.type);
+  }
+  delete process.env.TEST_BYPASS_WEBHOOK_SIGNATURE;
   const C = await import("../lib/wedding/checkout"),
     R = await import("../lib/wedding/refunds");
   const intents = new Map<string, Stripe.PaymentIntent>(),
@@ -275,7 +294,7 @@ async function main() {
     // A small project should complete after one scheduler pass while the larger
     // one still has work. Neither job has a live dispatcher or physical-mail path.
     {
-      const large = await setup(55),
+      const large = await setup(100),
         small = await setup(1);
       const captures = await Promise.all([
         reserve(large.actor, large.sel),
