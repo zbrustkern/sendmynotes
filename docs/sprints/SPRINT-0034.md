@@ -1,6 +1,6 @@
 # Sprint 0034 — Private order tracking and address-book repair
 
-**Planned November 19, 2026.** Release to staging for verification. Production rollout and founder-account cleanup are separate approval decisions. The November 19 incident identified unintended contact saves during order review. The initial patch removes those writes and restricts the public response. This sprint completes sender access and closes the gaps found in review. [Incident RCA](../ADDRESS_BOOK_PRIVACY_RCA_2026-11-19.md)
+**November 19, 2026.** The staging release and acceptance checks are recorded in [the verification report](evidence/SPRINT-0034/REVIEW.md). Production rollout and founder-account cleanup are separate approval decisions. The November 19 incident identified unintended contact saves during order review. The initial patch removes those writes and restricts the public response. This sprint completes sender access and closes the gaps found in review. [Incident RCA](../ADDRESS_BOOK_PRIVACY_RCA_2026-11-19.md)
 
 ## Pyramid Index
 

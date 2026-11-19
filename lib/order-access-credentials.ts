@@ -51,6 +51,7 @@ export function createOrderReturnTicket(
 ): string | null {
   if (!validInputs(orderId, viewToken) || !Number.isSafeInteger(now) || now < 0) return null;
   const expiresAt = now + ORDER_RETURN_TICKET_TTL_MS;
+  if (!Number.isSafeInteger(expiresAt)) return null;
   const signature = mac(viewToken, `sendmynotes:order-return:v1\0${orderId}\0${expiresAt}`);
   return `${RETURN_TICKET_PREFIX}${expiresAt}.${signature}`;
 }

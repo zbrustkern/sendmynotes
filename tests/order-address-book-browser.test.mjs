@@ -296,6 +296,24 @@ try {
     await page.getByRole('button', { name: 'Copy private order link' }).click();
     assert.equal(await page.evaluate(() => window.__clipboardText), 'http://localhost/order/fixture#read=read-fixture');
     await page.clock.runFor(0);
+    assert.deepEqual(await page.evaluate(() => window.__events), [], 'a restored confirmation without active checkout proof is passive');
+    assert.equal(scenario.confirmCalls, 0);
+    assert.deepEqual(scenario.writes, []);
+    await context.close();
+  }
+
+  // The current confirmation emits one eligible event per destination only while active checkout proof exists.
+  {
+    const context = await browser.newContext();
+    const page = await newSyntheticPage(context, { proof: true });
+    await page.goto('http://localhost/confirmation');
+    await page.waitForFunction(() => typeof window.renderConfirmation === 'function');
+    await page.evaluate(() => window.renderConfirmation());
+    await page.getByRole('button', { name: 'Copy private order link' }).waitFor();
+    await page.evaluate(() => window.renderConfirmation());
+    await page.waitForFunction(() => window.__events.length === 2);
+    assert.deepEqual((await page.evaluate(() => window.__events)).map((event) => event.destination), ['google', 'meta']);
+    assert.equal(scenario.confirmCalls, 0, 'confirmation views do not reconcile payment');
     assert.deepEqual(scenario.writes, []);
     await context.close();
   }

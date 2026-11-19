@@ -23,3 +23,16 @@ The founder’s five legacy entries map to five separate canonical migrated cont
 | Checkout authority | Missing and incorrect checkout credentials were rejected before payment processing, including legacy tokenless free orders. The paid success responses omit the checkout secret. |
 
 The local regression run used isolated mock data and network-denied server tests. Browser tests intercepted external requests. Firebase staging rollout and hosted results are recorded independently of local acceptance.
+
+
+## Hosted acceptance
+
+Firebase App Hosting build and rollout 019 served commit `ea792e72914bc9e0fb22518908ebd64860d5cb06` at 100% of staging traffic. The independent browser and API run passed 138 checks. It removed all 16 synthetic identities, orders and delivery documents it created. [Sanitized check results](hosted-acceptance.json)
+
+- Both test senders could open their own eligible orders in Card history. A second account could neither list nor open another account’s explicitly owned single or batch order, even with a matching verified email. A verified email opened eligible guest orders with no owner UID. An unverified email match alone granted no access.
+- A visitor with a bare reference received the allowlisted status payload and private cache headers. Public polling stopped. Private link holders could open their order in a clean browser, copy its link with storage blocked, or use a selectable fallback when clipboard access failed.
+- The browser opened the links in captured HTML and text receipts from the deployed revision’s template. Fresh and repeated payment returns recovered private access and retained it on refresh. Invalid and expired tickets revealed only public information.
+
+Staging disables advertising. The positive admin-session and purchase-tag checks used a synthetic local admin login, actual tracker and tag code, and intercepted destinations. No live wallet payment or supplier dispatch was part of acceptance. Production rollout and any repair of the four corroborated contacts require separate approval.
+
+A wedding transfer page left open from the prior release may need a refresh to recognize the new private URL format. Previously issued checkout and deferred-address links continue to open. Earlier receipt messages that contain only an order ID cannot be retrofitted with a private link.
