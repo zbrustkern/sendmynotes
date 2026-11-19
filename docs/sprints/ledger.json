@@ -375,7 +375,7 @@
       "path": "docs/sprints/SPRINT-0031.md",
       "release_target": "staging",
       "status": "in_progress",
-      "acceptance_status": "hosted_payment_import_and_writing_verified_final_review_in_progress",
+      "acceptance_status": "hosted_automated_acceptance_passed_human_usability_pending",
       "execution_base": "88d01947e9f6ab0bfb132a1a47d1caa6bef9a91b",
       "updated_at": "2026-11-18",
       "implementation_status": "staging_deployed",

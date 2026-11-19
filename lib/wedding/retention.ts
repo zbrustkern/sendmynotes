@@ -1,5 +1,5 @@
 import {firestoreDb} from '../firebase-admin';
-import {blankWeddingAddress,WEDDING_DAY,type WeddingProject} from './domain';
+import {blankWeddingAddress, WEDDING_DAY, WEDDING_MAX_HOUSEHOLDS} from './domain';
 import {weddingHash} from './hash';
 import {weddingProjectRef} from './server';
 import {digest, type WeddingQuoteLine} from './finance';
@@ -7,7 +7,7 @@ import {ARTWORK_LIMITS, ARTWORK_POLICY} from './artwork-policy';
 import {FINANCIAL_FACTS_COLLECTION} from '../financial-ledger';
 
 const AI_PAGE_SIZE = 10;
-const MAX_HOUSEHOLDS = 250;
+const MAX_HOUSEHOLDS = WEDDING_MAX_HOUSEHOLDS;
 const GRACE_MS = 7 * WEDDING_DAY;
 type Stored = FirebaseFirestore.DocumentData;
 type Tx = FirebaseFirestore.Transaction;
@@ -27,7 +27,8 @@ function paidDraftsRetired(project: Stored) {
 function settledOrCanceled(batch: Stored) {
   if (batch.refundReservedCents !== 0 || batch.dueAt != null) return false;
   if (batch.status === 'canceled') return batch.capturedCents === 0 && batch.refundedCents === 0;
-  return batch.status === 'held' && batch.settledAt > 0 && /^pi_[\w-]+$/.test(batch.paymentIntentId) &&
+  return batch.status === 'held' && Number.isFinite(batch.settledAt) && batch.settledAt > 0 &&
+    typeof batch.paymentIntentId === 'string' && /^pi_[\w-]{1,128}$/.test(batch.paymentIntentId) &&
     Number.isSafeInteger(batch.capturedCents) && batch.capturedCents > 0 &&
     Number.isSafeInteger(batch.refundedCents) && batch.refundedCents >= 0 && batch.refundedCents <= batch.capturedCents &&
     batch.quote?.totalCents === batch.capturedCents && batch.preparedCount === batch.quote.count &&
@@ -42,10 +43,14 @@ const projectBatches = (ref: Ref) => firestoreDb.collection('weddingBatches')
 async function canDrainRetiredDrafts(tx: Tx, ref: Ref, at: number) {
   const project = (await tx.get(ref)).data();
   if (!project || !expiredAndUnlocked(project, at)) return false;
-  if (project.deletedAt) return !project.purchasedCount && !Object.keys(project.paidHouseholds ?? {}).length;
-  if (!paidDraftsRetired(project)) return false;
-  const batches = await tx.get(projectBatches(ref));
-  return batches.size <= MAX_HOUSEHOLDS && batches.docs.every(doc => settledOrCanceled(doc.data()));
+  if (project.deletedAt ? project.purchasedCount !== 0 : !paidDraftsRetired(project)) return false;
+  const rows = await tx.get(ref.collection('households').limit(MAX_HOUSEHOLDS + 1));
+  const reason = await verifyPaidHistory(tx, ref, project, rows);
+  if (reason) {
+    // Preserve the source queue phase. A repaired receipt can unblock the next page.
+    tx.set(firestoreDb.collection('weddingDraftCleanup').doc(ref.id), {proofHold: reason}, {merge: true});
+  }
+  return !reason;
 }
 
 async function verifyPaidHistory(tx: Tx, ref: Ref, project: Stored, rows: FirebaseFirestore.QuerySnapshot) {
@@ -53,51 +58,101 @@ async function verifyPaidHistory(tx: Tx, ref: Ref, project: Stored, rows: Fireba
   if (project.id !== ref.id || !Number.isSafeInteger(project.purchasedCount) || Array.isArray(ledger) ||
       typeof ledger !== 'object' || Object.keys(ledger).length !== project.purchasedCount ||
       project.householdCount !== rows.size || rows.size > MAX_HOUSEHOLDS) return 'household_ledger_mismatch';
-  const rowIds = new Set(rows.docs.map(doc => doc.id));
-  if (Object.keys(ledger).some(id => !rowIds.has(id)) || rows.docs.some(doc => {
+  const households = new Map(rows.docs.map(doc => [doc.id, doc.data()]));
+  if (Object.keys(ledger).some(id => !households.has(id)) || rows.docs.some(doc => {
     const row = doc.data();
     return row.id !== doc.id || (row.paidBatchId && row.paidBatchId !== ledger[doc.id]) ||
+      (row.paymentStatus != null && row.paymentStatus !== 'held') ||
       ((row.paymentStatus || row.refundStatus) && !Object.hasOwn(ledger, doc.id));
   })) return 'household_ledger_mismatch';
 
-  const batches = await tx.get(projectBatches(ref));
-  if (batches.size > MAX_HOUSEHOLDS) return 'order_history_limit';
+  const [batches, pins] = await Promise.all([
+    tx.get(projectBatches(ref)), tx.get(ref.collection('artworkPins').limit(MAX_HOUSEHOLDS + 1)),
+  ]);
+  if (batches.size > MAX_HOUSEHOLDS || pins.size > MAX_HOUSEHOLDS) return 'order_history_limit';
+  const batchIds = new Set(batches.docs.map(doc => doc.id));
+  const pinsByBatch = new Map(pins.docs.map(doc => [doc.id, doc.data()]));
+  for (const [id, pin] of pinsByBatch) {
+    if (!batchIds.has(id) || pin.batchId !== id || pin.projectId !== ref.id || pin.status !== 'ready' ||
+        pin.storageKey !== `wedding-paid-retained/staging/${weddingHash(ref.id).slice(0,32)}/${id}.png` ||
+        typeof pin.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(pin.sha256)) return 'paid_master_mismatch';
+  }
   const accounted = new Set<string>(), ordinals = new Set<number>();
+  let refundJobsRead = 0;
   for (const doc of batches.docs) {
     const batch = doc.data();
     if (!settledOrCanceled(batch)) return 'payment_unresolved';
     if (batch.id !== doc.id) return 'batch_identity_mismatch';
-    if (batch.status === 'canceled') continue;
+    if (batch.status === 'canceled') {
+      if (batch.settledAt != null || batch.completedCount !== 0 || (batch.issueAt && !batch.paymentIntentId)) return 'payment_unresolved';
+      if (batch.paymentIntentId != null) {
+        if (typeof batch.paymentIntentId !== 'string' || !/^pi_[\w-]{1,128}$/.test(batch.paymentIntentId)) return 'payment_unresolved';
+        const fact = await tx.get(firestoreDb.collection(FINANCIAL_FACTS_COLLECTION).doc('fact_cap_' + batch.paymentIntentId));
+        if (fact.exists) return 'capture_fact_mismatch';
+      }
+      continue;
+    }
     const {id: quoteId, ...quote} = batch.quote;
     const lines = quote.lines as WeddingQuoteLine[];
     if (!Array.isArray(lines) || !lines.length || lines.length > 100 || quote.count !== lines.length ||
         lines.length + accounted.size > project.purchasedCount || digest([ref.id, quote]) !== quoteId ||
         quote.currency !== 'USD' || !Number.isSafeInteger(quote.previouslyPurchased)) return 'quote_mismatch';
-    const [factDoc, children, pinDoc] = await Promise.all([
+    const [factDoc, children, deliveries, refunds] = await Promise.all([
       tx.get(firestoreDb.collection(FINANCIAL_FACTS_COLLECTION).doc('fact_cap_' + batch.paymentIntentId)),
       tx.get(doc.ref.collection('cards').limit(lines.length + 1)),
-      tx.get(ref.collection('artworkPins').doc(doc.id)),
+      tx.get(doc.ref.collection('deliveries').limit(lines.length + 1)),
+      tx.get(firestoreDb.collection('weddingRefunds').where('batchId', '==', doc.id).limit(MAX_HOUSEHOLDS - refundJobsRead + 1)),
     ]);
     const fact = factDoc.data();
-    if (!fact || fact.factType !== 'capture' || fact.operationId !== doc.id || fact.providerObjectId !== batch.paymentIntentId ||
+    if (!fact || fact.provider !== 'stripe' || fact.factType !== 'capture' || fact.operationId !== doc.id || fact.providerObjectId !== batch.paymentIntentId ||
         fact.amountCents !== batch.capturedCents || fact.currency !== 'usd' || fact.livemode !== false) return 'capture_fact_mismatch';
     if (children.size !== lines.length) return 'frozen_card_missing';
+    if (deliveries.size !== lines.length) return 'delivery_mismatch';
     const cards = new Map(children.docs.map(child => [child.id, child.data()]));
+    const deliveryRows = new Map(deliveries.docs.map(child => [child.id, child.data()]));
+    const refundRows = new Map(refunds.docs.map(job => [job.id, job.data()]));
+    refundJobsRead += refunds.size;
+    if (refundJobsRead > MAX_HOUSEHOLDS) return 'refund_history_limit';
+    let refunded = 0;
+    for (const [id, job] of refundRows) {
+      const card = cards.get(job.householdId);
+      if (!card || job.id !== id || job.paymentIntentId !== batch.paymentIntentId || job.cents !== card.line?.totalCents ||
+          !['succeeded','failed'].includes(job.status) || job.ledgerPending || job.dueAt != null) return 'refund_unresolved';
+      if (job.status === 'succeeded') {
+        if (card.refundRequestId !== id || card.refundStatus !== job.status || job.ledgerPending !== false ||
+            typeof job.providerId !== 'string' || !/^re_[\w-]{1,128}$/.test(job.providerId)) return 'refund_unresolved';
+        const refundFact = (await tx.get(firestoreDb.collection(FINANCIAL_FACTS_COLLECTION).doc('fact_ref_' + job.providerId))).data();
+        if (refundFact?.factType !== 'refund' || refundFact.provider !== 'stripe' || refundFact.providerObjectId !== job.providerId ||
+            refundFact.paymentIntentId !== batch.paymentIntentId || refundFact.amountCents !== job.cents || refundFact.currency !== 'usd' ||
+            refundFact.livemode !== false || refundFact.providerRefundStatus !== 'succeeded') return 'refund_unresolved';
+        refunded += job.cents;
+      }
+    }
+    if (refunded !== batch.refundedCents) return 'refund_unresolved';
     let total = 0;
     for (const [index, line] of lines.entries()) {
       const id = line?.householdId, child = cards.get(id), card = child?.card;
       if (!card || card.householdId !== id || !child?.line || digest(card) !== line.contentHash ||
-          digest(child.line) !== digest(line) || ['reserved','pending'].includes(child.refundStatus)) return 'frozen_card_mismatch';
+          digest(child.line) !== digest(line)) return 'frozen_card_mismatch';
+      if (child.refundRequestId != null || child.refundStatus != null) {
+        const refund = refundRows.get(child.refundRequestId);
+        if (!refund || refund.householdId !== id || child.refundStatus !== refund.status) return 'refund_unresolved';
+      }
+      const household = households.get(id);
+      if ((household?.refundStatus != null || child.refundStatus === 'succeeded') &&
+          (household?.refundStatus !== 'refunded' || household.refundedCents !== line.totalCents ||
+           child.refundStatus !== 'succeeded')) return 'refund_unresolved';
+      const delivery = deliveryRows.get(id);
+      if (delivery?.status !== 'held' || delivery.householdId !== id || delivery.ordinal !== line.ordinal ||
+          delivery.contentHash !== line.contentHash) return 'delivery_mismatch';
       if (ledger[id] !== doc.id || accounted.has(id) || ordinals.has(line.ordinal) ||
           line.ordinal !== quote.previouslyPurchased + index + 1 || line.ordinal < 1 || line.ordinal > project.purchasedCount) return 'paid_ordinal_mismatch';
       if (card.cover?.kind === 'upload') {
-        const pin = pinDoc.data(), retained = batch.artPin;
-        const expected = 'wedding-paid-retained/staging/' + weddingHash(ref.id).slice(0,32) + '/' + doc.id + '.png';
-        if (!pin || !retained || pin.status !== 'ready' || pin.batchId !== doc.id || pin.projectId !== ref.id ||
-            pin.storageKey !== expected || retained.storageKey !== expected || pin.id !== card.cover.id ||
-            retained.id !== pin.id || !/^[a-f0-9]{64}$/.test(pin.sha256) || retained.sha256 !== pin.sha256 ||
+        const pin = pinsByBatch.get(doc.id), retained = batch.artPin;
+        if (!pin || !retained || pin.storageKey !== retained.storageKey || pin.id !== card.cover.id ||
+            retained.id !== pin.id || retained.sha256 !== pin.sha256 ||
             card.cover.hash !== pin.sha256) return 'paid_master_mismatch';
-      } else if (card.cover?.kind !== 'preset' || batch.artPin || pinDoc.exists) return 'paid_master_mismatch';
+      } else if (card.cover?.kind !== 'preset' || batch.artPin || pinsByBatch.has(doc.id)) return 'paid_master_mismatch';
       accounted.add(id);
       ordinals.add(line.ordinal);
       total += line.totalCents;
@@ -155,8 +210,6 @@ async function cleanupRetiredAi(projectRef: FirebaseFirestore.DocumentReference,
   const budget = firestoreDb.collection('weddingAiBudgets').doc(`project_${weddingHash(projectRef.id)}`);
   return firestoreDb.runTransaction(async tx => {
     const counts = {jobsArchived: 0, jobsRedacted: 0, receiptsDeleted: 0};
-    if (!await canDrainRetiredDrafts(tx, projectRef, at)) return counts;
-
     const [cursor, budgetSnapshot] = await Promise.all([tx.get(progress), tx.get(budget)]);
     const fenced = new Set((budgetSnapshot.data()?.inflight ?? []).map((call: {jobId: string}) => call.jobId));
     // Ordering by document ID allows a cursor to outlive a deleted receipt.
@@ -170,6 +223,8 @@ async function cleanupRetiredAi(projectRef: FirebaseFirestore.DocumentReference,
     const [jobs, receipts] = await Promise.all([
       page('aiJobs', last?.aiJobAfter), page('aiRequests', last?.aiReceiptAfter),
     ]);
+    if (jobs.empty && receipts.empty && !last?.aiJobAfter && !last?.aiReceiptAfter) return counts;
+    if (!await canDrainRetiredDrafts(tx, projectRef, at)) return counts;
     const jobData = new Map(jobs.docs.map(doc => [doc.id, doc.data()]));
     const expired = (data: FirebaseFirestore.DocumentData) => Number.isFinite(data.expiresAt) && data.expiresAt <= at;
     const expiredReceipts = receipts.docs.filter(doc => expired(doc.data()) &&
@@ -208,8 +263,8 @@ async function cleanupRetiredAi(projectRef: FirebaseFirestore.DocumentReference,
     }
     const aiJobAfter = jobs.size === AI_PAGE_SIZE ? jobs.docs[jobs.size - 1].id : null;
     const aiReceiptAfter = receipts.size === AI_PAGE_SIZE ? receipts.docs[receipts.size - 1].id : null;
-    if (aiJobAfter !== (last?.aiJobAfter ?? null) || aiReceiptAfter !== (last?.aiReceiptAfter ?? null)) {
-      tx.set(progress, {aiJobAfter, aiReceiptAfter}, {merge: true});
+    if (last?.proofHold || aiJobAfter !== (last?.aiJobAfter ?? null) || aiReceiptAfter !== (last?.aiReceiptAfter ?? null)) {
+      tx.set(progress, {aiJobAfter, aiReceiptAfter, proofHold: null}, {merge: true});
     }
     return counts;
   });
@@ -220,7 +275,7 @@ async function cleanupRetiredAi(projectRef: FirebaseFirestore.DocumentReference,
 export async function cleanupWeddingDrafts(at=Date.now(),limit=10) {
   const bound=Math.max(1,Math.min(limit,10));
   const cursorRef=firestoreDb.collection('weddingRetentionControl').doc('drafts'),cursor=(await cursorRef.get()).data();
-  let query=firestoreDb.collection('weddingProjects').where('expiresAt','<=',at-7*WEDDING_DAY).orderBy('expiresAt');
+  let query=firestoreDb.collection('weddingProjects').where('expiresAt','<=',at-GRACE_MS).orderBy('expiresAt');
   if(cursor?.id){const last=await weddingProjectRef(cursor.id).get();if(last.exists)query=query.startAfter(last);}
   const page=await query.limit(bound).get();
   let purged=0,held=0;
@@ -228,7 +283,7 @@ export async function cleanupWeddingDrafts(at=Date.now(),limit=10) {
   for(const doc of page.docs){
     const result = await firestoreDb.runTransaction(async tx => {
       const ref = doc.ref, project = (await tx.get(ref)).data();
-      if (!project || project.deletedAt || !Number.isFinite(project.expiresAt) || project.expiresAt > at - GRACE_MS) return 'skip';
+      if (!project || !Number.isFinite(project.expiresAt) || project.expiresAt > at - GRACE_MS) return 'skip';
       if (!expiredAndUnlocked(project, at)) return 'held';
       const progress = firestoreDb.collection('weddingDraftCleanup').doc(ref.id);
       const review = (reason: string) => {
@@ -236,9 +291,9 @@ export async function cleanupWeddingDrafts(at=Date.now(),limit=10) {
         return 'held';
       };
       // Older sweeps wrote retentionCheckedFor even when they kept all drafts.
-      if (paidDraftsRetired(project)) {
+      if (project.deletedAt || paidDraftsRetired(project)) {
         const queue = (await tx.get(progress)).data();
-        if (queue?.state === 'source_deferred' && await canDrainRetiredDrafts(tx, ref, at)) tx.update(progress, {state: 'pending'});
+        if (queue?.state === 'source_deferred' && await canDrainRetiredDrafts(tx, ref, at)) tx.update(progress, {state: 'pending', proofHold: null});
         return 'retired';
       }
       const rows = await tx.get(ref.collection('households').limit(MAX_HOUSEHOLDS + 1));
@@ -262,7 +317,8 @@ export async function cleanupWeddingDrafts(at=Date.now(),limit=10) {
           // Keep the paid tracker row, delivery/refund state, and approval hash.
           // The immutable child card is the authority for ordered wording and art.
           const {sourceHouseholdId, ...tracker} = row.data();
-          tx.set(row.ref, {...tracker, paidBatchId: batchId, gift: '', memory: '', provenance: [], pendingAddress: null});
+          tx.set(row.ref, {...tracker, paidBatchId: batchId, gift: '', memory: '', provenance: [], pendingAddress: null,
+            templateId: null, bodyOverride: null, signOffOverride: null, greeting: null});
         }
       }
       tx.set(progress, {projectId: ref.id, createdAt: at, expiresAt: project.expiresAt, importsPending: true,
@@ -274,7 +330,7 @@ export async function cleanupWeddingDrafts(at=Date.now(),limit=10) {
       return 'purged';
     });
     if(result==='purged')purged++;if(result==='held')held++;
-    if (result === 'purged' || result === 'retired' || doc.data().deletedAt) {
+    if (result === 'purged' || result === 'retired') {
       const cleaned = await cleanupRetiredAi(doc.ref, at);
       ai.jobsArchived += cleaned.jobsArchived;
       ai.jobsRedacted += cleaned.jobsRedacted;
@@ -332,8 +388,10 @@ export async function cleanupWeddingSourceRecords(_limit=1) {
  * uses another namespace and cannot pass this guard, even with corrupt metadata. */
 export async function cleanupWeddingDraftArtwork(remove?: (key:string)=>Promise<void>) {
   const jobs=await firestoreDb.collection('weddingDraftCleanup').where('state','==','artwork_pending').limit(1).get();let deleted=0;
-  for(const job of jobs.docs){const projectId=String(job.data().projectId),ref=weddingProjectRef(projectId),project=(await ref.get()).data() as WeddingProject|undefined;
-    if(!project?.deletedAt||project.purchasedCount||project.activeBatchId||Object.keys(project.paidHouseholds||{}).length)continue;
+  for(const job of jobs.docs){const projectId=job.id,ref=weddingProjectRef(projectId);
+    if(job.data().projectId!==projectId)continue;
+    const eligible=await firestoreDb.runTransaction(async tx=>(await tx.get(ref)).data()?.deletedAt && await canDrainRetiredDrafts(tx,ref,Date.now()));
+    if(!eligible)continue;
     let blocked=false;
     const assets=await ref.collection('artwork').limit(20).get(),prefix=`wedding-normalized/staging/${weddingHash(projectId).slice(0,32)}/`;
     for(const asset of assets.docs){const data=asset.data();if(data.projectId!==projectId||data.policy!=='wedding-raster-v1'||data.verdict!=='accepted_for_import'){blocked=true;continue;}

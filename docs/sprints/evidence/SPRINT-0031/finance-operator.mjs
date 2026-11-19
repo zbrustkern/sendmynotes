@@ -168,6 +168,7 @@ async function cloudJSON(token, url, body) {
     parsed.protocol === "https:" &&
       [
         "run.googleapis.com",
+        "firebaseapphosting.googleapis.com",
         "cloudresourcemanager.googleapis.com",
         "secretmanager.googleapis.com",
         "www.googleapis.com",
@@ -418,8 +419,25 @@ async function main() {
   if (webhookOnly) {
     operatorStep = "staging_refund_webhook";
     const {wireAndReplay} = await import("./refund-webhook.mjs");
-    const receipt = await wireAndReplay({sdk, db, job:existing, pi, token, stripeKey, lastRef, pRef,
-      subscribeOnly: mode === "--subscribe-staging-refund-webhook"});
+    const subscribeOnly = mode === "--subscribe-staging-refund-webhook";
+    let servingSha;
+    if (!subscribeOnly) {
+      const api = "https://firebaseapphosting.googleapis.com/v1beta/";
+      const backend = "/locations/us-central1/backends/" + project;
+      const traffic = await get(api + "projects/" + project + backend + "/traffic");
+      const splits = traffic.current?.splits || [];
+      check(splits.length === 1 && splits[0].percent === 100, "single_serving_webhook_build");
+      const buildName = splits[0].build;
+      check(new RegExp("^projects/(?:" + project + "|" + projectNumber + ")" + backend + "/builds/build-[A-Za-z0-9-]+$").test(buildName), "staging_webhook_build");
+      const build = await get(api + buildName);
+      servingSha = build.source?.codebase?.hash;
+      check(build.state === "READY" && [
+        "70bbceb1dc3b4356f36ad863e3be060eee01e61a",
+        "dfd20ac85c19155cba2dd6c4d57b3a0362d433ea",
+      ].includes(servingSha), "signed_receipt_build_required");
+    }
+    const receipt = await wireAndReplay({sdk, db, job:existing, pi, token, stripeKey, lastRef, pRef, subscribeOnly});
+    if (servingSha) receipt.servingSha = servingSha;
     await db.terminate();
     console.log("STAGING_WEBHOOK_RECEIPT " + JSON.stringify(receipt));
     return;

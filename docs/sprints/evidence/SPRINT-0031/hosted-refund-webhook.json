@@ -11,5 +11,48 @@
     ],
     "eventDeliveries": [],
     "configuration": "enabled"
+  },
+  "delivery": {
+    "checkedAt": "2026-11-19T04:27:58.491Z",
+    "livemode": false,
+    "endpoint": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/api/webhooks/stripe",
+    "subscriptionUnionVerified": true,
+    "preservedPriorEventCount": 1,
+    "subscribedRefundEvents": [
+      "refund.created",
+      "refund.updated"
+    ],
+    "persistedEvents": [
+      "payment_intent.succeeded",
+      "refund.created",
+      "refund.updated"
+    ],
+    "eventDeliveries": [
+      {
+        "type": "refund.created",
+        "eventFingerprint": "687921d3fee3611b",
+        "outcome": "signed_and_deduplicated",
+        "signedInbox": true,
+        "duplicateVerified": true,
+        "signatureVerified": true,
+        "providerEventIdMatched": true
+      },
+      {
+        "type": "refund.updated",
+        "eventFingerprint": "99df094cbe1603a3",
+        "outcome": "signed_and_deduplicated",
+        "signedInbox": true,
+        "duplicateVerified": true,
+        "signatureVerified": true,
+        "providerEventIdMatched": true
+      }
+    ],
+    "configuration": "enabled",
+    "refundedCents": 1200,
+    "refundCount": 1,
+    "retainedBeforeFeesCents": 73000,
+    "purchasedOrdinals": 100,
+    "servingSha": "70bbceb1dc3b4356f36ad863e3be060eee01e61a",
+    "completedAt": "2026-11-19T04:28:52.000Z"
   }
 }

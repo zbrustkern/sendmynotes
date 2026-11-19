@@ -331,6 +331,8 @@ async function main(){
     const frozen = {card,line:quote.lines[0],refundStatus:null};
     await batch.set(receipt);
     await batch.collection('cards').doc('paid').set(frozen);
+    const delivery = {householdId:'paid',ordinal:1,contentHash:quote.lines[0].contentHash,status:'held',holdReason:'staging_review'};
+    await batch.collection('deliveries').doc('paid').set(delivery);
     await recordPaymentCaptureFact({operationId:id,paymentIntentId:intent,amountCents:quote.totalCents,currency:'usd',livemode:false});
     await project.collection('households').doc('paid').set({...row,paidBatchId:withDraft?null:id});
     if (withDraft) await project.collection('households').doc('draft').set({...newWeddingHousehold('draft'),...rowInput('Unpurchased household')});
@@ -340,7 +342,7 @@ async function main(){
     await project.collection('aiRequests').doc('request').set({jobId:'private',expiresAt:expired});
     await project.collection('imports').doc('source').set({createdAt:expired-1});
     await project.collection('imports').doc('source').collection('pages').doc('page').set({rows:[{gift:'Private source gift'}]});
-    return {ctx,project,batch,id,receipt,frozen,pin,asset,expired,at,fact:db.collection(FINANCIAL_FACTS_COLLECTION).doc('fact_cap_'+intent)};
+    return {ctx,project,batch,id,receipt,frozen,delivery,pin,asset,expired,at,fact:db.collection(FINANCIAL_FACTS_COLLECTION).doc('fact_cap_'+intent)};
   }
   async function rotateDraftSweep() {
     const {cleanupWeddingDrafts} = await import('../lib/wedding/retention');
@@ -362,14 +364,18 @@ async function main(){
       assert.deepEqual(p.paidHouseholds,{paid:f.id});assert.equal(p.sharedBody,'');assert.equal(p.cover.kind,'preset');
       assert.equal((await f.project.collection('households').doc('draft').get()).exists,false);
       const row=(await f.project.collection('households').doc('paid').get()).data()!;
-      assert.equal(row.envelopeName,'Paid household');assert.equal(row.paidBatchId,f.id);assert.equal(row.gift,'');
+      assert.equal(row.envelopeName,'Paid household');assert.equal(row.paidBatchId,f.id);assert.equal(row.gift,'');assert.equal(row.bodyOverride,null);
       assert.deepEqual((await f.batch.get()).data(),f.receipt);assert.deepEqual((await f.batch.collection('cards').doc('paid').get()).data(),f.frozen);
+      assert.deepEqual((await f.batch.collection('deliveries').doc('paid').get()).data(),f.delivery);
       assert.equal((await f.fact.get()).data()!.amountCents,f.receipt.capturedCents);
       const actor=await S.requireWeddingActor(request(undefined,f.ctx.token,ownerIdentity.uid));
       const tracker=await P.exportWeddingTracker(actor,true);assert.match(tracker,/Paid household/);assert.match(tracker,/ordered\/on hold/);
       assert.ok(!tracker.includes('Unpurchased household')&&!tracker.includes('blue bowl'));
       assert.equal((await getPaidWeddingCard(actor,f.id,'paid')).card.note,'Exact paid wording');
       assert.equal((await getWeddingBatch(actor,f.id)).capturedCents,f.receipt.capturedCents);
+      const resumed=await P.resumeWeddingAccount(ownerIdentity,{projectId:f.project.id,actorId:actor.actorId});
+      const recovered=await S.requireWeddingActor(request(undefined,resumed.token,ownerIdentity.uid));
+      assert.equal((await getPaidWeddingCard(recovered,f.id,'paid')).card.note,f.frozen.card.note);
       assert.equal((await f.project.collection('aiJobs').doc('private').get()).exists,false);
       assert.equal((await f.project.collection('aiRequests').doc('request').get()).exists,false);
       await assert.rejects(()=>P.saveWeddingHousehold(actor,{patch:rowInput('Write after expiry')}),{code:'project_expired'});
@@ -407,17 +413,47 @@ async function main(){
     await f.project.update({paidHouseholds:{paid:f.id}});
     await f.batch.collection('cards').doc('paid').update({card:{...f.frozen.card,note:'Conflicting snapshot'}});await held('frozen_card_mismatch');
     await f.batch.collection('cards').doc('paid').set(f.frozen);
+    const delivery=f.batch.collection('deliveries').doc('paid');
+    await delivery.update({status:'uncertain'});await held('delivery_mismatch');await delivery.set(f.delivery);
     await f.fact.update({operationId:'wrong_batch'});await held('capture_fact_mismatch');await f.fact.update({operationId:f.id});
     const pinRef=f.project.collection('artworkPins').doc(f.id);
     await pinRef.update({status:'pending'});await held('paid_master_mismatch');await pinRef.update({status:'ready'});
+    const strayPin=f.project.collection('artworkPins').doc('missing_batch');
+    await strayPin.set({...f.pin,projectId:f.project.id,batchId:'missing_batch',status:'pending'});
+    await held('paid_master_mismatch');await strayPin.delete();
     await f.batch.update({refundReservedCents:900});await held('payment_unresolved');await f.batch.update({refundReservedCents:0});
     const orphan=db.collection('weddingBatches').doc('orphan');
     await orphan.set({id:'orphan',projectId:f.project.id,status:'reconciliation'});await held('payment_unresolved');await orphan.delete();
     await f.project.update({activeBatchId:'reserved'});await rotateDraftSweep();assert.ok((await f.project.collection('households').doc('draft').get()).exists);
     await f.project.update({activeBatchId:null,paymentReconciliationRequired:true});await rotateDraftSweep();assert.ok((await f.project.collection('households').doc('draft').get()).exists);
     await f.project.update({paymentReconciliationRequired:false,expiresAt:Date.now()-1000});await rotateDraftSweep();assert.ok((await f.project.collection('households').doc('draft').get()).exists);
+    // Refund reservation clears before its independent ledger write completes.
+    const refundId='wr_fixture', providerId='re_fixture', cents=f.receipt.capturedCents;
+    const refund=db.collection('weddingRefunds').doc(refundId);
+    const linkedRefund={id:refundId,providerId,batchId:f.id,householdId:'paid',paymentIntentId:f.receipt.paymentIntentId,cents,status:'succeeded'};
+    await refund.set({...linkedRefund,ledgerPending:true,dueAt:Date.now()});
+    await f.batch.collection('cards').doc('paid').update({refundRequestId:refundId,refundStatus:'succeeded'});
+    await f.batch.update({refundedCents:cents});
+    await f.project.collection('households').doc('paid').update({refundStatus:'refunded',refundedCents:cents});
+    await f.project.update({expiresAt:f.expired});await held('refund_unresolved');
+    const {recordPaymentRefundFact}=await import('../lib/financial-ledger');
+    await recordPaymentRefundFact({refundId:providerId,paymentIntentId:f.receipt.paymentIntentId,
+      amountCents:cents,currency:'usd',providerRefundStatus:'succeeded',livemode:false});
+    await refund.update({ledgerPending:false,dueAt:null});
     await f.project.update({expiresAt:f.expired});await rotateDraftSweep();assert.ok(!(await f.project.collection('households').doc('draft').get()).exists);
+    const verified=await S.requireWeddingActor(request(undefined,f.ctx.token,ownerIdentity.uid));
+    assert.match(await P.exportWeddingTracker(verified),/refunded/);
+    assert.equal((await f.project.get()).data()!.purchasedCount,1);
     const {cleanupWeddingSourceRecords}=await import('../lib/wedding/retention');
+    // The source and AI workers also recheck evidence between bounded pages.
+    await f.project.collection('aiJobs').doc('late').set({projectId:f.project.id,id:'late',status:'ready',items:[],prompt:'expired',expiresAt:f.expired});
+    await f.fact.update({amountCents:cents+1});await rotateDraftSweep();
+    for(let i=0;i<8;i++)await cleanupWeddingSourceRecords();
+    assert.equal((await queue.get()).data()?.proofHold,'capture_fact_mismatch');
+    assert.ok((await f.project.collection('aiJobs').doc('late').get()).exists);
+    assert.ok((await f.project.collection('imports').doc('source').get()).exists);
+    await f.fact.update({amountCents:cents});await rotateDraftSweep();
+    assert.equal((await f.project.collection('aiJobs').doc('late').get()).exists,false);
     await P.extendWeddingProject(f.ctx.actor);await f.project.collection('imports').doc('new').set({createdAt:Date.now()});
     for(let i=0;i<8;i++)await cleanupWeddingSourceRecords();
     assert.ok((await f.project.collection('imports').doc('new').get()).exists);assert.ok((await f.project.collection('imports').doc('source').get()).exists);

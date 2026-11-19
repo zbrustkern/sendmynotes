@@ -29,5 +29,6 @@ const flags = Object.fromEntries((run.template?.containers?.[0]?.env ?? [])
   .filter(item=>['NEXT_PUBLIC_WEDDING_PORTAL_ENABLED','WEDDING_PROJECTS_ENABLED','WEDDING_CHECKOUT_ENABLED',
     'STAGING_REVIEW_ONLY','HANDWRYTTEN_TEST_MODE','FIREBASE_PROJECT_ID','INTERNATIONAL_MAILING_PREVIEW'].includes(item.name))
   .map(item=>[item.name,item.value]));
-console.log(JSON.stringify({checkedAt:new Date().toISOString(),project,builds,latest:{id:rollout?.name.split('/').pop(),
+const cloudRun=(run.trafficStatuses||[]).filter(item=>item.percent>0).map(item=>({revision:item.revision?.split('/').pop(),percent:item.percent}));
+console.log(JSON.stringify({checkedAt:new Date().toISOString(),project,builds,cloudRun,latest:{id:rollout?.name.split('/').pop(),
   state:rollout?.state,buildState:latest?.state,sha:latest?.source?.codebase?.hash},flags},null,2));

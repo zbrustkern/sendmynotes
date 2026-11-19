@@ -58,13 +58,33 @@
       "retainedBeforeProcessingFeesCents": 73000,
       "processingFeesCents": null,
       "refund": "succeeded_staging_iam",
-      "refundWebhook": "pending",
+      "refundWebhook": "observed_and_deduplicated",
       "webhookCapabilities": {
         "signingSecretBinding": true,
         "stagingEndpoints": 1,
         "enabledStagingEndpoints": 1,
         "acceptsCapture": true,
-        "acceptsRefund": false
+        "acceptsRefund": true
+      },
+      "initialRefundWebhookObservation": {
+        "verifiedAt": "2026-11-19T04:16:13.041Z",
+        "status": "pending",
+        "capabilities": {
+          "signingSecretBinding": true,
+          "stagingEndpoints": 1,
+          "enabledStagingEndpoints": 1,
+          "acceptsCapture": true,
+          "acceptsRefund": false
+        }
+      },
+      "refundWebhookFollowUp": {
+        "verifiedAt": "2026-11-19T04:28:52.000Z",
+        "servingSha": "70bbceb1dc3b4356f36ad863e3be060eee01e61a",
+        "receipt": "hosted-refund-webhook.json",
+        "signedAndDeduplicated": [
+          "refund.created",
+          "refund.updated"
+        ]
       }
     }
   },
