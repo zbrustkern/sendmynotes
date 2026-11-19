@@ -1,0 +1,77 @@
+{
+  "host": "staging.sendmynotes.com",
+  "checkedAt": "2026-11-19T04:13:30.239Z",
+  "checks": {
+    "guest": {
+      "projectSize": 100,
+      "domesticRows": 100,
+      "verified": false,
+      "providerMode": "real",
+      "textModel": "gemini-3.8-flash",
+      "imageModel": "gemini-nano-banana-2.1"
+    },
+    "consent": {
+      "declinedStatus": 400,
+      "quotaPreserved": true
+    },
+    "bulk": {
+      "selected": 100,
+      "complete": 100,
+      "distinctDomesticSuggestions": 100,
+      "stoppedAt": 5,
+      "resumed": true,
+      "oneResultPerHousehold": true,
+      "approvedAutomatically": 0,
+      "editsAppliedAutomatically": 0,
+      "draftBudgetRemaining": 0
+    },
+    "original": {
+      "generated": true,
+      "normalizedFormat": "PNG",
+      "width": 1275,
+      "height": 1650
+    },
+    "treatment": {
+      "normalizedSyntheticReference": true,
+      "referenceWidth": 1275,
+      "referenceHeight": 1650,
+      "distinctOutput": true,
+      "format": "PNG"
+    },
+    "stepUp": {
+      "thirdRequestStatus": 401,
+      "additionalReservedCents": 0,
+      "remainingImageAllowance": 1,
+      "additionalJobs": 0,
+      "projectPreserved": true
+    }
+  },
+  "failures": {},
+  "passed": true,
+  "finishedAt": "2026-11-19T04:17:33.567Z",
+  "measurements": {
+    "fullRunWallClockMs": 243328,
+    "bulkJob": {
+      "state": "ready",
+      "complete": 100,
+      "total": 100,
+      "creationToTerminalUpdateMs": 191579
+    },
+    "projectAiAllowance": {
+      "period": "rolling 24 hours",
+      "currency": "USD",
+      "kind": "conservative reserved allowance",
+      "reservedCents": 800,
+      "ceilingCents": 1500,
+      "remainingDrafts": 0,
+      "remainingMaps": 4,
+      "remainingImages": 1
+    },
+    "billing": {
+      "observedProviderCost": null,
+      "providerChargeStatus": "unknown",
+      "paymentProcessorFees": null,
+      "paymentProcessorFeeStatus": "unknown; no billing or processor amount exposed by this endpoint"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "checkedAt": "2026-11-19T04:14:10.018Z",
+  "origin": "https://staging.sendmynotes.com",
+  "checks": [
+    "250 households imported in one request; household 251 held.",
+    "Two owner devices and one partner resume the same project; overlapping changes preserve the saved note.",
+    "Address invitation sees only one form; proposed address enters the project only after owner review.",
+    "Export-only partner cannot reserve; combined grants allow export and checkout; concurrent payers share one reservation. Removing pay permission cancels the open test intent through scheduled reconciliation. No test charge was captured.",
+    "Verified owner and verified partner claim separate identities; export-only, pay-only and immediate revocation are enforced.",
+    "Owner revokes a single device while their own session remains active."
+  ],
+  "fixtureAccountsRemoved": 2
+}

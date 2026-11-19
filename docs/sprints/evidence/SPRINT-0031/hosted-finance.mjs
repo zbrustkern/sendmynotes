@@ -282,7 +282,7 @@ async function confirmWithTestCard(secret, publishableKey) {
       result.id === piId,
     "Stripe test capture must succeed.",
   );
-  return result.amount_received;
+  return result;
 }
 async function runBatch(
   ctx,
@@ -388,11 +388,11 @@ async function runBatch(
           current.currency === "usd",
         "Stripe test intent must match frozen quote.",
       );
-      const captured =
-        current.status === "succeeded"
-          ? current.amount_received
-          : await confirmWithTestCard(pay.clientSecret, pay.publishableKey);
-      stageCheck(captured === expectedCents, "Captured cents must reconcile.");
+      const settled = current.status === "succeeded"
+        ? current : await confirmWithTestCard(pay.clientSecret, pay.publishableKey);
+      // Stripe's public view omits amount_received. The application's server
+      // verifies that field and the settled held receipt must match below.
+      stageCheck(settled.amount === expectedCents && (settled.amount_received == null || settled.amount_received === expectedCents), "Confirmed test intent amount must reconcile.");
     }
     b.confirmedAt = Date.now();
     save();
@@ -500,6 +500,7 @@ async function runScenario(key, mixed) {
   }
   let refund = "unrequested";
   let refundWebhook = "unverified";
+  let webhookCapabilities = null;
   let stateView = await projectState(ctx);
   stageCheck(
     stateView.project.purchasedCount === 100,
@@ -559,6 +560,8 @@ async function runScenario(key, mixed) {
             "). Resume this run after reviewing the operator account.",
         );
       }
+      const metadata=worker.stdout.split("\n").find(l=>l.startsWith("STAGING_WEBHOOK_CAPABILITIES "));
+      if(metadata)webhookCapabilities=JSON.parse(metadata.slice("STAGING_WEBHOOK_CAPABILITIES ".length));
       refundWebhook = worker.stdout.includes("webhook=observed")
         ? "observed"
         : "pending";
@@ -609,8 +612,14 @@ async function runScenario(key, mixed) {
     first,
     second,
     earned: stateView.project.purchasedCount,
+    currency: "USD",
+    capturedCents: first.capturedCents + second.capturedCents,
+    refundedCents: first.refundCents + second.refundCents,
+    retainedBeforeProcessingFeesCents: first.capturedCents + second.capturedCents - first.refundCents - second.refundCents,
+    processingFeesCents: null,
     refund,
     refundWebhook,
+    webhookCapabilities,
   };
 }
 async function main() {

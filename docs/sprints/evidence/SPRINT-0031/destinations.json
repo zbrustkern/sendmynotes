@@ -1,0 +1,86 @@
+{
+  "checkedAt": "2026-11-19T04:14:08.786Z",
+  "supplierSource": "https://api.handwrytten.com/v2/countries/list",
+  "applicationCatalogVersion": "2026-10-26T06:50:07.452Z",
+  "actualCountryCount": 225,
+  "fixtures": [
+    {
+      "country": "US",
+      "catalogId": 1,
+      "supplierName": "United States",
+      "pilotAllowed": true
+    },
+    {
+      "country": "CA",
+      "catalogId": 2,
+      "supplierName": "Canada",
+      "pilotAllowed": true
+    },
+    {
+      "country": "GB",
+      "catalogId": 4,
+      "supplierName": "United Kingdom",
+      "pilotAllowed": true
+    },
+    {
+      "country": "FR",
+      "catalogId": 75,
+      "supplierName": "France",
+      "pilotAllowed": true
+    }
+  ],
+  "usps": {
+    "source": "https://about.usps.com/newsroom/service-alerts/international/",
+    "pageUpdated": "2026-11-06",
+    "suspensions": [
+      {
+        "code": "AF",
+        "application": "held"
+      },
+      {
+        "code": "KI",
+        "application": "held"
+      },
+      {
+        "code": "TM",
+        "application": "unavailable"
+      },
+      {
+        "code": "BT",
+        "application": "held"
+      },
+      {
+        "code": "CG",
+        "application": "held"
+      },
+      {
+        "code": "YE",
+        "application": "unavailable"
+      },
+      {
+        "code": "CU",
+        "application": "held"
+      },
+      {
+        "code": "SC",
+        "application": "held"
+      },
+      {
+        "code": "HT",
+        "application": "held"
+      },
+      {
+        "code": "SS",
+        "application": "unavailable"
+      },
+      {
+        "code": "IR",
+        "application": "held"
+      },
+      {
+        "code": "SD",
+        "application": "held"
+      }
+    ]
+  }
+}

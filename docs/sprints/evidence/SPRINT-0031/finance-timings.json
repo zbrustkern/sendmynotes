@@ -1,0 +1,74 @@
+{
+  "checkedAt": "2026-11-19T04:21:08.420Z",
+  "batches": {
+    "domestic": {
+      "first": {
+        "cards": 98,
+        "cardsPerChunk": [
+          20,
+          20,
+          20,
+          20,
+          18
+        ],
+        "elapsedBetweenManifestCommitsMs": [
+          802,
+          427,
+          643,
+          411,
+          509
+        ],
+        "reservationToIntentIssueMs": 3044,
+        "materialized": 98,
+        "hasRemainingDueTime": false
+      },
+      "second": {
+        "cards": 2,
+        "cardsPerChunk": [
+          2
+        ],
+        "elapsedBetweenManifestCommitsMs": [
+          343
+        ],
+        "reservationToIntentIssueMs": 542,
+        "materialized": 2,
+        "hasRemainingDueTime": false
+      }
+    },
+    "mixed": {
+      "first": {
+        "cards": 98,
+        "cardsPerChunk": [
+          20,
+          20,
+          20,
+          20,
+          18
+        ],
+        "elapsedBetweenManifestCommitsMs": [
+          776,
+          432,
+          575,
+          414,
+          452
+        ],
+        "reservationToIntentIssueMs": 2993,
+        "materialized": 98,
+        "hasRemainingDueTime": false
+      },
+      "second": {
+        "cards": 2,
+        "cardsPerChunk": [
+          2
+        ],
+        "elapsedBetweenManifestCommitsMs": [
+          334
+        ],
+        "reservationToIntentIssueMs": 514,
+        "materialized": 2,
+        "hasRemainingDueTime": false
+      }
+    }
+  },
+  "measurement": "Elapsed times between staging Firestore commits include client and network waits. They do not measure server CPU time."
+}

@@ -173,3 +173,20 @@ assert.throws(() =>
 console.log(
   "Staging-only IAM refund guards reject foreign cohorts, destinations, allocations, prior refunds, non-staging bindings and live keys.",
 );
+
+const {selectEndpoint, targetRefundEvents} = await import("../docs/sprints/evidence/SPRINT-0031/refund-webhook.mjs");
+const destination = {id:"we_fixture", status:"enabled", livemode:false, url:"https://staging.sendmynotes.com/api/webhooks/stripe"};
+assert.equal(selectEndpoint([destination]),destination);
+for (const endpoints of [
+  [destination,destination], [{...destination,livemode:true}], [{...destination,status:"disabled"}],
+  [{...destination,url:destination.url+"/"}], [{...destination,url:destination.url+"?value=1"}],
+  [{...destination,url:"https://sendmynotes.com/api/webhooks/stripe"}],
+]) assert.throws(()=>selectEndpoint(endpoints));
+const job={id:"wr_fixture",batchId:"wb_fixture",providerId:"re_fixture"}, pi={id:"pi_fixture"};
+const event={id:"evt_fixture",livemode:false,type:"refund.created",data:{object:{id:job.providerId,payment_intent:pi.id,amount:1200,currency:"usd",metadata:{weddingRefundId:job.id,weddingBatchId:job.batchId}}}};
+assert.equal(targetRefundEvents([event],job,pi).length,1);
+for(const other of [{...event,livemode:true},{...event,account:"connected"},{...event,type:"refund.failed"},
+  {...event,data:{object:{...event.data.object,amount:1250}}},{...event,data:{object:{...event.data.object,id:"re_other"}}},
+  {...event,data:{object:{...event.data.object,metadata:{weddingRefundId:job.id,weddingBatchId:"wb_other"}}}}])
+  assert.deepEqual(targetRefundEvents([other],job,pi),[]);
+console.log("Staging webhook destination and existing-refund identity guards passed.");

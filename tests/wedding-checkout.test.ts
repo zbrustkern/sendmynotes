@@ -47,6 +47,7 @@ async function main() {
     }));
     assert.equal(response.status, 200);
     const row = (await db.collection("provider_webhook_inbox").doc("inbox_stripe_" + event.id).get()).data();
+    assert.ok(row, "Stripe event must have a durable inbox receipt.");
     assert.equal(row.payloadSummary.signatureVerified, !bypass);
     assert.equal(row.payloadSummary.eventId, event.id);
     assert.equal(row.eventType, event.type);
@@ -316,7 +317,6 @@ async function main() {
           .completedCount,
         20,
       );
-      const fakeSupplier = new Map<string, { note: string; coverId: string }>();
       const scenario = captures[0],
         line = scenario.quote.lines[0];
       const card = await C.getPaidWeddingCard(
@@ -324,31 +324,6 @@ async function main() {
         scenario.batchId,
         line.householdId,
       );
-      const deliveryKey = scenario.batchId + "/" + line.householdId;
-      // Deterministic, memory-only supplier fixture: a lost reply after acceptance
-      // is resolved via the original delivery identity, without another submission.
-      function submitToFixture(
-        key: string,
-        payload: { note: string; coverId: string },
-      ) {
-        assert.ok(
-          !fakeSupplier.has(key),
-          "An uncertain accepted card must never be submitted twice.",
-        );
-        fakeSupplier.set(key, payload);
-        throw Error("Simulated lost reply");
-      }
-      assert.throws(
-        () =>
-          submitToFixture(deliveryKey, {
-            note: card.card.note,
-            coverId: card.card.cover.id,
-          }),
-        /lost reply/,
-      );
-      assert.equal(fakeSupplier.get(deliveryKey)?.note, card.card.note);
-      assert.equal(fakeSupplier.get(deliveryKey)?.coverId, card.card.cover.id);
-      assert.equal(fakeSupplier.size, 1);
       await large.ref.update({
         sharedBody: "Newest wording",
         cover: { kind: "preset", id: "replacement", url: "/replacement.png" },

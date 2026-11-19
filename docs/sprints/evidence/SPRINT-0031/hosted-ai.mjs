@@ -1,4 +1,4 @@
-// Usage: node docs/sprints/evidence/SPRINT-0031/hosted-ai.mjs <private-pilot-link> <sanitized-metrics.json>
+// Usage: node docs/sprints/evidence/SPRINT-0031/hosted-ai.mjs <private-pilot-link> <sanitized-metrics.json> [--retry-confirmed | --receipt-only]
 // A sibling .v11-session file (0600, outside the repository) holds only the staging session,
 // source IDs and phase markers so interrupted runs can resume without submitting a new paid job.
 import { createHash } from 'node:crypto';
@@ -10,7 +10,9 @@ import { stagingRequest } from './staging-request.mjs';
 
 const origin='https://staging.sendmynotes.com';
 const aliases=[origin,'https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app'];
-const [invitePath,outPath]=process.argv.slice(2);
+const [invitePath,outPath,retryOption]=process.argv.slice(2);
+const retryConfirmed=retryOption==='--retry-confirmed';
+const receiptOnly=retryOption==='--receipt-only';
 const statePath=invitePath && resolve(invitePath)+'.v11-session';
 const checks={},failures={};
 const metrics={host:new URL(origin).host,checkedAt:new Date().toISOString(),checks,failures};
@@ -67,7 +69,7 @@ function sameRows(before,after){
   return JSON.stringify(stateOf(before))===JSON.stringify(stateOf(after));
 }
 async function run(){
-  if(!invitePath||!outPath||resolve(invitePath)===resolve(outPath)||resolve(outPath)===statePath)fail('distinct_invite_and_receipt_paths_required');
+  if((retryOption && !retryConfirmed)||!invitePath||!outPath||resolve(invitePath)===resolve(outPath)||resolve(outPath)===statePath)fail('distinct_invite_and_receipt_paths_required');
   const inviteDir=await realpath(dirname(resolve(invitePath)));
   const rel=relative(await realpath(process.cwd()),inviteDir);
   requireFact(rel==='..'||rel.startsWith('..'+sep),'keep_invite_outside_checkout');
@@ -83,6 +85,13 @@ async function run(){
   requireFact(current.actor.pilot&&!current.actor.verified&&current.actor.role==='owner','unverified_invited_guest_required');
   requireFact(!state.projectId||current.project.id===state.projectId,'wrong_private_project');
   state.projectId=current.project.id;await checkpoint();
+  requireFact(current.households.length===100 && current.households.every(r=>/^sample_\d{3}$/.test(r.id)&&!r.paidBatchId&&!r.approvedFingerprint),'fictional_sample_required');
+  // The customer sample deliberately includes Canada, the UK and incomplete
+  // domestic addresses. Use the editable household flow to prepare V11's all-US cohort.
+  for(const row of current.households.filter(r=>r.address.country!=='US'||!r.address.address1)) {
+    await project('saveHousehold',{id:row.id,revision:row.revision,patch:{address:{address1:(100+Number(row.id.slice(7)))+' Example Lane',address2:'',city:'Chicago',state:'IL',zip:'60601',country:'US'},addressConfirmed:true}});
+  }
+  current=await call('/project');
   const rows=current.households;
   requireFact(rows.length===100&&rows.every(r=>r.id.startsWith('sample_')&&r.address.country==='US'&&r.gift&&r.identityConfirmed&&r.insideNameConfirmed&&!r.excluded&&!r.bodyOverride&&!r.approvedFingerprint&&!r.paidBatchId),'expected_100_unapproved_domestic_sample_rows');
   const ids=rows.map(r=>r.id).sort(),baseline=await meta();
@@ -104,10 +113,30 @@ async function run(){
   });
   await guarded('batch',async()=>{
     // Replays of the same initial request only return its existing job.
-    let response=await ai('draft-100',{action:'draft',ids,tone:'warm',consent:true});
-    requireFact(id(response.jobId)&&response.total===100,'bulk_job_required');
-    const jobId=response.jobId;state.jobId=jobId;await checkpoint();
-    let snapshot=await job(jobId);
+    let jobId=state.jobId,response;
+    if(!jobId){
+      try {
+        response=await ai('draft-100',{action:'draft',ids,tone:'warm',consent:true});
+        requireFact(id(response.jobId)&&response.total===100,'bulk_job_required');
+        jobId=response.jobId;
+      } catch(error) {
+        const recent=(await meta()).jobs.filter(j=>j.action==='draft');
+        if(recent.length!==1)throw error;
+        jobId=recent[0].jobId; // Recover the original reservation after a failed/missing response.
+      }
+      state.jobId=jobId;await checkpoint();
+    }
+    async function progress() {
+      let result=await job(jobId);
+      for(let tries=0;result.status==='running'&&tries<12;tries++){await wait(3000);result=await job(jobId);}
+      if(result.status==='retryable'&&retryConfirmed) {
+        await ai('confirmed-retry-at-'+result.complete,{action:'advance',jobId,consent:true});
+        result=await job(jobId);
+      }
+      if(['failed','unresolved','running','retryable','canceled'].includes(result.status))throw new Check('bulk_job_'+result.status,undefined,safeString(result.error));
+      return result;
+    }
+    let snapshot=await progress();
     if(!state.pausedAfter){
       requireFact(snapshot.complete>=1&&snapshot.complete<=5,'one_initial_chunk_expected');
       const done=snapshot.complete;
@@ -132,16 +161,17 @@ async function run(){
       if(snapshot.status==='retryable')throw new Check('bulk_job_requires_explicit_retry',undefined,safeString(snapshot.error));
       const old=snapshot.complete;
       response=await ai('advance-at-'+old,{action:'advance',jobId,consent:true});
-      snapshot=await job(jobId);
+      snapshot=await progress();
       requireFact(snapshot.complete>old&&snapshot.complete<=old+chunk&&response.jobId===jobId,'invalid_resumed_chunk');
       state.completed=snapshot.complete;await checkpoint();
+      if(state.completed%25===0)console.log(JSON.stringify({check:'bulk',completed:state.completed,total:100}));
     }
     const results=snapshot.result?.suggestions;
     requireFact(snapshot.status==='ready'&&Array.isArray(results)&&results.length===100&&new Set(results.map(r=>r.id)).size===100&&results.every(r=>ids.includes(r.id)&&typeof r.text==='string'&&r.text.trim()&&r.text.length<=450),'missing_or_invalid_suggestions');
     const final=await call('/project');
     requireFact(sameRows(rows,final.households)&&final.project.purchasedCount===0,'suggestions_changed_sender_data');
     const exhausted=await ai('over-draft-quota',{action:'draft',ids:[ids[0]],tone:'warm',consent:true},[429]);
-    requireFact(exhausted.code==='quota_exhausted'||exhausted.code==='quota_limit','expected_draft_quota');
+    requireFact(exhausted.code==='project_quota','expected_draft_quota');
     checks.bulk={selected:100,complete:100,distinctDomesticSuggestions:100,stoppedAt:state.pausedAfter,resumed:true,oneResultPerHousehold:true,approvedAutomatically:0,editsAppliedAutomatically:0,draftBudgetRemaining:(await meta()).remaining.drafts};
   });
 
@@ -180,7 +210,47 @@ async function run(){
   });
   if(Object.keys(failures).length) process.exitCode=1;
 }
-try{await run();}catch(e){failures[stage]=safeError(e);process.exitCode=1;}
-metrics.passed=!Object.keys(failures).length;metrics.finishedAt=new Date().toISOString();
-if(outPath && invitePath && resolve(outPath)!==resolve(invitePath)&&resolve(outPath)!==statePath)await writeFile(outPath,JSON.stringify(metrics,null,2)+'\n',{mode:0o600});
-console.log(JSON.stringify({passed:metrics.passed,checks:Object.keys(checks),failures}));
+// Read-only collection deliberately has no reference to the POST helpers. A
+// refresh preserves the original run's start/end timestamps and accepted facts.
+async function timingAndAllowance(receipt){
+  requireFact(state.projectId && id(state.jobId) && state.cookies?.smn_wedding_session,'completed_private_state_required');
+  const data=await call('/ai?jobId='+encodeURIComponent(state.jobId));
+  const j=data.job,cost=data.cost;
+  requireFact(j?.jobId===state.jobId && j.action==='draft' && j.status==='ready' && j.complete===100 && j.total===100,'expected_terminal_bulk_job');
+  requireFact(cost?.kind==='reserved_estimate' && Number.isInteger(cost.reservedCents) && Number.isInteger(cost.ceilingCents),'expected_project_allowance');
+  requireFact(Number.isFinite(j.createdAt) && Number.isFinite(j.updatedAt) && j.updatedAt>=j.createdAt,'expected_job_timestamps');
+  const elapsed=Date.parse(receipt.finishedAt)-Date.parse(receipt.checkedAt);
+  requireFact(Number.isFinite(elapsed)&&elapsed>=0,'expected_original_run_timestamps');
+  return {
+    fullRunWallClockMs:elapsed,
+    bulkJob:{state:j.status,complete:j.complete,total:j.total,creationToTerminalUpdateMs:j.updatedAt-j.createdAt},
+    projectAiAllowance:{period:'rolling 24 hours',currency:'USD',kind:'conservative reserved allowance',
+      reservedCents:cost.reservedCents,ceilingCents:cost.ceilingCents,remainingDrafts:data.remaining.drafts,
+      remainingMaps:data.remaining.maps,remainingImages:data.remaining.images},
+    billing:{observedProviderCost:cost.observedProviderCost??null,providerChargeStatus:cost.observedProviderCost==null?'unknown':'reported by provider',
+      paymentProcessorFees:null,paymentProcessorFeeStatus:'unknown; no billing or processor amount exposed by this endpoint'},
+  };
+}
+async function saveReceipt(receipt) {
+  const tmp=resolve(outPath)+'.'+process.pid+'.tmp';
+  await writeFile(tmp,JSON.stringify(receipt,null,2)+'\n',{flag:'wx',mode:0o600});await rename(tmp,outPath);
+}
+if(receiptOnly){
+  try{
+    requireFact(invitePath && outPath && resolve(invitePath)!==resolve(outPath) && resolve(outPath)!==statePath,'distinct_private_state_and_receipt_required');
+    state=JSON.parse(await privateFile(statePath,16384));
+    const receipt=JSON.parse(await readFile(outPath,'utf8'));
+    requireFact(receipt.host==='staging.sendmynotes.com' && receipt.passed===true && receipt.checks.bulk?.complete===100,'completed_staging_receipt_required');
+    receipt.measurements=await timingAndAllowance(receipt);
+    await saveReceipt(receipt);
+    console.log(JSON.stringify({passed:true,updated:'timing and allowance',readOnly:true}));
+  }catch(e){console.log(JSON.stringify({passed:false,readOnly:true,failure:safeError(e)}));process.exitCode=1;}
+}else{
+  try{await run();}catch(e){failures[stage]=safeError(e);process.exitCode=1;}
+  metrics.passed=!Object.keys(failures).length;metrics.finishedAt=new Date().toISOString();
+  if(metrics.passed){
+    try{metrics.measurements=await timingAndAllowance(metrics);}catch(e){metrics.measurementError=safeError(e);}
+  }
+  if(outPath && invitePath && resolve(outPath)!==resolve(invitePath)&&resolve(outPath)!==statePath)await saveReceipt(metrics);
+  console.log(JSON.stringify({passed:metrics.passed,checks:Object.keys(checks),failures}));
+}

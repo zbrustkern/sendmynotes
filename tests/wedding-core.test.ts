@@ -124,6 +124,18 @@ async function main(){
     await P.redeemWeddingInvite(pilot.link.split('=')[1],owner);assert.equal((await S.requireWeddingActor(request(undefined,ctx.token))).pilot,true);
     await Pilot.revokeWeddingPilot(admin,pilot.inviteId);assert.equal((await S.requireWeddingActor(request(undefined,ctx.token))).pilot,false);
   });
+  await check('only a verified linked operator sees the independent tester invitation control',async()=>{
+    const fixture=await setup(), uid='wedding-pilot-operator', previous=process.env.ADMIN_AUTHORIZED_EMAILS;
+    process.env.ADMIN_AUTHORIZED_EMAILS=uid+'@example.com';
+    try {
+      const signed=request(undefined,fixture.token,uid);
+      assert.equal(S.publicWeddingActor(await S.requireWeddingActor(signed)).canIssuePilotInvites,false);
+      await P.claimWeddingMembership(fixture.actor,(await S.weddingIdentity(signed,true))!);
+      assert.equal(S.publicWeddingActor(await S.requireWeddingActor(signed)).canIssuePilotInvites,true);
+      assert.equal(S.publicWeddingActor(await S.requireWeddingActor(request(undefined,fixture.token))).canIssuePilotInvites,false);
+      assert.equal(S.publicWeddingActor(verifiedPartner).canIssuePilotInvites,false);
+    } finally { if(previous===undefined)delete process.env.ADMIN_AUTHORIZED_EMAILS;else process.env.ADMIN_AUTHORIZED_EMAILS=previous; }
+  });
   await check('reservation fences settings and all household edits; revocation keeps checkout fenced for reconciliation',async()=>{
     const ref=S.weddingProjectRef(owner.projectId);await ref.update({activeBatchId:'wb_fixture',checkoutActorId:partner.actorId});let st=await state();const row=st.households[0];
     await assert.rejects(()=>P.saveWeddingProject(owner,{revision:st.project.revision,patch:{signOff:'Changed'}}),{code:'checkout_reserved'});
@@ -170,6 +182,245 @@ async function main(){
     const ref=S.weddingProjectRef(fresh.projectId);await ref.update({activeBatchId:'wb_link_fixture',checkoutActorId:editor.actorId});
     await P.revokeWeddingInvite(fresh.actor,invite.inviteId);const current=(await ref.get()).data()!;assert.equal(current.activeBatchId,'wb_link_fixture');assert.equal(current.paymentReconciliationRequired,true);
     await assert.rejects(()=>P.resumeWeddingAccount(partnerIdentity,{projectId:fresh.projectId,actorId:editor.actorId}),{code:'account_mismatch'});
+  });
+  await check('expired AI pages drain past retained calls, preserving reconciliation and replay evidence', async () => {
+    const {cleanupWeddingDrafts} = await import('../lib/wedding/retention');
+    const {createWeddingAiService} = await import('../lib/wedding/ai');
+    const at = Date.now(), expired = at - 190 * 86_400_000;
+    const {projectId} = await setup();
+    const project = S.weddingProjectRef(projectId);
+    await project.update({expiresAt: expired, deletedAt: expired + 7 * 86_400_000, retentionCheckedFor: expired});
+    const progress = db.collection('weddingDraftCleanup').doc(projectId);
+    await progress.set({projectId, state: 'complete'}); // Already processed by the old cleanup.
+    const jobs = project.collection('aiJobs'), receipts = project.collection('aiRequests');
+    const audit = project.collection('aiJobAudit');
+    const run = {id: 'invocation', ids: ['r1'], startedAt: expired - 10, deadline: expired, state: 'running', attempts: 1};
+    const item = {id: 'r1', householdId: 'household1', revision: 3, state: 'pending', contextHash: 'hash'};
+    const metadata = {projectId, actorId: 'actor', deviceId: 'device', action: 'draft', inputHash: 'input-hash',
+      consents: {actor: {inputHash: 'input-hash', policy: 'fixture', at: expired}}, estimatedCents: 10,
+      provider: {provider: 'fixture', mode: 'synthetic-test'}, createdAt: expired - 100, expiresAt: expired};
+    const privateFields = {prompt: 'synthetic private prompt', headers: ['synthetic private heading'],
+      excerpt: 'synthetic private passage', assetId: 'private-front', result: {suggestions: [{name: 'synthetic private result'}]},
+      items: [{...item, gift: 'synthetic private gift', memory: 'synthetic private memory', text: 'synthetic private note'}]};
+    const receipt = (id: string) => ({jobId: id, actorId: 'actor', action: 'draft', inputHash: 'input-hash', at: expired, expiresAt: expired});
+    // A full first page must be skippable even when every invocation is preserved.
+    for (let i = 0; i < 10; i++) {
+      const id = 'a' + i;
+      await jobs.doc(id).set({...metadata, ...privateFields, id, status: i === 0 ? 'running' : 'unresolved', run: {...run, id: 'invoke_' + id}});
+      await receipts.doc(id).set(receipt(id));
+    }
+    const complete = 'z_complete';
+    await jobs.doc(complete).set({...metadata, ...privateFields, id: complete, status: 'ready', run: {...run, state: 'complete'}});
+    await receipts.doc(complete).set(receipt(complete));
+    const fenced = 'z_fenced';
+    await jobs.doc(fenced).set({...metadata, ...privateFields, id: fenced, status: 'canceled', run: null});
+    await receipts.doc(fenced).set(receipt(fenced));
+    const budgets = db.collection('weddingAiBudgets'), budget = {events: [], inflight: [
+      {jobId: 'a0', callId: 'invoke_a0', deadline: expired}, {jobId: fenced, callId: 'fenced_call', deadline: 0},
+    ]};
+    const budgetRefs = [budgets.doc('project_' + weddingHash(projectId)), budgets.doc('device_' + weddingHash('device')), budgets.doc('deployment')];
+    for (const ref of budgetRefs) await ref.set(budget);
+    // Simulate a later child expiry. Neither its text nor its earlier receipt is due.
+    const future = 'z_future', futureData = {...metadata, ...privateFields, id: future, expiresAt: at + 3600000, status: 'queued', run: null};
+    await jobs.doc(future).set(futureData);
+    await receipts.doc(future).set(receipt(future));
+    await receipts.doc('z_orphan').set(receipt('removed_job'));
+    await receipts.doc('z_unexpired').set({...receipt('removed_job'), expiresAt: at + 3600000});
+
+    // The enclosing project sweep rotates too. Each visit advances one child page.
+    for (let i = 0; i < 4 && !(await progress.get()).data()?.aiJobAfter; i++) await cleanupWeddingDrafts(at);
+    assert.equal((await progress.get()).data()!.aiJobAfter, 'a9');
+    assert.deepEqual((await jobs.doc(complete).get()).data()!.result, privateFields.result);
+    const cleaned = (await jobs.doc('a0').get()).data()!;
+    assert.deepEqual(cleaned, {...metadata, id: 'a0', status: 'running', run: {...run, id: 'invoke_a0'}, items: [item]});
+    assert.deepEqual((await receipts.doc('a0').get()).data(), receipt('a0'));
+
+    for (let i = 0; i < 4 && (await jobs.doc(complete).get()).exists; i++) await cleanupWeddingDrafts(at);
+    assert.equal((await jobs.doc(complete).get()).exists, false);
+    assert.deepEqual((await audit.doc(complete).get()).data(), {...metadata, id: complete, status: 'ready', run: {...run, state: 'complete'}, items: [item]});
+    assert.equal((await receipts.doc(complete).get()).exists, false);
+    assert.deepEqual((await jobs.doc(fenced).get()).data()!.items, [item]);
+    assert.deepEqual((await receipts.doc(fenced).get()).data(), receipt(fenced));
+    assert.deepEqual((await jobs.doc(future).get()).data(), futureData);
+    assert.ok((await receipts.doc(future).get()).exists);
+    assert.ok(!(await receipts.doc('z_orphan').get()).exists && (await receipts.doc('z_unexpired').get()).exists);
+    for (const ref of budgetRefs) assert.deepEqual((await ref.get()).data(), budget);
+    assert.equal((await progress.get()).data()!.state, 'complete');
+
+    // Exercise the real operator transaction against the stripped job.
+    const service = createWeddingAiService({testRuntime: true});
+    const email = 'retention-operator@example.invalid', previous = process.env.ADMIN_AUTHORIZED_EMAILS;
+    process.env.ADMIN_AUTHORIZED_EMAILS = email;
+    try {
+      const input = {projectId, jobId: 'a0', runId: 'invoke_a0', decision: 'confirmed_terminal' as const, evidenceReference: 'synthetic-provider-evidence'};
+      assert.equal((await service.reconcile(request(undefined, '', email), input)).status, 'failed');
+      const reconciled = (await jobs.doc('a0').get()).data()!;
+      assert.equal(reconciled.reconciliation.evidenceHash, weddingHash(input.evidenceReference));
+      await cleanupWeddingDrafts(at);
+      assert.deepEqual((await jobs.doc('a0').get()).data(), reconciled);
+      assert.deepEqual((await receipts.doc('a0').get()).data(), receipt('a0'));
+      assert.equal((await service.reconcile(request(undefined, '', email), input)).status, 'failed');
+      for (const ref of budgetRefs) assert.deepEqual((await ref.get()).data()!.inflight, [budget.inflight[1]]);
+    } finally {
+      if (previous === undefined) delete process.env.ADMIN_AUTHORIZED_EMAILS;
+      else process.env.ADMIN_AUTHORIZED_EMAILS = previous;
+    }
+  });
+  await check('AI cleanup preserves active, reserved and unproven paid projects and bounds network signal deletion', async () => {
+    const {cleanupWeddingDrafts} = await import('../lib/wedding/retention');
+    const at = Date.now(), expired = at - 190 * 86_400_000;
+    const active = await setup(), reserved = await setup(), mixed = await setup(), unpaid = await setup();
+    const refs = [active, reserved, mixed, unpaid].map(({projectId}) => S.weddingProjectRef(projectId));
+    await refs[1].update({expiresAt: expired, activeBatchId: 'batch'});
+    await refs[2].update({expiresAt: expired, purchasedCount: 1, householdCount: 2, paidHouseholds: {paid: 'paid_batch'}});
+    await refs[3].update({expiresAt: expired});
+    const paid = {...rowInput('Synthetic ordered household'), id: 'paid', paidBatchId: 'paid_batch'};
+    const draft = {...rowInput('Synthetic unpaid household'), id: 'unpaid', paidBatchId: null};
+    await refs[2].collection('households').doc('paid').set(paid);
+    await refs[2].collection('households').doc('unpaid').set(draft);
+    const frozen = {id: 'paid_batch', snapshotHash: 'synthetic frozen hash'};
+    await db.collection('weddingBatches').doc('paid_batch').set(frozen);
+    const data = {id: 'map_job', status: 'ready', expiresAt: expired, excerpt: 'synthetic private passage', items: []};
+    for (const ref of refs) {
+      await ref.collection('aiJobs').doc(data.id).set({...data, projectId: ref.id});
+      await ref.collection('aiRequests').doc('request').set({jobId: data.id, expiresAt: expired});
+    }
+    const signals = db.collection('weddingAiNetworkSignals');
+    for (let i = 0; i < 101; i++) await signals.doc('expired_' + i).set({expiresAt: at, attempts: [at - 600000]});
+    const future = {expiresAt: at + 600000, attempts: [at]};
+    await signals.doc('current').set(future);
+    assert.equal((await cleanupWeddingDrafts(at)).ai.networkSignalsDeleted, 100);
+    assert.equal((await cleanupWeddingDrafts(at)).ai.networkSignalsDeleted, 1);
+    assert.deepEqual((await signals.doc('current').get()).data(), future);
+    for (const ref of refs.slice(0, 3)) {
+      assert.deepEqual((await ref.collection('aiJobs').doc(data.id).get()).data(), {...data, projectId: ref.id});
+      assert.ok((await ref.collection('aiRequests').doc('request').get()).exists);
+    }
+    assert.ok((await refs[3].get()).data()!.deletedAt);
+    assert.equal((await refs[3].collection('aiJobs').doc(data.id).get()).exists, false);
+    assert.equal((await refs[3].collection('aiRequests').doc('request').get()).exists, false);
+    assert.deepEqual((await refs[2].collection('households').doc('paid').get()).data(), paid);
+    assert.deepEqual((await refs[2].collection('households').doc('unpaid').get()).data(), draft);
+    assert.deepEqual((await db.collection('weddingBatches').doc('paid_batch').get()).data(), frozen);
+  });
+  async function paidFixture(withDraft: boolean, upload = true) {
+    const {priceWeddingSelection, digest} = await import('../lib/wedding/finance');
+    const {recordPaymentCaptureFact, FINANCIAL_FACTS_COLLECTION} = await import('../lib/financial-ledger');
+    const ctx = await setup(), project = S.weddingProjectRef(ctx.projectId);
+    await P.claimWeddingMembership(ctx.actor, ownerIdentity);
+    const at = Date.now(), expired = at - 9 * 86_400_000;
+    const id = 'wb_' + project.id, intent = 'pi_' + project.id, sha = weddingHash('synthetic paid front');
+    const segment = weddingHash(project.id).slice(0, 32), storageKey = 'wedding-normalized/staging/' + segment + '/' + sha + '.png';
+    const cover = upload ? {kind:'upload', id:'front', hash:sha, url:'/api/wedding/artwork?id=front', masterKey:storageKey} :
+      {kind:'preset',id:'preset-thankyou-botanical',url:'/presets/thank-you-botanical.jpg'};
+    const pin = {id:'front', sha256:sha, storageKey:'wedding-paid-retained/staging/' + segment + '/' + id + '.png'};
+    const sourceHash = weddingHash('synthetic source');
+    const asset = {id:'front',projectId:project.id,policy:'wedding-raster-v1',verdict:'accepted_for_import',storageKey,
+      sha256:sha,sourceSha256:sourceHash,sourceKey:'wedding-normalized/staging/' + segment + '/' + sourceHash + '.png'};
+    if (upload) {
+      await project.collection('artwork').doc('front').set(asset);
+      await project.collection('artworkPins').doc(id).set({...pin, status:'ready', projectId:project.id, batchId:id});
+    }
+    const row = {...newWeddingHousehold('paid'),...rowInput('Paid household'),bodyOverride:'Exact paid wording',approvedFingerprint:'approved'};
+    const card = {householdId:'paid',revision:row.revision,envelopeName:row.envelopeName,note:row.bodyOverride,
+      cover,handwriting:'hwDavid',recipient:row.address,returnAddress:row.address,approvedFingerprint:row.approvedFingerprint};
+    const quote = priceWeddingSelection(project.id,0,[{id:'paid',revision:row.revision,country:'US',region:'IL',postal:'00101',contentHash:digest(card)}]);
+    const batch = db.collection('weddingBatches').doc(id);
+    const receipt = {id,projectId:project.id,status:'held',preparedCount:1,completedCount:1,capturedCents:quote.totalCents,
+      refundedCents:0,refundReservedCents:0,dueAt:null,settledAt:expired-1,paymentIntentId:intent,quote,artPin:upload?pin:null};
+    const frozen = {card,line:quote.lines[0],refundStatus:null};
+    await batch.set(receipt);
+    await batch.collection('cards').doc('paid').set(frozen);
+    await recordPaymentCaptureFact({operationId:id,paymentIntentId:intent,amountCents:quote.totalCents,currency:'usd',livemode:false});
+    await project.collection('households').doc('paid').set({...row,paidBatchId:withDraft?null:id});
+    if (withDraft) await project.collection('households').doc('draft').set({...newWeddingHousehold('draft'),...rowInput('Unpurchased household')});
+    await project.update({purchasedCount:1,paidHouseholds:{paid:id},householdCount:withDraft?2:1,cover,sharedBody:'Expired shared text',
+      expiresAt:expired,retentionCheckedFor:expired}); // Old release held all mixed projects indefinitely.
+    await project.collection('aiJobs').doc('private').set({id:'private',projectId:project.id,status:'ready',items:[],excerpt:'Expired passage',expiresAt:expired});
+    await project.collection('aiRequests').doc('request').set({jobId:'private',expiresAt:expired});
+    await project.collection('imports').doc('source').set({createdAt:expired-1});
+    await project.collection('imports').doc('source').collection('pages').doc('page').set({rows:[{gift:'Private source gift'}]});
+    return {ctx,project,batch,id,receipt,frozen,pin,asset,expired,at,fact:db.collection(FINANCIAL_FACTS_COLLECTION).doc('fact_cap_'+intent)};
+  }
+  async function rotateDraftSweep() {
+    const {cleanupWeddingDrafts} = await import('../lib/wedding/retention');
+    for(let i=0;i<4;i++) await cleanupWeddingDrafts();
+  }
+  await check('mixed and fully paid retirement preserves authorized receipts and frozen cards, scrubs drafts and keeps earned ordinals', async () => {
+    const {getPaidWeddingCard,getWeddingBatch} = await import('../lib/wedding/checkout');
+    const {cleanupWeddingSourceRecords} = await import('../lib/wedding/retention');
+    const {createWeddingArtworkService} = await import('../lib/wedding/artwork');
+    const mixed=await paidFixture(true), full=await paidFixture(false,false);
+    const pendingRun={id:'unknown_call',state:'unresolved',deadline:0};
+    const unresolved=mixed.project.collection('aiJobs').doc('uncertain'), uncertaintyReceipt=mixed.project.collection('aiRequests').doc('uncertain');
+    await unresolved.set({id:'uncertain',projectId:mixed.project.id,status:'unresolved',prompt:'Private prompt',run:pendingRun,deviceId:'fixture',items:[],expiresAt:mixed.expired});
+    await uncertaintyReceipt.set({jobId:'uncertain',inputHash:'fixture',expiresAt:mixed.expired});
+    await rotateDraftSweep();
+    for (const f of [mixed,full]) {
+      const p=(await f.project.get()).data()!;
+      assert.equal(p.deletedAt,undefined);assert.equal(p.expiresAt,f.expired);assert.equal(p.householdCount,1);assert.equal(p.purchasedCount,1);
+      assert.deepEqual(p.paidHouseholds,{paid:f.id});assert.equal(p.sharedBody,'');assert.equal(p.cover.kind,'preset');
+      assert.equal((await f.project.collection('households').doc('draft').get()).exists,false);
+      const row=(await f.project.collection('households').doc('paid').get()).data()!;
+      assert.equal(row.envelopeName,'Paid household');assert.equal(row.paidBatchId,f.id);assert.equal(row.gift,'');
+      assert.deepEqual((await f.batch.get()).data(),f.receipt);assert.deepEqual((await f.batch.collection('cards').doc('paid').get()).data(),f.frozen);
+      assert.equal((await f.fact.get()).data()!.amountCents,f.receipt.capturedCents);
+      const actor=await S.requireWeddingActor(request(undefined,f.ctx.token,ownerIdentity.uid));
+      const tracker=await P.exportWeddingTracker(actor,true);assert.match(tracker,/Paid household/);assert.match(tracker,/ordered\/on hold/);
+      assert.ok(!tracker.includes('Unpurchased household')&&!tracker.includes('blue bowl'));
+      assert.equal((await getPaidWeddingCard(actor,f.id,'paid')).card.note,'Exact paid wording');
+      assert.equal((await getWeddingBatch(actor,f.id)).capturedCents,f.receipt.capturedCents);
+      assert.equal((await f.project.collection('aiJobs').doc('private').get()).exists,false);
+      assert.equal((await f.project.collection('aiRequests').doc('request').get()).exists,false);
+      await assert.rejects(()=>P.saveWeddingHousehold(actor,{patch:rowInput('Write after expiry')}),{code:'project_expired'});
+    }
+    assert.deepEqual((await unresolved.get()).data()!.run,pendingRun);assert.equal((await unresolved.get()).data()!.prompt,undefined);
+    assert.ok((await uncertaintyReceipt.get()).exists);
+    for(let i=0;i<12;i++)await cleanupWeddingSourceRecords();
+    assert.equal((await mixed.project.collection('imports').doc('source').collection('pages').doc('page').get()).exists,false);
+    const pin=(await mixed.project.collection('artworkPins').doc(mixed.id).get()).data()!;
+    assert.equal(pin.storageKey,mixed.pin.storageKey);
+    // Recovery during delayed object deletion can re-use the exact normalized bytes.
+    await P.extendWeddingProject(mixed.ctx.actor);
+    await mixed.project.collection('artwork').doc('reused').set({...mixed.asset,id:'reused',sourceKey:mixed.asset.storageKey});
+    const removed:string[]=[];
+    const gc=createWeddingArtworkService({db,assertRuntime:()=>{},objects:{
+      async read(){throw Error('unexpected read');},async putOnce(){throw Error('unexpected write');},
+      async remove(key){removed.push(key);},async removeOrphan(key){removed.push(key);},
+    }});
+    await gc.cleanupPending(100);
+    assert.ok(removed.includes(mixed.asset.sourceKey));assert.ok(!removed.includes(mixed.asset.storageKey));assert.ok(!removed.includes(mixed.pin.storageKey));
+    await P.saveWeddingHousehold(mixed.ctx.actor,{patch:rowInput('New household after extension')});
+    await rotateDraftSweep();
+    assert.equal((await P.weddingState(mixed.ctx.actor)).project.householdCount,2);
+  });
+  await check('retirement holds mismatched order, ordinal, capture and pin evidence and retries after repair', async () => {
+    const f=await paidFixture(true), queue=db.collection('weddingDraftCleanup').doc(f.project.id);
+    async function held(reason:string) {
+      await rotateDraftSweep();
+      assert.equal((await queue.get()).data()?.reason,reason);
+      assert.ok((await f.project.collection('households').doc('draft').get()).exists);
+      assert.ok((await f.project.collection('aiJobs').doc('private').get()).exists);
+      assert.ok((await f.project.collection('artwork').doc('front').get()).exists);
+    }
+    await f.project.update({paidHouseholds:{paid:'wrong_batch'}});await held('paid_ordinal_mismatch');
+    await f.project.update({paidHouseholds:{paid:f.id}});
+    await f.batch.collection('cards').doc('paid').update({card:{...f.frozen.card,note:'Conflicting snapshot'}});await held('frozen_card_mismatch');
+    await f.batch.collection('cards').doc('paid').set(f.frozen);
+    await f.fact.update({operationId:'wrong_batch'});await held('capture_fact_mismatch');await f.fact.update({operationId:f.id});
+    const pinRef=f.project.collection('artworkPins').doc(f.id);
+    await pinRef.update({status:'pending'});await held('paid_master_mismatch');await pinRef.update({status:'ready'});
+    await f.batch.update({refundReservedCents:900});await held('payment_unresolved');await f.batch.update({refundReservedCents:0});
+    const orphan=db.collection('weddingBatches').doc('orphan');
+    await orphan.set({id:'orphan',projectId:f.project.id,status:'reconciliation'});await held('payment_unresolved');await orphan.delete();
+    await f.project.update({activeBatchId:'reserved'});await rotateDraftSweep();assert.ok((await f.project.collection('households').doc('draft').get()).exists);
+    await f.project.update({activeBatchId:null,paymentReconciliationRequired:true});await rotateDraftSweep();assert.ok((await f.project.collection('households').doc('draft').get()).exists);
+    await f.project.update({paymentReconciliationRequired:false,expiresAt:Date.now()-1000});await rotateDraftSweep();assert.ok((await f.project.collection('households').doc('draft').get()).exists);
+    await f.project.update({expiresAt:f.expired});await rotateDraftSweep();assert.ok(!(await f.project.collection('households').doc('draft').get()).exists);
+    const {cleanupWeddingSourceRecords}=await import('../lib/wedding/retention');
+    await P.extendWeddingProject(f.ctx.actor);await f.project.collection('imports').doc('new').set({createdAt:Date.now()});
+    for(let i=0;i<8;i++)await cleanupWeddingSourceRecords();
+    assert.ok((await f.project.collection('imports').doc('new').get()).exists);assert.ok((await f.project.collection('imports').doc('source').get()).exists);
   });
   await check('production is disabled without explicit staged runtime',()=>{const env=process.env.NODE_ENV;Object.assign(process.env,{NODE_ENV:'production'});try{assert.throws(()=>S.assertWeddingRuntime(),{code:'wedding_disabled'});}finally{Object.assign(process.env,{NODE_ENV:env});}});
   console.log(`Wedding core: ${checks} isolated checks passed. No cloud or fulfillment access.`);

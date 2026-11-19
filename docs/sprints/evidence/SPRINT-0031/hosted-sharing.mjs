@@ -1,6 +1,8 @@
 // Run only against staging. Disposable Firebase accounts use the reserved .invalid domain.
 // Verification is set by the staging IAM operator for these two new fixtures only.
 import assert from 'node:assert/strict';
+import {setTimeout as wait} from 'node:timers/promises';
+import {stagingRequest} from './staging-request.mjs';
 import {execFileSync} from 'node:child_process';
 import {randomBytes} from 'node:crypto';
 import {readFile,writeFile} from 'node:fs/promises';
@@ -26,7 +28,7 @@ async function newIdentity(){
 }
 async function request(ctx,body,expected=200,path='/api/wedding/project'){
   const headers={origin,'content-type':'application/json',cookie:[...ctx.jar].map(([k,v])=>k+'='+v).join('; '),...(ctx.token?{authorization:'Bearer '+ctx.token}:{})};
-  const r=await fetch(origin+path,{method:body?'POST':'GET',headers,...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(45_000)});
+  const r=await stagingRequest(origin+path,{method:body?'POST':'GET',headers,...(body?{body:JSON.stringify(body)}:{}),signal:AbortSignal.timeout(45_000)});
   for(const kv of r.headers.getSetCookie()){const [k,v]=kv.split(';')[0].split('=');ctx.jar.set(k,v);}
   const isJson=r.headers.get('content-type')?.includes('application/json');
   const d=isJson?await r.json():await r.text();
@@ -74,6 +76,38 @@ try {
   assert.ok(csv.includes('serving bowl')&&!csv.includes('Example Lane')&&!csv.includes('sharing dinner'));
   await request(owner,{action:'grant',actorId,canPay:true,canExport:false});
   await request(partner,{action:'export'},403);
+  if (process.argv.includes('--checkout')) {
+    const checkout=(who,body,status=200)=>request(who,body,status,'/api/wedding/checkout');
+    s=await request(owner);
+    s=await request(owner,{action:'saveProject',revision:s.project.revision,patch:{sharedBody:'Thank you for the thoughtful gift.',signOff:'With love, Alex and Jamie',returnAddress:{...address,firstName:'Alex and Jamie',lastName:''}}});
+    const card=s.households.find(r=>!r.bodyOverride);
+    await request(owner,{action:'approve',mode:'shared',ids:[card.id],revisions:{[card.id]:card.revision},projectRevision:s.project.revision});
+    const approved=(await request(owner)).households.find(r=>r.id===card.id);
+    const selection=[{id:approved.id,revision:approved.revision}];
+    const quote=async()=>{const q=await checkout(partner,{action:'quote',selection});assert.equal(q.checkoutEnabled,true);assert.equal(q.quote.totalCents,900);return {action:'reserve',selection,quoteHash:q.quote.id};};
+    await request(owner,{action:'grant',actorId,canPay:false,canExport:true});
+    await checkout(partner,await quote(),403);
+    await request(owner,{action:'grant',actorId,canPay:true,canExport:true});
+    assert.equal(typeof await request(partner,{action:'export'}),'string');
+    const first=await quote();
+    const results=await Promise.all([checkout(owner,first,[200,409]),checkout(partner,first,[200,409])]);
+    assert.equal(results.filter(r=>!!r.batchId).length,1);
+    const one=results.find(r=>r.batchId);
+    assert.equal((await checkout(owner,{action:'cancel',batchId:one.batchId})).status,'canceled');
+    await request(owner,{action:'grant',actorId,canPay:true,canExport:false});
+    const batch=await checkout(partner,await quote());
+    let current=batch;
+    while(current.status==='preparing') current=await checkout(partner,{action:'advance',batchId:batch.batchId});
+    const intent=await checkout(partner,{action:'pay',batchId:batch.batchId});
+    assert.ok(intent.publishableKey?.startsWith('pk_test_') && intent.clientSecret);
+    await request(owner,{action:'grant',actorId,canPay:false,canExport:true});
+    await checkout(partner,{action:'pay',batchId:batch.batchId},403);
+    const until=Date.now()+240000;
+    do {current=await checkout(owner,{action:'status',batchId:batch.batchId});if(current.status==='canceled') break;await wait(5000);}while(Date.now()<until);
+    assert.equal(current.status,'canceled');
+    assert.equal((await request(owner)).project.purchasedCount,0);
+    checks.push('Export-only partner cannot reserve; combined grants allow export and checkout; concurrent payers share one reservation. Removing pay permission cancels the open test intent through scheduled reconciliation. No test charge was captured.');
+  }
   await request(owner,{action:'revoke',actorId});
   await request(partner,null,[401,403]);
   checks.push('Verified owner and verified partner claim separate identities; export-only, pay-only and immediate revocation are enforced.');

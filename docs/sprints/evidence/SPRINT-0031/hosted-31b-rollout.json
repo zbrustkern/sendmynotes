@@ -1,0 +1,27 @@
+{
+  "checkedAt": "2026-11-19T04:17:12.403Z",
+  "project": "sendmynotes-staging",
+  "builds": [
+    {
+      "id": "build-2026-11-19-012",
+      "state": "READY",
+      "sha": "7616379568e2db852a4966da47fefde7ee3bf2e2",
+      "percent": 100
+    }
+  ],
+  "latest": {
+    "id": "rollout-2026-11-19-012",
+    "state": "SUCCEEDED",
+    "buildState": "READY",
+    "sha": "7616379568e2db852a4966da47fefde7ee3bf2e2"
+  },
+  "flags": {
+    "NEXT_PUBLIC_WEDDING_PORTAL_ENABLED": "true",
+    "WEDDING_PROJECTS_ENABLED": "true",
+    "WEDDING_CHECKOUT_ENABLED": "true",
+    "INTERNATIONAL_MAILING_PREVIEW": "true",
+    "FIREBASE_PROJECT_ID": "sendmynotes-staging",
+    "STAGING_REVIEW_ONLY": "true",
+    "HANDWRYTTEN_TEST_MODE": "true"
+  }
+}

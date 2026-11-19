@@ -1,0 +1,18 @@
+{
+  "host": "staging.sendmynotes.com",
+  "observedAt": "2026-11-19T04:12:50.213Z",
+  "passed": [
+    "discoverable from home and send, attribution retained",
+    "blank guest project",
+    "manual household",
+    "personal greeting and shared approval",
+    "personal override and reapproval",
+    "449/450/451 whole-note bounds",
+    "private resume",
+    "graduated review",
+    "320px layout",
+    "recovery on second device",
+    "96 confirmed, four held and three international sample envelopes",
+    "100 households, 2 personal and 98 shared approvals; inherited-only invalidation"
+  ]
+}

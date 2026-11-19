@@ -1,0 +1,29 @@
+{
+  "checkedAt": "2026-11-19T04:10:39.801Z",
+  "project": "sendmynotes-staging",
+  "firestore": {
+    "matchesRepositoryIgnoringFormatting": true,
+    "ruleHash": "314dbea92af30a17fde8fe352ef780a015458138dd53286747dd556ebfbf913a",
+    "denyAllClientAccess": true
+  },
+  "jobs": [
+    {
+      "name": "wedding-held-reconciliation",
+      "schedule": "* * * * *",
+      "timeZone": "Etc/UTC",
+      "enabled": true,
+      "route": "/api/cron/wedding-reconcile",
+      "lastAttempt": "2026-11-19T04:10:17.316792Z",
+      "latestCode": 0
+    },
+    {
+      "name": "upload-private-cleanup",
+      "schedule": "17 4 * * *",
+      "timeZone": "America/Chicago",
+      "enabled": true,
+      "route": "/api/cron/upload-cleanup",
+      "lastAttempt": "2026-11-18T10:17:17.003228Z",
+      "latestCode": 0
+    }
+  ]
+}

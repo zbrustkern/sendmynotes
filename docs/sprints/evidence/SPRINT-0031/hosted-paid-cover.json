@@ -1,0 +1,21 @@
+{
+  "host": "staging.sendmynotes.com",
+  "observedAt": "2026-11-19T04:17:09.649Z",
+  "processor": "stripe_test",
+  "cards": 1,
+  "capturedCents": 900,
+  "deliveryStatus": "held",
+  "syntheticFront": {
+    "cropAndLetteringChangedBytes": true,
+    "width": 1275,
+    "height": 1650
+  },
+  "privateMasterMatchesPaidBeforeAndAfter": true,
+  "purchasedNoteMatchesApprovedPersonalPreviewBeforeAndAfter": true,
+  "editableCoverAndSignOffChanged": true,
+  "otherProjectOwnerDenied": {
+    "draft": 404,
+    "paidMaster": 404,
+    "card": 404
+  }
+}

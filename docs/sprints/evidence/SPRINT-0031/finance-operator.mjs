@@ -1,10 +1,14 @@
 /** Local staging-IAM operator used only by hosted-finance.mjs. No HTTP admin surface. */
+import { OAuth2Client } from "google-auth-library";
+import { createRequire } from "node:module";
+import { lstatSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { resolve } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 
+let operatorStep = "startup";
 const project = "sendmynotes-staging";
 const service =
   "projects/" + project + "/locations/us-central1/services/" + project;
@@ -192,9 +196,21 @@ async function boundedInput() {
   }
   return JSON.parse(text);
 }
+function readCompletedRun() {
+  const filename = "/private/tmp/smn-wedding-0031-finance-private.json";
+  const info = lstatSync(filename);
+  check(info.isFile() && info.uid === process.getuid() && (info.mode & 0o077) === 0, "private_staging_fixture");
+  const state = JSON.parse(readFileSync(filename, "utf8"));
+  check(state.schema === 1 && state.origin === "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app" &&
+    state.mixed?.first?.verified === true && state.mixed?.second?.verified === true, "completed_staging_run");
+  const {projectId, first, second, runId} = state.mixed;
+  return {projectId, firstId:first.id, lastId:second.id, runId, householdId: "wh_" + createHash("sha256").update("H099").digest("hex").slice(0,32)};
+}
 async function main() {
+  const mode = process.argv[2];
+  const webhookOnly = ["--subscribe-staging-refund-webhook", "--replay-staging-refund-webhook"].includes(mode);
   check(
-    process.argv.length === 3 && process.argv[2] === "--staging-iam-refund",
+    process.argv.length === 3 && (mode === "--staging-iam-refund" || webhookOnly),
     "operator_flag",
   );
   check(
@@ -206,7 +222,7 @@ async function main() {
       !process.env.FIREBASE_PRIVATE_KEY,
     "scrubbed_environment",
   );
-  const input = await boundedInput();
+  const input = webhookOnly ? readCompletedRun() : await boundedInput();
   verifyOperatorInput(input);
   const gcloud = (args) =>
     execFileSync("gcloud", args, {
@@ -220,10 +236,14 @@ async function main() {
     ),
     "operator_impersonation",
   );
+  operatorStep = "google_identity";
   const token = gcloud(["auth", "print-access-token", "--project", project]);
   const get = (url) => cloudJSON(token, url);
+  const required = webhookOnly
+    ? ["datastore.entities.get"]
+    : ["datastore.entities.get", "datastore.entities.create", "datastore.entities.update"];
   const [profile, cloudProject, run, permissions] = await Promise.all([
-    get("https://www.googleapis.com/oauth2/v3/userinfo"),
+    new OAuth2Client().getTokenInfo(token),
     get("https://cloudresourcemanager.googleapis.com/v3/projects/" + project),
     get("https://run.googleapis.com/v2/" + service),
     cloudJSON(
@@ -232,23 +252,14 @@ async function main() {
         project +
         ":testIamPermissions",
       {
-        permissions: [
-          "datastore.entities.get",
-          "datastore.entities.create",
-          "datastore.entities.update",
-        ],
+        permissions: required,
       },
     ),
   ]);
   check(
-    profile.sub && profile.email_verified === true,
+    profile.sub && String(profile.email_verified) === "true",
     "verified_google_operator",
   );
-  const required = [
-    "datastore.entities.get",
-    "datastore.entities.create",
-    "datastore.entities.update",
-  ];
   check(
     required.every((p) => permissions.permissions?.includes(p)) &&
       cloudProject.projectId === project,
@@ -278,7 +289,9 @@ async function main() {
       "/revisions/" +
       revision,
   );
+  operatorStep = "serving_revision";
   const boundSecret = boundStripeVersion(rev, projectNumber);
+  operatorStep = "secret_binding";
   const secret = await get(
     "https://secretmanager.googleapis.com/v1/" + boundSecret + ":access",
   );
@@ -304,16 +317,24 @@ async function main() {
     STAGING_REVIEW_ONLY: "true",
     STRIPE_SECRET_KEY: stripeKey,
   });
-  const [{ initializeApp }, { getFirestore }, { GoogleAuth, OAuth2Client }] =
+  const [{ initializeApp }, { getFirestore }] =
     await Promise.all([
       import("firebase-admin/app"),
       import("firebase-admin/firestore"),
-      import("google-auth-library"),
     ]);
+  operatorStep = "firestore_init";
   const app = initializeApp({ projectId: project });
   const db = getFirestore(app);
-  const authClient = new OAuth2Client();
+  // Firestore uses its installed GAX transport. The v4 transport consumes
+  // plain-object headers from its own auth version; v10 returns Web Headers.
+  const requireLocal=createRequire(import.meta.url);
+  const requireGax=createRequire(requireLocal.resolve("google-gax"));
+  const compatibleAuth=requireGax("google-auth-library");
+  const authClient = new compatibleAuth.OAuth2Client();
+  authClient.quotaProjectId=project;
   authClient.setCredentials({ access_token: token });
+  const metadata=await authClient.getRequestHeaders("https://firestore.googleapis.com/");
+  check((metadata.Authorization||metadata.authorization)==="Bearer "+token && metadata["x-goog-user-project"]===project,"pinned_grpc_identity");
   // Supply the same identity used for control-plane/secret reads to GAX.
   // No implicit ADC discovery or service-account key is used for Firestore writes.
   db.settings({
@@ -322,11 +343,8 @@ async function main() {
     host: "firestore.googleapis.com",
     ssl: true,
     ignoreUndefinedProperties: true,
-    auth: new GoogleAuth({ projectId: project, authClient }),
+    auth: new compatibleAuth.GoogleAuth({ projectId: project, authClient }),
   });
-  const requireLocal = await import("node:module").then((m) =>
-    m.createRequire(import.meta.url),
-  );
   const { firestoreDb, isFirestoreMock } = requireLocal(
     "../../../../lib/firebase-admin.ts",
   );
@@ -339,9 +357,6 @@ async function main() {
   );
   const { digest } = requireLocal("../../../../lib/wedding/finance.ts");
   const { getStripeClient } = requireLocal("../../../../lib/stripe.ts");
-  const { refundWeddingCard } = requireLocal(
-    "../../../../lib/wedding/refunds.ts",
-  );
   const { heldPaymentRuntime } = requireLocal(
     "../../../../lib/wedding/checkout.ts",
   );
@@ -359,10 +374,12 @@ async function main() {
     lastRef.collection("cards").doc(input.householdId),
     db.collection("weddingRefunds").doc(refundId),
   ];
+  operatorStep = "cohort_read";
   const [p, first, last, row, child, existing] = (await db.getAll(...refs)).map(
     (s) => s.data(),
   );
   verifySyntheticRefund(input, { p, first, last, row, child, existing });
+  operatorStep = "stripe_charge";
   const sdk = getStripeClient();
   const pi = await sdk.paymentIntents.retrieve(last.paymentIntentId, {
     expand: ["latest_charge"],
@@ -398,6 +415,17 @@ async function main() {
       "same_stripe_refund_only",
     );
   }
+  if (webhookOnly) {
+    operatorStep = "staging_refund_webhook";
+    const {wireAndReplay} = await import("./refund-webhook.mjs");
+    const receipt = await wireAndReplay({sdk, db, job:existing, pi, token, stripeKey, lastRef, pRef,
+      subscribeOnly: mode === "--subscribe-staging-refund-webhook"});
+    await db.terminate();
+    console.log("STAGING_WEBHOOK_RECEIPT " + JSON.stringify(receipt));
+    return;
+  }
+  operatorStep = "operator_refund";
+  const {refundWeddingCard} = requireLocal("../../../../lib/wedding/refunds.ts");
   const actor =
     "staging_iam_" +
     createHash("sha256").update(profile.sub).digest("hex").slice(0, 24);
@@ -415,6 +443,7 @@ async function main() {
       "operator_refund_receipt",
     );
   }
+  operatorStep = "processor_confirmation";
   const verified = await sdk.paymentIntents.retrieve(pi.id, {
     expand: ["latest_charge"],
   });
@@ -425,21 +454,25 @@ async function main() {
   );
   // Judge the ordinary signed Stripe webhook independently from the operator
   // refund response. A missing provider receipt is reported truthfully.
+  operatorStep = "webhook_receipt";
+  const providerRefund = (await refs[5].get()).data()?.providerId;
   let webhookObserved = false;
   for (let attempt = 0; attempt < 4; attempt++) {
     const inbox = await db
       .collection("provider_webhook_inbox")
-      .where("paymentIntentId", "==", pi.id)
+      .where("payloadSummary.paymentIntentId", "==", pi.id)
       .limit(50)
       .get();
     webhookObserved = inbox.docs.some((d) => {
       const r = d.data();
       return (
         r.provider === "stripe" &&
-        r.signatureVerified === true &&
-        r.livemode === false &&
+        r.payloadSummary?.signatureVerified === true &&
+        r.payloadSummary?.livemode === false &&
+        r.payloadSummary?.objectId === providerRefund &&
+        r.payloadSummary?.eventId === r.providerEventId &&
         r.status === "processed" &&
-        ["refund.created", "refund.updated", "charge.refunded"].includes(
+        ["refund.created", "refund.updated"].includes(
           r.eventType,
         )
       );
@@ -447,6 +480,21 @@ async function main() {
     if (webhookObserved || attempt === 3) break;
     await delay(5000);
   }
+  const secretBound=(rev.containers?.[0]?.env||[]).some(e=>["STRIPE_WEBHOOK_SECRET","stripe-webhook-secret"].includes(e.name)&&!!e.valueSource?.secretKeyRef);
+  const endpointSummary={signingSecretBinding:secretBound,stagingEndpoints:0,enabledStagingEndpoints:0,acceptsCapture:false,acceptsRefund:false};
+  if(!webhookObserved){
+    operatorStep="webhook_configuration";
+    for await(const endpoint of sdk.webhookEndpoints.list({limit:100})){
+      let url;try{url=new URL(endpoint.url);}catch{continue;}
+      if(endpoint.livemode!==false || !["https://staging.sendmynotes.com","https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app"].includes(url.origin) || url.pathname.replace(/\/$/,"")!=="/api/webhooks/stripe")continue;
+      endpointSummary.stagingEndpoints++;
+      if(endpoint.status!=="enabled")continue;
+      endpointSummary.enabledStagingEndpoints++;
+      endpointSummary.acceptsCapture ||= endpoint.enabled_events.includes("*") || endpoint.enabled_events.includes("payment_intent.succeeded");
+      endpointSummary.acceptsRefund ||= endpoint.enabled_events.some(type=>["*","refund.created","refund.updated","charge.refunded"].includes(type));
+    }
+  }
+  console.log("STAGING_WEBHOOK_CAPABILITIES "+JSON.stringify(endpointSummary));
   await db.terminate();
   console.log(
     "STAGING_IAM_REFUND_CONFIRMED webhook=" +
@@ -460,7 +508,7 @@ if (
   main().catch((error) => {
     console.error(
       "Staging operator refused or unavailable (" +
-        (error instanceof OperatorRefusal ? error.message : "operator_error") +
+        (error instanceof OperatorRefusal ? error.message : operatorStep + "_" + (/^[A-Za-z0-9_]{1,35}$/.test(String(error?.code||"")) ? String(error.code) : "error")) +
         ").",
     );
     process.exitCode = 1;

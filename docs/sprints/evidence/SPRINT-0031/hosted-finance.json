@@ -1,0 +1,73 @@
+{
+  "origin": "https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app",
+  "verifiedAt": "2026-11-19T04:16:13.041Z",
+  "processor": "stripe_test",
+  "acceptance": {
+    "domestic": {
+      "first": {
+        "cards": 98,
+        "baseCents": 71350,
+        "internationalCents": 0,
+        "capturedCents": 71350,
+        "status": "held",
+        "materializedByScheduler": false,
+        "refundCents": 0
+      },
+      "second": {
+        "cards": 2,
+        "baseCents": 1350,
+        "internationalCents": 0,
+        "capturedCents": 1350,
+        "status": "held",
+        "materializedByScheduler": false,
+        "refundCents": 0
+      },
+      "earned": 100,
+      "currency": "USD",
+      "capturedCents": 72700,
+      "refundedCents": 0,
+      "retainedBeforeProcessingFeesCents": 72700,
+      "processingFeesCents": null,
+      "refund": "unrequested",
+      "refundWebhook": "unverified",
+      "webhookCapabilities": null
+    },
+    "mixed": {
+      "first": {
+        "cards": 98,
+        "baseCents": 71350,
+        "internationalCents": 1000,
+        "capturedCents": 72350,
+        "status": "held",
+        "materializedByScheduler": false,
+        "refundCents": 0
+      },
+      "second": {
+        "cards": 2,
+        "baseCents": 1350,
+        "internationalCents": 500,
+        "capturedCents": 1850,
+        "status": "held",
+        "materializedByScheduler": true,
+        "refundCents": 1200
+      },
+      "earned": 100,
+      "currency": "USD",
+      "capturedCents": 74200,
+      "refundedCents": 1200,
+      "retainedBeforeProcessingFeesCents": 73000,
+      "processingFeesCents": null,
+      "refund": "succeeded_staging_iam",
+      "refundWebhook": "pending",
+      "webhookCapabilities": {
+        "signingSecretBinding": true,
+        "stagingEndpoints": 1,
+        "enabledStagingEndpoints": 1,
+        "acceptsCapture": true,
+        "acceptsRefund": false
+      }
+    }
+  },
+  "servingSha": "7616379568e2db852a4966da47fefde7ee3bf2e2",
+  "stagingBuild": "build-2026-11-19-012"
+}
