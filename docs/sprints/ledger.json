@@ -336,6 +336,17 @@
       "baseline_commit": "d656f3f",
       "evidence": "docs/sprints/evidence/SPRINT-0029/VERIFICATION-REPORT.md",
       "updated_at": "2026-11-12T17:06:00-06:00"
+    },
+    {
+      "id": "SPRINT-0030",
+      "title": "Repeat buyers and observed customer value",
+      "path": "docs/sprints/SPRINT-0030.md",
+      "status": "implemented",
+      "acceptance_status": "local_checks_passed",
+      "release_target": "staging",
+      "evidence": "docs/sprints/evidence/SPRINT-0030/REVIEW.md",
+      "proposal": "docs/proposals/2026-11-18-repeat-buyers/DESIGN_SPEC.md",
+      "updated_at": "2026-11-18"
     }
   ]
 }

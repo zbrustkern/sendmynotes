@@ -44,11 +44,11 @@ export async function writeReconciliationManifest(args: {
       const currentData = current.exists ? current.data() : undefined;
       const currentRevision = currentData?.revision;
       const requestedRevision = item.currentValue.revision;
-      if (["founder_test", "comp", "admin_origin"].includes(currentData?.classification) && item.currentValue.classification === "independent_customer") throw new Error("Known excluded payment cannot be reclassified as a customer capture.");
+      if (["founder_test", "comp", "admin_origin", "friends_family"].includes(currentData?.classification) && item.currentValue.classification === "independent_customer") throw new Error("Known excluded payment cannot be reclassified as a customer capture.");
       if (currentRevision === undefined && (requestedRevision !== 1 || item.currentValue.supersedes !== undefined)) throw new Error("First order revision must be 1 with no superseded revision.");
       if (currentRevision !== undefined && requestedRevision === currentRevision) {
         const keys = ["orderId", "classification", "paymentIntentId", "amountInCents", "currency", "liveMode", "refundStatus", "refundedAmountInCents", "disputeStatus", "sourceReference", "evidenceSourceReference", "actor", "decidedAt"];
-        if (keys.some((key) => (currentData as any)[key] !== (item.currentValue as any)[key])) throw new Error("Changed decision requires a superseding revision.");
+        if (JSON.stringify(currentData.repeatBuyer ?? null) !== JSON.stringify(item.currentValue.repeatBuyer ?? null) || keys.some((key) => (currentData as any)[key] !== (item.currentValue as any)[key])) throw new Error("Changed decision requires a superseding revision.");
         if (!existingRevision.exists) writeItems.push(item);
         continue;
       }

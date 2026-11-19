@@ -10,7 +10,7 @@ export interface ReconciliationManifest {
   evidenceMode?: "live" | "synthetic";
   reviewedAt: string;
   cutoff: { timestamp: string; timezone: string };
-  evidence: Array<{ orderId: string; paymentIntentId?: string; amountInCents?: number; currency?: string; liveMode?: boolean; refundStatus: string; refundedAmountInCents?: number; disputeStatus?: string; observedAt?: string; sourceReference: string }>;
+  evidence: Array<{ repeatBuyer?: ReportReconciliationEntry["repeatBuyer"]; orderId: string; paymentIntentId?: string; amountInCents?: number; currency?: string; liveMode?: boolean; refundStatus: string; refundedAmountInCents?: number; disputeStatus?: string; observedAt?: string; sourceReference: string }>;
   decisions: Array<{ orderId: string; classification: ReportReconciliationEntry["classification"]; sourceReference: string; actor: string; decidedAt: string; revision: number; supersedes?: number }>;
 }
 
@@ -66,13 +66,34 @@ export function validateReconciliationManifest(manifest: ReconciliationManifest)
     if (item.refundedAmountInCents !== undefined && (!Number.isInteger(item.refundedAmountInCents) || item.refundedAmountInCents < 0)) errors.push("invalid_refund_amount");
     if (!item.disputeStatus || !["none_observed", "disputed", "unknown"].includes(item.disputeStatus)) errors.push("invalid_dispute_status");
     if (item.currency !== undefined && item.currency !== "USD") errors.push("non_usd_evidence");
+    const extra = item.repeatBuyer;
+    if (extra !== undefined) {
+      const money = (n: unknown) => typeof n === "number" && Number.isSafeInteger(n) && n >= 0;
+      if (!extra || typeof extra !== "object" || Array.isArray(extra)) errors.push("invalid_repeat_buyer_evidence");
+      else {
+        if (extra.identityUseApproved !== undefined && typeof extra.identityUseApproved !== "boolean") errors.push("invalid_identity_review");
+        if (extra.capturedAt !== undefined && (!money(extra.capturedAt) || extra.capturedAt === 0 || extra.capturedAt > Date.parse(manifest.reviewedAt))) errors.push("invalid_capture_time");
+        if ([extra.taxCents, extra.processorFeeCents, extra.otherCostsCents, extra.reacquisitionCents].some(n => n !== undefined && !money(n))) errors.push("invalid_actual_cost");
+        if (extra.reversedTaxCents !== undefined && (!extra.reversedTaxCents || typeof extra.reversedTaxCents !== "object" ||
+            Array.isArray(extra.reversedTaxCents) || Object.values(extra.reversedTaxCents).some(n => !money(n)))) errors.push("invalid_reversal_tax");
+        if (extra.taxCents !== undefined && extra.taxCents > (item.amountInCents ?? 0)) errors.push("invalid_tax");
+        if (extra.supplierAllocationIds !== undefined && (!Array.isArray(extra.supplierAllocationIds) || extra.supplierAllocationIds.length > 500 ||
+            extra.supplierAllocationIds.some(id => typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,250}$/.test(id)) ||
+            new Set(extra.supplierAllocationIds).size !== extra.supplierAllocationIds.length)) errors.push("invalid_supplier_allocations");
+        if (extra.laterCosts !== undefined && (!Array.isArray(extra.laterCosts) || extra.laterCosts.length > 500 ||
+            extra.laterCosts.some(c => !c || !money(c.cents) || !money(c.incurredAt) || c.incurredAt > Date.parse(manifest.reviewedAt)))) errors.push("invalid_later_cost");
+        if (extra.disputeResolutions !== undefined && (!Array.isArray(extra.disputeResolutions) || extra.disputeResolutions.length > 100 ||
+            extra.disputeResolutions.some(d => !d || typeof d.disputeId !== "string" || !d.disputeId ||
+              !["won","lost"].includes(d.outcome) || !money(d.netLossCents) || !money(d.resolvedAt) || d.resolvedAt > Date.parse(manifest.reviewedAt)))) errors.push("invalid_dispute_resolution");
+      }
+    }
     if (item.observedAt && !Number.isFinite(Date.parse(item.observedAt))) errors.push("invalid_observation_timestamp");
   }
   for (const item of manifest.decisions) {
     if (!item.orderId || !item.sourceReference || !item.actor || !Number.isInteger(item.revision) || item.revision < 1) errors.push("incomplete_decision");
     if (!/^[A-Za-z0-9_-]{1,160}$/.test(item.orderId)) errors.push("invalid_order_id");
     if (!Number.isFinite(Date.parse(item.decidedAt))) errors.push("invalid_decision_timestamp");
-    if (!["independent_customer", "founder_test", "comp", "admin_origin", "unresolved"].includes(item.classification)) errors.push("invalid_classification");
+    if (!["independent_customer", "founder_test", "comp", "admin_origin", "friends_family", "unresolved"].includes(item.classification)) errors.push("invalid_classification");
     if (item.supersedes !== undefined && (!Number.isInteger(item.supersedes) || item.supersedes < 1)) errors.push("invalid_supersedes");
     if (item.classification === "independent_customer") {
       if (manifest.environment === "staging" && manifest.evidenceMode === "synthetic") errors.push("synthetic_stage_customer_forbidden");
@@ -94,6 +115,7 @@ export function toReconciliationEntries(manifest: ReconciliationManifest): Repor
       disputeStatus: observed.disputeStatus as ReportReconciliationEntry["disputeStatus"],
       sourceReference: decision.sourceReference,
       evidenceSourceReference: observed.sourceReference,
+      ...(observed.repeatBuyer ? { repeatBuyer: observed.repeatBuyer } : {}),
       actor: decision.actor,
       decidedAt: decision.decidedAt,
       manifestReviewedAt: manifest.reviewedAt,
