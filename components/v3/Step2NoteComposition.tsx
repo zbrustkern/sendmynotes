@@ -524,9 +524,6 @@ export function Step2NoteComposition({
                     : "border-stone-300"
                 }`}
               />
-              <p className="text-[11px] text-stone-500 mt-1">
-                We&apos;ll automatically pre-fill this name into the recipient address step.
-              </p>
             </div>
 
             {/* 3. YOUR MESSAGE TEXTAREA + STARTER INSPIRATION CHIPS + 1-TAP LIVE INK TOGGLE */}
@@ -658,9 +655,6 @@ export function Step2NoteComposition({
                     : "border-stone-300"
                 }`}
               />
-              <p className="text-[11px] text-stone-500 mt-1">
-                We&apos;ll automatically pre-fill your name for your return address.
-              </p>
             </div>
 
             {/* BRACKET SAFETY GUARD NOTIFICATION (Warm Amber) */}
