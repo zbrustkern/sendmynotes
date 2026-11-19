@@ -11,7 +11,6 @@ export default function AdminMeasurementPreviewPage() {
       <main className="mx-auto min-h-screen max-w-7xl space-y-6 bg-stone-50 p-3 sm:p-6">
         <Link href="/admin" className="inline-flex min-h-10 items-center text-sm font-semibold underline">&larr; Back to Admin Portal</Link>
         <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">Staging measurement preview. This report uses the period and channel controls below. Only synthetic reporting reconciliation is permitted here. The other staged workspaces remain separate and are not the source of these payment totals.</p>
-        <Link href="/admin/measurement/repeat-buyers" className="inline-flex min-h-10 items-center text-base font-semibold underline">Repeat buyers and customer value &rarr;</Link>
         <AdminMeasurementPanel />
       </main>
     </AdminSessionGate>

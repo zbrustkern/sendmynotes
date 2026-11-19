@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, RefreshCw } from "lucide-react";
 import type { AdminMeasurementReport, ReportChannel, ReportPeriod, ReportRecordMode } from "@/lib/contracts/admin-measurement-report";
@@ -98,6 +99,7 @@ export function AdminMeasurementPanel({ filterDateRange: controlledDateRange, on
   const orderDiagnostics = report?.orderDiagnostics ?? [];
 
   return <section aria-labelledby="measurement-heading" className="space-y-4 rounded-2xl border border-stone-200 bg-stone-50 p-3 sm:space-y-5 sm:rounded-3xl sm:p-6">
+    <Link href="/admin/measurement/repeat-buyers" className="inline-flex min-h-10 items-center font-semibold underline">Repeat buyers and customer value &rarr;</Link>
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div><h2 id="measurement-heading" className="text-lg font-bold text-stone-900">{records === "customers" ? "Customer measurement report" : "Operational records report"}</h2><p className="mt-1 text-sm text-stone-600">Order-created window in America/Chicago. Captured revenue is gross and is not profit.</p></div>
       <button type="button" onClick={() => setRefreshKey((value) => value + 1)} disabled={loading} className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-stone-300 bg-white px-3 text-sm font-medium text-stone-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-600 disabled:opacity-60"><RefreshCw aria-hidden="true" className="h-4 w-4" />Refresh report</button>
