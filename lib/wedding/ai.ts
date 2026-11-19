@@ -255,6 +255,7 @@ export function createWeddingAiService(deps: Dependencies = {}) {
     return firestoreDb.runTransaction(async tx=>{
       const ref=jobRef(started.projectId,started.id),job=(await tx.get(ref)).data() as Job|undefined;
       if (!job || !job.run || job.run.id!==started.run?.id) throw new WeddingAiError('job_changed','This job changed. Reload its status.',409);
+      if(job.reconciliation?.runId===job.run.id)return job; // Fence a late worker after operator resolution.
       const refs=budgetRefs(started.projectId,started.deviceId),snapshots=await Promise.all(refs.map(r=>tx.get(r))),budgets=snapshots.map(d=>budget(d.data(),now()));
       let authorized = true;
       try { await authorizedTx(tx,ctx.actor); } catch { authorized=false; }

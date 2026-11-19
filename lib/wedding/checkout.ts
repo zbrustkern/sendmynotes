@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Transaction } from "firebase-admin/firestore";
 import type Stripe from "stripe";
-import { firestoreDb } from "../firebase-admin";
+import { firestoreDb, isFirestoreMock } from "../firebase-admin";
 import {
   authorizeInternationalCheckout,
   getSupplierCountry,
@@ -98,7 +98,13 @@ const projectRef = (id: string) =>
   firestoreDb.collection("weddingProjects").doc(safeId(id));
 export function heldPaymentRuntime(): boolean {
   try {
+    const localFixture = process.env.NODE_ENV === "test" && isFirestoreMock;
+    const hostedStaging =
+      process.env.FIREBASE_PROJECT_ID === "sendmynotes-staging" &&
+      process.env.HANDWRYTTEN_TEST_MODE === "true" &&
+      !isFirestoreMock;
     return (
+      (localFixture || hostedStaging) &&
       process.env.STAGING_REVIEW_ONLY === "true" &&
       resolvePaymentMode() === "stripe_test"
     );

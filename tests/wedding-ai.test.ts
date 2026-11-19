@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { firestoreDb, isFirestoreMock } from '../lib/firebase-admin';
 import { createWeddingAiService, type WeddingAiContext } from '../lib/wedding/ai';
 import { newWeddingHousehold, blankWeddingAddress, type WeddingProject, type WeddingActor } from '../lib/wedding/domain';
@@ -180,6 +180,28 @@ async function main(){
     assert.throws(()=>validateWeddingAiRequest({action:'advance',jobId:first.jobId,idempotencyKey:randomUUID()}),(e:any)=>e.code==='consent_required');
     await f.service.post(ctx,request({action:'advance',jobId:first.jobId}));assert.equal(Object.keys((await f.ref.collection('aiJobs').doc(first.jobId).get()).data()!.consents).length,2);
   });
+  await test('busy shared network alone does not trigger sign-in; independent device activity does',async()=>{
+    const f=await fixture(),digest=(v:string)=>createHash('sha256').update(v).digest('hex');f.ctx.networkSignal='synthetic-network';
+    const network=firestoreDb.collection('weddingAiNetworkSignals').doc(digest(f.ctx.networkSignal));await network.set({attempts:Array(20).fill(Date.now()),expiresAt:Date.now()+600000});
+    await f.service.post(f.ctx,request({action:'map',headers:['Gift']}));assert.equal(f.provider.calls.length,1);
+    await firestoreDb.collection('weddingAiBudgets').doc('device_'+digest(f.ctx.deviceId)).set({events:Array(10).fill({at:Date.now(),draft:0,map:0,image:0,cents:0}),inflight:[]});
+    await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'ai_sign_in_required');assert.equal(f.provider.calls.length,1);
+    f.actor.verified=true;await network.set({attempts:Array(200).fill(Date.now()),expiresAt:Date.now()+600000});await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'network_request_limit');
+  });
+  await test('only a verified recent operator can reconcile evidence; explicit retry stays bounded',async()=>{
+    const f=await fixture();let calls=0;f.provider.map=async()=>{calls++;throw new WeddingAiProviderError('provider_outcome_unknown','uncertain');};
+    await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'provider_outcome_unknown');
+    const id=await jobId(f),job=(await f.ref.collection('aiJobs').doc(id).get()).data()!,input={projectId:f.actor.projectId,jobId:id,runId:job.run.id,decision:'confirmed_not_invoked' as const,evidenceReference:'synthetic-provider-proof-0001'};
+    const unauthorized=new Request('https://example.invalid/operator',{headers:{authorization:'Bearer mock_token_viewer@example.invalid'}});
+    await rejected(()=>f.service.reconcile(unauthorized,input),'operator_required');
+    const previous=process.env.ADMIN_AUTHORIZED_EMAILS;process.env.ADMIN_AUTHORIZED_EMAILS='ops@example.invalid';
+    try{
+      const operator=new Request('https://example.invalid/operator',{headers:{authorization:'Bearer mock_token_ops@example.invalid'}});
+      assert.equal((await f.service.reconcile(operator,input)).status,'retryable');await f.service.reconcile(operator,input);assert.equal(calls,1);
+      f.provider.map=async()=>{calls++;return {mapping:{Gift:'gift'}};};await f.service.post(f.ctx,request({action:'advance',jobId:id}));assert.equal(calls,2);
+      const stored=(await f.ref.collection('aiJobs').doc(id).get()).data()!;assert.equal(stored.reconciliation.evidenceReference,undefined);assert.equal(stored.reconciliation.evidenceHash.length,64);
+    }finally{if(previous===undefined)delete process.env.ADMIN_AUTHORIZED_EMAILS;else process.env.ADMIN_AUTHORIZED_EMAILS=previous;}
+  });
   await test('provider adapter uses separated instructions, bounded JSON, moderation and no tools/fallbacks',async()=>{
     const oldFetch=global.fetch,oldKey=process.env.GEMINI_API_KEY;process.env.GEMINI_API_KEY='synthetic-test-key';let body:any,calls=0;
     global.fetch=(async(_url:any,init:any)=>{calls++;body=JSON.parse(init.body);return new Response(JSON.stringify({candidates:[{finishReason:'STOP',content:{parts:[{text:JSON.stringify({suggestions:[{id:'r1',text:'Thank you for your kindness.'}]})}]}}]}),{status:200});}) as typeof fetch;
@@ -190,7 +212,14 @@ async function main(){
       await assert.rejects(()=>provider.map({headers:['Gift']},new AbortController().signal),(e:any)=>e.outcome==='uncertain');assert.equal(calls,before+1);
       global.fetch=(async()=>new Response(JSON.stringify({candidates:[{finishReason:'SAFETY',content:{parts:[{text:'unsafe'}]}}]}),{status:200})) as typeof fetch;
       await rejected(()=>provider.map({headers:['Gift']},new AbortController().signal),'provider_safety');
+      global.fetch=(async(_url:any,init:any)=>{body=JSON.parse(init.body);return new Response(JSON.stringify({candidates:[{finishReason:'STOP',content:{parts:[{inlineData:{mimeType:'image/png',data:Buffer.from('synthetic png').toString('base64')}}]}}]}),{status:200});}) as typeof fetch;
+      await provider.image('Blue flowers',undefined,new AbortController().signal);assert.equal(body.contents[0].parts.length,1);assert.deepEqual(body.generationConfig.responseModalities,['TEXT','IMAGE']);assert.equal(body.tools,undefined);
+      await provider.image('Watercolor flowers',Buffer.from('normalized reference'),new AbortController().signal);assert.equal(body.contents[0].parts.length,2);assert.equal(Buffer.from(body.contents[0].parts[1].inlineData.data,'base64').toString(),'normalized reference');
     }finally{global.fetch=oldFetch;if(oldKey===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=oldKey;}
+  });
+  await test('runtime never activates the test adapter or a live provider against mock storage',async()=>{
+    const f=await fixture(),service=createWeddingAiService({provider:f.provider});await rejected(()=>service.post(f.ctx,request({action:'map',headers:['Gift']})),'durable_store_required');assert.equal(f.provider.calls.length,0);
+    const old=process.env.GEMINI_API_KEY;process.env.GEMINI_API_KEY='your_google_ai_studio_api_key_here';try{assert.equal(createWeddingAiProvider().info.mode,'unavailable');}finally{if(old===undefined)delete process.env.GEMINI_API_KEY;else process.env.GEMINI_API_KEY=old;}
   });
   console.log(`Wedding AI: ${checks} scenarios passed; synthetic adapters only, zero live provider calls.`);
 }

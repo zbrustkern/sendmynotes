@@ -238,7 +238,17 @@ export async function revokeWeddingInvite(actor:WeddingActor,inviteId:unknown) {
     const {project}=await assertWeddingActorInTransaction(tx,actor,'owner');const invite=(await tx.get(weddingInviteRef(id))).data() as (WeddingInvite & {consumedSessionId?:string;consumedActorId?:string})|undefined;
     if(!invite||invite.projectId!==project.id)throw new WeddingError('not_found','Invitation not found.',404);
     const session=invite.consumedSessionId?(await tx.get(weddingSessionRef(invite.consumedSessionId))).data():null;
-    tx.set(weddingInviteRef(id),{...invite,revoked:true});if(session)tx.set(weddingSessionRef(invite.consumedSessionId!),{...session,revoked:true});audit(tx,project.id,actor.actorId,'invite_revoked',id);
+    const target=invite.kind==='partner'&&invite.consumedActorId?invite.consumedActorId:null;
+    const member=target?(await tx.get(weddingProjectRef(project.id).collection('members').doc(target))).data():null;
+    tx.set(weddingInviteRef(id),{...invite,revoked:true});
+    if(session)tx.set(weddingSessionRef(invite.consumedSessionId!),{...session,revoked:true});
+    if(member)tx.set(weddingProjectRef(project.id).collection('members').doc(target!),{...member,revoked:true,canPay:false,canExport:false,updatedAt:Date.now()});
+    const revokedActor=target||session?.actorId,payer=(project as WeddingProject & {checkoutActorId?:string}).checkoutActorId;
+    if(revokedActor&&project.activeBatchId&&(!payer||payer===revokedActor)){
+      tx.set(weddingProjectRef(project.id),{...bump(project),paymentReconciliationRequired:true,checkoutRevocationRequestedFor:revokedActor});
+      tx.set(firestoreDb.collection('weddingPaymentRevocations').doc(`${project.id}_${revokedActor}`),{projectId:project.id,actorId:revokedActor,batchId:project.activeBatchId,state:'pending',reason:'invite_revoked',createdAt:Date.now()});
+    }
+    audit(tx,project.id,actor.actorId,'invite_revoked',id);
   });
 }
 export async function changeWeddingGrant(actor:WeddingActor,input:Record<string,unknown>,revoke=false) {

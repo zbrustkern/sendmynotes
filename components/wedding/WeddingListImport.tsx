@@ -10,13 +10,17 @@ const fields = {
   gift:"Gift",giver:"Gift giver",giftId:"Gift ID",body:"Exact note",status:"Thank-you status",
 };
 const editFields = ["envelopeName","insideNames","gift","body","street1","street2","city","state","zip","country"] as const;
-type Props={onApply:(rows:WeddingImportRow[],importId:string)=>Promise<void>;onClose?:()=>void;headers?:()=>Promise<Record<string,string>>};
+type ExistingHousehold = {
+  sourceHouseholdId?:string; envelopeName:string; insideName:string; gift:string; bodyOverride:string|null;
+  address:{address1:string;address2:string;city:string;state:string;zip:string;country:string};
+};
+type Props={existingHouseholds?:ExistingHousehold[];onApply:(rows:WeddingImportRow[],importId:string)=>Promise<void>;onClose?:()=>void;headers?:()=>Promise<Record<string,string>>};
 function proseRow(id:string,source:string):WeddingImportRow {
   return {id,source,sourceId:"",sources:[source],envelopeName:"",insideNames:"",firstName:"",lastName:"",street1:"",street2:"",city:"",state:"",zip:"",country:"",
     gift:"",body:"",alreadyThanked:false,guestCount:1,issues:["Review the envelope and address."]};
 }
 function rowLabel(row:WeddingImportRow) { return row.envelopeName || row.source; }
-export default function WeddingListImport({onApply,onClose}:Props) {
+export default function WeddingListImport({onApply,onClose,existingHouseholds=[]}:Props) {
   const [file,setFile]=useState<File|null>(null),[paste,setPaste]=useState(""),[pasteFormat,setPasteFormat]=useState("tsv");
   const [preview,setPreview]=useState<WeddingImportPreview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState("");
   const [rows,setRows]=useState<WeddingImportRow[]>([]),[rowId,setRowId]=useState(""),[sheetNames,setSheetNames]=useState<string[]>([]);
@@ -61,6 +65,16 @@ export default function WeddingListImport({onApply,onClose}:Props) {
     const newRow=existing || proseRow(id,"Passage "+(sourceIndex+1));
     putRow(newRow);setDeferred(d=>d.filter(n=>n!==sourceIndex));
   }
+  const existingById=new Map(existingHouseholds.map(r=>[r.sourceHouseholdId,r]));
+  const matches=rows.flatMap(r=>{
+    const repeated=r.sourceId && rows.some(other=>other!==r && other.sourceId===r.sourceId);
+    const prior=existingById.get(repeated?r.id:r.sourceId||r.id);
+    if(!prior)return [];
+    const changed=prior.envelopeName!==r.envelopeName || prior.insideName!==r.insideNames || prior.gift!==r.gift ||
+      (prior.bodyOverride||"")!==r.body || prior.address.address1!==r.street1 || prior.address.address2!==r.street2 ||
+      prior.address.city!==r.city || prior.address.state!==r.state || prior.address.zip!==r.zip || prior.address.country!==r.country;
+    return [{id:r.id,name:prior.envelopeName,changed}];
+  });
   const current=rows.find(r=>r.id===rowId);
   const prepared=prepareWeddingAiExcerpt(excerpt);
   const permittedSmart=Boolean(meta.provider && meta.model);
@@ -72,7 +86,11 @@ export default function WeddingListImport({onApply,onClose}:Props) {
       if (!x.gift || !assigned[x.source]) continue;
       selected=selected.map(r=>r.id===assigned[x.source]?{...r,gift:[r.gift,x.gift].filter(Boolean).join("; "),sources:[...r.sources,x.source]}:r);
     }
-    await onApply(selected,preview.importId);
+    // A sender may confirm a new mapping or revised selection from the same file.
+    // Stable household IDs preserve prior edits. Identical reviews replay safely.
+    const hash=await crypto.subtle.digest("SHA-256",new TextEncoder().encode(JSON.stringify(selected)));
+    const version=Array.from(new Uint8Array(hash).slice(0,12),v=>v.toString(16).padStart(2,"0")).join("");
+    await onApply(selected,preview.importId+"_"+version);
   }
   return <div className="wed-list-import"><h3>Bring your guest or gift list</h3>
     <fieldset disabled={busy}><label>Choose a private file<input type="file" accept=".csv,.tsv,.vcf,.xlsx,.txt" onChange={e=>setFile(e.target.files?.[0]||null)}/></label>
@@ -85,6 +103,9 @@ export default function WeddingListImport({onApply,onClose}:Props) {
     {error&&<p role="alert" className="wed-notice">{error}</p>}
     {preview&&<fieldset disabled={busy}><legend>Review this import</legend>
       <p>{preview.counts.sourceRows} source records · {rows.length} households · at least {preview.counts.guests} guests in the structured list.</p>
+      {!!matches.length&&<details open><summary>{matches.length} households are already in this project</summary>
+        <p>Their saved names, notes and addresses will be kept. Open a household under Your people to make a correction.</p>
+        {matches.some(m=>m.changed)&&<ul className="wed-list wed-scroll">{matches.filter(m=>m.changed).map(m=><li key={m.id}>{m.name} · incoming details differ</li>)}</ul>}</details>}
       {!!preview.sheets.length&&<details><summary>Review sheet and column matches</summary>
         {preview.sheets.map(sheet=><section key={sheet.name}><label><input type="checkbox" checked={sheetNames.includes(sheet.name)} onChange={e=>setSheetNames(s=>e.target.checked?[...s,sheet.name]:s.filter(n=>n!==sheet.name))}/>{sheet.name}</label>
           <div>{sheet.headers.map((h,i)=><label key={h}>{h}{sheet.example[i]&&<small> · {sheet.example[i].slice(0,80)}</small>}
