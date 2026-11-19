@@ -103,11 +103,12 @@ export function timestampMillis(value: ReportOrderInput["createdAt"]): number | 
   return null;
 }
 
-type Classification = "customer" | "founder" | "comp" | "admin" | "unresolved" | "unpaid";
-function classification(order: ReportOrderInput, sidecar?: ReportReconciliationEntry): Classification {
+type Classification = "customer" | "founder" | "comp" | "admin" | "friends_family" | "unresolved" | "unpaid";
+export function classification(order: ReportOrderInput, sidecar?: ReportReconciliationEntry): Classification {
   if (order.isFounderTest === true || order.isTest === true || order.paymentMode === "stripe_test" || order.paymentMode === "local_mock" || order.purchaseMeasurement?.reason === "test_payment" || sidecar?.classification === "founder_test") return "founder";
   if (order.isComp === true || order.commercialKind === "studio_comp" || sidecar?.classification === "comp") return "comp";
   if (order.origin === "ADMIN_COMP" || order.commercialKind === "admin_comp_balance" || sidecar?.classification === "admin_origin") return "admin";
+  if (sidecar?.classification === "friends_family") return "friends_family";
   if (sidecar?.classification === "independent_customer") return "customer";
   if (sidecar?.classification === "unresolved") return "unresolved";
   const m = order.purchaseMeasurement;
@@ -115,7 +116,7 @@ function classification(order: ReportOrderInput, sidecar?: ReportReconciliationE
   return "unresolved";
 }
 
-function classifyLegacyOrder(order: ReportOrderInput): AttributionClassification {
+export function classifyLegacyOrder(order: ReportOrderInput): AttributionClassification {
   const attr = order.attribution;
   const snapshot = attr?.attributionV2 as { firstObservedTouch?: unknown; currentSessionTouch?: unknown } | undefined;
   if (snapshot?.firstObservedTouch) return classifyAttributionProperties({ attributionV2: attr?.attributionV2 }, undefined, "first");
@@ -316,7 +317,7 @@ export function aggregateMeasurementReport(input: AggregateInput): AdminMeasurem
       const click = !!(row.order.attribution?.gclid || row.order.attribution?.wbraid || row.order.attribution?.gbraid || row.order.attribution?.fbclid);
       const refund = refundEvidence(row.order);
       const dispute = disputeEvidence(row.order);
-      const visibleClass = row.type === "customer" ? "independent_customer" as const : row.type === "founder" ? "founder_test" as const : row.type === "comp" ? "comp" as const : row.type === "admin" ? "admin_origin" as const : "unresolved" as const;
+      const visibleClass = row.type === "customer" ? "independent_customer" as const : row.type === "founder" ? "founder_test" as const : row.type === "comp" ? "comp" as const : row.type === "admin" ? "admin_origin" as const : row.type === "friends_family" ? "friends_family" as const : "unresolved" as const;
       return { orderId: row.order.id, createdAt: row.created === null ? null : new Date(row.created).toISOString(), classification: visibleClass,
         paymentEvidenceStatus: evidenceStatus, paymentEvidenceSource: evidenceSource, amountInCents: evidenceStatus === "verified_capture" ? sidecarCapture ? sidecar!.amountInCents! : m!.amountInCents! : null,
         currency: evidenceStatus === "verified_capture" ? "USD" : null,

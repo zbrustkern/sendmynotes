@@ -290,6 +290,17 @@
       "execution_model": "gpt-6-luna",
       "execution_method": "three_native_luna_agents_user_requested",
       "status_reconciliation": "docs/PROJECT_STATUS_2026-11-09.md"
+    },
+    {
+      "id": "SPRINT-0030",
+      "title": "Repeat buyers and observed customer value",
+      "path": "docs/sprints/SPRINT-0030.md",
+      "status": "implemented",
+      "acceptance_status": "local_checks_passed",
+      "release_target": "staging",
+      "evidence": "docs/sprints/evidence/SPRINT-0030/REVIEW.md",
+      "proposal": "docs/proposals/2026-11-18-repeat-buyers/DESIGN_SPEC.md",
+      "updated_at": "2026-11-18"
     }
   ]
 }

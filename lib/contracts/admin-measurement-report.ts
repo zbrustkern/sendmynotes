@@ -46,7 +46,7 @@ export interface AdminMeasurementReport {
     refunds: { knownOrderCount: number | null; knownRefundedCents: number | null; unknownOrderCount: number | null };
     disputes: { knownOrderCount: number | null; unknownOrderCount: number | null };
   };
-  orderDiagnostics: Array<{ orderId: string; createdAt: string | null; classification: "independent_customer" | "founder_test" | "comp" | "admin_origin" | "unresolved"; paymentEvidenceStatus: "verified_capture" | "missing" | "conflict"; paymentEvidenceSource: "purchase_snapshot" | "reconciliation" | "both" | "none" | "conflict"; amountInCents: number | null; currency: string | null; verifiedAt: string | null; observedAt: string | null; campaign: { key: string; source: string; medium: string; campaign: string; label: string; channel: string; group: Exclude<ReportChannel, "all"> }; refundStatus: "none_observed" | "partial" | "full" | "unknown"; disputeStatus: "none_observed" | "disputed" | "unknown"; clickIdPresent: boolean | null }>;
+  orderDiagnostics: Array<{ orderId: string; createdAt: string | null; classification: "independent_customer" | "founder_test" | "comp" | "admin_origin" | "friends_family" | "unresolved"; paymentEvidenceStatus: "verified_capture" | "missing" | "conflict"; paymentEvidenceSource: "purchase_snapshot" | "reconciliation" | "both" | "none" | "conflict"; amountInCents: number | null; currency: string | null; verifiedAt: string | null; observedAt: string | null; campaign: { key: string; source: string; medium: string; campaign: string; label: string; channel: string; group: Exclude<ReportChannel, "all"> }; refundStatus: "none_observed" | "partial" | "full" | "unknown"; disputeStatus: "none_observed" | "disputed" | "unknown"; clickIdPresent: boolean | null }>;
   campaigns: Array<{ key: string; source: string; medium: string; campaign: string; label: string; channel: string; group: Exclude<ReportChannel, "all">; orders: number | null; capturedCents: number | null; observedSessions: number | null; eventCounts: Record<string, number> | null }>;
   activity: { observedSessions: number | null; eventCounts: Record<string, number> | null; sampled: boolean };
   exceptions: ReportException[];
@@ -85,9 +85,31 @@ export interface ReportOrderInput {
   source?: string;
 }
 
+/** Additional reviewed facts. An absent field means its evidence is missing. */
+export interface RepeatBuyerEvidence {
+  identityUseApproved?: boolean;
+  capturedAt?: number;
+  taxCents?: number;
+  /** Tax returned for a dated refund or net lost-dispute adjustment, keyed by provider object. */
+  reversedTaxCents?: Record<string, number>;
+  processorFeeCents?: number;
+  /** Complete landed invoice set, including an evidenced empty set for a canceled order. */
+  supplierAllocationIds?: string[];
+  /** Other incurred costs including rework, exclusive of the listed invoices. */
+  otherCostsCents?: number;
+  /** Incremental variable costs incurred after the capture (e.g. a resend). */
+  laterCosts?: Array<{ incurredAt: number; cents: number }>;
+  projectId?: string;
+  /** Net disputed principal excludes any overlap with recorded refunds. */
+  disputeResolutions?: Array<{ disputeId: string; outcome: "won" | "lost"; resolvedAt: number; netLossCents: number }>;
+  /** Incremental paid return visit, excluded from the acquisition-period allocation. */
+  reacquisitionCents?: number;
+}
+
 export interface ReportReconciliationEntry {
+  repeatBuyer?: RepeatBuyerEvidence;
   orderId: string;
-  classification: "independent_customer" | "founder_test" | "comp" | "admin_origin" | "unresolved";
+  classification: "independent_customer" | "founder_test" | "comp" | "admin_origin" | "friends_family" | "unresolved";
   paymentIntentId?: string;
   amountInCents?: number;
   currency?: string;

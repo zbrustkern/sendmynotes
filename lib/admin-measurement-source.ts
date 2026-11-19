@@ -34,7 +34,7 @@ function timed<T>(work: Promise<T>, ms = DEADLINE_MS): Promise<T> {
   });
 }
 
-function expectedProject(): string {
+export function expectedProject(): string {
   const options = admin.apps[0]?.options as any;
   const value = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || options?.projectId || options?.credential?.projectId || "";
   return value;
@@ -57,7 +57,7 @@ export function reportRuntimeIssue(runtime: { isMock: boolean; expectedProject: 
   return null;
 }
 
-function assertSafeRuntime(runtime?: { isMock: boolean; expectedProject: string; actualProject?: string; nodeEnv?: string }): "live" {
+export function assertSafeRuntime(runtime?: { isMock: boolean; expectedProject: string; actualProject?: string; nodeEnv?: string }): "live" {
   const issue = reportRuntimeIssue(runtime ?? { isMock: isFirestoreMock, expectedProject: expectedProject(), actualProject: actualProject(), nodeEnv: process.env.NODE_ENV });
   if (issue) throw new Error(issue);
   return "live";
