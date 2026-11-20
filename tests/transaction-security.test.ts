@@ -1,18 +1,21 @@
 import { NextRequest } from "next/server";
 import { POST as stripeWebhookPost } from "../app/api/webhooks/stripe/route";
 import { POST as confirmOrderPost } from "../app/api/checkout/confirm-order/route";
+import { POST as completeFreeOrderPost } from "../app/api/checkout/complete-free-order/route";
 import { processPaidOrder } from "../lib/order-processor";
 import {
   saveOrder,
   getOrderById,
   getOrdersCollection,
   firestoreDb,
+  isFirestoreMock,
 } from "../lib/firebase-admin";
 import { Order } from "../lib/types";
 import { CARD_FLAT_RATE_CENTS } from "../lib/stripe";
 import { createOrderReadToken } from "../lib/order-access-credentials";
 
 async function runSecurityTests() {
+  if (!isFirestoreMock) throw new Error("Transaction fixtures require the isolated Firestore mock.");
   console.log("=================================================");
   console.log("🛡️ RUNNING TRANSACTION & CHECKOUT SECURITY TESTS");
   console.log("=================================================\n");
@@ -151,15 +154,17 @@ async function runSecurityTests() {
   await saveOrder(legacyOrder);
   const checkoutOrder = { ...baseOrder, stripePaymentId: "pi_confirm_boundary_fixture" };
   await saveOrder(checkoutOrder);
-  for (const [label, target, token, verifyOnly] of [
+  for (const [label, target, token, verifyOnly, bodyToken] of [
     ["bare order ID", testOrderId, undefined, false],
     ["bare verify-only", testOrderId, undefined, true],
-    ["wrong proof", testOrderId, "another-order-token", false],
+    ["wrong header proof", testOrderId, "another-order-token", false],
+    ["wrong body proof", testOrderId, undefined, false, "another-order-token"],
+    ["conflicting header and body", testOrderId, "another-order-token", false, baseOrder.viewToken],
     ["read-only proof", testOrderId, createOrderReadToken(testOrderId, baseOrder.viewToken!)!, true],
     ["tokenless legacy order", legacyOrder.id, baseOrder.viewToken, false],
     ["unknown order", "unknown_order_fixture", baseOrder.viewToken, false],
   ] as const) {
-    const denied = await confirmRequest({ orderId: target, verifyOnly, viewToken: baseOrder.viewToken }, token);
+    const denied = await confirmRequest({ orderId: target, verifyOnly, viewToken: bodyToken }, token);
     const deniedBody = await denied.json();
     assert(denied.status === 403 && deniedBody.error === "Checkout proof is required." && !deniedBody.viewToken
       && denied.headers.get("Cache-Control")?.includes("no-store") === true, `Confirmation rejects ${label} uniformly before payment verification`);
@@ -169,19 +174,44 @@ async function runSecurityTests() {
     "Denied confirmation leaves the stored payment untouched");
   await saveOrder(baseOrder);
 
-  // 2A. Missing paymentIntentId fails closed
-  const missingPiReq = new NextRequest("http://localhost:3000/api/checkout/confirm-order", {
-    method: "POST",
-    headers: { "content-type": "application/json", "x-view-token": baseOrder.viewToken! },
-    body: JSON.stringify({ orderId: testOrderId }),
-  });
+  // A supported source proves ownership without bypassing payment verification.
+  const checkoutProof = baseOrder.viewToken!;
+  for (const [source, headerToken, bodyToken] of [
+    ["header", checkoutProof, undefined],
+    ["body", undefined, checkoutProof],
+    ["header with conflicting body", checkoutProof, "another-order-token"],
+  ] as const) {
+    const missingPi = await confirmRequest({ orderId: testOrderId, viewToken: bodyToken }, headerToken);
+    const body = await missingPi.json();
+    assert(missingPi.status === 400 && body.success === false && body.status === "PAYMENT_VERIFICATION_FAILED",
+      `An exact ${source} token reaches payment validation while a missing payment intent fails closed`);
+  }
 
-  const missingPiRes = await confirmOrderPost(missingPiReq);
-  const missingPiData = await missingPiRes.json();
-  assert(
-    missingPiRes.status === 400 && missingPiData.success === false,
-    `Missing paymentIntentId fails closed with HTTP 400 (Status: ${missingPiRes.status})`
-  );
+  const terminalFree = {
+    ...baseOrder, id: `free_${testOrderId}`, status: "PROCESSING_HANDWRYTTEN" as const,
+    amountInCents: 0, finalAmountInCents: 0,
+  };
+  await saveOrder(terminalFree);
+  const freeRequest = (viewToken?: string, headerToken?: string) => completeFreeOrderPost(new NextRequest(
+    "http://localhost:3000/api/checkout/complete-free-order", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(headerToken ? { "x-view-token": headerToken } : {}) },
+      body: JSON.stringify({ orderId: terminalFree.id, viewToken }),
+    },
+  ));
+  for (const [source, bodyToken, headerToken] of [
+    ["header", undefined, checkoutProof],
+    ["body", checkoutProof, undefined],
+    ["header with conflicting body", "another-order-token", checkoutProof],
+  ] as const) {
+    const accepted = await freeRequest(bodyToken, headerToken);
+    assert(accepted.status === 200 && (await accepted.json()).alreadyProcessed === true,
+      `An exact ${source} token can reopen a terminal free checkout`);
+  }
+  assert((await freeRequest()).status === 404, "Free checkout requires proof");
+  assert((await freeRequest("another-order-token")).status === 404, "Free checkout rejects incorrect body proof");
+  assert((await freeRequest(terminalFree.viewToken, "another-order-token")).status === 404,
+    "Incorrect header proof takes precedence over a correct free checkout body token");
 
   const orderAfterMissingPi = await getOrderById(testOrderId);
   assert(

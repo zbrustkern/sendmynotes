@@ -36,3 +36,10 @@ Firebase App Hosting build and rollout 019 served commit `ea792e72914bc9e0fb2251
 Staging disables advertising. The positive admin-session and purchase-tag checks used a synthetic local admin login, actual tracker and tag code, and intercepted destinations. No live wallet payment or supplier dispatch was part of acceptance. Production rollout and any repair of the four corroborated contacts require separate approval.
 
 A wedding transfer page left open from the prior release may need a refresh to recognize the new private URL format. Previously issued checkout and deferred-address links continue to open. Earlier receipt messages that contain only an order ID cannot be retrofitted with a private link.
+
+
+## Production release preparation
+
+The founder approved releasing the address-book and tracker privacy fixes and reversibly hiding the four verified tracker saves. The production port starts from `3bb821c4a7f2b4bdbca21927e5a47f9b7c2398ae` and includes the privacy changes verified on staging. Existing production pricing and fulfillment paths use their production implementations. An old checkout tab that omits its checkout credential may need a refresh.
+
+Six isolated browser suites passed on the production port, including active and passive purchase behavior, owner-bound address saving, private-link recovery, all three simulated Stripe returns, deferred addresses, and discounted checkout. The production build passed. The four production contact candidates were still version 1 at preflight, with five separate legacy contacts and no linked occasions or reminder occurrences.

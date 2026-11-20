@@ -30,8 +30,9 @@ export async function POST(req: NextRequest) {
     }
     const body = await req.json();
     const { orderId, customerEmail, viewToken } = body;
+    const checkoutToken = req.headers.get("x-view-token") ?? viewToken;
 
-    if (!orderId) {
+    if (typeof orderId !== "string" || !/^[A-Za-z0-9_-]{1,256}$/.test(orderId)) {
       return privateJson({ error: "Missing order ID" }, { status: 400 });
     }
 
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
         }
 
         const existingOrder = orderDoc.data() as Order;
-        if (!existingOrder.viewToken || !constantTimeStringEqual(viewToken, existingOrder.viewToken)) {
+        if (!existingOrder.viewToken || !constantTimeStringEqual(checkoutToken, existingOrder.viewToken)) {
           throw new Error("ORDER_NOT_FOUND");
         }
         if (existingOrder.multiSend?.kind === "parent") throw new Error("MULTI_SEND_REQUIRES_PAID_CHECKOUT");

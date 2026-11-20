@@ -403,11 +403,11 @@
       "status": "implemented",
       "path": "docs/sprints/SPRINT-0034.md",
       "proposal": "docs/ADDRESS_BOOK_PRIVACY_RCA_2026-11-19.md",
-      "release_target": "staging",
+      "release_target": "production",
       "acceptance_status": "staging_verified",
       "verified_implementation_revision": "ea792e72914bc9e0fb22518908ebd64860d5cb06",
-      "production_rollout": "pending_approval",
-      "founder_cleanup": "pending_individual_approval",
+      "production_rollout": "approved",
+      "founder_cleanup": "approved_four_soft_deletions",
       "evidence": "docs/sprints/evidence/SPRINT-0034/REVIEW.md",
       "updated_at": "2026-11-19"
     }

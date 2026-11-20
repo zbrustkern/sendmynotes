@@ -141,7 +141,7 @@ function InnerPaymentForm({
       try {
         const res = await fetch("/api/checkout/complete-free-order", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
           body: JSON.stringify({
             orderId,
             viewToken,

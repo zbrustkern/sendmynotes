@@ -23,10 +23,9 @@ function checkoutProofRequired() {
 
 export async function POST(req: NextRequest) {
   try {
-    const checkoutToken = req.headers.get("x-view-token");
-    if (!checkoutToken || checkoutToken.length > 1024) return checkoutProofRequired();
-
-    const { orderId, paymentIntentId, customerEmail, verifyOnly } = await req.json();
+    const { orderId, paymentIntentId, customerEmail, verifyOnly, viewToken } = await req.json();
+    const checkoutToken = req.headers.get("x-view-token") ?? viewToken;
+    if (typeof checkoutToken !== "string" || !checkoutToken || checkoutToken.length > 1024) return checkoutProofRequired();
 
     if (typeof orderId !== "string" || !/^[A-Za-z0-9_-]{1,256}$/.test(orderId)) {
       return privateJson({ error: "Missing required orderId parameter" }, { status: 400 });
