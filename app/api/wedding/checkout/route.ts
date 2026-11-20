@@ -51,6 +51,12 @@ export async function POST(req: NextRequest) {
       if (promotionCode || !linked) throw new WeddingCheckoutError("This offer link is unavailable. Remove it to continue.", 409);
       offer = { issuedId: linked.code.id };
     }
+    const attribution =
+      body.attribution &&
+      typeof body.attribution === "object" &&
+      !Array.isArray(body.attribution)
+        ? (body.attribution as Record<string, unknown>)
+        : undefined;
     let result;
     switch (body.action) {
       case "quote":
@@ -59,6 +65,7 @@ export async function POST(req: NextRequest) {
           readSelection(body.selection),
           undefined,
           offer,
+          { buyerEmail: body.buyerEmail },
         );
         break;
       case "reserve":
@@ -75,13 +82,16 @@ export async function POST(req: NextRequest) {
           readSelection(body.selection),
           body.quoteHash,
           offer,
+          { buyerEmail: body.buyerEmail, attribution },
         );
         break;
       case "advance":
         result = await advanceWeddingPreparation(actor, safeId(body.batchId));
         break;
       case "pay":
-        result = await issueWeddingIntent(actor, safeId(body.batchId));
+        result = await issueWeddingIntent(actor, safeId(body.batchId), {
+          buyerEmail: body.buyerEmail,
+        });
         break;
       case "confirm":
         result = await confirmWeddingPayment(actor, safeId(body.batchId));

@@ -51,6 +51,7 @@ import { PostPurchaseQueuePanel } from "@/components/admin/PostPurchaseQueuePane
 import { PostPurchaseSettingsPanel } from "@/components/admin/PostPurchaseSettingsPanel";
 import { OrderFollowupPanel } from "@/components/admin/OrderFollowupPanel";
 import { BespokeOfferEditor } from "@/components/admin/BespokeOfferEditor";
+import { WeddingBatchesPanel } from "@/components/admin/WeddingBatchesPanel";
 
 type AdminDiscountCode = DiscountCode & { lifecycleStatus: OfferLifecycleStatus; reservedCount: number; campaignId?: string };
 const DISCOUNT_STATUS_LABELS: Record<OfferLifecycleStatus, string> = {
@@ -68,7 +69,7 @@ export default function AdminDashboardPage() {
   const [authError, setAuthError] = useState("");
 
   // Navigation tab state: 4 focused views
-  const [activeTab, setActiveTab] = useState<"orders" | "measurement" | "telemetry" | "discounts" | "incidents" | "contacts">("orders");
+  const [activeTab, setActiveTab] = useState<"orders" | "wedding" | "measurement" | "telemetry" | "discounts" | "incidents" | "contacts">("orders");
 
   // Orders State
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
@@ -127,7 +128,7 @@ export default function AdminDashboardPage() {
   const [discountFormError, setDiscountFormError] = useState("");
   const [discountFormSuccess, setDiscountFormSuccess] = useState("");
 
-  const handleTabChange = (tab: "orders" | "measurement" | "telemetry" | "discounts" | "incidents" | "contacts") => {
+  const handleTabChange = (tab: "orders" | "wedding" | "measurement" | "telemetry" | "discounts" | "incidents" | "contacts") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
@@ -583,6 +584,8 @@ export default function AdminDashboardPage() {
         setActiveTab("incidents");
       } else if (tabParam === "contacts") {
         setActiveTab("contacts");
+      } else if (tabParam === "wedding") {
+        setActiveTab("wedding");
       } else if (tabParam === "orders") {
         setActiveTab("orders");
       }
@@ -804,6 +807,19 @@ export default function AdminDashboardPage() {
                     {metrics.totalOrders}
                   </span>
                 )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleTabChange("wedding")}
+                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                  activeTab === "wedding"
+                    ? "border-stone-900 text-stone-900 font-semibold"
+                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
+                }`}
+              >
+                <Send className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
+                <span>Wedding Batches</span>
               </button>
 
               <button type="button" onClick={() => handleTabChange("contacts")} className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 whitespace-nowrap ${activeTab === "contacts" ? "border-stone-900 text-stone-900 font-semibold" : "border-transparent text-stone-500 hover:text-stone-900 font-medium"}`}><Mail className="w-3.5 h-3.5"/><span>Other contacts</span></button>
@@ -1523,6 +1539,8 @@ export default function AdminDashboardPage() {
         )}
 
         {/* ===================== TAB 2: MEASUREMENT ===================== */}
+        {activeTab === "wedding" && <WeddingBatchesPanel />}
+
         {activeTab === "contacts" && <CapturedContactsPanel />}
 
         {activeTab === "measurement" && (

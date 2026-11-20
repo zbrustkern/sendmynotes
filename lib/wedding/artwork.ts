@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import type {Firestore} from 'firebase-admin/firestore';
 import {ARTWORK_LIMITS, ARTWORK_POLICY, artworkComposition, artworkId, rasterMime, WeddingArtworkError, assertNormalizedWeddingFront} from './artwork-policy';
 import {artworkProjectSegment, artworkSha, ArtworkObjectStore, assertWeddingArtworkRuntime, firestoreDb, weddingArtworkObjects} from './artwork-storage';
+import {weddingStorageEnvironment} from './server';
 import {ProcessedArtwork, processWeddingArtwork} from './artwork-processing';
 export {WEDDING_ARTWORK_PRESETS, weddingArtworkPreset} from './artwork-policy';
 
@@ -11,7 +12,7 @@ type Asset = {deletedAt?:number;expiresAt?:number;id:string;projectId:string;sha
 type Budget = {attempts?:number[];leases?:Record<string,number>;sources?:Record<string,boolean>;assets?:number;bytes?:number;reservedBytes?:number};
 type Context = {signal?:AbortSignal;authorize?:()=>Promise<void>};
 export type WeddingArtworkSelection = {assetId:string;url:string};
-type Dependencies = {db:Firestore;objects:ArtworkObjectStore;assertRuntime:()=>void;process?:typeof processWeddingArtwork;now?:()=>number};
+type Dependencies = {db:Firestore;objects:ArtworkObjectStore;assertRuntime:()=>void;process?:typeof processWeddingArtwork;now?:()=>number;storageEnv?:'staging'|'production'};
 function availableProject(project:Project|undefined, now:number) {
   const expiry=typeof project?.expiresAt==='string'?Date.parse(project.expiresAt):project?.expiresAt;
   if(!project||project.deletedAt||project.status==='deleted'||!expiry||expiry<=now)throw new WeddingArtworkError('project_expired','This project is unavailable or has expired.',404);
@@ -26,9 +27,10 @@ export function createWeddingArtworkService(deps:Dependencies) {
   const projectRef=(id:string)=>db.collection('weddingProjects').doc(id);
   const assetRef=(projectId:string,id:string)=>projectRef(projectId).collection('artwork').doc(id);
   const budgetRef=(id:string)=>projectRef(id).collection('artworkControl').doc('budget');
-  const globalRef=db.collection('weddingArtworkControl').doc('staging');
-  const jobRef=(id:string)=>db.collection('weddingArtworkJobs').doc(`staging_${id}`);
-  const key=(root:string,projectId:string,id:string,ext='png')=>`wedding-${root}/staging/${artworkProjectSegment(projectId)}/${id}.${ext}`;
+  const env=()=>deps.storageEnv||weddingStorageEnvironment();
+  const globalRef=()=>db.collection('weddingArtworkControl').doc(env());
+  const jobRef=(id:string)=>db.collection('weddingArtworkJobs').doc(`${env()}_${id}`);
+  const key=(root:string,projectId:string,id:string,ext='png')=>`wedding-${root}/${env()}/${artworkProjectSegment(projectId)}/${id}.${ext}`;
   async function check(projectId:string,ctx:Context={}) {
     deps.assertRuntime();artworkId(projectId);
     if(ctx.signal?.aborted)throw new WeddingArtworkError('cancelled','Image processing was cancelled.',499);
@@ -48,24 +50,24 @@ export function createWeddingArtworkService(deps:Dependencies) {
   }
   async function claim(projectId:string,jobId:string) {
     await db.runTransaction(async tx=>{
-      const [p,b,g]=await Promise.all([tx.get(projectRef(projectId)),tx.get(budgetRef(projectId)),tx.get(globalRef)]);
+      const [p,b,g]=await Promise.all([tx.get(projectRef(projectId)),tx.get(budgetRef(projectId)),tx.get(globalRef())]);
       const at=now();availableProject(p.data(),at);
       const budget=(b.data()||{}) as Budget, global=(g.data()||{}) as Budget;
       const attempts=(budget.attempts||[]).filter(t=>t>at-DAY), leases=liveLeases(budget.leases,at), globalLeases=liveLeases(global.leases,at);
       if(attempts.length>=ARTWORK_LIMITS.dailyAttempts||attempts.filter(t=>t>at-60000).length>=ARTWORK_LIMITS.minuteAttempts)throw new WeddingArtworkError('artwork_quota','The photo editing allowance is used. Retry later.',429);
       if(Object.keys(leases).length>=ARTWORK_LIMITS.projectConcurrency||Object.keys(globalLeases).length>=ARTWORK_LIMITS.globalConcurrency)throw new WeddingArtworkError('processing_busy','Another image is being checked. Retry shortly.',429);
       tx.set(budgetRef(projectId),{...budget,attempts:[...attempts,at],leases:{...leases,[jobId]:at+ARTWORK_LIMITS.leaseMs}});
-      tx.set(globalRef,{leases:{...globalLeases,[jobId]:at+ARTWORK_LIMITS.leaseMs}});
+      tx.set(globalRef(),{leases:{...globalLeases,[jobId]:at+ARTWORK_LIMITS.leaseMs}});
       tx.create(jobRef(jobId),{projectId,jobId,policy:ARTWORK_POLICY,verdict:'pending',createdAt:at,pendingExpiresAt:at+ARTWORK_LIMITS.pendingDays*DAY,pendingKey:key('pending',projectId,jobId,'bin')});
     });
   }
   async function release(projectId:string,jobId:string) {
     await db.runTransaction(async tx=>{
-      const [b,g]=await Promise.all([tx.get(budgetRef(projectId)),tx.get(globalRef)]);
+      const [b,g]=await Promise.all([tx.get(budgetRef(projectId)),tx.get(globalRef())]);
       const budget=(b.data()||{}) as Budget, global=(g.data()||{}) as Budget;
       const leases=liveLeases(budget.leases,now()), globalLeases=liveLeases(global.leases,now());
       delete leases[jobId];delete globalLeases[jobId];
-      tx.set(budgetRef(projectId),{...budget,leases});tx.set(globalRef,{leases:globalLeases});
+      tx.set(budgetRef(projectId),{...budget,leases});tx.set(globalRef(),{leases:globalLeases});
     });
   }
   async function attach(projectId:string,result:ProcessedArtwork,composition:ReturnType<typeof artworkComposition>,jobId:string,ctx:Context):Promise<WeddingArtworkSelection> {
@@ -191,7 +193,7 @@ export function createWeddingArtworkService(deps:Dependencies) {
       deps.assertRuntime();
       const rows=await db.collection('weddingArtworkJobs').where('pendingExpiresAt','<=',now()).limit(Math.max(1,Math.min(100,limit))).get();
       let deleted=0;
-      for(const row of rows.docs){const job=row.data();if(!row.id.startsWith('staging_')||job.policy!==ARTWORK_POLICY)continue;
+      for(const row of rows.docs){const job=row.data();if(!row.id.startsWith(`${env()}_`)||job.policy!==ARTWORK_POLICY)continue;
         if(job.pendingKey!==key('pending',job.projectId,job.jobId,'bin'))continue;
         const cleanupLease=`cleanup_${randomUUID()}`;
         const locked=await db.runTransaction(async tx=>{
@@ -205,7 +207,7 @@ export function createWeddingArtworkService(deps:Dependencies) {
         // Only orphan normalized objects are removed. A digest shared by any
         // accepted revision is retained; paid copies use a disjoint namespace.
         for(const objectKey of new Set<string>(job.normalizedKeys||[])) {
-          if(!objectKey.startsWith(`wedding-normalized/staging/${artworkProjectSegment(job.projectId)}/`))continue;
+          if(!objectKey.startsWith(`wedding-normalized/${env()}/${artworkProjectSegment(job.projectId)}/`))continue;
           const [sources,masters]=await Promise.all([projectRef(job.projectId).collection('artwork').where('sourceKey','==',objectKey).limit(1).get(),projectRef(job.projectId).collection('artwork').where('storageKey','==',objectKey).limit(1).get()]);
           if(sources.empty&&masters.empty&&objects.removeOrphan)await objects.removeOrphan(objectKey);
         }

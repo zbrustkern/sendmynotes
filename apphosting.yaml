@@ -164,3 +164,26 @@ env:
   - variable: RESEND_WEBHOOK_SECRET
     secret: resend-webhook-secret@1
     availability: [RUNTIME]
+
+  # Wedding Thank-You Portal configuration (kept disabled until founder sign-off).
+  - variable: NEXT_PUBLIC_WEDDING_PORTAL_ENABLED
+    value: "false"
+    availability: [BUILD, RUNTIME]
+  - variable: WEDDING_PROJECTS_ENABLED
+    value: "false"
+    availability: [RUNTIME]
+  - variable: WEDDING_CHECKOUT_ENABLED
+    value: "false"
+    availability: [BUILD, RUNTIME]
+  - variable: WEDDING_AI_TEXT_MODEL
+    value: gemini-2.5-flash
+    availability: [RUNTIME]
+  - variable: WEDDING_SCHEDULER_IDENTITY
+    value: wedding-reconciler@sendmynotes-2a417.iam.gserviceaccount.com
+    availability: [RUNTIME]
+  - variable: WEDDING_SCHEDULER_AUDIENCE
+    value: https://sendmynotes.com/api/cron/wedding-reconcile
+    availability: [RUNTIME]
+  - variable: WEDDING_DISPATCH_MODE
+    value: manual_release
+    availability: [RUNTIME]

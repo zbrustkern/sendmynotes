@@ -2,12 +2,21 @@ import * as admin from 'firebase-admin';
 import {createHash} from 'node:crypto';
 import {firestoreDb, isFirestoreMock} from '../firebase-admin';
 import {ARTWORK_LIMITS, WeddingArtworkError} from './artwork-policy';
+import {weddingStorageEnvironment} from './server';
 export {firestoreDb};
 export const artworkSha = (bytes: Buffer | string) => createHash('sha256').update(bytes).digest('hex');
 export const artworkProjectSegment = (projectId: string) => artworkSha(projectId).slice(0,32);
 export function assertWeddingArtworkRuntime() {
   if (process.env.NODE_ENV === 'test' && isFirestoreMock) throw new WeddingArtworkError('storage_unavailable','Use an isolated artwork test adapter.',503);
-  if (isFirestoreMock || process.env.FIREBASE_PROJECT_ID !== 'sendmynotes-staging' || process.env.STAGING_REVIEW_ONLY !== 'true' || process.env.HANDWRYTTEN_TEST_MODE !== 'true' || process.env.UPLOAD_PRIVATE_BUCKET !== 'sendmynotes-staging-upload-private') throw new WeddingArtworkError('staging_only','Wedding photo processing is available only in the staging pilot.',503);
+  if (isFirestoreMock) throw new WeddingArtworkError('storage_unavailable','Private artwork storage is unavailable.',503);
+  const storageEnv = weddingStorageEnvironment();
+  const expectedBucket = storageEnv === 'staging' ? 'sendmynotes-staging-upload-private' : 'sendmynotes-2a417-upload-private';
+  if (storageEnv === 'staging' && (process.env.STAGING_REVIEW_ONLY !== 'true' || process.env.HANDWRYTTEN_TEST_MODE !== 'true')) {
+    throw new WeddingArtworkError('staging_only','Wedding photo processing is unavailable in this staging configuration.',503);
+  }
+  if (process.env.UPLOAD_PRIVATE_BUCKET !== expectedBucket) {
+    throw new WeddingArtworkError('storage_unavailable','Private artwork storage bucket is not configured for this environment.',503);
+  }
 }
 export interface ArtworkObjectStore {
   putOnce(key: string, bytes: Buffer, mime: string): Promise<{generation: string}>;
@@ -16,7 +25,14 @@ export interface ArtworkObjectStore {
   removeOrphan?(key: string): Promise<void>;
 }
 function validKey(key: string) {
-  if (!/^wedding-(?:pending|normalized|paid-retained)\/staging\/[a-f0-9]{32}\/[A-Za-z0-9_-]{1,128}\.(?:png|bin)$/.test(key)) throw new WeddingArtworkError('not_found','Card front not found.',404);
+  if (!/^wedding-(?:pending|normalized|paid-retained)\/(?:staging|production)\/[a-f0-9]{32}\/[A-Za-z0-9_-]{1,128}\.(?:png|bin)$/.test(key)) throw new WeddingArtworkError('not_found','Card front not found.',404);
+}
+function assertEnvScopedKey(key: string) {
+  validKey(key);
+  const env = weddingStorageEnvironment();
+  if (!/^wedding-(?:pending|normalized|paid-retained)\/(staging|production)\//.test(key) || key.split('/')[1] !== env) {
+    throw new WeddingArtworkError('not_found','Card front not found.',404);
+  }
 }
 async function privateBucket() {
   assertWeddingArtworkRuntime();
@@ -27,7 +43,7 @@ async function privateBucket() {
 }
 export const weddingArtworkObjects: ArtworkObjectStore = {
   async putOnce(key,bytes,mime) {
-    validKey(key);
+    assertEnvScopedKey(key);
     const bucket=await privateBucket(), file=bucket.file(key), sha256=artworkSha(bytes);
     try {
       await file.save(bytes,{resumable:false,preconditionOpts:{ifGenerationMatch:0},public:false,validation:'crc32c',metadata:{contentType:mime,cacheControl:'private, no-store, max-age=0',metadata:{private:'true',sha256,policy:'wedding-raster-v1'}}});
@@ -54,12 +70,12 @@ export const weddingArtworkObjects: ArtworkObjectStore = {
     } catch(error) {if(Number((error as {code?:unknown}).code)===404)throw new WeddingArtworkError('not_found','Card front not found.',404);throw error;}
   },
   async removeOrphan(key) {
-    validKey(key);
+    assertEnvScopedKey(key);
     if(!key.startsWith('wedding-normalized/'))throw new WeddingArtworkError('retained_asset','This card front is retained.',409);
     await (await privateBucket()).file(key).delete({ignoreNotFound:true});
   },
   async remove(key) {
-    validKey(key);
+    assertEnvScopedKey(key);
     // This lane's cleanup can never remove immutable paid artwork or project masters.
     if (!key.startsWith('wedding-pending/'))throw new WeddingArtworkError('retained_asset','This card front is retained.',409);
     await (await privateBucket()).file(key).delete({ignoreNotFound:true});

@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readOrderUploadMaster } from "./upload/order-master";
 import fs from "fs";
 import path from "path";
@@ -78,7 +79,10 @@ export function buildSingleStepOrderPayload(
  * 2. Firestore system settings (system_config/handwrytten)
  * 3. Uploading public/aster-blanche-backplate.png to Handwrytten and caching the ID.
  */
-export async function getOrCreateBackplateImageId(apiKey: string): Promise<number | null> {
+export async function getOrCreateBackplateImageId(
+  apiKey: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<number | null> {
   // 1. Environment Variable check
   const envBackplateId = process.env.HANDWRYTTEN_BACKPLATE_IMAGE_ID;
   if (envBackplateId) {
@@ -111,7 +115,7 @@ export async function getOrCreateBackplateImageId(apiKey: string): Promise<numbe
     formData.append("file", blob, "aster-blanche-backplate.png");
     formData.append("type", "logo"); // Handwrytten accepts 'logo' or 'cover' for custom card art uploads
 
-    const res = await fetch("https://api.handwrytten.com/v2/cards/uploadCustomLogo", {
+    const res = await fetchImpl("https://api.handwrytten.com/v2/cards/uploadCustomLogo", {
       method: "POST",
       headers: { Authorization: apiKey },
       body: formData,
@@ -447,17 +451,69 @@ export async function fulfillHandwryttenOrder(
   }
 }
 
-/** Creates the shared custom-card artwork once for a paid multi-send parent. */
-export async function prepareHandwryttenCustomCard(params: Pick<HandwryttenOrderParams, "imageUrl" | "uploadMaster" | "orderId">): Promise<{ success: true; cardId: string; environment: "test" | "live" } | { success: false; error: string }> {
-  if (process.env.STAGING_REVIEW_ONLY === "true") return { success: false, error: "Physical fulfillment is disabled in staging review." };
+export interface PrepareHandwryttenCustomCardParams
+  extends Pick<HandwryttenOrderParams, "imageUrl" | "uploadMaster" | "orderId"> {
+  rawCoverBytes?: {
+    bytes: Buffer | Uint8Array;
+    mimeType?: string;
+    fileName?: string;
+    sha256?: string;
+  };
+  allowTestMode?: boolean;
+}
+
+/** Creates the shared custom-card artwork once for a paid multi-send or wedding parent. */
+export async function prepareHandwryttenCustomCard(
+  params: PrepareHandwryttenCustomCardParams,
+  fetchImpl: typeof fetch = fetch
+): Promise<{ success: true; cardId: string; environment: "test" | "live" } | { success: false; error: string }> {
+  const allowTestMode = params.allowTestMode === true;
+  const stagingTestDispatch =
+    allowTestMode &&
+    process.env.WEDDING_STAGING_HANDWRYTTEN_TEST_DISPATCH === "true" &&
+    process.env.HANDWRYTTEN_TEST_MODE === "true";
+
+  if (process.env.STAGING_REVIEW_ONLY === "true" && !stagingTestDispatch) {
+    return { success: false, error: "Physical fulfillment is disabled in staging review." };
+  }
+  if (process.env.STAGING_REVIEW_ONLY === "true" && process.env.HANDWRYTTEN_TEST_MODE !== "true") {
+    return { success: false, error: "Staging test dispatch requires HANDWRYTTEN_TEST_MODE=true." };
+  }
+
   const apiKey = process.env.HANDWRYTTEN_API_KEY || process.env["handwrytten-api-key"];
-  if (!apiKey || process.env.HANDWRYTTEN_TEST_MODE === "true") return { success: false, error: "Batch card preparation requires configured live supplier credentials and live mode." };
-  if (!params.uploadMaster) validateCoverImagePathOrUrl(params.imageUrl);
+  const isTestMode = allowTestMode && process.env.HANDWRYTTEN_TEST_MODE === "true";
+  if (!apiKey || (!allowTestMode && process.env.HANDWRYTTEN_TEST_MODE === "true")) {
+    return { success: false, error: "Batch card preparation requires configured live supplier credentials and live mode." };
+  }
+  if (!params.uploadMaster && !params.rawCoverBytes) {
+    validateCoverImagePathOrUrl(params.imageUrl);
+  }
   try {
     let bytes: ArrayBuffer;
     let mime = "image/jpeg";
     let fileName = "cover.jpg";
-    if (params.uploadMaster) {
+    if (params.rawCoverBytes) {
+      const rawBuf = Buffer.isBuffer(params.rawCoverBytes.bytes)
+        ? params.rawCoverBytes.bytes
+        : Buffer.from(params.rawCoverBytes.bytes);
+      if (rawBuf.byteLength === 0) {
+        throw new Error("Cover image bytes are empty");
+      }
+      if (rawBuf.byteLength > 15 * 1024 * 1024) {
+        throw new Error("Cover image exceeds 15MB size limit");
+      }
+      if (params.rawCoverBytes.sha256) {
+        const actualSha = createHash("sha256").update(rawBuf).digest("hex");
+        if (actualSha !== params.rawCoverBytes.sha256.toLowerCase()) {
+          throw new Error("Cover image SHA-256 verification failed");
+        }
+      }
+      bytes = new Uint8Array(rawBuf).buffer;
+      mime = params.rawCoverBytes.mimeType || "image/png";
+      fileName =
+        params.rawCoverBytes.fileName ||
+        (mime === "image/jpeg" ? "cover.jpg" : mime === "image/webp" ? "cover.webp" : "cover.png");
+    } else if (params.uploadMaster) {
       const raw = await readOrderUploadMaster(params.uploadMaster);
       bytes = new Uint8Array(raw).buffer;
       mime = params.uploadMaster.contentType || "image/png";
@@ -474,20 +530,20 @@ export async function prepareHandwryttenCustomCard(params: Pick<HandwryttenOrder
       const raw = fs.readFileSync(localPath); bytes = raw.buffer.slice(raw.byteOffset, raw.byteOffset + raw.byteLength);
       mime = localPath.endsWith(".png") ? "image/png" : "image/jpeg"; fileName = path.basename(localPath);
     } else {
-      const response = await fetch(params.imageUrl, { signal: AbortSignal.timeout(15000) });
+      const response = await fetchImpl(params.imageUrl, { signal: AbortSignal.timeout(15000) });
       if (!response.ok) throw new Error(`Failed to download cover image (${response.status})`);
       bytes = await response.arrayBuffer();
     }
     if (bytes.byteLength > 15 * 1024 * 1024) throw new Error("Cover image exceeds 15MB size limit");
     const form = new FormData(); form.append("file", new Blob([bytes], { type: mime }), fileName); form.append("type", "cover");
-    const upload = await fetch("https://api.handwrytten.com/v2/cards/uploadCustomLogo", { method: "POST", headers: { Authorization: apiKey }, body: form, signal: AbortSignal.timeout(20_000) });
+    const upload = await fetchImpl("https://api.handwrytten.com/v2/cards/uploadCustomLogo", { method: "POST", headers: { Authorization: apiKey }, body: form, signal: AbortSignal.timeout(20_000) });
     const uploaded: any = await upload.json();
     if (!upload.ok || uploaded.status !== "ok" || !uploaded.id) throw new Error(uploaded.message || "Failed to upload shared card artwork");
-    const backId = await getOrCreateBackplateImageId(apiKey);
-    const card = await fetch("https://api.handwrytten.com/v2/cards/createCustomCard", { method: "POST", headers: { Authorization: apiKey, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ dimension_id: 4, name: `SendMyNotes-${params.orderId}`, back_type: "logo", cover_id: uploaded.id, ...(backId ? { back_logo_id: backId } : {}) }), signal: AbortSignal.timeout(20_000) });
+    const backId = await getOrCreateBackplateImageId(apiKey, fetchImpl);
+    const card = await fetchImpl("https://api.handwrytten.com/v2/cards/createCustomCard", { method: "POST", headers: { Authorization: apiKey, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ dimension_id: 4, name: `SendMyNotes-${params.orderId}`, back_type: "logo", cover_id: uploaded.id, ...(backId ? { back_logo_id: backId } : {}) }), signal: AbortSignal.timeout(20_000) });
     const data: any = await card.json();
     if (!card.ok || data.status !== "ok" || !data.card_id) throw new Error(data.message || "Failed to create shared custom card");
-    return { success: true, cardId: String(data.card_id), environment: "live" };
+    return { success: true, cardId: String(data.card_id), environment: isTestMode ? "test" : "live" };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Card preparation failed" };
   }
@@ -503,12 +559,32 @@ function hasExplicitSupplierSystemicFailure(value: unknown): boolean {
 }
 
 /** Submits one recipient against the already prepared, shared custom card. */
-export async function submitPreparedHandwryttenOrder(params: HandwryttenOrderParams, cardId: string, fetchImpl: typeof fetch = fetch): Promise<HandwryttenOrderResult> {
-  if (process.env.STAGING_REVIEW_ONLY === "true" || process.env.HANDWRYTTEN_TEST_MODE === "true") return { success: false, error: "Live batch dispatch is disabled in staging or supplier test mode.", details: { providerSystemicFailure: true, providerOutcome: "not_sent" } };
+export async function submitPreparedHandwryttenOrder(
+  params: HandwryttenOrderParams,
+  cardId: string,
+  fetchImpl: typeof fetch = fetch,
+  options: { allowTestMode?: boolean } = {}
+): Promise<HandwryttenOrderResult> {
+  const allowTestMode = options.allowTestMode === true;
+  const stagingTestDispatch =
+    allowTestMode &&
+    process.env.WEDDING_STAGING_HANDWRYTTEN_TEST_DISPATCH === "true" &&
+    process.env.HANDWRYTTEN_TEST_MODE === "true";
+
+  if (process.env.STAGING_REVIEW_ONLY === "true" && !stagingTestDispatch) {
+    return { success: false, error: "Live batch dispatch is disabled in staging or supplier test mode.", details: { providerSystemicFailure: true, providerOutcome: "not_sent" } };
+  }
+  if (process.env.STAGING_REVIEW_ONLY === "true" && process.env.HANDWRYTTEN_TEST_MODE !== "true") {
+    return { success: false, error: "Staging test dispatch requires HANDWRYTTEN_TEST_MODE=true.", details: { providerSystemicFailure: true, providerOutcome: "not_sent" } };
+  }
+  if (!allowTestMode && process.env.HANDWRYTTEN_TEST_MODE === "true") {
+    return { success: false, error: "Live batch dispatch is disabled in staging or supplier test mode.", details: { providerSystemicFailure: true, providerOutcome: "not_sent" } };
+  }
   const apiKey = process.env.HANDWRYTTEN_API_KEY || process.env["handwrytten-api-key"];
   if (!apiKey) return { success: false, error: "Supplier credentials are unavailable; no recipient was submitted.", details: { providerSystemicFailure: true, providerOutcome: "not_sent" } };
+  const isTestMode = allowTestMode && process.env.HANDWRYTTEN_TEST_MODE === "true";
   let payload: Record<string, unknown>;
-  try { payload = buildSingleStepOrderPayload({ ...params, exactMessage: true }, cardId, false); }
+  try { payload = buildSingleStepOrderPayload({ ...params, exactMessage: true }, cardId, isTestMode); }
   catch (error) { return { success: false, error: error instanceof Error ? error.message : "Unsupported supplier destination.", details: { providerRejected: true, providerOutcome: "not_sent" } }; }
   try {
     const response = await fetchImpl("https://api.handwrytten.com/v2/orders/singleStepOrder", { method: "POST", headers: { Authorization: apiKey, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(payload), signal: AbortSignal.timeout(20_000) });
@@ -547,7 +623,8 @@ export interface HandwryttenStatusResult {
  * Queries live status from Handwrytten API v2 via /orders/view
  */
 export async function fetchHandwryttenOrderStatus(
-  orderId: string
+  orderId: string,
+  fetchImpl: typeof fetch = fetch
 ): Promise<HandwryttenStatusResult> {
   const apiKey =
     process.env.HANDWRYTTEN_API_KEY || process.env["handwrytten-api-key"];
@@ -561,7 +638,7 @@ export async function fetchHandwryttenOrderStatus(
   }
 
   try {
-    const res = await fetch(
+    const res = await fetchImpl(
       `https://api.handwrytten.com/v2/orders/details?id=${encodeURIComponent(orderId)}&order_id=${encodeURIComponent(orderId)}`,
       {
         method: "GET",

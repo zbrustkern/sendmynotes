@@ -19,7 +19,15 @@ import {
   type WeddingProject,
   type WeddingActor,
 } from "./domain";
-import { assertWeddingActorInTransaction } from "./server";
+import {
+  assertWeddingActorInTransaction,
+  isWeddingStagingRuntime,
+  weddingStorageEnvironment,
+} from "./server";
+import { sanitizeAttribution } from "../telemetry-schema";
+import { sanitizeAttributionSnapshot } from "../attribution-classifier";
+import type { OrderAttribution } from "../types";
+import type { CommercialKind } from "../contracts/admin-overhaul";
 import {
   digest,
   priceWeddingSelection,
@@ -94,53 +102,193 @@ type Batch = {
   refundReservedCents: number;
   dueAt?: number | null;
   artPin?: { id: string; sha256: string; storageKey: string } | null;
+  paymentMode?: "live" | "stripe_test";
+  storageEnv?: "staging" | "production";
+  buyerEmail?: string | null;
+  attribution?: OrderAttribution | null;
+  dispatchStatus?: string | null;
+  dispatchMode?: "auto" | "manual_release" | null;
+  confirmationEmailSentAt?: number | null;
 };
 export const weddingBatchRef = (id: string) =>
   firestoreDb.collection("weddingBatches").doc(safeId(id));
 const projectRef = (id: string) =>
   firestoreDb.collection("weddingProjects").doc(safeId(id));
-export function heldPaymentRuntime(): boolean {
+export interface WeddingPaymentRuntime {
+  paymentMode: "live" | "stripe_test";
+  expectedLivemode: boolean;
+  stagingReviewOnly: boolean;
+  storageEnv: "staging" | "production";
+  publishableKeyPrefix: "pk_live_" | "pk_test_";
+}
+
+export function resolveWeddingPaymentRuntime(): WeddingPaymentRuntime | null {
   try {
-    const localFixture = process.env.NODE_ENV === "test" && isFirestoreMock;
-    const hostedStaging =
-      process.env.FIREBASE_PROJECT_ID === "sendmynotes-staging" &&
-      process.env.HANDWRYTTEN_TEST_MODE === "true" &&
-      !isFirestoreMock;
-    return (
-      (localFixture || hostedStaging) &&
-      process.env.STAGING_REVIEW_ONLY === "true" &&
-      resolvePaymentMode() === "stripe_test"
-    );
+    const mode = resolvePaymentMode();
+    if (mode !== "live" && mode !== "stripe_test") return null;
+    if (process.env.NODE_ENV === "production" && isFirestoreMock) return null;
+    const staging = isWeddingStagingRuntime();
+    const stagingReviewOnly = process.env.STAGING_REVIEW_ONLY === "true";
+    const localFixture =
+      process.env.NODE_ENV === "test" &&
+      isFirestoreMock &&
+      Boolean(process.env.SMN_TEST_DATA_DIR);
+    const pk = (
+      process.env.STRIPE_PUBLISHABLE_KEY ||
+      process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
+      ""
+    ).trim();
+
+    if (mode === "stripe_test") {
+      const hostedStaging =
+        staging &&
+        process.env.HANDWRYTTEN_TEST_MODE === "true" &&
+        !isFirestoreMock;
+      if (!((localFixture || hostedStaging) && stagingReviewOnly)) {
+        return null;
+      }
+      if (pk && !pk.startsWith("pk_test_")) return null;
+      return {
+        paymentMode: "stripe_test",
+        expectedLivemode: false,
+        stagingReviewOnly: true,
+        storageEnv: "staging",
+        publishableKeyPrefix: "pk_test_",
+      };
+    }
+
+    if (staging || stagingReviewOnly || (isFirestoreMock && !localFixture)) {
+      return null;
+    }
+    if (pk && !pk.startsWith("pk_live_")) return null;
+    return {
+      paymentMode: "live",
+      expectedLivemode: true,
+      stagingReviewOnly: false,
+      storageEnv: "production",
+      publishableKeyPrefix: "pk_live_",
+    };
   } catch {
-    return false;
+    return null;
   }
+}
+
+export function heldPaymentRuntime(): boolean {
+  return resolveWeddingPaymentRuntime()?.paymentMode === "stripe_test";
 }
 export function weddingCheckoutEnabled(): boolean {
   return (
-    heldPaymentRuntime() && process.env.WEDDING_CHECKOUT_ENABLED === "true"
+    resolveWeddingPaymentRuntime() !== null &&
+    process.env.WEDDING_CHECKOUT_ENABLED === "true"
   );
 }
-function requirePurchasing() {
-  if (!weddingCheckoutEnabled())
+function requirePurchasing(): WeddingPaymentRuntime {
+  const runtime = resolveWeddingPaymentRuntime();
+  if (!runtime || process.env.WEDDING_CHECKOUT_ENABLED !== "true")
     throw new WeddingCheckoutError(
       "Purchasing is currently paused.",
       503,
       "checkout_paused",
     );
+  return runtime;
 }
-function requireTestRuntime() {
-  if (!heldPaymentRuntime())
+function requirePaymentRuntime(): WeddingPaymentRuntime {
+  const runtime = resolveWeddingPaymentRuntime();
+  if (!runtime)
     throw new WeddingCheckoutError(
-      "Test payment reconciliation is unavailable.",
+      "Payment reconciliation is unavailable.",
       503,
     );
+  return runtime;
 }
-function checkoutDestination(country: string) {
+function normalizeBuyerEmail(raw: unknown): string | undefined {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  if (typeof raw !== "string") {
+    throw new WeddingCheckoutError("Enter a valid email address.", 400, "invalid_email");
+  }
+  const trimmed = raw.trim().toLowerCase();
+  if (!trimmed) return undefined;
+  if (
+    trimmed.length > 254 ||
+    /[\r\n]/.test(trimmed) ||
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+  ) {
+    throw new WeddingCheckoutError("Enter a valid email address.", 400, "invalid_email");
+  }
+  return trimmed;
+}
+function sanitizeWeddingAttribution(raw: unknown): OrderAttribution | undefined {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return undefined;
+  const input = raw as Record<string, unknown>;
+  const optOut = typeof input.optOut === "boolean" ? input.optOut : undefined;
+  const gpc = typeof input.gpc === "boolean" ? input.gpc : undefined;
+  const allowClickIds = optOut !== true && gpc !== true;
+  const result: OrderAttribution = {
+    ...(sanitizeAttributionSnapshot(input.attributionV2)
+      ? { attributionV2: sanitizeAttributionSnapshot(input.attributionV2) }
+      : {}),
+    ...(sanitizeAttribution(input.utmSource ?? input.utm_source)
+      ? { utmSource: sanitizeAttribution(input.utmSource ?? input.utm_source) }
+      : {}),
+    ...(sanitizeAttribution(input.utmMedium ?? input.utm_medium)
+      ? { utmMedium: sanitizeAttribution(input.utmMedium ?? input.utm_medium) }
+      : {}),
+    ...(sanitizeAttribution(input.utmCampaign ?? input.utm_campaign)
+      ? { utmCampaign: sanitizeAttribution(input.utmCampaign ?? input.utm_campaign) }
+      : {}),
+    ...(sanitizeAttribution(input.utmContent ?? input.utm_content)
+      ? { utmContent: sanitizeAttribution(input.utmContent ?? input.utm_content) }
+      : {}),
+    ...(sanitizeAttribution(input.utmTerm ?? input.utm_term)
+      ? { utmTerm: sanitizeAttribution(input.utmTerm ?? input.utm_term) }
+      : {}),
+    ...(allowClickIds && sanitizeAttribution(input.gclid, 255)
+      ? { gclid: sanitizeAttribution(input.gclid, 255) }
+      : {}),
+    ...(allowClickIds && sanitizeAttribution(input.wbraid, 255)
+      ? { wbraid: sanitizeAttribution(input.wbraid, 255) }
+      : {}),
+    ...(allowClickIds && sanitizeAttribution(input.gbraid, 255)
+      ? { gbraid: sanitizeAttribution(input.gbraid, 255) }
+      : {}),
+    ...(allowClickIds && sanitizeAttribution(input.fbclid, 255)
+      ? { fbclid: sanitizeAttribution(input.fbclid, 255) }
+      : {}),
+    ...(allowClickIds && sanitizeAttribution(input.fbp, 255)
+      ? { fbp: sanitizeAttribution(input.fbp, 255) }
+      : {}),
+    ...(allowClickIds && sanitizeAttribution(input.fbc, 255)
+      ? { fbc: sanitizeAttribution(input.fbc, 255) }
+      : {}),
+    ...(sanitizeAttribution(input.referrer, 255)
+      ? { referrer: sanitizeAttribution(input.referrer, 255) }
+      : {}),
+    ...(sanitizeAttribution(input.landingPath, 255)
+      ? { landingPath: sanitizeAttribution(input.landingPath, 255) }
+      : {}),
+    ...(gpc !== undefined ? { gpc } : {}),
+    ...(optOut !== undefined ? { optOut } : {}),
+  };
+  return Object.keys(result).length > 0 ? result : undefined;
+}
+function configuredDispatchMode(): "auto" | "manual_release" {
+  return process.env.WEDDING_DISPATCH_MODE === "manual_release"
+    ? "manual_release"
+    : "auto";
+}
+function checkoutDestination(
+  country: string,
+  paymentMode?: "live" | "stripe_test",
+) {
   const dest = getSupplierCountry(country);
+  const resolvedMode =
+    paymentMode ??
+    resolveWeddingPaymentRuntime()?.paymentMode ??
+    (isWeddingStagingRuntime() ? "stripe_test" : "live");
   const policy = authorizeInternationalCheckout({
     countryCode: country,
     addressDeferred: false,
-    paymentMode: "stripe_test",
+    paymentMode: resolvedMode,
   });
   if (!dest || dest.suspended || !policy.allowed)
     throw new WeddingCheckoutError("Review the destination before purchasing.");
@@ -232,6 +380,7 @@ async function fetchBatch(
   return b;
 }
 function publicBatch(b: Batch) {
+  const runtime = resolveWeddingPaymentRuntime();
   return {
     batchId: b.id,
     status: b.status,
@@ -243,6 +392,14 @@ function publicBatch(b: Batch) {
     capturedCents: b.capturedCents,
     refundedCents: b.refundedCents,
     checkoutEnabled: weddingCheckoutEnabled(),
+    paymentMode:
+      b.paymentMode ||
+      runtime?.paymentMode ||
+      (isWeddingStagingRuntime() ? "stripe_test" : "live"),
+    stagingReviewOnly: runtime ? runtime.stagingReviewOnly : isWeddingStagingRuntime(),
+    buyerEmail: b.buyerEmail || null,
+    dispatchStatus: b.dispatchStatus || null,
+    dispatchMode: b.dispatchMode || configuredDispatchMode(),
   };
 }
 function assertBatchPayer(b: Batch, actor: Payer) {
@@ -257,8 +414,10 @@ export async function quoteWeddingSelection(
   selection: Selection[],
   reserveHash?: string,
   promotionCode?: string | { issuedId: string },
+  options?: { buyerEmail?: unknown; attribution?: unknown },
 ) {
-  if (reserveHash !== undefined) requirePurchasing();
+  const runtime = reserveHash !== undefined ? requirePurchasing() : resolveWeddingPaymentRuntime();
+  const buyerEmail = normalizeBuyerEmail(options?.buyerEmail);
   const batchId = "wb_" + randomUUID();
   return firestoreDb.runTransaction(async (tx) => {
     const ref = projectRef(actor.projectId);
@@ -313,7 +472,13 @@ export async function quoteWeddingSelection(
       : null;
     const quote = promoted?.quote ?? baseQuote;
     if (reserveHash === undefined)
-      return { quote, checkoutEnabled: weddingCheckoutEnabled() };
+      return {
+        quote,
+        checkoutEnabled: weddingCheckoutEnabled(),
+        paymentMode: runtime?.paymentMode || (isWeddingStagingRuntime() ? "stripe_test" : "live"),
+        stagingReviewOnly: runtime ? runtime.stagingReviewOnly : isWeddingStagingRuntime(),
+        dispatchMode: configuredDispatchMode(),
+      };
     if (quote.id !== reserveHash)
       throw new WeddingCheckoutError(
         "Your batch changed. Review the updated total before paying.",
@@ -321,6 +486,9 @@ export async function quoteWeddingSelection(
         "review_quote",
       );
     const now = Date.now();
+    const attribution = sanitizeWeddingAttribution(
+      options?.attribution ?? (project as { attribution?: unknown }).attribution,
+    );
     const batch: Batch = {
       id: batchId,
       projectId: actor.projectId,
@@ -337,6 +505,11 @@ export async function quoteWeddingSelection(
       refundedCents: 0,
       refundReservedCents: 0,
       dueAt: now + HOUR,
+      paymentMode: runtime!.paymentMode,
+      storageEnv: runtime!.storageEnv,
+      dispatchMode: configuredDispatchMode(),
+      ...(buyerEmail ? { buyerEmail } : {}),
+      ...(attribution ? { attribution } : {}),
     };
     if (promoted) {
       promoted.reserve();
@@ -472,18 +645,21 @@ export async function getPaidWeddingCard(
   });
 }
 export async function readPaidWeddingCover(actor: Payer, batchId: string) {
-  const pin = await firestoreDb.runTransaction(async (tx) => {
+  const { pin, storageEnv } = await firestoreDb.runTransaction(async (tx) => {
     await assertWeddingActorInTransaction(tx, actor, "edit");
     const b = await fetchBatch(tx, batchId, actor.projectId);
     if (b.status !== "held" || !b.artPin)
       throw new WeddingCheckoutError("Card front not found.", 404);
-    return b.artPin;
+    return {
+      pin: b.artPin,
+      storageEnv: b.storageEnv || weddingStorageEnvironment(),
+    };
   });
   const { weddingArtworkObjects, artworkSha, artworkProjectSegment } =
     await import("./artwork-storage");
   const { ARTWORK_LIMITS } = await import("./artwork-policy");
   const expectedKey =
-    "wedding-paid-retained/staging/" +
+    `wedding-paid-retained/${storageEnv}/` +
     artworkProjectSegment(actor.projectId) +
     "/" +
     batchId +
@@ -505,9 +681,18 @@ const clearLock = {
   checkoutRevocationRequestedFor: null,
   paymentReconciliationRequired: false,
 };
-export function checkWeddingIntent(b: Batch, pi: Stripe.PaymentIntent) {
+export function checkWeddingIntent(
+  b: Batch,
+  pi: Stripe.PaymentIntent,
+  expectedLivemode?: boolean,
+) {
+  const livemode =
+    expectedLivemode ??
+    (b.paymentMode
+      ? b.paymentMode === "live"
+      : (resolveWeddingPaymentRuntime()?.expectedLivemode ?? false));
   if (
-    pi.livemode !== false ||
+    pi.livemode !== livemode ||
     pi.metadata?.weddingBatchId !== b.id ||
     pi.metadata?.weddingQuoteId !== b.quote.id ||
     pi.amount !== b.quote.totalCents ||
@@ -519,7 +704,13 @@ export function checkWeddingIntent(b: Batch, pi: Stripe.PaymentIntent) {
     );
 }
 async function retrieveOrCreate(b: Batch) {
-  requireTestRuntime();
+  const runtime = requirePaymentRuntime();
+  if (b.paymentMode && b.paymentMode !== runtime.paymentMode) {
+    throw new WeddingCheckoutError(
+      "Payment mode does not match this frozen batch.",
+      409,
+    );
+  }
   const sdk = getStripeClient();
   if (b.paymentIntentId) return sdk.paymentIntents.retrieve(b.paymentIntentId);
   if (!b.issueAt || Date.now() - b.issueAt > 23 * HOUR)
@@ -530,21 +721,27 @@ async function retrieveOrCreate(b: Batch) {
     {
       amount: b.quote.totalCents,
       currency: "usd",
-      payment_method_types: ["card"],
+      automatic_payment_methods: { enabled: true },
+      ...(b.buyerEmail ? { receipt_email: b.buyerEmail } : {}),
       metadata: { weddingBatchId: b.id, weddingQuoteId: b.quote.id },
     },
     { idempotencyKey: "wedding-pay-" + b.id },
   );
 }
-export async function issueWeddingIntent(actor: Payer, id: string) {
-  requirePurchasing();
+export async function issueWeddingIntent(
+  actor: Payer,
+  id: string,
+  options?: { buyerEmail?: unknown },
+) {
+  const runtime = requirePurchasing();
+  const buyerEmail = normalizeBuyerEmail(options?.buyerEmail);
   const publishableKey = (
     process.env.STRIPE_PUBLISHABLE_KEY ||
     process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ||
     ""
   ).trim();
-  if (!publishableKey.startsWith("pk_test_"))
-    throw new WeddingCheckoutError("Test payment setup is incomplete.", 503);
+  if (!publishableKey.startsWith(runtime.publishableKeyPrefix))
+    throw new WeddingCheckoutError("Payment setup is incomplete.", 503);
   const b = await firestoreDb.runTransaction(async (tx) => {
     const b = await fetchBatch(tx, id, actor.projectId),
       ref = projectRef(b.projectId);
@@ -557,7 +754,7 @@ export async function issueWeddingIntent(actor: Payer, id: string) {
         "Finish preparing this batch before paying.",
       );
     for (const line of b.quote.lines) {
-      checkoutDestination(line.country);
+      checkoutDestination(line.country, b.paymentMode || runtime.paymentMode);
       if (line.expiresAt && line.expiresAt <= Date.now())
         throw new WeddingCheckoutError("Refresh the tax quote.");
     }
@@ -580,15 +777,35 @@ export async function issueWeddingIntent(actor: Payer, id: string) {
     assertReserved(p, b);
     if (!["ready", "issuing", "awaiting_payment"].includes(b.status))
       throw new WeddingCheckoutError("This batch has changed.");
-    if (b.status !== "ready") return b;
+    if (b.paymentMode && b.paymentMode !== runtime.paymentMode)
+      throw new WeddingCheckoutError("Payment mode mismatch for this batch.");
+    if (b.status !== "ready") {
+      if (buyerEmail && buyerEmail !== b.buyerEmail && !b.paymentIntentId) {
+        tx.update(weddingBatchRef(id), { buyerEmail });
+        return { ...b, buyerEmail };
+      }
+      return b;
+    }
     const issueAt = Date.now();
+    const resolvedEmail = buyerEmail ?? b.buyerEmail ?? null;
     tx.update(weddingBatchRef(id), {
       status: "issuing",
       issueAt,
       artPin,
+      paymentMode: b.paymentMode || runtime.paymentMode,
+      storageEnv: b.storageEnv || runtime.storageEnv,
+      ...(resolvedEmail ? { buyerEmail: resolvedEmail } : {}),
       dueAt: issueAt + 60000,
     });
-    return { ...b, status: "issuing" as const, issueAt, artPin };
+    return {
+      ...b,
+      status: "issuing" as const,
+      issueAt,
+      artPin,
+      paymentMode: b.paymentMode || runtime.paymentMode,
+      storageEnv: b.storageEnv || runtime.storageEnv,
+      ...(resolvedEmail ? { buyerEmail: resolvedEmail } : {}),
+    };
   });
   const pi = await retrieveOrCreate(issuing);
   checkWeddingIntent(issuing, pi);
@@ -622,15 +839,32 @@ export async function issueWeddingIntent(actor: Payer, id: string) {
   });
   return { ...result, clientSecret: pi.client_secret, publishableKey };
 }
+async function maybeSendWeddingConfirmationEmail(batchId: string) {
+  try {
+    const { sendWeddingBatchConfirmationEmail } = await import("./email");
+    await sendWeddingBatchConfirmationEmail(batchId);
+  } catch (err) {
+    console.warn("[Wedding Email] Fail-soft confirmation email notice:", err);
+  }
+}
+
 export async function settleWeddingIntent(pi: Stripe.PaymentIntent) {
-  requireTestRuntime();
+  const runtime = requirePaymentRuntime();
   const id = safeId(pi.metadata?.weddingBatchId);
-  await firestoreDb.runTransaction(async (tx) => {
+  const settledBatch = await firestoreDb.runTransaction(async (tx) => {
     const b = await fetchBatch(tx, id);
-    checkWeddingIntent(b, pi);
+    const expectedLivemode = b.paymentMode
+      ? b.paymentMode === "live"
+      : runtime.expectedLivemode;
+    if (expectedLivemode !== runtime.expectedLivemode) {
+      throw new WeddingCheckoutError(
+        "Payment mode mismatch for this wedding batch.",
+      );
+    }
+    checkWeddingIntent(b, pi, expectedLivemode);
     if (pi.status !== "succeeded" || pi.amount_received !== b.quote.totalCents)
       throw new WeddingCheckoutError("Payment has not settled in full.");
-    if (b.status === "held" && b.paymentIntentId === pi.id) return;
+    if (b.status === "held" && b.paymentIntentId === pi.id) return b;
     const ref = projectRef(b.projectId),
       p = (await tx.get(ref)).data() as Project;
     if (
@@ -655,34 +889,53 @@ export async function settleWeddingIntent(pi: Stripe.PaymentIntent) {
       purchasedCount: b.quote.previouslyPurchased + b.quote.count,
       paidHouseholds,
     });
+    const settledAt = Date.now();
     tx.update(weddingBatchRef(id), {
       status: "held",
       paymentIntentId: pi.id,
       capturedCents: pi.amount_received,
-      settledAt: Date.now(),
-      dueAt: Date.now(),
+      settledAt,
+      dueAt: settledAt,
+      paymentMode: b.paymentMode || runtime.paymentMode,
+      storageEnv: b.storageEnv || runtime.storageEnv,
     });
+    return {
+      ...b,
+      status: "held" as const,
+      paymentIntentId: pi.id,
+      capturedCents: pi.amount_received,
+      settledAt,
+      paymentMode: b.paymentMode || runtime.paymentMode,
+      storageEnv: b.storageEnv || runtime.storageEnv,
+    };
   });
-  await recordVerifiedWeddingCapture(id, pi.id, pi.amount_received);
+  await recordVerifiedWeddingCapture(settledBatch, pi.id, pi.amount_received);
+  await maybeSendWeddingConfirmationEmail(id);
 }
 
 async function recordVerifiedWeddingCapture(
-  id: string,
+  b: Batch,
   intentId: string,
   cents: number,
 ) {
+  const isLive = b.paymentMode === "live";
+  const commercialKind: CommercialKind = isLive
+    ? b.quote.promotion
+      ? "discounted_paid"
+      : "paid_customer"
+    : "founder_test";
   await recordPaymentCaptureFact({
     paymentIntentId: intentId,
-    operationId: id,
+    operationId: b.id,
     amountCents: cents,
     currency: "usd",
-    livemode: false,
-    commercialKind: "founder_test",
+    livemode: isLive,
+    commercialKind,
   });
 }
 
 export async function confirmWeddingPayment(actor: Payer, id: string) {
-  requireTestRuntime();
+  requirePaymentRuntime();
   const b = await firestoreDb.runTransaction(async (tx) => {
     const b = await fetchBatch(tx, id, actor.projectId);
     await assertWeddingActorInTransaction(tx, actor, "pay");
@@ -706,13 +959,19 @@ async function materializeHeldCards(id: string) {
   const held = (await weddingBatchRef(id).get()).data() as Batch;
   if (held.status !== "held" || !held.paymentIntentId) return;
   await recordVerifiedWeddingCapture(
-    id,
+    held,
     held.paymentIntentId,
     held.capturedCents,
   );
-  return firestoreDb.runTransaction(async (tx) => {
+  const stagingTestDispatch =
+    process.env.WEDDING_STAGING_HANDWRYTTEN_TEST_DISPATCH === "true" &&
+    process.env.HANDWRYTTEN_TEST_MODE === "true";
+  const dispatchEligible =
+    held.paymentMode === "live" || stagingTestDispatch;
+
+  const finished = await firestoreDb.runTransaction(async (tx) => {
     const b = await fetchBatch(tx, id);
-    if (b.status !== "held" || b.completedCount >= b.quote.count) return;
+    if (b.status !== "held" || b.completedCount >= b.quote.count) return false;
     const group = b.quote.lines.slice(
       b.completedCount,
       b.completedCount + CHUNK,
@@ -721,7 +980,11 @@ async function materializeHeldCards(id: string) {
     for (const l of group) {
       const country = getSupplierCountry(l.country);
       const reason =
-        !country || country.suspended ? "destination_review" : "staging_review";
+        !country || country.suspended
+          ? "destination_review"
+          : dispatchEligible
+          ? "awaiting_enqueue"
+          : "staging_review";
       tx.update(ref.collection("households").doc(l.householdId), {
         paidBatchId: id,
         paymentStatus: "held",
@@ -740,7 +1003,20 @@ async function materializeHeldCards(id: string) {
       completedCount,
       dueAt: completedCount === b.quote.count ? null : Date.now() + 1,
     });
+    return completedCount === b.quote.count;
   });
+
+  if (finished) {
+    await maybeSendWeddingConfirmationEmail(id);
+    if (dispatchEligible) {
+      try {
+        const { enqueueWeddingBatchDispatch } = await import("./dispatch");
+        await enqueueWeddingBatchDispatch(id);
+      } catch (err) {
+        console.warn("[Wedding Dispatch] Enqueue notice after materialization:", err);
+      }
+    }
+  }
 }
 
 async function closeReservation(id: string, actor?: Payer) {
@@ -802,14 +1078,14 @@ async function closeReservation(id: string, actor?: Payer) {
   return publicBatch((await weddingBatchRef(id).get()).data() as Batch);
 }
 export async function cancelWeddingBatch(actor: Payer, id: string) {
-  requireTestRuntime();
+  requirePaymentRuntime();
   return closeReservation(id, actor);
 }
 export async function reconcileWeddingRevocation(
   projectId: string,
   actorId: string,
 ) {
-  if (!heldPaymentRuntime()) return;
+  if (!resolveWeddingPaymentRuntime()) return;
   const p = (await projectRef(projectId).get()).data();
   if (p?.checkoutActorId === actorId && p.activeBatchId)
     await closeReservation(p.activeBatchId);
@@ -860,7 +1136,7 @@ async function reconcileDueBatch(id: string) {
   });
 }
 export async function runWeddingReconciliation() {
-  if (!heldPaymentRuntime()) return { visited: 0, deferred: 0 };
+  if (!resolveWeddingPaymentRuntime()) return { visited: 0, deferred: 0 };
   const now = Date.now();
   // Single-field range index excludes null via the numeric lower bound. Every visited
   // parent advances at most one chunk before returning to the back of the due queue.
