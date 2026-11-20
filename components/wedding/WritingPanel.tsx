@@ -4,6 +4,7 @@ import {
   weddingWordingIssues,
   weddingAddressReady,
   weddingOverflow,
+  weddingNoteFit,
 } from "@/lib/wedding/domain";
 import {
   errorMessage,
@@ -341,7 +342,7 @@ export function WritingPanel(props: WritingProps) {
               {over.length > 0 && shared.dirty && (
                 <div className="wed-notice">
                   <strong>
-                    {pluralize(over.length, "card")} would exceed 450 characters
+                    {pluralize(over.length, "card")} would exceed the card writing fit limit
                   </strong>
                   <ul>
                     {over.map((r) => (
@@ -731,6 +732,7 @@ function RowWriter({
   const view = { ...row, ...draft.value },
     fields = resolved(p, view),
     note = noteFor(p, view),
+    fit = weddingNoteFit(p, view),
     issues = weddingWordingIssues(p, view);
   return (
     <>
@@ -900,7 +902,13 @@ function RowWriter({
       >
         {note || "Your finished note will appear here."}
       </pre>
-      <p className="wed-meta">{note.length}/450 characters</p>
+      <p className="wed-meta">
+        {fit.wrappedLines}/{fit.maxLines} lines · {fit.charCount}/{fit.maxChars}{" "}
+        characters · {fit.fontLabel}
+        {fit.status === "cozy"
+          ? " · Getting cozy — shortening slightly leaves cleaner pen margins."
+          : ""}
+      </p>
       {issues.length > 0 && (
         <p className="wed-notice" role="status">
           {issues.join(" ")}

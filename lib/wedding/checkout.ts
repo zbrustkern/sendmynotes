@@ -12,6 +12,7 @@ import {
 import { resolvePaymentMode } from "../payment-mode";
 import { getStripeClient } from "../stripe";
 import { recordPaymentCaptureFact } from "../financial-ledger";
+import { analyzeHandwryttenFit } from "../handwrytten-text-policy";
 import {
   resolveWeddingNote,
   weddingRowReady,
@@ -109,6 +110,7 @@ type Batch = {
   dispatchStatus?: string | null;
   dispatchMode?: "auto" | "manual_release" | null;
   confirmationEmailSentAt?: number | null;
+  metaCapiSentAt?: number | null;
 };
 export const weddingBatchRef = (id: string) =>
   firestoreDb.collection("weddingBatches").doc(safeId(id));
@@ -342,8 +344,11 @@ function freezeCard(
       "A selected card changed or needs review. Refresh the selection.",
     );
   const note = resolveWeddingNote(project, row);
-  if (!note.trim() || note.length > 450)
-    throw new WeddingCheckoutError("Review the complete note before paying.");
+  const fit = analyzeHandwryttenFit(note, project.handwriting);
+  if (!fit.normalizedText.trim() || !fit.fits)
+    throw new WeddingCheckoutError(
+      fit.issues[0] || "Review the complete note before paying.",
+    );
   const sender = project.returnAddress;
   if (sender?.country !== "US")
     throw new WeddingCheckoutError(
@@ -848,6 +853,35 @@ async function maybeSendWeddingConfirmationEmail(batchId: string) {
   }
 }
 
+async function maybeSendWeddingPurchaseConversion(b: Batch) {
+  if (b.paymentMode !== "live" || b.metaCapiSentAt) return;
+  try {
+    const claimed = await firestoreDb.runTransaction(async (tx) => {
+      const ref = weddingBatchRef(b.id);
+      const snap = await tx.get(ref);
+      const current = snap.data() as Batch | undefined;
+      if (!current || current.metaCapiSentAt) return false;
+      tx.update(ref, { metaCapiSentAt: Date.now() });
+      return true;
+    });
+    if (!claimed) return;
+    const { sendWeddingPurchaseConversion } = await import("./attribution");
+    const res = await sendWeddingPurchaseConversion({
+      batchId: b.id,
+      capturedCents: b.capturedCents,
+      count: b.quote.count,
+      buyerEmail: b.buyerEmail ?? null,
+      attribution: (b.attribution as Record<string, unknown> | null) ?? null,
+      livemode: b.paymentMode === "live",
+    });
+    if (!res.sent && (res.reason === "api_error" || res.reason === "network_error")) {
+      await weddingBatchRef(b.id).update({ metaCapiSentAt: null }).catch(() => {});
+    }
+  } catch (err) {
+    console.warn("[Wedding Attribution] Fail-soft Meta CAPI notice:", err);
+  }
+}
+
 export async function settleWeddingIntent(pi: Stripe.PaymentIntent) {
   const runtime = requirePaymentRuntime();
   const id = safeId(pi.metadata?.weddingBatchId);
@@ -911,6 +945,7 @@ export async function settleWeddingIntent(pi: Stripe.PaymentIntent) {
   });
   await recordVerifiedWeddingCapture(settledBatch, pi.id, pi.amount_received);
   await maybeSendWeddingConfirmationEmail(id);
+  await maybeSendWeddingPurchaseConversion(settledBatch);
 }
 
 async function recordVerifiedWeddingCapture(

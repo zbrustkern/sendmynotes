@@ -10,6 +10,7 @@ import { sendIncidentAlertEmail } from "../email-alerts";
 import { AUTHORIZED_ADMIN_EMAILS } from "../admin-auth";
 import type { HandwryttenOrderParams } from "../types";
 import { digest, type WeddingQuote } from "./finance";
+import { analyzeHandwryttenFit } from "../handwrytten-text-policy";
 import { isWeddingStagingRuntime, weddingStorageEnvironment } from "./server";
 import { artworkProjectSegment, artworkSha, weddingArtworkObjects } from "./artwork-storage";
 import { ARTWORK_LIMITS } from "./artwork-policy";
@@ -969,10 +970,41 @@ export async function runWeddingDispatchPass(
 
         totalDispatched++;
         const card = claimed.card;
+        const noteFit = analyzeHandwryttenFit(
+          String(card.note || ""),
+          String(card.handwriting || "1"),
+        );
+        if (noteFit.unsupportedChars.length > 0 || !noteFit.normalizedText.trim()) {
+          await db.runTransaction(async (tx) => {
+            const snap = await tx.get(delRef);
+            const current = snap.data() as Record<string, unknown> | undefined;
+            if (
+              !current ||
+              normalizeDeliveryState(current) !== "dispatching" ||
+              current.dispatchAttemptId !== attemptId ||
+              current.stateVersion !== claimed.claimedVersion
+            ) {
+              return;
+            }
+            tx.update(delRef, {
+              state: "rejected",
+              status: "rejected",
+              outcome: "rejected",
+              error: noteFit.issues[0] || "Card message contains unsupported characters for physical pens.",
+              dueAt: null,
+              leaseExpiresAt: null,
+              stateVersion: claimed.claimedVersion + 1,
+              updatedAt: now(),
+            });
+          });
+          rejected++;
+          touchedBatches.add(active.id);
+          continue;
+        }
         const orderParams: HandwryttenOrderParams = {
           orderId: `${active.id}-${householdId}`,
           imageUrl: String(card.cover?.url || ""),
-          handwrittenMessage: String(card.note || ""),
+          handwrittenMessage: noteFit.normalizedText,
           fontId: String(card.handwriting || "1"),
           recipient: card.recipient.address,
           returnAddress: card.returnAddress,
