@@ -1,4 +1,4 @@
-import {createHash, randomUUID} from "node:crypto";
+import {createHash, randomInt, randomUUID} from "node:crypto";
 import {tmpdir} from "node:os";
 import path from "node:path";
 import {readFile,writeFile,mkdir,unlink} from "node:fs/promises";
@@ -45,9 +45,11 @@ async function eraseObject(key:string) {
   if (local()) { await unlink(localFile(key)).catch(e=>{if(e.code!=="ENOENT")throw e;}); return; }
   await (await bucket()).file(key).delete({ignoreNotFound:true});
 }
-export async function claimImportAttempt(projectId:string) {
+const IMPORT_GLOBAL_SHARDS = 8;
+export async function claimImportAttempt(projectId:string, shardIndex?: number) {
   const now=Date.now(), ref=firestoreDb.collection("weddingImportQuotas").doc(sha(projectId));
-  const globalRef=firestoreDb.collection("weddingImportQuotas").doc("site");
+  const shard=shardIndex===undefined?randomInt(IMPORT_GLOBAL_SHARDS):((shardIndex%IMPORT_GLOBAL_SHARDS)+IMPORT_GLOBAL_SHARDS)%IMPORT_GLOBAL_SHARDS;
+  const globalRef=firestoreDb.collection("weddingImportQuotas").doc(`site_${shard}`);
   const lease=randomUUID();
   const live=(bag:unknown):Record<string,number> => Object.fromEntries(
     Object.entries(bag || {}).filter(([,v])=>typeof v==="number" && v>now)

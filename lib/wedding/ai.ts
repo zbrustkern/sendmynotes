@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { firestoreDb, isFirestoreMock } from '../firebase-admin';
 import { resolveWeddingNote, weddingResolvedFields, type WeddingActor, type WeddingProject, type WeddingHousehold } from './domain';
+import { analyzeHandwryttenFit } from '../handwrytten-text-policy';
 import { assertWeddingActorInTransaction, weddingIdentity, WeddingError } from './server';
 import { createWeddingAiProvider, WeddingAiProviderError, type WeddingAiProvider, type WeddingAiProviderInfo } from './ai-provider';
 import { readWeddingArtwork, storeWeddingGeneratedArtwork } from './artwork';
@@ -17,7 +18,7 @@ type Job = {
   inputHash: string; provider: WeddingAiProviderInfo; policy: string; status: Status;
   createdAt: number; updatedAt: number; expiresAt: number; estimatedCents: number;
   consents: Record<string, { policy: string; at: number; inputHash: string }>;
-  items: Item[]; tone: WeddingAiTone; headers?: string[]; excerpt?: string; prompt?: string; assetId?: string;
+  items: Item[]; tone: WeddingAiTone; handwriting?: string; headers?: string[]; excerpt?: string; prompt?: string; assetId?: string;
   requiresVerified: boolean; run: Run|null; completedCalls: number; retryIds?: string[]; retryCount: number;
   error?: string; result?: WeddingAiResult; canceledAt?: number;
   reconciliation?: {runId:string;decision:string;evidenceHash:string;at:number;operatorUid:string};
@@ -41,22 +42,23 @@ function envInt(name: string, fallback: number, max: number): number {
 function limits(): Limits {
   const config = {
     projectCents:envInt('WEDDING_AI_PROJECT_CENTS_24H',1500,100_000),
-    deploymentCents:envInt('WEDDING_AI_DEPLOYMENT_CENTS_24H',20_000,1_000_000),
+    deploymentCents:envInt('WEDDING_AI_DEPLOYMENT_CENTS_24H',100_000,1_000_000),
     deviceCents:envInt('WEDDING_AI_DEVICE_CENTS_24H',3000,100_000),
-    deploymentJobs:envInt('WEDDING_AI_DEPLOYMENT_JOBS_24H',500,2000),
+    deploymentJobs:envInt('WEDDING_AI_DEPLOYMENT_JOBS_24H',2000,20_000),
     deviceJobs:envInt('WEDDING_AI_DEVICE_JOBS_24H',30,200),
-    deploymentCalls:envInt('WEDDING_AI_DEPLOYMENT_CONCURRENCY',10,50),
+    deploymentCalls:envInt('WEDDING_AI_DEPLOYMENT_CONCURRENCY',20,100),
     draftCents:envInt('WEDDING_AI_DRAFT_CALL_CENTS',10,10_000),
     mapCents:envInt('WEDDING_AI_MAP_CALL_CENTS',10,10_000),
     imageCents:envInt('WEDDING_AI_IMAGE_CALL_CENTS',100,10_000),
-    deploymentDraftCents:envInt('WEDDING_AI_DEPLOYMENT_DRAFT_CENTS_24H',10_000,1_000_000),
-    deploymentMapCents:envInt('WEDDING_AI_DEPLOYMENT_MAP_CENTS_24H',2000,1_000_000),
-    deploymentImageCents:envInt('WEDDING_AI_DEPLOYMENT_IMAGE_CENTS_24H',10_000,1_000_000),
+    deploymentDraftCents:envInt('WEDDING_AI_DEPLOYMENT_DRAFT_CENTS_24H',50_000,1_000_000),
+    deploymentMapCents:envInt('WEDDING_AI_DEPLOYMENT_MAP_CENTS_24H',10_000,1_000_000),
+    deploymentImageCents:envInt('WEDDING_AI_DEPLOYMENT_IMAGE_CENTS_24H',50_000,1_000_000),
   };
   if (!config.draftCents || !config.mapCents || !config.imageCents) throw new WeddingAiError('ai_config','Provider cost reservations must be positive.',503);
   return config;
 }
 const paused = () => process.env.WEDDING_AI_PAUSED === 'true';
+const pilotOnly = () => process.env.WEDDING_AI_PILOT_ONLY === 'true';
 const verifiedOnly = (action: string) => (process.env.WEDDING_AI_VERIFIED_ONLY || '').split(',').map(v=>v.trim()).includes(action);
 function budget(value: unknown, now: number): Budget {
   const b = value as Budget|undefined;
@@ -81,9 +83,11 @@ function minimalInput(project: AIProject, row: WeddingHousehold, index: number):
 }
 function safeInput(item: Item): WeddingAiDraftInput { return { id:item.id,gift:item.gift,memory:item.memory,maxChars:item.maxChars }; }
 function gate(actor: WeddingActor, feature: WeddingAiFeature, requireVerified = false) {
-  if (!actor.pilot) throw new WeddingAiError('pilot_required', 'An active staging tester invitation is required.', 403);
+  if (pilotOnly() && !actor.pilot) throw new WeddingAiError('pilot_required', 'An active staging tester invitation is required.', 403);
   if (paused()) throw new WeddingAiError('ai_paused', 'AI is paused. You can keep writing and mapping manually.', 503);
-  if ((requireVerified || verifiedOnly(feature)) && !actor.verified) throw new WeddingAiError('ai_sign_in_required', 'Sign in to continue this AI request. Your current card and words are saved.', 401);
+  if (!actor.verified || ((requireVerified || verifiedOnly(feature)) && !actor.verified)) {
+    throw new WeddingAiError('ai_sign_in_required', 'Sign in with a verified account to use AI writing and artwork tools. Your current cards are saved.', 401);
+  }
 }
 function aborted(signal: AbortSignal) { if (signal.aborted) throw new WeddingAiError('request_canceled','This request was canceled. Your existing work is saved.',408); }
 
@@ -108,7 +112,7 @@ export function createWeddingAiService(deps: Dependencies = {}) {
   }
   async function authorizedTx(tx: FirebaseFirestore.Transaction, actor: WeddingActor) {
     const authorized = await assertWeddingActorInTransaction(tx,actor);
-    if (actor.pilotInviteId) {
+    if (pilotOnly() && actor.pilotInviteId) {
       const invite = (await tx.get(firestoreDb.collection('weddingInvites').doc(actor.pilotInviteId))).data();
       if (!invite || invite.revoked || invite.expiresAt<=now() || invite.kind!=='pilot' || invite.consumedProjectId!==actor.projectId) throw new WeddingAiError('pilot_required','An active staging tester invitation is required.',403);
     }
@@ -161,7 +165,7 @@ export function createWeddingAiService(deps: Dependencies = {}) {
         id,projectId:actor.projectId,actorId:actor.actorId,deviceId:ctx.deviceId,action:request.action,inputHash,provider:provider.info,policy:WEDDING_AI_POLICY,
         status:'queued',createdAt:time,updatedAt:time,expiresAt:project.expiresAt,estimatedCents,
         consents:{[hash(actor.actorId)]:{policy:WEDDING_AI_POLICY,at:time,inputHash}},
-        items:rows.map((row,index)=>minimalInput(project,row!,index)),tone:request.action==='draft'?request.tone:'warm',requiresVerified,run:null,completedCalls:0,retryCount:0,
+        items:rows.map((row,index)=>minimalInput(project,row!,index)),tone:request.action==='draft'?request.tone:'warm',handwriting:project.handwriting,requiresVerified,run:null,completedCalls:0,retryCount:0,
         ...(request.action==='map' && request.headers ? {headers:request.headers} : {}),
         ...(request.action==='map' && request.excerpt ? {excerpt:request.excerpt} : {}),
         ...(request.action==='image' ? {prompt:request.prompt,...(request.assetId?{assetId:request.assetId}:{})} : {}),
@@ -195,7 +199,7 @@ export function createWeddingAiService(deps: Dependencies = {}) {
     const suggestions: WeddingAiDraftSuggestion[] = [];
     completed.forEach((item,i)=>{
       const row = docs[i].data() as WeddingHousehold|undefined;
-      if (mutableRow(project,row) && sourceHash(project,row)===item.contextHash && resolveWeddingNote(project,{...row,bodyOverride:item.text!}).length<=450) suggestions.push({id:item.householdId,text:item.text!});
+      if (mutableRow(project,row) && sourceHash(project,row)===item.contextHash && analyzeHandwryttenFit(resolveWeddingNote(project,{...row,bodyOverride:item.text!}),project.handwriting).fits) suggestions.push({id:item.householdId,text:item.text!});
     });
     await fresh(ctx);
     return {jobId:job.id,complete:job.items.filter(item=>item.state!=='pending').length,total:job.items.length,suggestions};
@@ -292,7 +296,7 @@ export function createWeddingAiService(deps: Dependencies = {}) {
       if(job.action==='draft') {
         const inputs=job.items.filter(item=>job.run!.ids.includes(item.id)).map(safeInput);
         started=true;const response=await provider.draft(inputs,job.tone,controller.signal);providerCompleted=true;
-        suggestions=validateWeddingDraftOutput(response,inputs);
+        suggestions=validateWeddingDraftOutput(response,inputs,job.handwriting);
       } else if(job.action==='map') {
         started=true;const response=await provider.map(job.headers?{headers:job.headers}:{excerpt:job.excerpt},controller.signal);providerCompleted=true;
         const parsed=validateWeddingMapOutput(response,job.headers,job.excerpt);
@@ -376,11 +380,11 @@ export function createWeddingAiService(deps: Dependencies = {}) {
       await fresh(ctx);
       const b=budget((await budgetRefs(ctx.actor.projectId,ctx.deviceId)[0].get()).data(),now());
       const metadata={...provider.info,available:provider.info.available&&!isFirestoreMock&&!paused(),paused:paused(),policy:WEDDING_AI_POLICY,networkSignalAvailable:!!ctx.networkSignal,
-        features:{draft:!verifiedOnly('draft')||ctx.actor.verified,map:!verifiedOnly('map')||ctx.actor.verified,image:(!verifiedOnly('image')&&count(b,'image')<2)||ctx.actor.verified},
+        features:{draft:ctx.actor.verified&&(!pilotOnly()||ctx.actor.pilot),map:ctx.actor.verified&&(!pilotOnly()||ctx.actor.pilot),image:ctx.actor.verified&&(!pilotOnly()||ctx.actor.pilot)},
         limits:{drafts:100,maps:4,images:3,concurrent:2,chunk:5,excerptChars:L.excerptChars},
         remaining:{drafts:Math.max(0,100-count(b,'draft')),maps:Math.max(0,4-count(b,'map')),images:Math.max(0,3-count(b,'image'))},
         resetsAt:b.events.length?Math.min(...b.events.map(e=>e.at))+L.dayMs:null,
-        imageStepUpRequired:count(b,'image')>=2&&!ctx.actor.verified,
+        imageStepUpRequired:!ctx.actor.verified,
         cost:{kind:'reserved_estimate',reservedCents:count(b,'cents'),ceilingCents:limits().projectCents,observedProviderCost:null},
       };
       if(!id) {

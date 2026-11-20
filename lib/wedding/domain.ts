@@ -1,4 +1,5 @@
 import { normalizeBodyText, normalizeGreetingText, normalizeSignOffText } from '../multi-send/contracts';
+import { analyzeHandwryttenFit, type HandwryttenFitResult } from '../handwrytten-text-policy';
 import { getSupplierCountry, validateMailingAddress } from '../mailing-destinations';
 import { canonicalWeddingJSON, weddingHash } from './hash';
 
@@ -16,6 +17,7 @@ export interface WeddingProject {
   writingMode: 'shared'|'individual'; createdAt: number; updatedAt: number; expiresAt: number; claimedAt: number|null;
   pilotInviteId?: string|null; recoveryInviteId?: string|null; deletedAt?: number;
   paymentReconciliationRequired?: boolean; paidHouseholds?: Record<string,string>;
+  attribution?: Record<string, unknown>;
 }
 export interface WeddingProvenance { importId: string; sourceRowId: string; sourceHash: string; sheet?: string; row?: number }
 export interface WeddingHousehold {
@@ -50,12 +52,16 @@ export function resolveWeddingNote(project: WeddingProject,row: WeddingHousehold
 export function weddingApprovalFingerprint(project: WeddingProject,row: WeddingHousehold): string {
   return weddingHash(canonicalWeddingJSON({version:1,id:row.id,identity:[row.envelopeName,row.firstName,row.lastName,row.insideName,row.insideNameConfirmed,row.identityConfirmed],...weddingResolvedFields(project,row)}));
 }
+export function weddingNoteFit(project: WeddingProject, row: WeddingHousehold): HandwryttenFitResult {
+  return analyzeHandwryttenFit(resolveWeddingNote(project, row), project.handwriting);
+}
 export function weddingWordingIssues(project: WeddingProject,row: WeddingHousehold): string[] {
   const issues: string[] = [], {body,greeting} = weddingResolvedFields(project,row), text = resolveWeddingNote(project,row);
+  const fit = analyzeHandwryttenFit(text, project.handwriting);
   if (!row.identityConfirmed || !row.firstName.trim() || !row.envelopeName.trim()) issues.push('Confirm the envelope name.');
   if (row.greeting === null && (!row.insideName.trim() || !row.insideNameConfirmed) || row.greetingNeedsReview) issues.push('Confirm the inside greeting.');
   if (!body) issues.push('Write a note.');
-  if (text.length > WEDDING_MESSAGE_LIMIT) issues.push(`The complete note is ${text.length}/${WEDDING_MESSAGE_LIMIT} units.`);
+  issues.push(...fit.issues);
   if (/\{\{.*?\}\}|\[(?:name|guest|recipient|gift)\]|<name>/i.test(text)) issues.push('Resolve the placeholder.');
   // Shared bodies must not inherit a named salutation from a previous recipient.
   if (row.bodyOverride === null && /^(?:dear|hi|hello|hey)\s+[^\n,!:]{1,100}[,!:]/i.test(body)) issues.push('Move the greeting into each household’s greeting field.');
@@ -71,5 +77,9 @@ export function weddingRowReady(project: WeddingProject,row: WeddingHousehold): 
   return !row.excluded && !row.paidBatchId && !project.paidHouseholds?.[row.id] && !weddingWordingIssues(project,row).length && weddingAddressReady(row) && row.approvedFingerprint === weddingApprovalFingerprint(project,row);
 }
 export function weddingOverflow(project: WeddingProject,rows: WeddingHousehold[]) {
-  return rows.filter(row => !row.paidBatchId && !project.paidHouseholds?.[row.id] && !row.excluded && resolveWeddingNote(project,row).length > WEDDING_MESSAGE_LIMIT).map(row => ({id:row.id,envelopeName:row.envelopeName,units:resolveWeddingNote(project,row).length}));
+  return rows.flatMap(row => {
+    if (row.paidBatchId || project.paidHouseholds?.[row.id] || row.excluded) return [];
+    const fit = weddingNoteFit(project, row);
+    return fit.fits ? [] : [{id:row.id,envelopeName:row.envelopeName,units:fit.charCount,lines:fit.wrappedLines,maxLines:fit.maxLines,status:fit.status,issues:fit.issues}];
+  });
 }

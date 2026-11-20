@@ -148,13 +148,14 @@ async function main(){
       assert.throws(()=>parseArtworkMultipart(Buffer.from(`--test\r\n${'x'.repeat(9000)}\r\n\r\nx\r\n--test--`),'multipart/form-data; boundary=test'),code('invalid_multipart'));
       const duplicateBytes=Buffer.from(await duplicate.arrayBuffer());assert.throws(()=>parseArtworkMultipart(duplicateBytes,duplicate.headers.get('content-type')!),code('invalid_multipart'));
     });
-    await test('HTTP requires same origin and current project pilot before receiving files; GET rechecks ownership',async()=>{
-      let actor={projectId:project,actorId:'fictional-owner',pilot:true,verified:false},authCalls=0,readCalls=0;
+    await test('HTTP requires same origin and allows cold guest uploads (pilot gated only when WEDDING_REQUIRE_PILOT=true); GET rechecks ownership',async()=>{
+      let actor={projectId:project,actorId:'fictional-owner',pilot:false,verified:false},authCalls=0,readCalls=0;
       const handlers=createWeddingArtworkHandlers(async()=>{authCalls++;return actor;},{intake:fast.intake,compose:fast.compose,read:async(p,id)=>{readCalls++;return fast.read(p,id);},adopt:async()=>{throw new WeddingArtworkError('unauthorized','Sign in.',401);}});
       const cross=await multipart();cross.headers.set('origin','https://foreign.example');assert.equal((await handlers.POST(cross)).status,403);assert.equal(authCalls,0);
-      actor={...actor,pilot:false};assert.equal((await handlers.POST(await multipart())).status,403);
-      actor={...actor,pilot:true};now+=61000;const ok=await handlers.POST(await multipart());assert.equal(ok.status,201);assert.deepEqual(await ok.json(),selected!);
-      actor={...actor,pilot:false};const preview=await handlers.GET(new Request(`https://cards.example/api/wedding/artwork?id=${selected!.assetId}`));assert.equal(preview.status,200);assert.equal(preview.headers.get('cache-control'),'private, no-store, max-age=0');assert.equal(preview.headers.get('content-type'),'image/png');
+      process.env.WEDDING_REQUIRE_PILOT='true';
+      try { assert.equal((await handlers.POST(await multipart())).status,403); } finally { delete process.env.WEDDING_REQUIRE_PILOT; }
+      now+=61000;const ok=await handlers.POST(await multipart());assert.equal(ok.status,201);assert.deepEqual(await ok.json(),selected!);
+      const preview=await handlers.GET(new Request(`https://cards.example/api/wedding/artwork?id=${selected!.assetId}`));assert.equal(preview.status,200);assert.equal(preview.headers.get('cache-control'),'private, no-store, max-age=0');assert.equal(preview.headers.get('content-type'),'image/png');
       actor={...actor,projectId:foreign};assert.equal((await handlers.GET(new Request(`https://cards.example/api/wedding/artwork?id=${selected!.assetId}`))).status,404);assert.equal(readCalls,2);
       const denied=createWeddingArtworkHandlers(async()=>{throw new WeddingArtworkError('session_expired','Sign in.',401);});assert.equal((await denied.GET(new Request('https://cards.example?id=x'))).status,401);
     });

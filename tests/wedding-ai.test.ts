@@ -20,7 +20,7 @@ async function fixture(size=1) {
   await firestoreDb.collection('weddingSessions').doc(sessionId).set({projectId,actorId,expiresAt:at+86_400_000,revoked:false});
   const ids=Array.from({length:size},(_,i)=>`household_${i+1}`);
   for(const id of ids)await ref.collection('households').doc(id).set({...newWeddingHousehold(id),insideName:'Noor',insideNameConfirmed:true,identityConfirmed:true,envelopeName:'Noor',firstName:'Noor',gift:'blue bowl'});
-  const actor:WeddingActor={projectId,actorId,role:'owner',verified:false,pilot:true,sessionId};
+  const actor:WeddingActor={projectId,actorId,role:'owner',verified:true,pilot:false,sessionId};
   const controller=new AbortController();const ctx:WeddingAiContext={actor,deviceId:`device_${randomUUID()}`,signal:controller.signal,reauthorize:async()=>actor};
   const provider=syntheticWeddingAiProvider();
   let stored=0;
@@ -100,20 +100,23 @@ async function main(){
     const excerpt='Noor and Kit: blue bowl.';const parsed=await f.service.post(f.ctx,request({action:'map',excerpt}));
     assert.deepEqual(Object.keys(parsed).sort(),['model','provider','suggestions']);assert.deepEqual(f.provider.calls[1].input,{excerpt});
   });
-  await test('third image requires step-up before budget/provider; sign-in retains counters',async()=>{
-    const f=await fixture();for(let i=0;i<2;i++)assert.deepEqual(await f.service.post(f.ctx,request({action:'image',prompt:'Blue flowers'})),{assetId:'art_generated',url:'/api/wedding/artwork?id=art_generated'});
-    const third=request({action:'image',prompt:'Gold flowers'});await rejected(()=>f.service.post(f.ctx,third),'ai_sign_in_required');assert.equal(f.provider.calls.length,2);assert.equal((await f.service.get(f.ctx)).remaining.images,1);
-    f.actor.verified=true;await f.service.post(f.ctx,third);assert.equal(f.provider.calls.length,3);await rejected(()=>f.service.post(f.ctx,request({action:'image',prompt:'Green flowers'})),'project_quota');
+  await test('AI requires verified sign-in step-up before budget/provider; sign-in allows up to 3 images per project',async()=>{
+    const f=await fixture();f.actor.verified=false;
+    await rejected(()=>f.service.post(f.ctx,request({action:'image',prompt:'Blue flowers'})),'ai_sign_in_required');assert.equal(f.provider.calls.length,0);
+    f.actor.verified=true;for(let i=0;i<3;i++)assert.deepEqual(await f.service.post(f.ctx,request({action:'image',prompt:'Blue flowers'})),{assetId:'art_generated',url:'/api/wedding/artwork?id=art_generated'});
+    assert.equal(f.provider.calls.length,3);assert.equal((await f.service.get(f.ctx)).remaining.images,0);
+    await rejected(()=>f.service.post(f.ctx,request({action:'image',prompt:'Green flowers'})),'project_quota');
   });
   await test('normalized treatment only reads the job’s selected project artwork',async()=>{
     const f=await fixture();await rejected(()=>f.service.post(f.ctx,request({action:'image',assetId:'art_foreign',prompt:'Watercolor'})),'asset_not_found');
     await f.ref.update({cover:{kind:'upload',id:'art_selected',url:'/api/wedding/artwork?id=art_selected'}});await f.service.post(f.ctx,request({action:'image',assetId:'art_selected',prompt:'Watercolor'}));
     assert.equal((f.provider.calls[0].input as any).referenceBytes,14);assert.equal(f.stored(),1);assert.equal((await f.ref.get()).data()!.cover.id,'art_selected');
   });
-  await test('pause, pilot and verified-only gates spend nothing',async()=>{
-    const f=await fixture();f.actor.pilot=false;await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'pilot_required');f.actor.pilot=true;
+  await test('pause, optional pilot-only and verified sign-in gates spend nothing',async()=>{
+    const f=await fixture();f.actor.verified=false;await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'ai_sign_in_required');f.actor.verified=true;
+    process.env.WEDDING_AI_PILOT_ONLY='true';await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'pilot_required');delete process.env.WEDDING_AI_PILOT_ONLY;
     process.env.WEDDING_AI_PAUSED='true';await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'ai_paused');delete process.env.WEDDING_AI_PAUSED;
-    process.env.WEDDING_AI_VERIFIED_ONLY='map';await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'ai_sign_in_required');delete process.env.WEDDING_AI_VERIFIED_ONLY;assert.equal(f.provider.calls.length,0);
+    process.env.WEDDING_AI_VERIFIED_ONLY='map';f.actor.verified=false;await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'ai_sign_in_required');delete process.env.WEDDING_AI_VERIFIED_ONLY;assert.equal(f.provider.calls.length,0);
   });
   await test('hard project and deployment spend ceilings precede provider',async()=>{
     const f=await fixture();process.env.WEDDING_AI_PROJECT_CENTS_24H='1';await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'spend_limit');delete process.env.WEDDING_AI_PROJECT_CENTS_24H;
@@ -180,11 +183,11 @@ async function main(){
     assert.throws(()=>validateWeddingAiRequest({action:'advance',jobId:first.jobId,idempotencyKey:randomUUID()}),(e:any)=>e.code==='consent_required');
     await f.service.post(ctx,request({action:'advance',jobId:first.jobId}));assert.equal(Object.keys((await f.ref.collection('aiJobs').doc(first.jobId).get()).data()!.consents).length,2);
   });
-  await test('busy shared network alone does not trigger sign-in; independent device activity does',async()=>{
+  await test('unverified device activity requires sign-in and aggregate network limit still caps abuse',async()=>{
     const f=await fixture(),digest=(v:string)=>createHash('sha256').update(v).digest('hex');f.ctx.networkSignal='synthetic-network';
     const network=firestoreDb.collection('weddingAiNetworkSignals').doc(digest(f.ctx.networkSignal));await network.set({attempts:Array(20).fill(Date.now()),expiresAt:Date.now()+600000});
     await f.service.post(f.ctx,request({action:'map',headers:['Gift']}));assert.equal(f.provider.calls.length,1);
-    await firestoreDb.collection('weddingAiBudgets').doc('device_'+digest(f.ctx.deviceId)).set({events:Array(10).fill({at:Date.now(),draft:0,map:0,image:0,cents:0}),inflight:[]});
+    f.actor.verified=false;await firestoreDb.collection('weddingAiBudgets').doc('device_'+digest(f.ctx.deviceId)).set({events:Array(10).fill({at:Date.now(),draft:0,map:0,image:0,cents:0}),inflight:[]});
     await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'ai_sign_in_required');assert.equal(f.provider.calls.length,1);
     f.actor.verified=true;await network.set({attempts:Array(200).fill(Date.now()),expiresAt:Date.now()+600000});await rejected(()=>f.service.post(f.ctx,request({action:'map',headers:['Gift']})),'network_request_limit');
   });

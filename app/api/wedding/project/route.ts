@@ -3,6 +3,7 @@ import { WEDDING_DEVICE_COOKIE, WEDDING_PRIVATE_HEADERS, assertWeddingOrigin, as
 import { acceptWeddingAddress, approveWeddingHouseholds, changeWeddingGrant, claimWeddingMembership, createWeddingProject, exportWeddingTracker, extendWeddingProject, importWeddingHouseholds, inviteWeddingMember, redeemWeddingInvite, revokeWeddingInvite, revokeWeddingSession, saveWeddingHousehold, saveWeddingProject, weddingState } from '@/lib/wedding/project';
 import { issueWeddingPilot } from '@/lib/wedding/pilot';
 import {editWeddingSelection} from '@/lib/wedding/project-commands';
+import { enforceWeddingNetworkRateLimit } from '@/lib/wedding/rate-limit';
 export const runtime='nodejs';
 function csvResponse(csv:string){return new NextResponse(csv,{headers:{...WEDDING_PRIVATE_HEADERS,'Content-Type':'text/csv; charset=utf-8','Content-Disposition':'attachment; filename="thank-you-tracker.csv"'}});}
 function withSession(req:Request,token:string){const headers=new Headers(req.headers);headers.set('cookie',`smn_wedding_session=${token}`);return new Request(req.url,{headers,method:'GET'});}
@@ -17,10 +18,11 @@ export async function POST(req:Request) {
   try {
     assertWeddingRuntime();assertWeddingOrigin(req);const body=await readWeddingBody(req);let extra:Record<string,unknown>={};
     if(body.action==='create'){
+      await enforceWeddingNetworkRateLimit(req,'start');
       // Retrying the initial request with its cookie resumes the existing project.
       if(weddingCookie(req)&&body.new!==true){try{return weddingJson(await weddingState(await requireWeddingActor(req)));}catch(error){if(!(error instanceof WeddingError)||!['unauthorized','session_expired','not_found'].includes(error.code))throw error;}}
       const device=weddingCookie(req,WEDDING_DEVICE_COOKIE)||newWeddingSecret().token;
-      const created=await createWeddingProject(device,body.sample===true),actor=await requireWeddingActor(withSession(req,created.token));
+      const created=await createWeddingProject(device,body.sample===true,{attribution:body.attribution}),actor=await requireWeddingActor(withSession(req,created.token));
       const response=weddingJson(await weddingState(actor),201);setWeddingCookie(response,created.token);setWeddingCookie(response,device,WEDDING_DEVICE_COOKIE);return response;
     }
     if(body.action==='redeem'){
