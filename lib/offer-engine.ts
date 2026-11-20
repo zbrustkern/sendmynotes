@@ -191,7 +191,8 @@ export async function getOrSyncOfferVersion(
   if (!offer) return null;
   const usage = usageSnap.exists ? offerBalance(usageSnap.data()) : null;
   const merged = {
-    ...offer, usedCount: usage?.spentUses ?? offer.usedCount,
+    ...offer, maxUses: offer.maxUses || legacy?.maxUses || undefined,
+    usedCount: usage?.spentUses ?? offer.usedCount,
     reservedCount: usage?.heldUses ?? offer.reservedCount,
     totalDiscountGivenCents: usage?.spentCents ?? offer.totalDiscountGivenCents,
     heldDiscountCents: usage?.heldCents ?? 0,

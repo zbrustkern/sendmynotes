@@ -18,11 +18,11 @@ async function main() {
   await offerCutoverRef().set({ state: "active", cutoverAt: now });
   await firestoreDb.collection("discount_codes").doc("LEGACY-MIRROR").set({
     id: "LEGACY-MIRROR", code: "LEGACY-MIRROR", type: "FIXED_AMOUNT", value: 200, isActive: true,
-    usedCount: 1, totalDiscountGivenCents: 200, expiresAt: null, createdAt: now, updatedAt: now,
+    maxUses: 4, usedCount: 1, totalDiscountGivenCents: 200, expiresAt: null, createdAt: now, updatedAt: now,
   });
   await firestoreDb.collection("offer_versions").doc("offer_LEGACY-MIRROR_v1").set({
     code: "LEGACY-MIRROR", offerId: "offer_LEGACY-MIRROR", version: 1, discountType: "FIXED_AMOUNT", discountValue: 200,
-    purpose: "Synthetic mirrored offer", status: "active", maxUses: 4, usedCount: 1, reservedCount: 0,
+    purpose: "Synthetic mirrored offer", status: "active", usedCount: 1, reservedCount: 0,
     totalDiscountGivenCents: 200, createdAt: now, updatedAt: now, destinationPath: "/new",
   });
   await offerBalanceRef("code", "LEGACY-MIRROR").set({ spentUses: 3, spentCents: 600, heldUses: 1, heldCents: 200 });
