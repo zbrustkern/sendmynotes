@@ -111,9 +111,14 @@ async function main(){
   const generated=await transfer(ob,ownerUid);assert.equal(generated.body.project.cover.hash,sha(png));assert.equal(canceled,1);
   assert.equal(await claimMultiSendRetry(ob.draft.multiSend.checkoutId,ownerKey,orderId),null);await assert.rejects(recoverMultiSendCheckout(ob.draft.multiSend.checkoutId,ownerKey,orderId));
   const afterCopy=copyWrites;assert.equal((await transfer(ob,ownerUid)).body.projectId,generated.body.projectId);assert.equal(copyWrites,afterCopy);assert.equal(canceled,1);
-  // The existing public photo gate is unchanged even for signed-in nonpilots.
-  const handlers=createWeddingArtworkHandlers(async()=>({projectId:accepted.body.projectId,actorId:'guest',pilot:false,verified:true}));
-  const denied=await handlers.POST(req({action:'adoptStudio',designId:design.selection.designId},'studio-owner'));assert.equal(denied.status,403);
+  // adoptStudio still requires verified sign-in, and WEDDING_REQUIRE_PILOT=true enforces pilot gating when enabled.
+  const unverifiedHandlers=createWeddingArtworkHandlers(async()=>({projectId:accepted.body.projectId,actorId:'guest',pilot:false,verified:false}));
+  const unverifiedDenied=await unverifiedHandlers.POST(req({action:'adoptStudio',designId:design.selection.designId},'studio-owner'));assert.equal(unverifiedDenied.status,401);
+  env.WEDDING_REQUIRE_PILOT='true';
+  try {
+    const handlers=createWeddingArtworkHandlers(async()=>({projectId:accepted.body.projectId,actorId:'guest',pilot:false,verified:true}));
+    const denied=await handlers.POST(req({action:'adoptStudio',designId:design.selection.designId},'studio-owner'));assert.equal(denied.status,403);
+  } finally { delete env.WEDDING_REQUIRE_PILOT; }
   assert.equal(processing,0);setStripeClientFactoryForTests(null);
   console.log('Wedding artwork transfer passed: authorized library, Studio and pinned generated fronts; exact bytes; pilot/grant enforcement; revoked/foreign/expired sources; project isolation; idempotency and retired sessions.');
 }

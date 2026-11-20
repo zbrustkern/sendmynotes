@@ -69,20 +69,26 @@ async function main() {
   const second=await checkAndStageImport("fixture-b","csv",b);assert.notEqual(second.id,data.id);
   const lease1=await claimImportAttempt("fixture-a"),lease2=await claimImportAttempt("fixture-a");
   await assert.rejects(claimImportAttempt("fixture-a"),/allowance/);await lease2();await lease1();
-  const global=await Promise.all(Array.from({length:6},(_,i)=>claimImportAttempt("other-"+i)));
-  await assert.rejects(claimImportAttempt("seventh"),/Several lists/);await Promise.all(global.map(release=>release()));
+  const shard0=await Promise.all(Array.from({length:6},(_,i)=>claimImportAttempt("other-"+i,0)));
+  await assert.rejects(claimImportAttempt("seventh",0),/Several lists/);
+  const shard1=await claimImportAttempt("shard1-ok",1);await shard1();
+  await Promise.all(shard0.map(release=>release()));
   const request=new NextRequest("https://example.test/api/wedding/import?format=csv",{method:"POST",headers:{host:"example.test",origin:"https://example.test"},body:b.toString()});
   assert.equal((await POST(request)).status,401);
   const project=await createWeddingProject("fixture-browser");
   const origin="https://example.test", standard={host:"example.test",origin,cookie:"smn_wedding_session="+project.token};
   const upload=()=>new NextRequest(origin+"/api/wedding/import?format=csv",{method:"POST",headers:standard,body:b.toString()});
-  assert.equal((await POST(upload())).status,403);
-  const actor=await requireWeddingActor(upload());
-  const operator={uid:"fixture-admin",email:"example@example.invalid",admin:true,authTime:Date.now()};
-  const invite=await issueWeddingPilot(operator,actor.projectId);
-  await redeemWeddingInvite(invite.link.split("#wedding=")[1],actor);
-  const accepted=await POST(upload());assert.equal(accepted.status,200);assert.equal(accepted.headers.get("Cache-Control"),"private, no-store");
-  const uploadResult=await accepted.json();assert.equal(uploadResult.sheets[0].name,"Guest list");
+  const guestUpload=await POST(upload());assert.equal(guestUpload.status,200);assert.equal(guestUpload.headers.get("Cache-Control"),"private, no-store");
+  process.env.WEDDING_REQUIRE_PILOT="true";
+  try {
+    assert.equal((await POST(upload())).status,403);
+    const actor=await requireWeddingActor(upload());
+    const operator={uid:"fixture-admin",email:"example@example.invalid",admin:true,authTime:Date.now()};
+    const invite=await issueWeddingPilot(operator,actor.projectId);
+    await redeemWeddingInvite(invite.link.split("#wedding=")[1],actor);
+    const accepted=await POST(upload());assert.equal(accepted.status,200);assert.equal(accepted.headers.get("Cache-Control"),"private, no-store");
+    var uploadResult=await accepted.json();assert.equal(uploadResult.sheets[0].name,"Guest list");
+
   const remapRequest=()=>new NextRequest(origin+"/api/wedding/import?action=map",{method:"POST",headers:standard,body:JSON.stringify({importId:uploadResult.importId,mappings:patch})});
   const mapped=await POST(remapRequest());assert.equal(mapped.status,200);assert.equal((await mapped.json()).rows[0].body,"Thank you\nfor the book!");
   const restored=await GET(new NextRequest(origin+"/api/wedding/import?id="+uploadResult.importId,{headers:standard}));
@@ -94,7 +100,9 @@ async function main() {
     if(process.env.STAGING_REVIEW_ONLY==="true") {assert.equal(postal.source,"staging_postal_fixture");assert.equal(postal.status,scenario);}
   }
   const badOrigin=await POST(new NextRequest(origin+"/api/wedding/import?format=csv",{method:"POST",headers:{...standard,origin:"https://unrelated.invalid"},body:"x"}));assert.equal(badOrigin.status,403);
-  await revokeWeddingPilot(operator,invite.inviteId);assert.equal((await POST(upload())).status,403);
+    await revokeWeddingPilot(operator,invite.inviteId);assert.equal((await POST(upload())).status,403);
+  } finally { delete process.env.WEDDING_REQUIRE_PILOT; }
+  assert.equal((await POST(upload())).status,200);
   assert.ok((await cleanExpiredWeddingImports(Date.now()+8*86400000))>=2);
   await assert.rejects(restoreImport("fixture-a",data.id),/expired/);
   console.log("Wedding imports passed all five fixture reconciliations, opt-in excerpt minimization, quotas, isolated parser budgets, privacy and cleanup.");

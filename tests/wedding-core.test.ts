@@ -56,9 +56,10 @@ async function main(){
     await assert.rejects(()=>P.saveWeddingProject(owner,{revision:st.project.revision,patch:{templates:[]}}),{code:'template_in_use'});
   });
   await check('449/450/451 UTF-16 units, literal blank greeting, placeholders and named shared salutation',async()=>{
-    const st=await state(),p={...st.project,sharedBody:'',signOff:''};let h={...newWeddingHousehold('fit'),...rowInput('Joint'),greeting:'',bodyOverride:'x'.repeat(448)+'😀',signOffOverride:'',templateId:null};
+    const st=await state(),p={...st.project,sharedBody:'',signOff:''};let h={...newWeddingHousehold('fit'),...rowInput('Joint'),greeting:'',bodyOverride:'x'.repeat(450),signOffOverride:'',templateId:null};
     assert.equal(resolveWeddingNote(p,h).length,450);assert.equal(weddingWordingIssues(p,h).length,0);
-    h={...h,bodyOverride:'x'.repeat(449)};assert.equal(resolveWeddingNote(p,h).length,449);
+    h={...h,bodyOverride:'x'.repeat(448)+'😀'};assert.equal(resolveWeddingNote(p,h).length,450);assert.ok(weddingWordingIssues(p,h).some(s=>s.includes('😀')));
+    h={...h,bodyOverride:'x'.repeat(449)};assert.equal(resolveWeddingNote(p,h).length,449);assert.equal(weddingWordingIssues(p,h).length,0);
     h={...h,bodyOverride:'x'.repeat(449)+'😀'};assert.ok(weddingWordingIssues(p,h).some(s=>s.includes('451/450')));
     const unresolved={...h,bodyOverride:'Thanks',greeting:null,insideNameConfirmed:false};assert.ok(weddingWordingIssues(p,unresolved).length);
     assert.ok(weddingWordingIssues({...p,sharedBody:'Dear Noor, thank you.'},{...h,bodyOverride:null}).length);

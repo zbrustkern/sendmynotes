@@ -1,5 +1,6 @@
 import { NextRequest,NextResponse } from "next/server";
-import { requireWeddingPilot, WeddingError } from "@/lib/wedding/server";
+import { requireWeddingActor, requireWeddingPilot, WeddingError } from "@/lib/wedding/server";
+import { enforceWeddingNetworkRateLimit } from "@/lib/wedding/rate-limit";
 import { checkAndStageImport, claimImportAttempt, restoreImport } from "@/lib/wedding/import-storage";
 import { ImportCheckError, readBoundedImport } from "@/lib/wedding/import-runner";
 import { inspectWeddingAddress, previewWeddingImport } from "@/lib/wedding/import-preview";
@@ -14,18 +15,22 @@ function problem(error:unknown) {
   if ((error instanceof ImportCheckError || error instanceof WeddingError) && e.status) return json({error:e.message,code:e.code},e.status);
   return json({error:"Your list could not be checked. Try again or add a household manually.",code:"retryable"},503);
 }
+async function authorizeImportActor(req:NextRequest) {
+  return process.env.WEDDING_REQUIRE_PILOT==="true" ? requireWeddingPilot(req) : requireWeddingActor(req);
+}
 export async function GET(req:NextRequest) {
   try {
-    const actor=await requireWeddingPilot(req), id=req.nextUrl.searchParams.get("id") || "";
+    const actor=await authorizeImportActor(req), id=req.nextUrl.searchParams.get("id") || "";
     const preview=previewWeddingImport(await restoreImport(actor.projectId,id),id);
-    await requireWeddingPilot(req);
+    await authorizeImportActor(req);
     return json(preview);
   } catch(e) { return problem(e); }
 }
 export async function POST(req:NextRequest) {
   let release:(()=>Promise<unknown>)|undefined;
   try {
-    const actor=await requireWeddingPilot(req);
+    const actor=await authorizeImportActor(req);
+    await enforceWeddingNetworkRateLimit(req,"import");
     const params=req.nextUrl.searchParams, action=params.get("action");
     if(action==="map" || action==="postal") {
       let payload;
@@ -43,7 +48,7 @@ export async function POST(req:NextRequest) {
         return json({ ...structural, source:simulated?"staging_postal_fixture":"structure",status:!structural.complete?"incomplete":simulated?scenario:"structurally_complete" });
       }
       const parsed=await restoreImport(actor.projectId,payload.importId);
-      await requireWeddingPilot(req);
+      await authorizeImportActor(req);
       try { return json(previewWeddingImport(parsed,payload.importId,payload.mappings,payload.sheets)); }
       catch(e) { throw new ImportCheckError(e instanceof Error?e.message:"Check your column mappings."); }
     }
@@ -53,7 +58,7 @@ export async function POST(req:NextRequest) {
     release=await claimImportAttempt(actor.projectId);
     const bytes=await readBoundedImport(req);
     const {parsed,id}=await checkAndStageImport(actor.projectId,format as ImportFormat,bytes);
-    await requireWeddingPilot(req);
+    await authorizeImportActor(req);
     try { return json(previewWeddingImport(parsed,id)); } catch(e) { throw new ImportCheckError(e instanceof Error?e.message:"Check the column headings."); }
   } catch(e) { return problem(e); }
   finally { if(release) await release().catch(()=>{}); }

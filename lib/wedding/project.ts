@@ -1,4 +1,6 @@
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
+import { sanitizeAttribution, sanitizeGoogleClientId, sanitizeUrlOrPath } from '../telemetry-schema';
+import { sanitizeAttributionSnapshot } from '../attribution-classifier';
 import { firestoreDb } from '../firebase-admin';
 import { CARD_PRESETS } from '../card-presets';
 import { canonicalWeddingJSON, weddingHash } from './hash';
@@ -24,19 +26,58 @@ async function allRows(tx:Tx,projectId:string):Promise<WeddingHousehold[]> {
   if(docs.size>250)throw new WeddingError('project_limit','This project needs operator review.',409);
   return docs.docs.map(doc=>doc.data() as WeddingHousehold);
 }
-export async function createWeddingProject(deviceId:string,sample=false) {
+const START_LIMIT_SHARDS = 16;
+const START_SHARD_WEIGHT_LIMIT = 150;
+
+export function sanitizeWeddingAttribution(raw: unknown): Record<string, unknown> | undefined {
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return undefined;
+  const src = raw as Record<string, unknown>;
+  const gpc = src.gpc === true;
+  const optOut = src.optOut === true;
+  if (gpc || optOut) {
+    return { ...(gpc ? { gpc: true } : {}), ...(optOut ? { optOut: true } : {}) };
+  }
+  const out: Record<string, unknown> = {};
+  for (const key of ['utmSource', 'utmMedium', 'utmCampaign', 'utmContent', 'utmTerm'] as const) {
+    const v = sanitizeAttribution(src[key]);
+    if (v) out[key] = v;
+  }
+  for (const key of ['gclid', 'wbraid', 'gbraid', 'fbclid', 'fbp', 'fbc'] as const) {
+    const v = sanitizeAttribution(src[key], 255);
+    if (v) out[key] = v;
+  }
+  const referrer = sanitizeUrlOrPath(typeof src.referrer === 'string' ? src.referrer : undefined);
+  if (referrer) out.referrer = referrer;
+  const landingPath = sanitizeUrlOrPath(typeof src.landingPath === 'string' ? src.landingPath : undefined);
+  if (landingPath) out.landingPath = landingPath;
+  const googleClientId = sanitizeGoogleClientId(src.googleClientId);
+  if (googleClientId) out.googleClientId = googleClientId;
+  if (src.attributionV2) {
+    const v2 = sanitizeAttributionSnapshot(src.attributionV2);
+    if (v2) out.attributionV2 = v2;
+  }
+  if (typeof src.capturedAt === 'number' && Number.isFinite(src.capturedAt) && src.capturedAt > 0) {
+    out.capturedAt = src.capturedAt;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+export async function createWeddingProject(deviceId:string,sample=false,options:{attribution?:unknown;shard?:number}={}) {
   const id=`wp_${randomUUID()}`,actorId=`wa_${randomUUID()}`,session=newWeddingSecret(),at=Date.now();
   const preset=CARD_PRESETS.find(p=>p.id==='preset-thankyou-botanical')!;
-  const project:WeddingProject={id,revision:1,ownerId:actorId,sharedBody:'',signOff:'',handwriting:'hwDavid',cover:{kind:'preset',id:preset.id,url:preset.imageUrl},returnAddress:{...blankWeddingAddress(),firstName:'',lastName:''},templates:[],purchasedCount:0,activeBatchId:null,householdCount:sample?100:0,writingMode:'shared',createdAt:at,updatedAt:at,expiresAt:at+PROJECT_RETENTION_DAYS*WEDDING_DAY,claimedAt:null,pilotInviteId:null};
+  const attribution=sanitizeWeddingAttribution(options.attribution);
+  const project:WeddingProject={id,revision:1,ownerId:actorId,sharedBody:'',signOff:'',handwriting:'hwDavid',cover:{kind:'preset',id:preset.id,url:preset.imageUrl},returnAddress:{...blankWeddingAddress(),firstName:'',lastName:''},templates:[],purchasedCount:0,activeBatchId:null,householdCount:sample?100:0,writingMode:'shared',createdAt:at,updatedAt:at,expiresAt:at+PROJECT_RETENTION_DAYS*WEDDING_DAY,claimedAt:null,pilotInviteId:null,...(attribution?{attribution}:{})};
   const member:WeddingMember={id:actorId,role:'owner',uid:null,canPay:true,canExport:true,revoked:false,createdAt:at,updatedAt:at};
   const limits=firestoreDb.collection('weddingStartLimits');
   const rateRef=limits.doc(weddingHash(deviceId));
-  const hour=Math.floor(at/3_600_000), globalRef=limits.doc('deployment_'+hour);
+  const hour=Math.floor(at/3_600_000);
+  const shard=options.shard===undefined?randomInt(START_LIMIT_SHARDS):((options.shard%START_LIMIT_SHARDS)+START_LIMIT_SHARDS)%START_LIMIT_SHARDS;
+  const globalRef=limits.doc(`deployment_${hour}_s${shard}`);
   const weight=sample?5:1;
   await firestoreDb.runTransaction(async tx=>{
     const [deviceLimit,deploymentLimit]=await Promise.all([tx.get(rateRef),tx.get(globalRef)]);
     const total=Number(deploymentLimit.data()?.used||0);
-    if (total+weight>240) throw new WeddingError('project_intake_busy','Project starts are busy. Your saved project is still available. Try again in an hour.',429);
+    if (total+weight>START_SHARD_WEIGHT_LIMIT) throw new WeddingError('project_intake_busy','Project starts are busy. Your saved project is still available. Try again in an hour.',429);
     const rate=deviceLimit.data();const fresh=!rate||Number(rate.expiresAt)<=at,used=fresh?0:Number(rate.count||0);
     if(used>=5)throw new WeddingError('project_rate_limit','You have started several projects today. Resume one or try tomorrow.',429);
     tx.set(globalRef,{used:total+weight,expiresAt:(hour+1)*3_600_000});

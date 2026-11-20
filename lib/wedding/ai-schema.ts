@@ -1,5 +1,6 @@
 /** Browser-safe request validation and the exact text shown at the consent boundary. */
 import { canonicalFields, type FieldMapping } from './import-contract';
+import { analyzeHandwryttenFit, sanitizeHandwryttenText } from '../handwrytten-text-policy';
 
 export class WeddingAiError extends Error {
   constructor(public code: string, message: string, public status = 400) { super(message); this.name = 'WeddingAiError'; }
@@ -118,7 +119,7 @@ function outputText(value: unknown, max: number, allowEmpty = false): string {
   return text;
 }
 /** Reject an entire unexpected response; never pick actionable fields out of an untrusted object. */
-export function validateWeddingDraftOutput(value: unknown, inputs: WeddingAiDraftInput[]): WeddingAiDraftSuggestion[] {
+export function validateWeddingDraftOutput(value: unknown, inputs: WeddingAiDraftInput[], fontId?: string): WeddingAiDraftSuggestion[] {
   const object = aiObject(value); aiExactKeys(object, ['suggestions']);
   if (!Array.isArray(object.suggestions) || object.suggestions.length !== inputs.length) throw new WeddingAiError('invalid_output', 'The provider returned an incomplete suggestion.', 502);
   const used = new Set<string>();
@@ -127,7 +128,12 @@ export function validateWeddingDraftOutput(value: unknown, inputs: WeddingAiDraf
     const source = inputs.find(input => input.id === row.id);
     if (!source || used.has(source.id)) throw new WeddingAiError('invalid_output', 'The provider returned an unexpected household.', 502);
     used.add(source.id);
-    const text = outputText(row.text, Math.min(400, source.maxChars));
+    const rawText = aiString(row.text, 1200);
+    const sanitized = sanitizeHandwryttenText(rawText);
+    if (sanitized.unsupportedChars.length > 0) throw new WeddingAiError('unsafe_output', 'The suggestion includes emojis or special symbols that pens cannot draw. Keep your existing wording.', 502);
+    const text = outputText(sanitized.text, Math.min(400, source.maxChars));
+    const fit = analyzeHandwryttenFit(text, fontId);
+    if (!fit.fits) throw new WeddingAiError('note_overflow', fit.issues[0] || 'The suggestion is too long to fit inside the card.', 502);
     if (/\b(?:dear|dearest|hello|hi|hey)\s+[\p{L}]/iu.test(text) || /(?:^|\n)\s*(?:love|with love|warmly|sincerely|best(?: wishes)?|yours|cheers)[,!]?\s*(?:\n|$)/iu.test(text)) throw new WeddingAiError('unsafe_greeting', 'The suggestion includes a greeting or signature. Keep those in the card’s own fields.', 502);
     // Keep risky factual claims grounded even if the provider ignores its task.
     const claimGroups = [

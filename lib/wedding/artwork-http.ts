@@ -3,6 +3,7 @@ import {composeWeddingArtwork, intakeWeddingArtwork, readWeddingArtwork, Wedding
 import {adoptWeddingStudioArtwork} from './artwork-studio';
 import type {NextRequest} from 'next/server';
 import {isSameOrigin} from '../upload/http';
+import {enforceWeddingNetworkRateLimit} from './rate-limit';
 
 type Actor={projectId:string;actorId:string;pilot:boolean;verified:boolean};
 type Authorize=(req:Request,scope?:'edit')=>Promise<Actor>;
@@ -66,9 +67,11 @@ export function createWeddingArtworkHandlers(authorize:Authorize, api={intake:in
     async POST(req:Request) {
       try {
         if(!isSameOrigin(req as NextRequest))throw new WeddingArtworkError('origin_forbidden','Request origin is not allowed.',403);
+        await enforceWeddingNetworkRateLimit(req,'artwork');
+        const requirePilot=process.env.WEDDING_REQUIRE_PILOT==='true';
         const actor=await authorize(req,'edit');
-        if(!actor.pilot)throw new WeddingArtworkError('pilot_required','A current wedding pilot invitation is needed to upload or edit photos.',403);
-        const ctx={signal:req.signal,authorize:async()=>{const current=await authorize(req,'edit');if(current.projectId!==actor.projectId||current.actorId!==actor.actorId||!current.pilot)throw new WeddingArtworkError('pilot_required','Your photo access changed. Reopen the project.',403);}};
+        if(requirePilot&&!actor.pilot)throw new WeddingArtworkError('pilot_required','A current wedding pilot invitation is needed to upload or edit photos.',403);
+        const ctx={signal:req.signal,authorize:async()=>{const current=await authorize(req,'edit');if(current.projectId!==actor.projectId||current.actorId!==actor.actorId||(requirePilot&&!current.pilot))throw new WeddingArtworkError(requirePilot?'pilot_required':'access_revoked','Your photo access changed. Reopen the project.',403);}};
         const type=req.headers.get('content-type')||'';
         let result:WeddingArtworkSelection;
         if(type.toLowerCase().startsWith('multipart/form-data')) {
@@ -79,7 +82,7 @@ export function createWeddingArtworkHandlers(authorize:Authorize, api={intake:in
           try {body=JSON.parse((await readArtworkRequest(req,8192)).toString('utf8'));}catch(error){if(error instanceof WeddingArtworkError)throw error;throw new WeddingArtworkError('invalid_json','The artwork request is invalid.');}
           if(!body||typeof body!=='object'||Array.isArray(body))throw new WeddingArtworkError('invalid_request','The artwork request is invalid.');
           if(body.action==='compose'){artworkId(body.assetId);result=await api.compose(actor.projectId,body.assetId,body,ctx);}
-          else if(body.action==='adoptStudio'){artworkId(body.designId);result=await api.adopt(req,actor.projectId,body.designId,ctx);}
+          else if(body.action==='adoptStudio'){if(!actor.verified)throw new WeddingArtworkError('sign_in_required','Sign in with your verified account to use Studio artwork.',401);artworkId(body.designId);result=await api.adopt(req,actor.projectId,body.designId,ctx);}
           else throw new WeddingArtworkError('invalid_action','Choose upload, crop or an accepted Studio front.');
         } else throw new WeddingArtworkError('unsupported_type','Send an image file or crop settings.',415);
         await ctx.authorize();
