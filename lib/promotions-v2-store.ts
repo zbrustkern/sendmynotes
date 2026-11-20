@@ -63,7 +63,7 @@ export function normalizePromotionCode(raw: unknown): string | null {
 }
 
 export function promotionSecret(purpose: string): Buffer | null {
-  const secret = process.env.PROMOTION_PRIVATE_KEY || process.env.ADMIN_SESSION_SIGNING_KEY || process.env.ADMIN_SECRET_KEY || process.env["admin-secret-key"];
+  const secret = process.env.PROMOTION_PRIVATE_KEY;
   if (secret && secret.length >= 24) return createHmac("sha256", secret).update(`sendmynotes-promotion-v2:${purpose}`).digest();
   if (process.env.NODE_ENV === "test") return createHash("sha256").update(`test-only:sendmynotes-promotion-v2:${purpose}`).digest();
   return null;

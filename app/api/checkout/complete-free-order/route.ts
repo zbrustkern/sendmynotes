@@ -19,16 +19,20 @@ import { isFreeOrderEligible } from "@/lib/order-pricing";
 import { effectiveOrderEmail, savePaidOrderReminder } from "@/lib/checkout-contact";
 import { submitFreeOrderToSupplier } from "@/lib/free-order-dispatch";
 
+function privateJson(body: unknown, init?: { status: number }) {
+  return NextResponse.json(body, { ...init, headers: { "Cache-Control": "private, no-store, max-age=0" } });
+}
+
 export async function POST(req: NextRequest) {
   try {
     if (await isOperationalControlPaused("checkout")) {
-      return NextResponse.json({ error: "Checkout is temporarily unavailable.", code: "CHECKOUT_PAUSED" }, { status: 503 });
+      return privateJson({ error: "Checkout is temporarily unavailable.", code: "CHECKOUT_PAUSED" }, { status: 503 });
     }
     const body = await req.json();
     const { orderId, customerEmail, viewToken } = body;
 
     if (!orderId) {
-      return NextResponse.json({ error: "Missing order ID" }, { status: 400 });
+      return privateJson({ error: "Missing order ID" }, { status: 400 });
     }
 
     // 1. Atomically verify free-order eligibility and claim its dispatch lock.
@@ -134,40 +138,40 @@ export async function POST(req: NextRequest) {
     } catch (txErr: unknown) {
       const msg = txErr instanceof Error ? txErr.message : String(txErr);
       if (msg === "ORDER_NOT_FOUND") {
-        return NextResponse.json({ error: "Order not found" }, { status: 404 });
+        return privateJson({ error: "Order not found" }, { status: 404 });
       }
       if (msg === "INTERNATIONAL_REQUIRES_PAYMENT") {
-        return NextResponse.json({ error: "International checkout requires a paid order; free completion cannot bypass its mailing surcharge." }, { status: 400 });
+        return privateJson({ error: "International checkout requires a paid order; free completion cannot bypass its mailing surcharge." }, { status: 400 });
       }
       if (msg === "REQUIRES_PAYMENT") {
-        return NextResponse.json(
+        return privateJson(
           { error: "This order requires payment and cannot be completed as free." },
           { status: 400 }
         );
       }
       if (msg === "MULTI_SEND_REQUIRES_PAID_CHECKOUT") {
-        return NextResponse.json({ error: "Multi-send requires its verified paid checkout; the free-order shortcut cannot dispatch a batch.", code: "MULTI_SEND_REQUIRES_PAID_CHECKOUT" }, { status: 409 });
+        return privateJson({ error: "Multi-send requires its verified paid checkout; the free-order shortcut cannot dispatch a batch.", code: "MULTI_SEND_REQUIRES_PAID_CHECKOUT" }, { status: 409 });
       }
       if (msg === "NO_DISCOUNT_CODE" || msg === "INVALID_DISCOUNT_CODE") {
-        return NextResponse.json(
+        return privateJson(
           { error: "A valid 100% discount code is required." },
           { status: 400 }
         );
       }
       if (msg === "DEFERRED_ADDRESS_EMAIL_REQUIRED") {
-        return NextResponse.json({ error: "An email is required to add the recipient address later." }, { status: 400 });
+        return privateJson({ error: "An email is required to add the recipient address later." }, { status: 400 });
       }
       if (msg === "CONTACT_COMMIT_PENDING") {
-        return NextResponse.json({ error: "Your email preference is still being saved. Please retry in a moment." }, { status: 409 });
+        return privateJson({ error: "Your email preference is still being saved. Please retry in a moment." }, { status: 409 });
       }
-      return NextResponse.json({ error: msg }, { status: 400 });
+      return privateJson({ error: msg }, { status: 400 });
     }
 
     if (txResult.alreadyProcessed) {
       if (txResult.status === "DISPATCH_UNCERTAIN") {
-        return NextResponse.json({ success: false, orderId, alreadyProcessed: true, status: txResult.status, error: "Supplier submission outcome is uncertain. We will not submit it again until it is reconciled." }, { status: 409 });
+        return privateJson({ success: false, orderId, alreadyProcessed: true, status: txResult.status, error: "Supplier submission outcome is uncertain. We will not submit it again until it is reconciled." }, { status: 409 });
       }
-      return NextResponse.json({
+      return privateJson({
         success: true,
         orderId,
         alreadyProcessed: true,
@@ -202,7 +206,7 @@ export async function POST(req: NextRequest) {
         metadata: { orderId },
       });
 
-      return NextResponse.json({
+      return privateJson({
         success: true,
         orderId,
         status: "QUEUED_FOR_FULFILLMENT",
@@ -229,11 +233,10 @@ export async function POST(req: NextRequest) {
         console.warn("[Free Order] Error sending address deferred magic link email:", emailErr);
       }
 
-      return NextResponse.json({
+      return privateJson({
         success: true,
         orderId,
         status: "AWAITING_RECIPIENT_ADDRESS",
-        viewToken: order.viewToken,
       });
     }
 
@@ -257,8 +260,8 @@ export async function POST(req: NextRequest) {
         updateStatus: updateOrderStatus,
         logIncident,
       });
-      if (dispatch.kind === "queued") return NextResponse.json({ success: true, orderId, status: "QUEUED_FOR_FULFILLMENT", warning: "Order accepted and queued while supplier submission is paused." });
-      if (dispatch.kind === "uncertain") return NextResponse.json({ success: false, orderId, status: "DISPATCH_UNCERTAIN", error: "Supplier submission outcome is uncertain. We will not submit it again until it is reconciled." }, { status: 409 });
+      if (dispatch.kind === "queued") return privateJson({ success: true, orderId, status: "QUEUED_FOR_FULFILLMENT", warning: "Order accepted and queued while supplier submission is paused." });
+      if (dispatch.kind === "uncertain") return privateJson({ success: false, orderId, status: "DISPATCH_UNCERTAIN", error: "Supplier submission outcome is uncertain. We will not submit it again until it is reconciled." }, { status: 409 });
       fulfillment = { success: true, order_id: dispatch.orderId };
     }
 
@@ -285,7 +288,7 @@ export async function POST(req: NextRequest) {
       console.warn("[Free Order] Notice updating cache pool status:", cacheErr);
     }
 
-    return NextResponse.json({
+    return privateJson({
       success: true,
       orderId,
       status: "PROCESSING_HANDWRYTTEN",
@@ -294,6 +297,6 @@ export async function POST(req: NextRequest) {
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error completing free order";
     console.error("[Complete Free Order Error]:", msg);
-    return NextResponse.json({ error: msg }, { status: 500 });
+    return privateJson({ error: msg }, { status: 500 });
   }
 }

@@ -1,3 +1,4 @@
+import { constantTimeStringEqual } from "@/lib/order-access-credentials";
 import { checkoutOrderPath } from "@/lib/order-tracking-links";
 import { validateFollowupLinkForCheckout } from "@/lib/post-purchase/attribution";
 import { isSameOrigin } from "@/lib/upload/http";
@@ -31,7 +32,7 @@ async function retirePriorCheckout(req: NextRequest, proof: unknown, userId: str
   if (!proof || typeof proof !== "object" || !("orderId" in proof) || !("viewToken" in proof) ||
       typeof proof.orderId !== "string" || !/^order_[a-f0-9]{32}$/.test(proof.orderId) || typeof proof.viewToken !== "string") return;
   const order = await getOrderById(proof.orderId);
-  if (!order || order.isComp || order.viewToken !== proof.viewToken || (order.userId && order.userId !== userId) || order.status === "FAILED") return;
+  if (!order || order.isComp || !constantTimeStringEqual(proof.viewToken, order.viewToken) || (order.userId && order.userId !== userId) || order.status === "FAILED") return;
   if (!order.multiSend) {
     await retireCheckoutOrder(order, "removed");
     return;

@@ -445,7 +445,7 @@ export function PromotionsWorkspace({
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <div className="p-4 rounded-xl bg-white border border-stone-200">
-          <div className="text-xs font-medium text-stone-600 uppercase tracking-wider">Total Offers</div>
+          <div className="text-xs font-medium text-stone-600 uppercase tracking-wider">Matching Legacy Offers</div>
           <div className="text-2xl font-bold text-stone-900 mt-1">{stats.totalOffers}</div>
           <div className="text-xs text-stone-600 mt-1 flex items-center gap-1">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-400" />
@@ -454,9 +454,9 @@ export function PromotionsWorkspace({
         </div>
 
         <div className="p-4 rounded-xl bg-white border border-stone-200">
-          <div className="text-xs font-medium text-stone-600 uppercase tracking-wider">Total Redemptions</div>
+          <div className="text-xs font-medium text-stone-600 uppercase tracking-wider">Settled Redemptions</div>
           <div className="text-2xl font-bold text-stone-900 mt-1">{stats.totalRedemptions}</div>
-          <div className="text-xs text-stone-600 mt-1">Observed checkout redemptions</div>
+          <div className="text-xs text-stone-600 mt-1">For the matching legacy offers</div>
         </div>
 
         <div className="p-4 rounded-xl bg-white border border-stone-200">
@@ -464,7 +464,7 @@ export function PromotionsWorkspace({
           <div className="text-2xl font-bold text-amber-800 mt-1">
             ${(stats.totalSubsidyCents / 100).toFixed(2)}
           </div>
-          <div className="text-xs text-stone-600 mt-1">Studio customer savings given</div>
+          <div className="text-xs text-stone-600 mt-1">Budget consumed by matching legacy offers</div>
         </div>
 
         <div className="p-4 rounded-xl bg-white border border-stone-200">

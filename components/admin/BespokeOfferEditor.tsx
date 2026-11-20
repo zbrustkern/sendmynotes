@@ -84,7 +84,7 @@ function PreviewCard({ title, value }: { title: string; value: PromotionEvaluati
   </div>;
 }
 
-export function BespokeOfferEditor({ environment }: { environment?: string }) {
+export function BespokeOfferEditor({ environment, onCampaignChange }: { environment?: string; onCampaignChange?: () => void }) {
   const [environmentLabel, setEnvironmentLabel] = useState(environment ?? "Current server environment");
   const [terms, setTerms] = useState<Terms>(templates[0].terms);
   const [scenario, setScenario] = useState<Scenario>(templates[0].scenario);
@@ -190,6 +190,7 @@ export function BespokeOfferEditor({ environment }: { environment?: string }) {
       } else if (action === "publish") {
         if (!canPublish || !preview) throw new Error("Preview the saved terms and confirm checkout readiness first.");
         const data = await post("draft-publish", { campaignId: id, revision: currentRevision, previewToken: preview.previewToken, reason });
+        onCampaignChange?.();
         if (request !== sequence.current) return;
         setIssued(data.issued?.code ? [data.issued] : []);
         setPreview(null); await refreshList();
@@ -204,6 +205,7 @@ export function BespokeOfferEditor({ environment }: { environment?: string }) {
         setNotice("Independent draft cloned.");
       } else if (action === "pause") {
         await post("campaign-pause", { campaignId: id, revision: currentRevision, reason });
+        onCampaignChange?.();
         if (request !== sequence.current) return;
         await refreshList(); await selectCampaign(id); setNotice("Campaign paused.");
       } else if (action === "issue") {
@@ -211,6 +213,7 @@ export function BespokeOfferEditor({ environment }: { environment?: string }) {
         const restrictions = { countryCodes: r.countries ? r.countries.split(",").map(c => c.trim().toUpperCase()).filter(Boolean) : undefined,
           ownerUid: r.ownerUid || undefined, projectId: r.projectId || undefined, maxUses: optionalNumber(r.maxUses), budgetCents: optionalNumber(r.budgetCents), endsAt: dateValue(r.endsAt) };
         const data = await post("campaign-issue", { campaignId: id, requestId: issueRequestId, count: Number(issueCount), reason, restrictions });
+        onCampaignChange?.();
         if (request !== sequence.current) return;
         setIssued(data.issued ?? []); setNotice("Private codes issued. Keep this request ID to retry the identical issuance.");
       } else if (action === "history") {

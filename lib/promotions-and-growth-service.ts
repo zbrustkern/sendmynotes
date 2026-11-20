@@ -38,7 +38,6 @@ import {
 } from "./contracts/admin-overhaul";
 import {
   getOrSyncOfferVersion,
-  computeOfferLifecycleStatus,
   getOfferVersionsCollection,
   getOfferQuotesCollection,
   getOfferReservationsCollection,
@@ -474,18 +473,16 @@ export async function previewConsequentialOfferChange(
   const normalized = (code || "").trim().toUpperCase();
   const offer = await getOrSyncOfferVersion(normalized);
 
-  const nowMs = Date.now();
-  const currentStatus = offer ? computeOfferLifecycleStatus(offer, nowMs) : "draft";
+  const currentStatus = offer?.status ?? "draft";
 
   // Check active reservations
   const resSnap = await readBoundedQuery(getOfferReservationsCollection().where("code", "==", normalized));
   let activeReservationsCount = 0;
   for (const doc of resSnap.docs) {
     const r = doc.data() as OfferReservationRecord;
-    if (r.status === "active" && r.expiresAt > nowMs) {
-      activeReservationsCount++;
-    }
+    if (r.status === "active") activeReservationsCount++;
   }
+  activeReservationsCount = Math.max(activeReservationsCount, offer?.reservedCount ?? 0);
 
   // Check historical redemptions
   const redSnap = await readBoundedQuery(getOfferRedemptionsCollection().where("offerId", "==", `offer_${normalized}`));
@@ -493,17 +490,21 @@ export async function previewConsequentialOfferChange(
   const totalDiscountGivenCents = offer?.totalDiscountGivenCents || 0;
 
   // Invariant: If redemptions exist, hard-delete is strictly disallowed
-  const canHardDelete = historicalRedemptionsCount === 0;
-  const reasonBlockHardDelete = canHardDelete
-    ? undefined
-    : "Cannot hard-delete an offer with historical redemptions. Please archive it instead to preserve accounting and ledger history.";
+  const canHardDelete = historicalRedemptionsCount === 0 && activeReservationsCount === 0;
+  const reasonBlockHardDelete = historicalRedemptionsCount > 0
+    ? "Cannot hard-delete an offer with historical redemptions. Please archive it instead to preserve accounting and ledger history."
+    : activeReservationsCount > 0
+      ? "Archive this code to retain its pending checkouts."
+      : undefined;
 
   const warnings: string[] = [];
   let actionSummary = "";
 
   if (proposedAction === "delete") {
     if (!canHardDelete) {
-      warnings.push(`Hard deletion is blocked: ${historicalRedemptionsCount} order redemption(s) exist in accounting records.`);
+      warnings.push(historicalRedemptionsCount
+        ? `Hard deletion is blocked: ${historicalRedemptionsCount} order redemption(s) exist in accounting records.`
+        : `Hard deletion is blocked: ${activeReservationsCount} checkout reservation(s) are still held.`);
       warnings.push("Archive this code instead to immediately deactivate it while preserving financial audit history.");
       actionSummary = "Hard delete forbidden. Offer must be archived.";
     } else {
@@ -512,13 +513,12 @@ export async function previewConsequentialOfferChange(
   } else if (proposedAction === "archive") {
     actionSummary = "Archive offer code. Blocks future applies while preserving historical redemption reports.";
     if (activeReservationsCount > 0) {
-      warnings.push(`${activeReservationsCount} active checkout reservation(s) in flight. They will remain valid until their 30-minute hold expires.`);
+      warnings.push(`${activeReservationsCount} checkout reservation(s) retain their saved terms through settlement or reconciliation.`);
     }
-    warnings.push("Authoritative quotes already issued within the last 30 minutes remain valid until their expiration.");
   } else if (proposedAction === "pause") {
     actionSummary = "Temporarily pause code redemptions. New checkouts will reject the code until re-activated.";
     if (activeReservationsCount > 0) {
-      warnings.push(`${activeReservationsCount} active in-flight reservation(s) will expire naturally.`);
+      warnings.push(`${activeReservationsCount} checkout reservation(s) retain their saved terms through settlement or reconciliation.`);
     }
   } else if (proposedAction === "activate") {
     actionSummary = "Re-activate paused code for customer checkout.";
@@ -697,59 +697,41 @@ function parseLegacyOfferPayload(value: unknown): Partial<OfferVersionRecord> {
  * Lists all offers in the promotions workspace with live server price preview,
  * active reservation holds, and search/lifecycle filtering.
  */
+export async function listLegacyDiscountOffers() {
+  const [versions, legacy] = await Promise.all([
+    readBoundedCollection(getOfferVersionsCollection()),
+    readBoundedCollection(firestoreDb.collection("discount_codes")),
+  ]);
+  const codeFromRecord = (document: FirebaseFirestore.QueryDocumentSnapshot, fallback?: string) => {
+    const raw = document.data()?.code;
+    return typeof raw === "string" && raw.trim() ? raw.trim().toUpperCase() : fallback;
+  };
+  const codes = [...new Set([
+    ...versions.docs.map((document) => codeFromRecord(document)),
+    ...legacy.docs.map((document) => codeFromRecord(document, document.id)),
+  ].filter((code): code is string => Boolean(code)))];
+  const offers: NonNullable<Awaited<ReturnType<typeof getOrSyncOfferVersion>>>[] = [];
+  // Each reader can span four documents. Keep that fan-out bounded for the admin list.
+  for (let index = 0; index < codes.length; index += 25) {
+    const batch = await Promise.all(codes.slice(index, index + 25).map((code) => getOrSyncOfferVersion(code)));
+    for (const offer of batch) if (offer) offers.push(offer);
+  }
+  return offers;
+}
+
 export async function listPromotionsWorkspaceOffers(params?: {
   searchQuery?: string;
   lifecycleStatus?: OfferLifecycleStatus | "all";
   campaignId?: string;
 }): Promise<PromotionsWorkspaceOfferItem[]> {
-  const versionSnap = await readBoundedCollection(getOfferVersionsCollection());
-  const nowMs = Date.now();
-
-  const offersMap = new Map<string, OfferVersionRecord>();
-
-  // Ingest versioned records
-  versionSnap.forEach((doc) => {
-    const data = doc.data() as OfferVersionRecord;
-    if (data && data.code) {
-      offersMap.set(data.code.toUpperCase(), data);
-    }
-  });
-
-  // Bridge legacy discount_codes if missing from versions
-  const legacySnap = await readBoundedCollection(firestoreDb.collection("discount_codes"));
-  legacySnap.forEach((doc) => {
-    const leg = doc.data() as any;
-    const code = (leg.code || doc.id || "").trim().toUpperCase();
-    if (code && !offersMap.has(code)) {
-      offersMap.set(code, {
-        offerId: `offer_${code}`,
-        version: 1,
-        code,
-        purpose: leg.description || "Promotional Discount",
-        destinationPath: "/",
-        discountType: leg.type === "PERCENTAGE" ? "PERCENTAGE" : "FIXED_AMOUNT",
-        discountValue: leg.value || 0,
-        status: leg.isActive ? "active" : "paused",
-        maxUses: leg.maxUses,
-        usedCount: leg.usedCount || 0,
-        reservedCount: 0,
-        totalDiscountGivenCents: leg.totalDiscountGivenCents || 0,
-        stackingAllowed: false,
-        timezone: "UTC",
-        createdAt: leg.createdAt || nowMs,
-        updatedAt: leg.updatedAt || nowMs,
-      });
-    }
-  });
-
-  const allOffers = Array.from(offersMap.values());
+  const allOffers = await listLegacyDiscountOffers();
   const searchLower = (params?.searchQuery || "").trim().toLowerCase();
   const targetStatus = params?.lifecycleStatus || "all";
 
   const enriched: PromotionsWorkspaceOfferItem[] = [];
 
   for (const offer of allOffers) {
-    const dynamicStatus = computeOfferLifecycleStatus(offer, nowMs);
+    const dynamicStatus = offer.status;
 
     // Apply status filter
     if (targetStatus !== "all" && dynamicStatus !== targetStatus) {
@@ -779,7 +761,7 @@ export async function listPromotionsWorkspaceOffers(params?: {
       livePricePreview: pricePreview,
       activeReservationsCount: offer.reservedCount || 0,
       historicalRedemptionsCount: offer.usedCount || 0,
-      canHardDelete: (offer.usedCount || 0) === 0,
+      canHardDelete: (offer.usedCount || 0) === 0 && (offer.reservedCount || 0) === 0,
     });
   }
 

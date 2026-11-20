@@ -11,18 +11,24 @@ const NETWORK_LIMIT = 60;
 export async function takePromotionAttempt(req: NextRequest, now = Date.now()) {
   const prior = req.cookies.get(PROMOTION_SESSION_COOKIE)?.value;
   const session = prior && /^[a-f0-9]{48}$/.test(prior) ? prior : randomBytes(24).toString('hex');
-  const hops = Number(process.env.PROMOTION_TRUSTED_PROXY_HOPS || 0);
-  const forwarded = Number.isInteger(hops) && hops >= 1 && hops <= 5
-    ? req.headers.get('x-forwarded-for')?.split(',').at(-hops)?.trim() || ''
-    : '';
-  const network = isIP(forwarded) ? forwarded : 'shared';
-  const secret = process.env.PROMOTION_NETWORK_HASH_SECRET;
   const window = Math.floor(now / WINDOW_MS);
-  const networkBucket = secret ? createHmac('sha256', secret).update(`offer-network:${Math.floor(now / 86_400_000)}:${network}`).digest('hex') : 'shared';
-  const buckets = [
-    { id: `network_${networkBucket}`, limit: NETWORK_LIMIT },
-    { id: `session_${session}`, limit: SESSION_LIMIT },
-  ];
+  const buckets = [{ id: `session_${session}`, limit: SESSION_LIMIT }];
+  if (process.env.PROMOTION_NETWORK_SOURCE === 'firebase-app-hosting') {
+    // Firebase App Hosting sets this header at its edge. The underlying Cloud Run
+    // service must require an authenticated invoker so requests cannot bypass it.
+    const address = req.headers.get('x-fah-client-ip')?.trim() ?? '';
+    const family = isIP(address);
+    const secret = process.env.PROMOTION_NETWORK_HASH_SECRET;
+    if (!family || address.includes('%') || !secret || secret.length < 24) {
+      throw new Error('Promotion network validation is unavailable.');
+    }
+    const canonical = family === 6 ? new URL(`http://[${address}]`).hostname : address;
+    const network = createHmac('sha256', secret)
+      .update(`offer-network:${Math.floor(now / 86_400_000)}:${canonical}`).digest('hex');
+    buckets.push({ id: `network_${network}`, limit: NETWORK_LIMIT });
+  } else if (process.env.K_SERVICE || process.env.PROMOTION_NETWORK_SOURCE) {
+    throw new Error('Promotion network validation is unconfigured.');
+  }
   const allowed = await firestoreDb.runTransaction(async (transaction) => {
     const refs = buckets.map(({ id }) => firestoreDb.collection('promotion_attempt_limits').doc(id));
     const reads = await Promise.all(refs.map((ref) => transaction.get(ref)));

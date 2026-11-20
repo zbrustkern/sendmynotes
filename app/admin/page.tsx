@@ -18,6 +18,7 @@ import {
   Loader2,
   CheckCircle2,
   Share2,
+  Clock,
   Check,
   Trash2,
   Compass,
@@ -35,6 +36,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { AdminMetrics, Order, SystemIncident, DiscountCode, DiscountType } from "@/lib/types";
+import type { OfferLifecycleStatus } from "@/lib/contracts/admin-overhaul";
+
 import { HandwryttenStatusWidget } from "@/components/admin/HandwryttenStatusWidget";
 import { AdminMeasurementPanel } from "@/components/admin/AdminMeasurementPanel";
 import { AdminWaterfallConsole } from "@/components/admin/AdminWaterfallConsole";
@@ -48,6 +51,13 @@ import { PostPurchaseQueuePanel } from "@/components/admin/PostPurchaseQueuePane
 import { PostPurchaseSettingsPanel } from "@/components/admin/PostPurchaseSettingsPanel";
 import { OrderFollowupPanel } from "@/components/admin/OrderFollowupPanel";
 import { BespokeOfferEditor } from "@/components/admin/BespokeOfferEditor";
+
+type AdminDiscountCode = DiscountCode & { lifecycleStatus: OfferLifecycleStatus; reservedCount: number; campaignId?: string };
+const DISCOUNT_STATUS_LABELS: Record<OfferLifecycleStatus, string> = {
+  active: "Active", archived: "Archived", draft: "Draft", expired: "Expired",
+  exhausted: "Maxed out", paused: "Paused", scheduled: "Scheduled",
+};
+
 
 export default function AdminDashboardPage() {
   const { user, signInWithGoogle, signOut: authSignOut } = useAuth();
@@ -91,13 +101,17 @@ export default function AdminDashboardPage() {
   const [incidentFilter, setIncidentFilter] = useState<"UNRESOLVED" | "RESOLVED" | "ALL">("UNRESOLVED");
 
   // Discounts State
-  const [discountCodes, setDiscountCodes] = useState<DiscountCode[]>([]);
+  const [discountCodes, setDiscountCodes] = useState<AdminDiscountCode[]>([]);
   const [discountStats, setDiscountStats] = useState<{
     totalCodes: number;
     activeCodes: number;
     totalRedemptions: number;
     totalSavingsCents: number;
+    heldUses: number;
+    heldCents: number;
   } | null>(null);
+  const [discountEnvironment, setDiscountEnvironment] = useState<string | null>(null);
+  const [discountStatsError, setDiscountStatsError] = useState<string | null>(null);
   const [loadingDiscounts, setLoadingDiscounts] = useState(false);
   const [discountSearchQuery, setDiscountSearchQuery] = useState("");
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
@@ -216,13 +230,15 @@ export default function AdminDashboardPage() {
         setIsAuthenticated(false);
         return;
       }
-      if (res.ok) {
-        const data = await res.json();
-        setDiscountCodes(data.codes || []);
-        setDiscountStats(data.stats || null);
-      }
-    } catch (err) {
-      console.error("Error fetching discounts:", err);
+      if (!res.ok) throw new Error("Promotion data is temporarily unavailable.");
+      const data = await res.json();
+      setDiscountCodes(data.codes || []);
+      setDiscountStats(data.stats || null);
+      setDiscountEnvironment(data.environment || null);
+      setDiscountStatsError(data.statsError || null);
+    } catch {
+      setDiscountStats(null);
+      setDiscountStatsError("Promotion data is temporarily unavailable.");
     } finally {
       setLoadingDiscounts(false);
     }
@@ -675,7 +691,8 @@ export default function AdminDashboardPage() {
     const q = discountSearchQuery.toLowerCase();
     return (
       c.code.toLowerCase().includes(q) ||
-      Boolean(c.description && c.description.toLowerCase().includes(q))
+      Boolean(c.description && c.description.toLowerCase().includes(q)) ||
+      Boolean(c.campaignId && c.campaignId.toLowerCase().includes(q))
     );
   });
 
@@ -1546,8 +1563,14 @@ export default function AdminDashboardPage() {
         {/* ===================== TAB 3: DISCOUNTS ===================== */}
         {activeTab === "discounts" && (
           <div className="space-y-6">
-            <BespokeOfferEditor />
-            {/* KPI METRIC CARDS FOR DISCOUNTS */}
+            <BespokeOfferEditor onCampaignChange={fetchDiscounts} />
+            <div>
+              <h2 className="text-base font-bold text-stone-900">Promotion totals</h2>
+              <p className="text-xs text-stone-500">
+                Lifetime activity across legacy codes and versioned campaigns{discountEnvironment ? ` in ${discountEnvironment}` : ""}. Includes follow-up offers and free promotions.
+              </p>
+              {discountStatsError && <p role="status" className="mt-1 text-xs text-amber-800">{discountStatsError}</p>}
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
                 <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
@@ -1555,45 +1578,45 @@ export default function AdminDashboardPage() {
                   <Tag className="w-4 h-4 text-amber-600" />
                 </div>
                 <p className="font-serif text-2xl font-bold text-stone-900">
-                  {discountStats?.activeCodes ?? 0}
+                  {discountStats?.activeCodes ?? "—"}
                 </p>
                 <p className="text-[11px] text-stone-400">
-                  {discountStats?.totalCodes ?? 0} total codes configured
+                  {discountStats?.totalCodes ?? "—"} total codes configured
                 </p>
               </div>
 
               <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
                 <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Total Redemptions</span>
+                  <span>Settled Redemptions</span>
                   <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                 </div>
                 <p className="font-serif text-2xl font-bold text-emerald-900">
-                  {discountStats?.totalRedemptions ?? 0}
+                  {discountStats?.totalRedemptions ?? "—"}
                 </p>
-                <p className="text-[11px] text-stone-400">Orders placed with promo discount</p>
+                <p className="text-[11px] text-stone-400">Settled promotional orders</p>
               </div>
 
               <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
                 <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Total Savings Given</span>
+                  <span>Discount Subsidy Used</span>
                   <DollarSign className="w-4 h-4 text-indigo-600" />
                 </div>
                 <p className="font-serif text-2xl font-bold text-stone-900">
-                  ${((discountStats?.totalSavingsCents ?? 0) / 100).toFixed(2)}
+                  {discountStats ? `$${(discountStats.totalSavingsCents / 100).toFixed(2)}` : "—"}
                 </p>
-                <p className="text-[11px] text-stone-400">Cumulative customer savings</p>
+                <p className="text-[11px] text-stone-400">Lifetime budget consumed at settlement</p>
               </div>
 
               <div className="bg-white p-5 rounded-2xl border border-stone-200 shadow-sm space-y-1">
                 <div className="flex items-center justify-between text-stone-500 text-xs font-semibold uppercase tracking-wider">
-                  <span>Shareable Links</span>
-                  <Share2 className="w-4 h-4 text-amber-600" />
+                  <span>Discounts Held</span>
+                  <Clock className="w-4 h-4 text-amber-600" />
                 </div>
-                <p className="font-mono text-sm font-bold text-amber-900 truncate">
-                  ?discount=CODE
+                <p className="font-serif text-2xl font-bold text-stone-900">
+                  {discountStats ? `$${(discountStats.heldCents / 100).toFixed(2)}` : "—"}
                 </p>
                 <p className="text-[11px] text-stone-400">
-                  Auto-hydrates and applies promo at checkout
+                  {discountStats?.heldUses ?? "—"} checkout reservations
                 </p>
               </div>
             </div>
@@ -1604,10 +1627,10 @@ export default function AdminDashboardPage() {
                 <div>
                   <h2 className="text-base font-bold text-stone-900 flex items-center gap-2">
                     <Tag className="w-4 h-4 text-stone-600" />
-                    Configured Discount Codes
+                    Legacy discount codes
                   </h2>
                   <p className="text-xs text-stone-500">
-                    Monitor redemption ratios, customer savings, and share direct links.
+                    Review usage and manage existing codes. Versioned campaigns are available in the editor above.
                   </p>
                 </div>
 
@@ -1649,9 +1672,8 @@ export default function AdminDashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-stone-100">
                       {filteredDiscountCodes.map((c) => {
-                        const isExpired = c.expiresAt && Date.now() > c.expiresAt;
-                        const isExhausted =
-                          c.maxUses != null && c.maxUses > 0 && c.usedCount >= c.maxUses;
+                        const isExpired = c.lifecycleStatus === "expired";
+                        const isExhausted = c.lifecycleStatus === "exhausted";
                         const isFree =
                           (c.type === "PERCENTAGE" && c.value === 100) ||
                           (c.type === "FIXED_AMOUNT" && c.value >= 900);
@@ -1703,14 +1725,15 @@ export default function AdminDashboardPage() {
                                     / {c.maxUses != null ? `${c.maxUses} max` : "∞"}
                                   </span>
                                 </span>
-                                {c.maxUses != null && (
+                                {c.reservedCount > 0 && <span className="block text-stone-500">{c.reservedCount} held</span>}
+                                {c.maxUses != null && c.maxUses > 0 && (
                                   <div className="w-24 bg-stone-100 rounded-full h-1.5 overflow-hidden">
                                     <div
                                       className={`h-full rounded-full ${
                                         isExhausted ? "bg-rose-500" : "bg-amber-500"
                                       }`}
                                       style={{
-                                        width: `${Math.min(100, (c.usedCount / c.maxUses) * 100)}%`,
+                                        width: `${Math.min(100, ((c.usedCount + c.reservedCount) / c.maxUses) * 100)}%`,
                                       }}
                                     />
                                   </div>
@@ -1749,21 +1772,16 @@ export default function AdminDashboardPage() {
                               <button
                                 type="button"
                                 onClick={() => handleToggleDiscount(c.code, c.isActive)}
+                                disabled={c.lifecycleStatus === "archived"}
                                 className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition cursor-pointer border ${
                                   !c.isActive
                                     ? "bg-stone-100 text-stone-600 border-stone-300 hover:bg-stone-200"
-                                    : isExpired || isExhausted
+                                    : c.lifecycleStatus !== "active"
                                     ? "bg-amber-50 text-amber-800 border-amber-300"
                                     : "bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200"
                                 }`}
                               >
-                                {!c.isActive
-                                  ? "Paused"
-                                  : isExpired
-                                  ? "Expired"
-                                  : isExhausted
-                                  ? "Maxed Out"
-                                  : "Active"}
+                                {DISCOUNT_STATUS_LABELS[c.lifecycleStatus]}
                               </button>
                             </td>
 

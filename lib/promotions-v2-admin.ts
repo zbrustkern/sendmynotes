@@ -1,5 +1,6 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { firestoreDb } from "./firebase-admin";
+import { readBoundedCollection } from "./bounded-admin-read";
 import { configuredAdminEnvironment } from "./admin-environment";
 import { getSupplierCountry } from "./mailing-destinations";
 import { weddingBatchRef, weddingCheckoutEnabled } from "./wedding/checkout";
@@ -451,6 +452,52 @@ export async function getPromotionCampaignHistory(rawId: string | null) {
       id, actorEmail, action, environment, reason, timestamp, oldVersion: previousPolicyVersionId, newVersion: nextPolicyVersionId,
     }));
   return { history };
+}
+
+/** Full environment totals use campaign balances a single time across code and policy versions. */
+export async function getPromotionCampaignTotals(now = Date.now()) {
+  const [campaigns, codes, migrationActive] = await Promise.all([
+    readBoundedCollection(firestoreDb.collection(PROMOTION_CAMPAIGNS)),
+    readBoundedCollection(firestoreDb.collection(PROMOTION_CODES)),
+    readPromotionV2Ready(),
+  ]);
+  const totals = { totalCodes: codes.size, activeCodes: 0, totalRedemptions: 0, totalSavingsCents: 0, heldUses: 0, heldCents: 0 };
+  const activePolicies = new Map<string, PromotionPolicy>();
+  for (let index = 0; index < campaigns.size; index += 25) {
+    const batch = await Promise.all(campaigns.docs.slice(index, index + 25).map(async (document) => {
+      const campaign = document.data() as PromotionCampaign;
+      const balance = readPromotionBalance(await promotionUsageRef("campaign", campaign.id).get());
+      const mayRedeem = migrationActive && campaign.status === "active" && campaign.policyVersionId &&
+        (campaign.maxUses === undefined || balance.heldUses + balance.spentUses < campaign.maxUses) &&
+        (campaign.budgetCents === undefined || balance.heldCents + balance.spentCents < campaign.budgetCents);
+      const policy = mayRedeem ? read<PromotionPolicy>(await policyRef(campaign.policyVersionId!).get()) : undefined;
+      return { campaign, balance, policy };
+    }));
+    const weddingReady = batch.some(({ policy }) => policy?.workflow === "wedding") && await weddingPromotionCheckoutAvailable();
+    for (const { campaign, balance, policy } of batch) {
+      totals.totalRedemptions += balance.spentUses;
+      totals.totalSavingsCents += balance.spentCents;
+      totals.heldUses += balance.heldUses;
+      totals.heldCents += balance.heldCents;
+      if (policy && (policy.startsAt === undefined || policy.startsAt <= now) && (policy.endsAt === undefined || now < policy.endsAt) &&
+        (policy.workflow !== "wedding" || weddingReady)) activePolicies.set(campaign.id, policy);
+    }
+  }
+  const activeCodes = codes.docs.map((document) => document.data() as PromotionCode).filter((code) => {
+    const policy = activePolicies.get(code.campaignId);
+    return policy && (code.endsAt === undefined || now < code.endsAt) && policy.countryCodes.some((country) =>
+      (code.countryCodes === undefined || code.countryCodes.includes(country)) && promotionReservationsEnabled(policy.workflow, [country]));
+  });
+  for (let index = 0; index < activeCodes.length; index += 25) {
+    const batch = await Promise.all(activeCodes.slice(index, index + 25).map(async (code) => {
+      if (code.maxUses === undefined && code.budgetCents === undefined) return true;
+      const balance = readPromotionBalance(await promotionUsageRef("code", code.id).get());
+      return (code.maxUses === undefined || balance.heldUses + balance.spentUses < code.maxUses) &&
+        (code.budgetCents === undefined || balance.heldCents + balance.spentCents < code.budgetCents);
+    }));
+    totals.activeCodes += batch.filter(Boolean).length;
+  }
+  return totals;
 }
 
 export async function getPromotionCampaigns(id?: string) {

@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllDiscountCodes } from "@/lib/firebase-admin";
+import { configuredAdminEnvironment } from "@/lib/admin-environment";
 import { getAuthenticatedAdminActor, verifyAdminAuth } from "@/lib/admin-auth";
 import type { OfferVersionRecord } from "@/lib/contracts/admin-overhaul";
-import { computeOfferLifecycleStatus, getOrSyncOfferVersion, getOfferAnalyticsSummary } from "@/lib/offer-engine";
-import { executeAuditedOfferChange } from "@/lib/promotions-and-growth-service";
-import { executePromotionAdminAction, getPromotionCampaignHistory, getPromotionCampaigns, isPromotionAdminAction } from "@/lib/promotions-v2-admin";
+import { getOrSyncOfferVersion, getOfferAnalyticsSummary } from "@/lib/offer-engine";
+import { executeAuditedOfferChange, listLegacyDiscountOffers } from "@/lib/promotions-and-growth-service";
+import { executePromotionAdminAction, getPromotionCampaignHistory, getPromotionCampaigns, getPromotionCampaignTotals, isPromotionAdminAction } from "@/lib/promotions-v2-admin";
 import { adminInteger, adminObject, PromotionAdminError } from "@/lib/promotions-v2-policy";
 import { normalizePromotionCode } from "@/lib/promotions-v2-store";
 import { promotionAdminErrorResponse, promotionAdminJson, validatePromotionAdminEnvironment } from "@/lib/promotion-admin-http";
@@ -30,66 +30,30 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: true, code: targetCode, analytics });
     }
 
-    const codes = await getAllDiscountCodes();
-
-    // Enhance codes with version and lifecycle status
-    const enhancedCodes = await Promise.all(
-      codes.map(async (c) => {
-        try {
-          const version = await getOrSyncOfferVersion(c.code);
-          if (version) {
-            const lifecycleStatus = computeOfferLifecycleStatus(version);
-            return {
-              ...c,
-              offerId: version.offerId,
-              offerVersion: version.version,
-              lifecycleStatus,
-              reservedCount: version.reservedCount || 0,
-              destinationPath: version.destinationPath || "/",
-              budgetCents: version.dollarBudgetLimitCents,
-              campaignId: version.campaignId,
-            };
-          }
-          const isExpired = c.expiresAt && Date.now() > c.expiresAt;
-          const isExhausted = c.maxUses != null && c.maxUses > 0 && c.usedCount >= c.maxUses;
-          const lifecycleStatus = !c.isActive ? "paused" : isExpired ? "expired" : isExhausted ? "exhausted" : "active";
-          return {
-            ...c,
-            lifecycleStatus,
-          };
-        } catch {
-          const isExpired = c.expiresAt && Date.now() > c.expiresAt;
-          const isExhausted = c.maxUses != null && c.maxUses > 0 && c.usedCount >= c.maxUses;
-          const lifecycleStatus = !c.isActive ? "paused" : isExpired ? "expired" : isExhausted ? "exhausted" : "active";
-          return {
-            ...c,
-            lifecycleStatus,
-          };
-        }
-      })
-    );
-
-    // Calculate summary statistics
-    let activeCount = 0;
-    let totalRedemptions = 0;
-    let totalSavingsCents = 0;
-
-    enhancedCodes.forEach((c) => {
-      if (c.lifecycleStatus === "active") {
-        activeCount++;
-      }
-      totalRedemptions += c.usedCount || 0;
-      totalSavingsCents += c.totalDiscountGivenCents || 0;
-    });
-
-    return NextResponse.json({
-      codes: enhancedCodes,
-      stats: {
-        totalCodes: enhancedCodes.length,
-        activeCodes: activeCount,
-        totalRedemptions,
-        totalSavingsCents,
-      },
+    const [legacy, campaignTotals] = await Promise.all([
+      listLegacyDiscountOffers(),
+      getPromotionCampaignTotals().catch(() => null),
+    ]);
+    const codes = legacy.sort((a, b) => b.createdAt - a.createdAt).map((offer) => ({
+      id: offer.code, code: offer.code, type: offer.discountType, value: offer.discountValue, description: offer.purpose,
+      isActive: !["paused", "draft", "archived"].includes(offer.status), lifecycleStatus: offer.status,
+      maxUses: offer.maxUses ?? null, usedCount: offer.usedCount, reservedCount: offer.reservedCount,
+      totalDiscountGivenCents: offer.totalDiscountGivenCents, heldDiscountCents: offer.heldDiscountCents,
+      expiresAt: offer.endsAt ?? null, createdAt: offer.createdAt, updatedAt: offer.updatedAt,
+      offerId: offer.offerId, offerVersion: offer.version, destinationPath: offer.destinationPath,
+      budgetCents: offer.dollarBudgetLimitCents, campaignId: offer.campaignId,
+    }));
+    const stats = campaignTotals && legacy.reduce((totals, offer) => ({
+      totalCodes: totals.totalCodes + 1,
+      activeCodes: totals.activeCodes + Number(offer.status === "active"),
+      totalRedemptions: totals.totalRedemptions + offer.usedCount,
+      totalSavingsCents: totals.totalSavingsCents + offer.totalDiscountGivenCents,
+      heldUses: totals.heldUses + offer.reservedCount,
+      heldCents: totals.heldCents + (offer.heldDiscountCents ?? 0),
+    }), campaignTotals);
+    return promotionAdminJson({
+      codes, stats, environment: configuredAdminEnvironment(),
+      ...(stats === null ? { statsError: "Promotion totals are temporarily unavailable." } : {}),
     });
   } catch (error: unknown) {
     return promotionAdminErrorResponse(error);
