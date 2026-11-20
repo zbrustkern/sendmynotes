@@ -9,12 +9,29 @@ async function verifyGoogleToken(token: string, audience: string) {
   return ticket.getPayload();
 }
 
-/** Only the staging wedding scheduler may advance jobs when every tab is closed. */
+/** Authorizes the configured Cloud Scheduler identity for staging or production reconciliation. */
 export async function weddingSchedulerAuthorized(
   req: Request, env: NodeJS.ProcessEnv = process.env, verify: Verify = verifyGoogleToken,
 ): Promise<boolean> {
-  if (env.FIREBASE_PROJECT_ID !== 'sendmynotes-staging' ||
-      env.STAGING_REVIEW_ONLY !== 'true') return false;
+  let configuredProject: string | undefined;
+  try {
+    configuredProject = JSON.parse(env.FIREBASE_CONFIG || '{}').projectId;
+  } catch {
+    configuredProject = undefined;
+  }
+  const project = (
+    env.FIREBASE_PROJECT_ID ||
+    env.GOOGLE_CLOUD_PROJECT ||
+    env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+    configuredProject ||
+    ''
+  ).toLowerCase();
+  const isStagingProject =
+    project.includes('staging') ||
+    (env.K_SERVICE || '').toLowerCase().includes('staging');
+  if (isStagingProject && env.STAGING_REVIEW_ONLY !== 'true') return false;
+  if (!isStagingProject && env.STAGING_REVIEW_ONLY === 'true') return false;
+
   const account = env.WEDDING_SCHEDULER_IDENTITY;
   const audience = env.WEDDING_SCHEDULER_AUDIENCE;
   if (!account || !audience) return false;

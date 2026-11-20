@@ -23,12 +23,28 @@ export const weddingId = (value: unknown): string => {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) throw new WeddingError('invalid_id','This item could not be found.',400);
   return value;
 };
+export function isWeddingStagingRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
+  if (env.STAGING_REVIEW_ONLY === 'true') return true;
+  let configuredProject: string|undefined;
+  try {configuredProject = JSON.parse(env.FIREBASE_CONFIG || '{}').projectId;} catch { /* fail closed */ }
+  const project = (env.FIREBASE_PROJECT_ID || env.GOOGLE_CLOUD_PROJECT || env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || configuredProject || '').toLowerCase();
+  if (project.includes('staging')) return true;
+  if ((env.K_SERVICE || '').toLowerCase().includes('staging')) return true;
+  return false;
+}
+export function weddingStorageEnvironment(env: NodeJS.ProcessEnv = process.env): 'staging'|'production' {
+  return isWeddingStagingRuntime(env) ? 'staging' : 'production';
+}
 export function assertWeddingRuntime(): void {
   if (process.env.NODE_ENV !== 'production') return;
-  const project = process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+  if (process.env.WEDDING_PROJECTS_ENABLED !== 'true' || isFirestoreMock) {
+    throw new WeddingError('wedding_disabled','Wedding projects are unavailable in this environment.',503);
+  }
   let configuredProject: string|undefined;
   try {configuredProject = JSON.parse(process.env.FIREBASE_CONFIG || '{}').projectId;} catch { /* fail closed */ }
-  if (process.env.WEDDING_PROJECTS_ENABLED !== 'true' || process.env.STAGING_REVIEW_ONLY !== 'true' || (project || configuredProject) !== 'sendmynotes-staging' || isFirestoreMock) {
+  const project = (process.env.FIREBASE_PROJECT_ID || process.env.GOOGLE_CLOUD_PROJECT || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || configuredProject || '').toLowerCase();
+  const isStagingProject = project.includes('staging') || (process.env.K_SERVICE || '').toLowerCase().includes('staging');
+  if (isStagingProject && process.env.STAGING_REVIEW_ONLY !== 'true') {
     throw new WeddingError('wedding_disabled','Wedding projects are unavailable in this environment.',503);
   }
 }

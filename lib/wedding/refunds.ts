@@ -7,7 +7,7 @@ import {
 import { getStripeClient } from "../stripe";
 import { digest, type WeddingQuoteLine } from "./finance";
 import {
-  heldPaymentRuntime,
+  resolveWeddingPaymentRuntime,
   safeId,
   weddingBatchRef,
   WeddingCheckoutError,
@@ -24,15 +24,19 @@ type RefundJob = {
   providerId: string | null;
   ledgerPending?: boolean;
   actor: string;
+  batchPaymentMode?: string;
+  hasPromotion?: boolean;
 };
 const jobRef = (id: string) =>
   firestoreDb.collection("weddingRefunds").doc(safeId(id));
 function requireRefundEnvironment() {
-  if (!heldPaymentRuntime())
+  const runtime = resolveWeddingPaymentRuntime();
+  if (!runtime)
     throw new WeddingCheckoutError(
-      "Child refunds require the staging test processor.",
+      "Child refunds require an active Stripe payment runtime.",
       503,
     );
+  return runtime;
 }
 export async function reserveWeddingRefund(
   batchId: string,
@@ -93,7 +97,7 @@ export async function reserveWeddingRefund(
   });
 }
 export async function applyWeddingRefund(refund: Stripe.Refund) {
-  requireRefundEnvironment();
+  const runtime = requireRefundEnvironment();
   const id = safeId(refund.metadata?.weddingRefundId);
   const intentId = resolvePaymentIntentReference(refund.payment_intent);
   const job = await firestoreDb.runTransaction(async (tx) => {
@@ -165,9 +169,25 @@ export async function applyWeddingRefund(refund: Stripe.Refund) {
       ledgerPending: succeeded,
       dueAt: failed ? null : succeeded ? Date.now() : Date.now() + 60000,
     });
-    return { ...j, status, providerId: refund.id } as RefundJob;
+    return {
+      ...j,
+      status,
+      providerId: refund.id,
+      batchPaymentMode: b.paymentMode,
+      hasPromotion: Boolean(b.quote?.promotion),
+    } as RefundJob & { batchPaymentMode?: string; hasPromotion?: boolean };
   });
   if (job.status === "succeeded") {
+    const batchDoc =
+      job.batchPaymentMode === undefined
+        ? (await weddingBatchRef(job.batchId).get()).data()
+        : undefined;
+    const batchPaymentMode = job.batchPaymentMode ?? batchDoc?.paymentMode;
+    const hasPromotion = job.hasPromotion ?? Boolean(batchDoc?.quote?.promotion);
+    const isLive = batchPaymentMode === "live";
+    if (isLive !== runtime.expectedLivemode) {
+      throw new WeddingCheckoutError("Refund payment mode mismatch.", 409);
+    }
     await recordPaymentRefundFact({
       refundId: refund.id,
       paymentIntentId: job.paymentIntentId,
@@ -175,8 +195,12 @@ export async function applyWeddingRefund(refund: Stripe.Refund) {
       amountCents: refund.amount,
       currency: refund.currency,
       providerRefundStatus: "succeeded",
-      livemode: false,
-      commercialKind: "founder_test",
+      livemode: isLive,
+      commercialKind: isLive
+        ? hasPromotion
+          ? "discounted_paid"
+          : "paid_customer"
+        : "founder_test",
     });
     await jobRef(id).update({ ledgerPending: false, dueAt: null });
   }
@@ -227,7 +251,7 @@ export async function refundWeddingCard(
   );
 }
 export async function reconcilePendingWeddingRefunds() {
-  if (!heldPaymentRuntime()) return { visited: 0, deferred: 0 };
+  if (!resolveWeddingPaymentRuntime()) return { visited: 0, deferred: 0 };
   const now = Date.now();
   const due = await firestoreDb
     .collection("weddingRefunds")

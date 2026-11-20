@@ -113,16 +113,20 @@ export async function POST(req: NextRequest) {
     const weddingPaymentEvent = event.type === "payment_intent.succeeded" ||
       (event.type.startsWith("refund.") && Boolean(weddingMetadata?.weddingRefundId));
     if (weddingMetadata?.weddingBatchId && weddingPaymentEvent) {
-      if (event.livemode !== false) throw new Error("A wedding test event had an unexpected mode.");
+      const { resolveWeddingPaymentRuntime, settleWeddingIntent } = await import("@/lib/wedding/checkout");
+      const runtime = resolveWeddingPaymentRuntime();
+      if (!runtime) throw new Error("Wedding payment runtime is unavailable.");
+      if (Boolean(event.livemode) !== runtime.expectedLivemode) {
+        throw new Error("A wedding Stripe webhook event had an unexpected livemode.");
+      }
       if (event.type === "payment_intent.succeeded") {
-        const { settleWeddingIntent } = await import("@/lib/wedding/checkout");
         await settleWeddingIntent(event.data.object as Stripe.PaymentIntent);
       } else if (event.type.startsWith("refund.") && weddingMetadata.weddingRefundId) {
         const { applyWeddingRefund } = await import("@/lib/wedding/refunds");
         await applyWeddingRefund(event.data.object as Stripe.Refund);
       }
       await markWebhookInboxProcessed(event.id);
-      return NextResponse.json({received:true,held:true});
+      return NextResponse.json({ received: true, held: runtime.stagingReviewOnly });
     }
 
     // 2. Handle Payment Intent Succeeded

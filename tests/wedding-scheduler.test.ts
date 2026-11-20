@@ -17,6 +17,24 @@ async function main() {
   assert.equal(await weddingSchedulerAuthorized(request,env,async()=>({email:env.WEDDING_SCHEDULER_IDENTITY,email_verified:false})),false);
   assert.equal(await weddingSchedulerAuthorized(request,env,async()=>{throw new Error('unverified');}),false);
   assert.equal(await weddingSchedulerAuthorized(new Request(request.url),env,ok),false);
-  console.log('Wedding scheduler identity, audience and staging gates passed.');
+
+  const prodEnv: NodeJS.ProcessEnv = {
+    NODE_ENV: 'production',
+    FIREBASE_PROJECT_ID: 'sendmynotes-2a417',
+    STAGING_REVIEW_ONLY: 'false',
+    WEDDING_SCHEDULER_AUDIENCE: 'https://sendmynotes.com/api/cron/wedding-reconcile',
+    WEDDING_SCHEDULER_IDENTITY: 'wedding-reconciler@sendmynotes-2a417.iam.gserviceaccount.com',
+  };
+  const prodReq = new Request(prodEnv.WEDDING_SCHEDULER_AUDIENCE!, {
+    method: 'POST',
+    headers: { Authorization: 'Bearer prod-token' },
+  });
+  const prodOk = async (_token: string, audience: string) => {
+    assert.equal(audience, prodEnv.WEDDING_SCHEDULER_AUDIENCE);
+    return { email: prodEnv.WEDDING_SCHEDULER_IDENTITY, email_verified: true };
+  };
+  assert.equal(await weddingSchedulerAuthorized(prodReq, prodEnv, prodOk), true);
+  assert.equal(await weddingSchedulerAuthorized(prodReq, { ...prodEnv, STAGING_REVIEW_ONLY: 'true' }, prodOk), false);
+  console.log('Wedding scheduler identity, audience, staging and production gates passed.');
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
