@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import { Suspense } from "react";
 import Link from "next/link";
 import { WeddingLink } from "@/components/wedding/WeddingLink";
+import { getThankYouPageMetadata } from "@/lib/wedding/metadata";
+
+export function generateMetadata(): Metadata {
+  return getThankYouPageMetadata();
+}
+
 export default function ThankYouPage() {
   return (
     <main className="wed">

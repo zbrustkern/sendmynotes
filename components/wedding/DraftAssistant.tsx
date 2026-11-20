@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { prepareWeddingAiDraftFields } from "@/lib/wedding/ai-schema";
 import {
   errorMessage,
+  pluralize,
   postWedding,
   weddingRequest,
   WeddingRequestError,
@@ -188,41 +189,49 @@ export function DraftAssistant({
           </li>
         ))}
       </ul>
-      <label>
-        Tone
-        <select
-          disabled={resuming || running}
-          value={tone}
-          onChange={(e) => setTone(e.target.value)}
-        >
-          <option value="warm">Warm</option>
-          <option value="short">Short</option>
-          <option value="personal">Personal</option>
-        </select>
-      </label>
-      <label>
-        <input
-          type="checkbox"
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-        />
-        Share these selected details with the writing model.
-      </label>
+      <fieldset disabled={!state.actor.verified || busy || model.available === false}>
+        <label>
+          Tone
+          <select
+            disabled={!state.actor.verified || resuming || running || model.available === false}
+            value={tone}
+            onChange={(e) => setTone(e.target.value)}
+          >
+            <option value="warm">Warm</option>
+            <option value="short">Short</option>
+            <option value="personal">Personal</option>
+          </select>
+        </label>
+        <label>
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+          />
+          Share these selected details with the writing model.
+        </label>
+      </fieldset>
       <div className="wed-actions">
-        <button
-          disabled={
-            busy ||
-            !ids.length ||
-            resuming ||
-            !consent ||
-            !state.actor.pilot ||
-            !model.model ||
-            model.available === false
-          }
-          onClick={() => void run(false)}
-        >
-          Draft {ids.length} {ids.length === 1 ? "suggestion" : "suggestions"}
-        </button>
+        {!state.actor.verified ? (
+          <button type="button" onClick={signIn}>
+            Sign in to use AI helper
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={
+              busy ||
+              !ids.length ||
+              resuming ||
+              !consent ||
+              !model.model ||
+              model.available === false
+            }
+            onClick={() => void run(false)}
+          >
+            Draft {pluralize(ids.length, "suggestion")}
+          </button>
+        )}
         {job && !done(job) && !running && (
           <button
             disabled={busy || (resuming && (!consent || !jobIds.length))}
@@ -262,8 +271,8 @@ export function DraftAssistant({
       )}
       {job && (
         <p role="status">
-          {job.suggestions?.length || 0} suggestions ready across {job.total}{" "}
-          selected cards. Open each household to review its words.
+          {pluralize(job.suggestions?.length || 0, "suggestion")} ready across{" "}
+          {pluralize(job.total, "selected card")}. Open each household to review its words.
         </p>
       )}
       {model.available === false && (
@@ -278,11 +287,13 @@ export function DraftAssistant({
           resets {new Date(model.resetsAt).toLocaleString()}.
         </p>
       )}
-      {(!state.actor.pilot || error) && (
-        <div>
-          {error || "AI assistance is available to invited testers."}{" "}
-          {(!state.actor.pilot || needsAuth) && (
-            <button onClick={signIn}>Sign in</button>
+      {error && (
+        <div className="wed-notice" role="alert">
+          {error}{" "}
+          {needsAuth && (
+            <button type="button" onClick={signIn}>
+              Sign in to use AI helper
+            </button>
           )}
         </div>
       )}

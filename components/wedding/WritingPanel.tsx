@@ -10,6 +10,7 @@ import {
   isApproved,
   isReady,
   noteFor,
+  pluralize,
   resolved,
   type Person,
   type Project,
@@ -242,7 +243,7 @@ export function WritingPanel(props: WritingProps) {
         appliedRevision: r.revision,
       })),
     );
-    notify("Wording assigned to " + installed.length + " households.");
+    notify("Wording assigned to " + pluralize(installed.length, "household") + ".");
   }
   async function undoAssignment() {
     for (const previous of new Set(lastAssignment.map((a) => a.previous))) {
@@ -262,7 +263,7 @@ export function WritingPanel(props: WritingProps) {
     <>
       <div className="wed-progress">
         <strong>
-          {progress} of {households.length} notes approved
+          {progress} of {pluralize(households.length, "note")} approved
         </strong>
         <span>
           {households.filter((r) => isReady(p, r)).length} ready to send
@@ -340,7 +341,7 @@ export function WritingPanel(props: WritingProps) {
               {over.length > 0 && shared.dirty && (
                 <div className="wed-notice">
                   <strong>
-                    {over.length} cards would exceed 450 characters
+                    {pluralize(over.length, "card")} would exceed 450 characters
                   </strong>
                   <ul>
                     {over.map((r) => (
@@ -543,8 +544,8 @@ export function WritingPanel(props: WritingProps) {
                       })
                     }
                   >
-                    Approve shared note for {eligible.length} selected
-                    households
+                    Approve shared note for{" "}
+                    {pluralize(eligible.length, "selected household")}
                   </button>
                 </section>
               )}
@@ -894,13 +895,17 @@ function RowWriter({
         }
       />
       <pre
-        className="wed-letter"
+        className="wed-letter wed-letter-preview"
         style={{ fontFamily: handFont(p.handwriting) }}
       >
         {note || "Your finished note will appear here."}
       </pre>
       <p className="wed-meta">{note.length}/450 characters</p>
-      {issues.length > 0 && <p>{issues.join(" ")}</p>}
+      {issues.length > 0 && (
+        <p className="wed-notice" role="status">
+          {issues.join(" ")}
+        </p>
+      )}
       <button
         className="wed-primary"
         disabled={busy || !!issues.length}

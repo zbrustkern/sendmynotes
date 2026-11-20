@@ -55,6 +55,13 @@ export type PanelProps = {
   signIn: () => void;
 };
 export const blankAddress = blankWeddingAddress();
+export function pluralize(
+  n: number,
+  singular: string,
+  plural = `${singular}s`,
+): string {
+  return `${n} ${n === 1 ? singular : plural}`;
+}
 export const dollars = (cents: number) =>
   Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
     cents / 100,
@@ -128,7 +135,7 @@ export const errorMessage = (e: unknown) =>
   e instanceof Error ? e.message : "Please try again.";
 export function safePreview(url: string | undefined) {
   return typeof url === "string" &&
-    /^\/(?:presets\/[^/?#]+\.(?:jpg|png|webp)|api\/wedding\/artwork\?id=[\w-]+)$/.test(
+    /^\/(?:presets\/[^/?#]+\.(?:jpg|png|webp)|wedding\/[^/?#]+\.(?:jpg|png|webp)|api\/wedding\/artwork\?id=[\w-]+)$/.test(
       url,
     )
     ? url

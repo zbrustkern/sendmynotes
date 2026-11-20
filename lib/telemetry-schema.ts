@@ -73,6 +73,14 @@ export function isVerifiedServerPaymentEvent(eventName: string, path?: string): 
  */
 export const ALLOWED_BROWSER_EVENT_NAMES = new Set<string>([
   "wedding_portal_opened",
+  "wedding_landing_viewed",
+  "wedding_project_started",
+  "wedding_sample_started",
+  "wedding_cover_saved",
+  "wedding_list_imported",
+  "wedding_checkout_started",
+  "wedding_purchase_completed",
+  "wedding_payment_confirmed",
   "entry_viewed", "builder_engaged", "cover_loaded", "cover_selected",
   "generation_requested", "generation_completed", "generation_failed",
   "note_template_loaded", "note_edit_started", "note_confirmed",
@@ -610,6 +618,47 @@ export const EVENT_METADATA_SCHEMAS: Record<string, Record<string, FieldRule>> =
   custom_cover_generation_completed: COVER_ACTION_FIELDS,
   custom_cover_generation_failed: COVER_ACTION_FIELDS,
   custom_cover_accepted: COVER_ACTION_FIELDS,
+  wedding_landing_viewed: {
+    hasExistingProject: { type: "boolean" },
+    stagingReviewOnly: { type: "boolean" },
+  },
+  wedding_project_started: {
+    sample: { type: "boolean" },
+    projectId: { type: "string", maxLength: 100 },
+  },
+  wedding_sample_started: {
+    projectId: { type: "string", maxLength: 100 },
+    householdCount: { type: "number" },
+  },
+  wedding_cover_saved: {
+    coverKind: { type: "string", maxLength: 30 },
+    presetId: { type: "string", maxLength: 100 },
+    projectId: { type: "string", maxLength: 100 },
+  },
+  wedding_list_imported: {
+    householdCount: { type: "number" },
+    importId: { type: "string", maxLength: 120 },
+    projectId: { type: "string", maxLength: 100 },
+  },
+  wedding_checkout_started: {
+    batchId: { type: "string", maxLength: 120 },
+    count: { type: "number" },
+    totalCents: { type: "number" },
+    internationalCount: { type: "number" },
+    hasPromotion: { type: "boolean" },
+  },
+  wedding_purchase_completed: {
+    batchId: { type: "string", maxLength: 120 },
+    count: { type: "number" },
+    totalCents: { type: "number" },
+    stagingReviewOnly: { type: "boolean" },
+  },
+  wedding_payment_confirmed: {
+    batchId: { type: "string", maxLength: 120 },
+    count: { type: "number" },
+    totalCents: { type: "number" },
+    stagingReviewOnly: { type: "boolean" },
+  },
 };
 
 export const PROHIBITED_METADATA_KEYS = new Set<string>([
