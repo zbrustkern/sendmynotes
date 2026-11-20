@@ -4,6 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import { AuthModal } from "@/components/AuthModal";
 import { useAuth } from "@/context/AuthContext";
+import {
+  readWeddingAttributionPayload,
+  trackWeddingFunnelEvent,
+} from "@/lib/wedding/attribution-client";
 import { CardPanel } from "./CardPanel";
 import { PeoplePanel } from "./PeoplePanel";
 import { WritingPanel } from "./WritingPanel";
@@ -23,11 +27,15 @@ const tabs = [
   "Your words",
   "Review & send",
 ] as const;
+const nextStepLabels = ["Card", "People", "Writing", "Review & send"] as const;
 type APIResult = Record<string, unknown> & Partial<Snapshot>;
+
 export function WeddingWorkspace({
   purchasingOpen,
+  stagingReviewOnly = false,
 }: {
   purchasingOpen: boolean;
+  stagingReviewOnly?: boolean;
 }) {
   const [state, setState] = useState<Snapshot | null>(null),
     [loading, setLoading] = useState(true),
@@ -43,6 +51,7 @@ export function WeddingWorkspace({
   const { loading: authLoading } = useAuth();
   const mounted = useRef(true),
     initialized = useRef(false),
+    landingTracked = useRef(false),
     fragment = useRef<string | null>(null),
     paymentReturn = useRef(false);
   const heading = useRef<HTMLHeadingElement>(null);
@@ -156,11 +165,26 @@ export function WeddingWorkspace({
       }
     })();
   }, [apply, authLoading]);
-  async function start(sample: boolean) {
+
+  const showingLanding = !loading && (!state || newStart);
+  useEffect(() => {
+    if (!showingLanding || landingTracked.current) return;
+    landingTracked.current = true;
+    trackWeddingFunnelEvent("wedding_landing_viewed", {
+      hasExistingProject: Boolean(state),
+      stagingReviewOnly,
+    });
+  }, [showingLanding, state, stagingReviewOnly]);
+
+  async function start(sample: boolean, forceNew = false) {
     setBusy(true);
     setError("");
     try {
-      const d = await mutate("create", { sample, new: newStart });
+      const d = await mutate("create", {
+        sample,
+        new: forceNew || newStart || Boolean(state),
+        attribution: readWeddingAttributionPayload(),
+      });
       if (fragment.current) {
         await mutate("redeem", { token: fragment.current });
         fragment.current = null;
@@ -172,6 +196,14 @@ export function WeddingWorkspace({
           ? "This is a private project with 100 fictional households."
           : "Your private project is ready.",
       );
+      trackWeddingFunnelEvent(
+        sample ? "wedding_sample_started" : "wedding_project_started",
+        {
+          sample,
+          projectId: d.project?.id,
+          ...(sample ? { householdCount: d.households?.length ?? 100 } : {}),
+        },
+      );
       if (!d.project) await refresh();
     } catch (e) {
       setError(errorMessage(e));
@@ -179,6 +211,7 @@ export function WeddingWorkspace({
       setBusy(false);
     }
   }
+
   async function finishSignIn() {
     setAuth(false);
     try {
@@ -190,6 +223,7 @@ export function WeddingWorkspace({
       setError(errorMessage(e));
     }
   }
+
   const props = state
     ? { state, mutate, refresh, notify: setNotice, signIn: () => setAuth(true) }
     : null;
@@ -202,11 +236,43 @@ export function WeddingWorkspace({
     +estimate <= 250 &&
     /^\d{1,3}$/.test(intl) &&
     +intl <= +estimate;
+
   return (
     <main className="wed">
       <header className="wed-top">
         <Link href="/">SendMyNotes</Link>
-        <span>Wedding thank-you notes</span>
+        <div className="wed-top-right">
+          <span>Wedding thank-you notes</span>
+          {state && !newStart && (
+            <nav className="wed-top-nav" aria-label="Workspace navigation">
+              <button
+                type="button"
+                className="wed-link-btn"
+                onClick={() => setNewStart(true)}
+              >
+                Overview
+              </button>
+              {!synthetic && (
+                <button
+                  type="button"
+                  className="wed-link-btn"
+                  disabled={busy}
+                  onClick={() => void start(true, true)}
+                >
+                  Try 100-household sample
+                </button>
+              )}
+              <button
+                type="button"
+                className="wed-link-btn"
+                disabled={busy}
+                onClick={() => void start(false, true)}
+              >
+                Start fresh
+              </button>
+            </nav>
+          )}
+        </div>
       </header>
       {loading ? (
         <p className="wed-notice" role="status">
@@ -217,14 +283,15 @@ export function WeddingWorkspace({
           <section className="wed-landing">
             <div>
               <h1>
-                Your wedding
-                <br />
-                thank-you notes.
+                Your words, written in real pen &amp; ink—without three weekends
+                at the kitchen table.
               </h1>
               <p>
-                Start with your photo and guest list. Write once for a group, or
-                give someone their own words. Each envelope gets its own
-                handwritten card.
+                Upload your wedding photo or choose a classic design, bring your
+                guest and gift list, and personalize every note. Automated
+                equipment holding real pens writes each A2 folded card on 120 lb
+                vellum cardstock, addresses a white envelope with your personal
+                return address, and mails it via USPS.
               </p>
               <div className="wed-actions">
                 <button
@@ -235,7 +302,7 @@ export function WeddingWorkspace({
                   Start my thank-yous
                 </button>
                 <button onClick={() => void start(true)} disabled={busy}>
-                  Try a sample list
+                  Try 100-household sample
                 </button>
                 {state && (
                   <button onClick={() => setNewStart(false)}>
@@ -243,19 +310,78 @@ export function WeddingWorkspace({
                   </button>
                 )}
               </div>
+              <p className="wed-pricing-bar">
+                <span className="wed-price">$9/card</span> for 1–10 · down to{" "}
+                <span className="wed-price">$6.50/card</span> at 100+ · postage
+                &amp; tax included · pay in batches as addresses arrive
+              </p>
               <p className="wed-meta">
-                The sample uses 100 fictional households. Staging purchases use
-                test payments and stay on hold.
+                {stagingReviewOnly
+                  ? "The sample uses 100 fictional households. Staging purchases use test payments and stay on hold."
+                  : "The sample uses 100 fictional households so you can explore before starting your own list."}
               </p>
             </div>
-            <img
-              src="/presets/thank-you-laurel-wreath.jpg"
-              alt="Olive and laurel thank-you card"
-              className="wed-hero-card"
-            />
+            <div className="wed-hero-gallery">
+              <picture>
+                <source
+                  srcSet="/wedding/hero-handwritten-note.webp"
+                  type="image/webp"
+                />
+                <img
+                  src="/wedding/hero-handwritten-note.jpg"
+                  alt="Open folded card with a personal thank-you note written in real blue pen and ink"
+                  className="wed-hero-photo wed-hero-photo-main"
+                  width={960}
+                  height={960}
+                />
+              </picture>
+              <picture>
+                <source
+                  srcSet="/wedding/hero-card-envelope.webp"
+                  type="image/webp"
+                />
+                <img
+                  src="/wedding/hero-card-envelope.jpg"
+                  alt="Folded card beside a white envelope addressed in real blue ink"
+                  className="wed-hero-photo wed-hero-photo-secondary"
+                  width={960}
+                  height={960}
+                />
+              </picture>
+            </div>
           </section>
-          <details className="wed-panel">
-            <summary>Estimate the price of your cards</summary>
+          <section className="wed-how-it-works" aria-label="How it works">
+            <h2>How it works</h2>
+            <ol className="wed-how-grid">
+              <li>
+                <strong>1. Upload your wedding photo or pick a design</strong>
+                <p>
+                  Crop your own photo and add optional lettering, or pick one of
+                  our timeless card fronts.
+                </p>
+              </li>
+              <li>
+                <strong>
+                  2. Import your guest &amp; gift list and personalize each note
+                </strong>
+                <p>
+                  Upload a spreadsheet or paste rows, write one shared note with
+                  each guest’s name, or write individual words.
+                </p>
+              </li>
+              <li>
+                <strong>
+                  3. We write every card with real pens, stamp &amp; mail them
+                </strong>
+                <p>
+                  1–2 business days preparation + 2–7 business days estimated
+                  domestic USPS transit.
+                </p>
+              </li>
+            </ol>
+          </section>
+          <section className="wed-panel" aria-label="Batch price estimator">
+            <h2>Estimate your cards</h2>
             <div className="wed-mini-grid">
               <label>
                 Envelopes in your project
@@ -286,7 +412,7 @@ export function WeddingWorkspace({
                 that total.
               </p>
             )}
-          </details>
+          </section>
         </>
       ) : (
         props && (
@@ -322,13 +448,18 @@ export function WeddingWorkspace({
                 editId={editId}
                 onEdit={setEditId}
                 registerFlush={registerFlush}
+                stagingReviewOnly={stagingReviewOnly}
               />
             )}
             {step === 2 && (
               <WritingPanel {...props} registerFlush={registerFlush} />
             )}
             {step === 3 && (
-              <ReviewPanel {...props} purchasingOpen={purchasingOpen} />
+              <ReviewPanel
+                {...props}
+                purchasingOpen={purchasingOpen}
+                stagingReviewOnly={stagingReviewOnly}
+              />
             )}
             {step < 3 && (
               <div className="wed-actions">
@@ -336,14 +467,15 @@ export function WeddingWorkspace({
                   className="wed-primary"
                   onClick={() => void navigate(step + 1)}
                 >
-                  Continue to {tabs[step + 1].toLowerCase()}
+                  Continue to {nextStepLabels[step + 1]} →
                 </button>
               </div>
             )}
             {!purchasingOpen && (
               <p className="wed-meta">
-                Writing and review are open. Staging checkout is currently
-                closed.
+                {stagingReviewOnly
+                  ? "Writing and review are open. Staging checkout is currently closed."
+                  : "Writing and review are open. Checkout is currently paused."}
               </p>
             )}
             <SharingPanel {...props} />

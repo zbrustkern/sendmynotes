@@ -1,10 +1,14 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { getThankYouLayoutMetadata } from "@/lib/wedding/metadata";
 import "./wedding.css";
+
 export const dynamic = "force-dynamic";
-export const metadata = {
-  title: "Wedding thank-you notes | SendMyNotes",
-  robots: { index: false, follow: false },
-};
+
+export function generateMetadata(): Metadata {
+  return getThankYouLayoutMetadata();
+}
+
 export default function ThankYouLayout({
   children,
 }: {

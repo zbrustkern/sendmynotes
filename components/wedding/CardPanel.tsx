@@ -4,9 +4,11 @@ import { useAuth } from "@/context/AuthContext";
 import { useUploadStudioAccess } from "@/lib/upload/useUploadStudioAccess";
 import { AddressFields } from "./AddressFields";
 import { SaveStatus, useWeddingDraft } from "./useWeddingDraft";
+import { trackWeddingFunnelEvent } from "@/lib/wedding/attribution-client";
 import {
   blankAddress,
   errorMessage,
+  pluralize,
   postWedding,
   safePreview,
   weddingRequest,
@@ -126,6 +128,11 @@ export function CardPanel({
   };
   const saveCover = async (cover: Cover) => {
     await mutate("saveProject", { revision: p.revision, patch: { cover } });
+    trackWeddingFunnelEvent("wedding_cover_saved", {
+      coverKind: cover.kind,
+      presetId: cover.kind === "preset" ? cover.id : undefined,
+      projectId: p.id,
+    });
     setAsset(null);
     setOriginal(null);
     notify("Your card front is saved.");
@@ -176,19 +183,12 @@ export function CardPanel({
           A still JPEG, PNG or WebP up to 15 MiB. You can crop it and add
           lettering.
         </p>
-        {!state.actor.pilot && (
-          <p className="wed-notice">
-            Real uploads and AI artwork are open to invited staging testers. Use
-            your pilot invitation, or sign in with an approved account.{" "}
-            <button onClick={signIn}>Sign in</button>
-          </p>
-        )}
         <label>
           Choose photo
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp"
-            disabled={busy || !state.actor.pilot}
+            disabled={busy}
             onChange={(e) => {
               const f = e.target.files?.[0];
               e.target.value = "";
@@ -326,76 +326,78 @@ export function CardPanel({
             </div>
           </>
         )}
-        {studio.state === "active" && state.actor.pilot && (
+        {studio.state === "active" && (
           <button disabled={busy} onClick={() => void work(openStudio)}>
             Open my account Upload Studio
           </button>
         )}
         <details>
           <summary>Create a custom cover with AI</summary>
-          <label>
-            Describe your design or photo treatment
-            <textarea
-              value={prompt}
-              maxLength={1000}
-              onChange={(e) => {
-                setPrompt(e.target.value);
-                setConsent(false);
-                setAiIntent(crypto.randomUUID());
-              }}
-            />
-          </label>
-          <p className="wed-meta">
-            {meta.provider || "Artwork provider"} ·{" "}
-            {meta.imageModel || meta.model || "Model details unavailable"}.{" "}
-            {asset
-              ? "Your selected photo and description will be shared."
-              : "Only the design description will be shared."}
-          </p>
-          <label>
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-            />
-            Share this description{asset ? " and the selected photo" : ""} to
-            generate a cover.
-          </label>
-          <button
-            disabled={
-              busy ||
-              !state.actor.pilot ||
-              !consent ||
-              !prompt.trim() ||
-              meta.available === false ||
-              meta.remaining?.images === 0 ||
-              !meta.provider
-            }
-            onClick={() =>
-              void work(async () => {
-                const a = await postWedding<Asset>("ai", {
-                  action: "image",
-                  prompt,
-                  assetId: asset?.assetId,
-                  consent: true,
-                  idempotencyKey: aiIntent,
-                });
-                setAsset(a);
-                setOriginal(a);
-                void refreshAI();
-                setConsent(false);
-                setModified(false);
-                setAiIntent(crypto.randomUUID());
-              })
-            }
-          >
-            Generate artwork
-          </button>
-          {meta.imageStepUpRequired && !state.actor.verified && (
-            <p className="wed-notice">
-              Verify your account before requesting another cover.{" "}
-              <button onClick={signIn}>Sign in</button>
+          <fieldset disabled={!state.actor.verified || busy || meta.available === false}>
+            <label>
+              Describe your design or photo treatment
+              <textarea
+                value={prompt}
+                maxLength={1000}
+                onChange={(e) => {
+                  setPrompt(e.target.value);
+                  setConsent(false);
+                  setAiIntent(crypto.randomUUID());
+                }}
+              />
+            </label>
+            <p className="wed-meta">
+              {meta.provider || "Artwork provider"} ·{" "}
+              {meta.imageModel || meta.model || "Model details unavailable"}.{" "}
+              {asset
+                ? "Your selected photo and description will be shared."
+                : "Only the design description will be shared."}
             </p>
+            <label>
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+              />
+              Share this description{asset ? " and the selected photo" : ""} to
+              generate a cover.
+            </label>
+          </fieldset>
+          {!state.actor.verified ? (
+            <button type="button" onClick={signIn}>
+              Sign in to use AI helper
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={
+                busy ||
+                !consent ||
+                !prompt.trim() ||
+                meta.available === false ||
+                meta.remaining?.images === 0 ||
+                !meta.provider
+              }
+              onClick={() =>
+                void work(async () => {
+                  const a = await postWedding<Asset>("ai", {
+                    action: "image",
+                    prompt,
+                    assetId: asset?.assetId,
+                    consent: true,
+                    idempotencyKey: aiIntent,
+                  });
+                  setAsset(a);
+                  setOriginal(a);
+                  void refreshAI();
+                  setConsent(false);
+                  setModified(false);
+                  setAiIntent(crypto.randomUUID());
+                })
+              }
+            >
+              Generate artwork
+            </button>
           )}
           {meta.available === false && (
             <p className="wed-notice">
@@ -405,7 +407,7 @@ export function CardPanel({
           )}
           {meta.remaining && (
             <p className="wed-meta">
-              {meta.remaining.images} artwork requests remaining
+              {pluralize(meta.remaining.images, "artwork request")} remaining
               {meta.resetsAt
                 ? " · resets " + new Date(meta.resetsAt).toLocaleString()
                 : ""}

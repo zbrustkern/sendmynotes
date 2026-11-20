@@ -358,6 +358,15 @@ export type TelemetryEventName =
   | "multi_send_recipient_saved"
   | "multi_send_greeting_personalized"
   | "multi_send_reverted"
+  // Wedding funnel telemetry events:
+  | "wedding_landing_viewed"
+  | "wedding_project_started"
+  | "wedding_sample_started"
+  | "wedding_cover_saved"
+  | "wedding_list_imported"
+  | "wedding_checkout_started"
+  | "wedding_purchase_completed"
+  | "wedding_payment_confirmed"
   // Server-only authority events (§10):
   | "purchase_verified"
   | "fulfillment_submitted"

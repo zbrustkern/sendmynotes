@@ -6,11 +6,13 @@ import { newWeddingHousehold, weddingAddressReady } from "@/lib/wedding/domain";
 import type { WeddingImportRow } from "@/lib/wedding/import-contract";
 import WeddingListImport from "./WeddingListImport";
 import { AddressFields } from "./AddressFields";
+import { trackWeddingFunnelEvent } from "@/lib/wedding/attribution-client";
 import {
   authHeaders,
   blankAddress,
   errorMessage,
   formatAddress,
+  pluralize,
   type Person,
   type PanelProps,
 } from "./client";
@@ -65,9 +67,10 @@ export function PeoplePanel(
     registerFlush: (save: () => Promise<boolean>) => () => void;
     editId: string | null;
     onEdit: (id: string | null) => void;
+    stagingReviewOnly?: boolean;
   },
 ) {
-  const { state, mutate, notify, editId, onEdit, signIn } = props;
+  const { state, mutate, notify, editId, onEdit, signIn, stagingReviewOnly = false } = props;
   const [adding, setAdding] = useState(false),
     [importing, setImporting] = useState(false),
     [search, setSearch] = useState(""),
@@ -121,6 +124,11 @@ export function PeoplePanel(
       importId,
       rows: rows.map((r) => importPatch(r, rows)),
     });
+    trackWeddingFunnelEvent("wedding_list_imported", {
+      householdCount: rows.length,
+      importId,
+      projectId: state.project.id,
+    });
     setImporting(false);
     notify("The reviewed households were saved to your project.");
   }
@@ -138,19 +146,12 @@ export function PeoplePanel(
       </div>
       {importing && (
         <section className="wed-panel">
-          {!state.actor.pilot && (
-            <p className="wed-notice">
-              File imports and assisted mapping are available to invited staging
-              testers. You can add a household manually now, use your tester
-              link, or{" "}
-              <button onClick={signIn}>sign in with an approved account</button>
-              .
-            </p>
-          )}
           <WeddingListImport
             existingHouseholds={state.households}
             onApply={apply}
             headers={authHeaders}
+            verified={state.actor.verified}
+            onSignIn={signIn}
             onClose={() => setImporting(false)}
           />
         </section>
@@ -209,10 +210,7 @@ export function PeoplePanel(
       </details>
       <div className="wed-columns">
         <section className="wed-panel">
-          <h2>
-            {state.households.length}{" "}
-            {state.households.length === 1 ? "household" : "households"}
-          </h2>
+          <h2>{pluralize(state.households.length, "household")}</h2>
           <p className="wed-meta">
             One envelope per household. Up to 250 draft households per project.
           </p>
@@ -257,7 +255,9 @@ export function PeoplePanel(
                   {" "}
                   ·{" "}
                   {r.paidBatchId
-                    ? "Ordered on hold"
+                    ? stagingReviewOnly
+                      ? "Ordered on hold"
+                      : "Ordered"
                     : r.excluded
                       ? "Excluded"
                       : r.pendingAddress

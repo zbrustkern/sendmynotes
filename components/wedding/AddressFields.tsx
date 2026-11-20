@@ -30,6 +30,7 @@ export function AddressFields({
   }, [domestic]);
   const set = (k: keyof Address, v: string) => onChange({ ...value, [k]: v });
   const dest = options.find((d) => d.countryCode === value.country);
+  const effectiveCountry = domestic || !value.country ? "US" : value.country;
   return (
     <>
       <label>
@@ -87,9 +88,9 @@ export function AddressFields({
       </label>
       <div className="wed-mini-grid">
         <label>
-          {value.country === "US"
+          {effectiveCountry === "US"
             ? "State"
-            : value.country === "CA"
+            : effectiveCountry === "CA"
               ? "Province"
               : "Region"}
           {dest?.regions?.length ? (
@@ -112,7 +113,7 @@ export function AddressFields({
           )}
         </label>
         <label>
-          {value.country === "US" ? "ZIP code" : "Postal code"}
+          {effectiveCountry === "US" ? "ZIP code" : "Postal code"}
           <input
             value={value.zip || ""}
             onChange={(e) => set("zip", e.target.value)}

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { canonicalFields,maxWeddingFileBytes,type FieldMapping,type WeddingImportPreview,type WeddingImportRow } from "@/lib/wedding/import-contract";
 import { prepareWeddingAiExcerpt } from "@/lib/wedding/ai-schema";
-import { errorMessage,postWedding,weddingRequest } from "./client";
+import { errorMessage,pluralize,postWedding,weddingRequest } from "./client";
 
 const fields = {
   sourceId:"Household ID", firstName:"First name", lastName:"Last name", additionalGuest:"Additional guest", envelopeName:"Envelope name", insideNames:"Inside names",
@@ -14,13 +14,13 @@ type ExistingHousehold = {
   sourceHouseholdId?:string; envelopeName:string; insideName:string; gift:string; bodyOverride:string|null;
   address:{address1:string;address2:string;city:string;state:string;zip:string;country:string};
 };
-type Props={existingHouseholds?:ExistingHousehold[];onApply:(rows:WeddingImportRow[],importId:string)=>Promise<void>;onClose?:()=>void;headers?:()=>Promise<Record<string,string>>};
+type Props={existingHouseholds?:ExistingHousehold[];onApply:(rows:WeddingImportRow[],importId:string)=>Promise<void>;onClose?:()=>void;headers?:()=>Promise<Record<string,string>>;verified?:boolean;onSignIn?:()=>void};
 function proseRow(id:string,source:string):WeddingImportRow {
   return {id,source,sourceId:"",sources:[source],envelopeName:"",insideNames:"",firstName:"",lastName:"",street1:"",street2:"",city:"",state:"",zip:"",country:"",
     gift:"",body:"",alreadyThanked:false,guestCount:1,issues:["Review the envelope and address."]};
 }
 function rowLabel(row:WeddingImportRow) { return row.envelopeName || row.source; }
-export default function WeddingListImport({onApply,onClose,existingHouseholds=[]}:Props) {
+export default function WeddingListImport({onApply,onClose,existingHouseholds=[],verified=false,onSignIn}:Props) {
   const [file,setFile]=useState<File|null>(null),[paste,setPaste]=useState(""),[pasteFormat,setPasteFormat]=useState("tsv");
   const [preview,setPreview]=useState<WeddingImportPreview|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState("");
   const [rows,setRows]=useState<WeddingImportRow[]>([]),[rowId,setRowId]=useState(""),[sheetNames,setSheetNames]=useState<string[]>([]);
@@ -102,8 +102,8 @@ export default function WeddingListImport({onApply,onClose,existingHouseholds=[]
     {busy&&<p role="status">Working on your list…</p>}
     {error&&<p role="alert" className="wed-notice">{error}</p>}
     {preview&&<fieldset disabled={busy}><legend>Review this import</legend>
-      <p>{preview.counts.sourceRows} source records · {rows.length} households · at least {preview.counts.guests} guests in the structured list.</p>
-      {!!matches.length&&<details open><summary>{matches.length} households are already in this project</summary>
+      <p>{pluralize(preview.counts.sourceRows,"source record")} · {pluralize(rows.length,"household")} · at least {pluralize(preview.counts.guests,"guest")} in the structured list.</p>
+      {!!matches.length&&<details open><summary>{pluralize(matches.length,"household")} {matches.length===1?"is":"are"} already in this project</summary>
         <p>Their saved names, notes and addresses will be kept. Open a household under Your people to make a correction.</p>
         {matches.some(m=>m.changed)&&<ul className="wed-list wed-scroll">{matches.filter(m=>m.changed).map(m=><li key={m.id}>{m.name} · incoming details differ</li>)}</ul>}</details>}
       {!!preview.sheets.length&&<details><summary>Review sheet and column matches</summary>
@@ -111,11 +111,11 @@ export default function WeddingListImport({onApply,onClose,existingHouseholds=[]
           <div>{sheet.headers.map((h,i)=><label key={h}>{h}{sheet.example[i]&&<small> · {sheet.example[i].slice(0,80)}</small>}
             <select value={maps[sheet.name]?.[h]||""} onChange={e=>setMaps(m=>({...m,[sheet.name]:{...m[sheet.name],[h]:e.target.value}}) as Record<string,FieldMapping>)}>
               <option value="">Leave out</option>{canonicalFields.map(f=><option key={f} value={f}>{fields[f]}</option>)}</select></label>)}</div>
-          {permittedSmart&&sheet.headers.length<=40&&<details><summary>Suggest column matches</summary><p>Send only these headings to {meta.provider} ({meta.model}) for suggested field names.</p>
-            <p>{sheet.headers.join(" · ")}</p><button type="button" onClick={()=>void work(async()=>{
+          {(permittedSmart||!verified)&&sheet.headers.length<=40&&<details><summary>Suggest column matches</summary><p>Send only these headings to {meta.provider||"the writing model"}{meta.model?` (${meta.model})`:""} for suggested field names.</p>
+            <p>{sheet.headers.join(" · ")}</p>{!verified&&onSignIn?<button type="button" onClick={onSignIn}>Sign in to use AI helper</button>:<button type="button" disabled={!permittedSmart} onClick={()=>void work(async()=>{
               const r=await postWedding<{mapping:FieldMapping}>("ai",{action:"map",headers:sheet.headers,consent:true,idempotencyKey:aiKey("headers:"+JSON.stringify(sheet.headers))});
               setMaps(m=>({...m,[sheet.name]:{...m[sheet.name],...r.mapping}}));
-            })}>Share these headings for suggestions</button></details>}</section>)}
+            })}>Share these headings for suggestions</button>}</details>}</section>)}
         <p>Refreshing the preview rebuilds the rows from these column matches.</p>
         <button type="button" disabled={!sheetNames.length} onClick={()=>void work(async()=>show(await postWedding<WeddingImportPreview>("import?action=map",{importId:preview.importId,mappings:maps,sheets:sheetNames}),sheetNames))}>Refresh preview</button>
       </details>}
@@ -125,13 +125,13 @@ export default function WeddingListImport({onApply,onClose,existingHouseholds=[]
         {sourceIndex!==null&&<><blockquote style={{whiteSpace:"pre-wrap"}}>{preview.excerpts[sourceIndex]}</blockquote>
           <button type="button" onClick={startManual}>Enter this household myself</button>
           <button type="button" onClick={()=>{setDeferred(d=>[...new Set([...d,sourceIndex])]);setSourceIndex(null);setRowId("");}}>Leave this passage for later</button>
-          {permittedSmart&&<details><summary>Get help with this passage</summary><label>Select a short excerpt to share<textarea value={excerpt} maxLength={1600} onChange={e=>{setExcerpt(e.target.value);setSmart([]);setConsent(false);}}/></label>
-            <p>Copy an excerpt from this passage. Review the exact text going to {meta.provider} ({meta.model}) for name and gift suggestions.</p>
-            <pre style={{whiteSpace:"pre-wrap"}}>{prepared}</pre><label><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>Share this excerpt for suggestions</label>
-            <button type="button" disabled={!consent||!prepared||!preview.excerpts[sourceIndex].includes(excerpt.trim())} onClick={()=>void work(async()=>{
+          {(permittedSmart||!verified)&&<details><summary>Get help with this passage</summary><fieldset disabled={!verified||!permittedSmart}><label>Select a short excerpt to share<textarea value={excerpt} maxLength={1600} onChange={e=>{setExcerpt(e.target.value);setSmart([]);setConsent(false);}}/></label>
+            <p>Copy an excerpt from this passage. Review the exact text going to {meta.provider||"the writing model"}{meta.model?` (${meta.model})`:""} for name and gift suggestions.</p>
+            <pre style={{whiteSpace:"pre-wrap"}}>{prepared}</pre><label><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>Share this excerpt for suggestions</label></fieldset>
+            {!verified&&onSignIn?<button type="button" onClick={onSignIn}>Sign in to use AI helper</button>:<button type="button" disabled={!permittedSmart||!consent||!prepared||!preview.excerpts[sourceIndex].includes(excerpt.trim())} onClick={()=>void work(async()=>{
               const result=await postWedding<{suggestions:{name:string;gift:string;memory:string}[]}>("ai",{action:"map",excerpt:prepared,consent:true,idempotencyKey:aiKey("excerpt:"+prepared)});
               setSmart(result.suggestions);
-            })}>Suggest fields</button>
+            })}>Suggest fields</button>}
             {smart.map((s,i)=><div key={i}><p>{s.name} · {s.gift}{s.memory && " · " + s.memory}</p><button type="button" onClick={()=>{
               const id="prose_"+preview.importId.slice(0,16)+"_"+sourceIndex+"_"+i;
               const r=rows.find(x=>x.id===id)||proseRow(id,"Passage "+(sourceIndex+1));putRow({...r,envelopeName:s.name,firstName:s.name,gift:s.gift,memory:s.memory});
@@ -141,7 +141,7 @@ export default function WeddingListImport({onApply,onClose,existingHouseholds=[]
         {x.gift&&<label>Assign gift to<select value={assigned[x.source]||""} onChange={e=>setAssigned(a=>({...a,[x.source]:e.target.value}))}><option value="">Leave unresolved</option>
           {rows.map(r=><option key={r.id} value={r.id}>{rowLabel(r)}</option>)}</select></label>}</div>)}</section>}
       {!!rows.length&&<>
-        <p>{preview.counts.missingAddresses} addresses need review · {rows.filter(r=>r.alreadyThanked).length} marked already thanked.</p>
+        <p>{pluralize(preview.counts.missingAddresses,"address","addresses")} {preview.counts.missingAddresses===1?"needs":"need"} review · {rows.filter(r=>r.alreadyThanked).length} marked already thanked.</p>
         <label>Review a household<select value={rowId} onChange={e=>setRowId(e.target.value)}><option value="">Choose a household</option>
           {[...rows].sort((a,b)=>b.issues.length-a.issues.length).map(r=><option value={r.id} key={r.id}>{rowLabel(r)} · {r.source}{r.issues.length?" · review":""}</option>)}</select></label>
         {current&&<section><p>{current.sources.join(", ")}{current.issues.length?" · "+current.issues.join(" "):""}</p>
@@ -150,7 +150,7 @@ export default function WeddingListImport({onApply,onClose,existingHouseholds=[]
           }}/>}</label>)}<label><input type="checkbox" checked={current.alreadyThanked} onChange={e=>putRow({...current,alreadyThanked:e.target.checked})}/>Already thanked · exclude from sending</label>
           <button type="button" onClick={()=>{setRows(rs=>rs.filter(r=>r.id!==current.id));setRowId("");}}>Leave this household out</button></section>}
         {rows.some(r=>!r.country)&&<label><input type="checkbox" checked={includeUS} onChange={e=>setIncludeUS(e.target.checked)}/>Use United States for rows without a country</label>}
-        <button type="button" className="wed-primary" disabled={rows.length>250} onClick={()=>void work(apply)}>Confirm and add {rows.length} household{rows.length===1?"":"s"}</button>
+        <button type="button" className="wed-primary" disabled={rows.length>250} onClick={()=>void work(apply)}>Confirm and add {pluralize(rows.length,"household")}</button>
         {rows.length>250&&<p>Split this list or leave households out to fit the 250-household project limit.</p>}
       </>}
     </fieldset>}
