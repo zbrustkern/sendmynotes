@@ -13,10 +13,10 @@ function setEnv(name: string, value?: string) {
   if (value === undefined) delete env[name]; else env[name] = value;
 }
 
-async function postJson(url: string, payload: unknown) {
+async function postJson(url: string, payload: unknown, checkoutToken?: string) {
   return new NextRequest(`http://localhost:3000${url}`, {
     method: "POST",
-    headers: { "content-type": "application/json" },
+    headers: { "content-type": "application/json", ...(checkoutToken ? { "x-view-token": checkoutToken } : {}) },
     body: JSON.stringify(payload),
   });
 }
@@ -81,7 +81,7 @@ async function run() {
 
       const confirm = await confirmOrderPost(await postJson("/api/checkout/confirm-order", {
         orderId: fullPrice.orderId, paymentIntentId: fullPrice.paymentIntentId,
-      }));
+      }, fullPrice.viewToken));
       assert.equal(confirm.status, 200);
       const confirmBody = await confirm.json();
       assert.equal(confirmBody.status, "QUEUED_FOR_FULFILLMENT", "confirmed preview order is held before supplier fulfillment");
@@ -98,7 +98,7 @@ async function run() {
       assert.equal(discounted.quote.discountCents, 200);
       const discountedConfirmResponse = await confirmOrderPost(await postJson("/api/checkout/confirm-order", {
         orderId: discounted.orderId, paymentIntentId: discounted.paymentIntentId,
-      }));
+      }, discounted.viewToken));
       assert.equal((await discountedConfirmResponse.json()).success, true);
       const discountedRedemption = await getOfferRedemptionsCollection().doc(`redemption_${discounted.orderId}`).get();
       assert.equal(discountedRedemption.data()?.payableAmountCents, 700, "offer redemption retains base payable independently of the $5 surcharge");
@@ -112,16 +112,16 @@ async function run() {
       assert.equal(freeBase.isFree, false);
       const freeBaseConfirmResponse = await confirmOrderPost(await postJson("/api/checkout/confirm-order", {
         orderId: freeBase.orderId, paymentIntentId: freeBase.paymentIntentId,
-      }));
+      }, freeBase.viewToken));
       assert.equal((await freeBaseConfirmResponse.json()).success, true);
       const freeBaseRedemption = await getOfferRedemptionsCollection().doc(`redemption_${freeBase.orderId}`).get();
       assert.equal(freeBaseRedemption.data()?.payableAmountCents, 0, "100% base discount redeems while the $5 destination upgrade remains paid");
-      const bypass = await completeFreeOrderPost(await postJson("/api/checkout/complete-free-order", { orderId: freeBase.orderId, discountCode: freeCode }));
+      const bypass = await completeFreeOrderPost(await postJson("/api/checkout/complete-free-order", { orderId: freeBase.orderId, discountCode: freeCode, viewToken: freeBase.viewToken }));
       assert.equal(bypass.status, 400, "free completion endpoint cannot bypass the positive destination surcharge");
 
       const wrongPayment = await confirmOrderPost(await postJson("/api/checkout/confirm-order", {
         orderId: discounted.orderId, paymentIntentId: "pi_forged_different_order",
-      }));
+      }, discounted.viewToken));
       assert.equal(wrongPayment.status, 400, "unbound PaymentIntent is rejected before any payment-provider retrieval");
       const wrongPaymentBody = await wrongPayment.json();
       assert.equal(wrongPaymentBody.success, false, "caller cannot substitute another PaymentIntent identity");
@@ -132,7 +132,7 @@ async function run() {
       await saveOrder({ ...tamperedOrder, recipientAddress: { ...tamperedOrder.recipientAddress, country: "GB" } });
       const tamperConfirmResponse = await confirmOrderPost(await postJson("/api/checkout/confirm-order", {
         orderId: tamperCreated.orderId, paymentIntentId: tamperCreated.paymentIntentId,
-      }));
+      }, tamperCreated.viewToken));
       assert.equal((await tamperConfirmResponse.json()).success, false, "country mutation after quote creation cannot authorize payment processing");
 
       // Exercise webhook-first processing and replay with an internally bypassed test signature.

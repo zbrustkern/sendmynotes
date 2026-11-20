@@ -247,7 +247,7 @@ function AttributionTrackerInner() {
   const pathname = usePathname();
   const followupReference = searchParams.get("followupRef");
   const hasPrivateQuery = searchParams.has("discount") || searchParams.has("token") || Boolean(followupReference);
-  const isPrivatePaymentPath = Boolean(pathname?.startsWith("/comp-payment/"));
+  const isPrivatePaymentPath = Boolean(pathname?.startsWith("/comp-payment/") || pathname?.startsWith("/order/") || pathname?.startsWith("/orders/"));
   const isPrivateTrackingPath = isPrivatePaymentPath || pathname === "/email/unsubscribe" || hasPrivateQuery;
   // Campaign attribution is first-party and allowlisted. Coupon/link URLs still
   // retain safe UTM/click evidence, while bearer tokens and private routes do not.

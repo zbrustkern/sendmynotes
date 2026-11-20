@@ -1,4 +1,5 @@
 "use client";
+import { checkoutOrderPath } from "../../../lib/order-tracking-links";
 import { checkoutDraftKey, clearCheckoutDraftKey, previousCheckoutProof } from "../../../lib/checkout-draft-client";
 import { getStoredFollowupLink } from "@/lib/post-purchase/link-client";
 
@@ -669,7 +670,7 @@ export function EntryPrototypeClient({
         if (savedViewToken) setViewToken(savedViewToken);
 
         // Verify order on server before presenting confirmation
-        fetch(`/api/orders/${savedOrderId}${savedViewToken ? `?token=${encodeURIComponent(savedViewToken)}` : ""}`)
+        fetch(`/api/orders/${encodeURIComponent(savedOrderId)}`, { headers: savedViewToken ? { "x-view-token": savedViewToken } : undefined })
           .then((res) => (res.ok ? res.json() : null))
           .then((data) => {
             if (data?.order && data.order.status !== "PENDING_PAYMENT") {
@@ -1883,7 +1884,7 @@ export function EntryPrototypeClient({
       const data = await res.json();
       if (privateCheckoutIsStale()) return false;
       if (res.status === 409 && data.code === "CHECKOUT_ALREADY_IN_PROGRESS" && data.orderId && data.viewToken) {
-        window.location.assign("/order/" + encodeURIComponent(data.orderId) + "?token=" + encodeURIComponent(data.viewToken));
+        window.location.assign(checkoutOrderPath(data.orderId, data.viewToken));
         return false;
       }
       if (!res.ok) {

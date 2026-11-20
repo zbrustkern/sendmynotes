@@ -33,6 +33,7 @@ for (const relative of parentSources) {
 const parentMock = `
   import React from "react";
   import { createRoot } from "react-dom/client";
+  import { AuthProvider } from "${path.join(sourceRoot, "context/AuthContext.tsx")}";
   import { EntryPrototypeClient } from "${path.join(sourceRoot, "app/preview/entry/client.tsx")}";
   import { VendingMachineBuilder } from "${path.join(sourceRoot, "components/VendingMachineBuilder.tsx")}";
 
@@ -57,9 +58,9 @@ const parentMock = `
     window.__applyResult = undefined;
     window.__draft = draft;
     window.__searchParams = new URLSearchParams(search || "");
-    window.__root.render(kind === "entry"
+    window.__root.render(React.createElement(AuthProvider, null, kind === "entry"
       ? React.createElement(EntryPrototypeClient, { initialStep: initialStep || "pay" })
-      : React.createElement(VendingMachineBuilder, { initialStep: initialStep || 3 }));
+      : React.createElement(VendingMachineBuilder, { initialStep: initialStep || 3 })));
   };
 `;
 
@@ -105,7 +106,19 @@ const mockModules = {
   "@/lib/google-ads": `exports.trackGA4ViewItem = exports.trackGA4BeginCheckout = exports.trackGA4AddShippingInfo = exports.trackGA4AddPaymentInfo = exports.trackGA4CustomEvent = () => {};`,
   "@/lib/meta-ads": `exports.trackMetaViewContent = exports.trackMetaAddToCart = exports.trackMetaCustomizeProduct = exports.trackMetaInitiateCheckout = exports.trackMetaAddPaymentInfo = () => {};`,
   "@/components/AttributionTracker": `exports.getStoredAttribution = () => ({});`,
-  "@/context/AuthContext": `exports.useAuth = () => ({ user: null, account: null, saveAddress: async () => {} });`,
+  "./AttributionTracker": `exports.getStoredAttribution = () => ({});`,
+  "@/lib/firebase-client": `exports.getFirebaseAuth = () => window.__firebaseAuth;`,
+  "firebase/auth": `
+    window.__firebaseAuth = { currentUser: null };
+    exports.onAuthStateChanged = (auth, callback) => {
+      window.__setViewer = (uid) => {
+        auth.currentUser = uid ? { uid, email: uid + "@example.test", getIdToken: async () => "synthetic-token-" + uid } : null;
+        return callback(auth.currentUser);
+      };
+      callback(auth.currentUser);
+      return () => { delete window.__setViewer; };
+    };
+  `,
   "@/lib/device-wallet": `exports.useDeviceWallet = () => ({ heroCallout: "", walletName: "Apple Pay", type: "apple", paymentNotice: "test" });`,
   "@/lib/seo-scenarios": `exports.parseScenarioNote = () => null; exports.mapScenarioFontId = () => "hwDavid";`,
   "@/lib/discount": `exports.extractOfferCodeFromUrlParams = (params) => params?.get?.("discount") || params?.discount || null;`,
@@ -114,10 +127,21 @@ const mockModules = {
   "./CardPreview": `import React from "react"; export const CardPreview = () => React.createElement("div", null, "Preview");`,
   "./CoverStep": `import React from "react"; export const CoverStep = () => null;`,
   "./InsideNoteStep": `import React from "react"; export const InsideNoteStep = () => null;`,
-  "./AddressStep": `import React from "react"; export const AddressStep = () => React.createElement("div", { "data-testid": "vending-address" });`,
+  "./AddressStep": `import React from "react"; import {useAuth} from "@/context/AuthContext";
+    export const AddressStep = (props) => {
+      const {user} = useAuth();
+      return <div data-testid="vending-address">
+        <input aria-label="Recipient first name" value={props.recipient.firstName} onChange={e => props.onChangeRecipient("firstName", e.target.value)} />
+        <button type="button" onClick={() => props.onChangeRecipientOccasion({ occasionType: "birthday", month: 4, day: 5 })}>Add birthday</button>
+        {user && <input aria-label="Save recipient" type="checkbox" checked={props.saveRecipientToAddressBook} onChange={e => props.onToggleSaveRecipient(e.target.checked)} />}
+      </div>;
+    };`,
   "./CheckoutStep": `import React from "react"; export const CheckoutStep = (props) => window.__renderParentPayment(props);`,
   "./FeedbackModal": `import React from "react"; export const FeedbackModal = () => null;`,
-  "./AuthModal": `import React from "react"; export const AuthModal = () => null;`,
+  "./AuthModal": `exports.AuthModal = () => null;`,
+  "@/components/AuthModal": `exports.AuthModal = () => null;`,
+  "@/lib/custom-cover-experiment": `exports.getCustomCoverAssignment = () => null; exports.recordCustomCoverEvent = () => {};`,
+
 };
 mockModules["lucide-react"] = `import React from "react"; ${[...iconNames].map((name) => `export const ${name} = (props) => React.createElement("span", props);`).join(" ")}`;
 
@@ -141,7 +165,11 @@ await build({
   plugins: [{
     name: "isolated-parent-dependencies",
     setup(pluginBuild) {
-      pluginBuild.onResolve({ filter: /^(next\/.*|lucide-react|@\/.*|\.\/.*)$/ }, (args) => {
+      pluginBuild.onResolve({ filter: /^(next\/.*|lucide-react|firebase\/auth|@\/.*|\.\/.*)$/ }, (args) => {
+        if (args.path === "@/context/AuthContext") return { path: path.join(sourceRoot, "context/AuthContext.tsx") };
+        if (args.path === "@/lib/multi-send/contracts") {
+          return { path: path.join(sourceRoot, args.path.slice(2) + ".ts") };
+        }
         if (args.path.startsWith("./") && !Object.hasOwn(mockModules, args.path)) return;
         return { path: args.path, namespace: "parent-mock" };
       });
@@ -157,6 +185,7 @@ await build({
 await fs.writeFile(path.join(tempDir, "index.html"), '<!doctype html><html><body><div id="root"></div><script src="bundle.js"></script></body></html>');
 const browser = await chromium.launch({ headless: true, ...(process.env.SMN_CHROMIUM_EXECUTABLE ? { executablePath: process.env.SMN_CHROMIUM_EXECUTABLE } : {}) });
 const page = await browser.newPage();
+page.setDefaultTimeout(5_000);
 page.on("pageerror", (error) => { throw error; });
 await page.route("**/*", async (route) => {
   const url = new URL(route.request().url());
@@ -166,20 +195,50 @@ await page.route("**/*", async (route) => {
 });
 
 async function reset({ kind = "entry", initialStep, draft, search = "" } = {}) {
-  await page.goto("http://smn-parent.test/");
+  await page.goto("http://localhost/");
   await page.evaluate(({ kind, initialStep, draft, search }) => {
     window.__calls = [];
     window.__draft = draft;
+    window.__people = new Map();
+    window.__occasions = new Map();
+    window.__loseOccasionResponse = false;
     window.__searchParams = new URLSearchParams(search);
     window.fetch = async (input, options = {}) => {
       const url = String(input);
       const body = options.body ? JSON.parse(options.body) : {};
-      window.__calls.push({ url, body });
+      const { Authorization: authorization, "Idempotency-Key": key, "x-view-token": viewToken } = options.headers ?? {};
+      window.__calls.push({ url, body, authorization, key, viewToken });
+      if (url === "/api/orders/signed-order/access") {
+        return viewToken === "synthetic-view-token"
+          ? Response.json({ readToken: "synthetic-read-token", returnTicket: "synthetic-return-ticket" })
+          : Response.json({ error: "missing checkout proof" }, { status: 403 });
+      }
+      if (url.startsWith("/api/account?")) {
+        return Response.json({ user: { savedAddresses: [] } });
+      }
+      if (url === "/api/account/people" || url === "/api/account/occasions") {
+        // Mirror the repository's owner-and-key scoped create-if-absent contract.
+        if (!authorization || !key || options.method !== "POST") throw new Error("Unscoped address-book write");
+        const usePeople = url.endsWith("/people");
+        const collection = usePeople ? window.__people : window.__occasions;
+        const id = authorization + ":" + key;
+        if (!usePeople && !window.__people.has(body.contactId)) throw new Error("Missing linked person");
+        if (!collection.has(id)) collection.set(id, { id, ...body });
+        if (!usePeople && window.__loseOccasionResponse) {
+          window.__loseOccasionResponse = false;
+          throw new Error("Synthetic lost response after the occasion committed");
+        }
+        return Response.json({ data: collection.get(id) }, { status: 201 });
+      }
       if (url === "/api/discount/validate") {
-        return window.__validateResponse ? window.__validateResponse(body) : new Response(JSON.stringify({ valid: true, code: body.code, type: "PERCENTAGE", value: body.code === "HALF" ? 50 : 100, discountAmountInCents: body.code === "HALF" ? 450 : 900, finalAmountInCents: body.code === "HALF" ? 450 : 0, isFree: body.code !== "HALF" }), { status: 200 });
+        const discountCents = body.code === "HALF" ? 450 : body.code === "FREE" ? 900 : 0;
+        return window.__validateResponse ? window.__validateResponse(body) : Response.json({
+          valid: true, code: body.code, type: "PERCENTAGE", value: discountCents / 9,
+          discountAmountInCents: discountCents, finalAmountInCents: 900 - discountCents, isFree: discountCents === 900,
+        });
       }
       if (url === "/api/checkout/create-intent") {
-        return window.__intentResponse ? window.__intentResponse(body) : new Response(JSON.stringify({ orderId: "free-order", clientSecret: null, isFree: true, amountInCents: 0, finalAmountInCents: 0, isMock: false }), { status: 200 });
+        return window.__intentResponse ? window.__intentResponse(body) : Response.json({ orderId: "free-order", clientSecret: null, discountCode: body.discountCode, isFree: true, amountInCents: 0, finalAmountInCents: 0, isMock: false });
       }
       return new Response("{}", { status: 200 });
     };
@@ -233,6 +292,94 @@ try {
   const prePayCalls = await page.evaluate(() => window.__calls);
   assert.equal(prePayCalls.filter((call) => call.url === "/api/checkout/create-intent").length, 0, "pre-pay URL validation does not create an intent or navigate");
   assert.ok(prePayCalls.some((call) => call.url === "/api/discount/validate"), "pre-pay URL code is validated");
+  await reset({ kind: "vending", initialStep: 3 });
+  await page.evaluate(() => window.__setViewer("A"));
+  const saveRecipient = page.getByRole("checkbox", { name: "Save recipient" });
+  const recipientName = page.getByRole("textbox", { name: "Recipient first name" });
+  await recipientName.fill("Riley");
+  assert.equal(await saveRecipient.isChecked(), false, "saving starts unchecked");
+  await saveRecipient.check();
+  await page.evaluate(() => { void window.__setViewer("B"); void window.__setViewer("A"); });
+  await page.waitForFunction(() => document.querySelector('[aria-label="Save recipient"]')?.checked === false);
+  await saveRecipient.check();
+  await page.evaluate(() => window.__setViewer(null));
+  await saveRecipient.waitFor({ state: "hidden" });
+  await page.evaluate(() => window.__setViewer("A"));
+  assert.equal(await saveRecipient.isChecked(), false, "sign-out clears consent");
+
+  await saveRecipient.check();
+  await recipientName.fill("Kai");
+  await recipientName.fill("Riley");
+  assert.equal(await saveRecipient.isChecked(), false, "changing away from and back to a recipient clears consent");
+  await page.evaluate(() => {
+    window.__intentResponse = () => Response.json({ orderId: "signed-order", viewToken: "synthetic-view-token", amountInCents: 900 });
+  });
+  await page.getByRole("button", { name: /Proceed to Payment/ }).click();
+  await page.getByTestId("parent-payment").waitFor();
+  assert.equal(await page.evaluate(() => window.__people.size), 0, "unchecked checkout does not write");
+  await page.evaluate(() => window.__latestPaymentProps.onSuccess("signed-order"));
+  assert.equal(await page.evaluate(() => window.__lastNavigation), "/order/signed-order#checkout=1",
+    "only genuine payment success marks an active checkout without putting its secret in the URL");
+
+  await page.getByRole("button", { name: "Previous Step" }).click();
+  await page.getByRole("button", { name: "Add birthday" }).click();
+  await saveRecipient.check();
+  await page.evaluate(() => {
+    window.__loseOccasionResponse = true;
+    window.__intentResponse = () => Response.json({ orderId: "signed-order", viewToken: "synthetic-view-token", amountInCents: 900 });
+    Storage.prototype.setItem = () => { throw new DOMException("Blocked", "SecurityError"); };
+    Storage.prototype.getItem = () => { throw new DOMException("Blocked", "SecurityError"); };
+  });
+  await page.getByRole("button", { name: /Proceed to/ }).click();
+  await page.getByTestId("parent-payment").waitFor();
+  assert.equal(await page.evaluate(() => window.__latestPaymentProps.viewToken), "synthetic-view-token", "blocked storage preserves the checkout token");
+  await page.evaluate(() => {
+    window.__latestPaymentProps.onRetryCheckout();
+    window.__latestPaymentProps.onRetryCheckout();
+  });
+  await page.waitForFunction(() => window.__calls.filter(call => call.url === "/api/account/occasions").length === 2 && !window.__latestPaymentProps.isUpdatingCheckout);
+  const saved = await page.evaluate(() => ({
+    people: [...window.__people.values()],
+    occasions: [...window.__occasions.values()],
+    attempts: window.__calls.filter(call => ["/api/account/people", "/api/account/occasions"].includes(call.url)),
+  }));
+  assert.equal(saved.people.length, 1);
+  assert.equal(saved.people[0].address.firstName, "Riley");
+  assert.equal(saved.occasions.length, 1);
+  assert.equal(saved.occasions[0].contactId, saved.people[0].id);
+  assert.equal(saved.attempts.length, 4, "simultaneous retry clicks start one recovery attempt");
+  assert.equal(new Set(saved.attempts.map(call => call.key)).size, 1, "both writes reuse the opt-in key on retry");
+  assert.ok(saved.attempts.every(call => call.authorization === "Bearer synthetic-token-A"));
+  await page.evaluate(() => window.__latestPaymentProps.onSuccess("signed-order"));
+  assert.equal(await page.evaluate(() => window.__lastNavigation), "/order/signed-order#read=synthetic-read-token",
+    "blocked storage exchanges the in-memory checkout token for a read-only tracker link");
+  assert.equal(await page.evaluate(() => window.__calls.find(call => call.url === "/api/orders/signed-order/access")?.viewToken),
+    "synthetic-view-token");
+
+  await page.getByRole("button", { name: "Previous Step" }).click();
+  await recipientName.fill("Kai");
+  await saveRecipient.check();
+  await page.getByRole("button", { name: /Proceed to/ }).click();
+  await page.getByTestId("parent-payment").waitFor();
+  assert.deepEqual(await page.evaluate(() => [...window.__people.values()].map(person => person.address.firstName)), ["Riley", "Kai"]);
+  assert.equal(await page.evaluate(() => window.__occasions.size), 1, "the original birthday stays with the original recipient");
+
+  await page.getByRole("button", { name: "Previous Step" }).click();
+  await recipientName.fill("Taylor");
+  await saveRecipient.check();
+  await page.evaluate(() => {
+    window.__intentResponse = () => new Promise(resolve => {
+      window.__releaseIntent = () => resolve(Response.json({ orderId: "racing-order", amountInCents: 900 }));
+    });
+  });
+  await page.getByRole("button", { name: /Proceed to/ }).click();
+  await page.waitForFunction(() => window.__releaseIntent);
+  await page.evaluate(() => { void window.__setViewer("B"); void window.__setViewer("A"); });
+  await page.waitForFunction(() => document.querySelector('[aria-label="Save recipient"]')?.checked === false);
+  await page.evaluate(() => window.__releaseIntent());
+  await page.getByTestId("parent-payment").waitFor();
+  assert.equal(await page.evaluate(() => window.__people.size), 2, "the earlier checkout cannot save after an account switch");
+  console.log("PASS intentional saving: UID and recipient changes, partial-write retry, distinct recipient, blocked storage");
   console.log("PASS parent checkout: repricing failure, free-code resume once, pre-pay URL offer timing");
 } finally {
   await browser.close();

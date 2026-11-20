@@ -1,3 +1,4 @@
+import { constantTimeStringEqual } from "@/lib/order-access-credentials";
 import { recordAcceptedAccountOrder } from "@/lib/account/order-association";
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -27,9 +28,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Checkout is temporarily unavailable.", code: "CHECKOUT_PAUSED" }, { status: 503 });
     }
     const body = await req.json();
-    const { orderId, discountCode, customerEmail } = body;
+    const { orderId, discountCode, customerEmail, viewToken } = body;
+    const checkoutToken = req.headers.get("x-view-token") ?? viewToken;
 
-    if (!orderId) {
+    if (typeof orderId !== "string" || !/^[A-Za-z0-9_-]{1,256}$/.test(orderId)) {
       return NextResponse.json({ error: "Missing order ID" }, { status: 400 });
     }
 
@@ -51,6 +53,9 @@ export async function POST(req: NextRequest) {
         }
 
         const existingOrder = orderDoc.data() as Order;
+        if (!existingOrder.viewToken || !constantTimeStringEqual(checkoutToken, existingOrder.viewToken)) {
+          throw new Error("ORDER_NOT_FOUND");
+        }
         if (existingOrder.multiSend?.kind === "parent") throw new Error("MULTI_SEND_REQUIRES_PAID_CHECKOUT");
         if ((existingOrder.contactPolicyVersion === 1 || existingOrder.contactEmailChoice) && (!existingOrder.contactEmailChoice || existingOrder.contactEmailSyncStatus !== "synced")) {
           throw new Error("CONTACT_COMMIT_PENDING");

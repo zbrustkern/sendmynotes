@@ -1,3 +1,4 @@
+import { constantTimeStringEqual, createOrderReadToken } from "@/lib/order-access-credentials";
 import { NextRequest, NextResponse } from "next/server";
 import { getOrderById, updateOrderStatus } from "@/lib/firebase-admin";
 import { processPaidOrder } from "@/lib/order-processor";
@@ -23,7 +24,7 @@ export async function POST(
       return NextResponse.json({ error: "Order not found" }, { status: 404 });
     }
     // Verify view token
-    if (!token || order.viewToken !== token) {
+    if (!order.viewToken || !token || !constantTimeStringEqual(token, order.viewToken)) {
       return NextResponse.json({ error: "Invalid or expired access token" }, { status: 401 });
     }
     if (order.multiSend?.kind === "parent") {
@@ -118,9 +119,10 @@ export async function POST(
     return NextResponse.json({
       success: true,
       orderId: id,
+      readToken: createOrderReadToken(id, order.viewToken),
       fulfillmentStatus: dispatchResult.status,
       handwryttenOrderId: dispatchResult.handwryttenOrderId,
-    });
+    }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Error completing recipient address";
     console.error("[Complete Address Error]", msg);

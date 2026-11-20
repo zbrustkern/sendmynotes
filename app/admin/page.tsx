@@ -1061,7 +1061,7 @@ export default function AdminDashboardPage() {
                         >
                           <div className="flex items-center justify-between gap-2 pb-2.5 border-b border-stone-100 min-w-0">
                             <Link
-                              href={`/order/${order.id}`}
+                              href={`/order/${order.id}?review=admin`}
                               className="font-mono text-xs font-bold text-stone-900 hover:text-amber-600 transition truncate min-w-0 flex items-center gap-1.5"
                               title={order.id}
                             >
@@ -1266,7 +1266,7 @@ export default function AdminDashboardPage() {
                                 </td>
                                 <td className="py-3 px-4">
                                   <Link
-                                    href={`/order/${order.id}`}
+                                    href={`/order/${order.id}?review=admin`}
                                     className="font-mono font-medium text-stone-900 hover:text-amber-600 hover:underline block"
                                   >
                                     {order.id}

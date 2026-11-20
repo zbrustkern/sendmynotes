@@ -1,19 +1,37 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { useParams, useSearchParams, useRouter } from "next/navigation";
+import React, { useState, useEffect, useRef } from "react";
+import { useParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { Mail, CheckCircle2, ArrowRight, ShieldCheck, Loader2, AlertCircle } from "lucide-react";
+import { privateOrderPath } from "@/lib/order-tracking-links";
 import { US_STATES } from "@/components/v3/Step3EnvelopeAddressing";
+
+function captureAddressToken(orderId: string): string | null {
+  const url = new URL(window.location.href);
+  const fragment = new URLSearchParams(url.hash.slice(1));
+  const saved = window.history.state?.__smnAddress;
+  const token = fragment.get("address") ?? url.searchParams.get("token")
+    ?? (saved?.orderId === orderId && saved.path === url.pathname ? saved.token : null);
+  if (fragment.has("address") || url.searchParams.has("token")) {
+    url.searchParams.delete("token");
+    fragment.delete("address");
+    url.hash = fragment.toString();
+    try {
+      window.history.replaceState({
+        ...window.history.state,
+        __smnAddress: { orderId, path: url.pathname, token },
+      }, "", url);
+    } catch { /* The mounted form keeps its captured credential in memory. */ }
+  }
+  return typeof token === "string" && token ? token : null;
+}
 
 function CompleteAddressPageContent() {
   const params = useParams();
-  const searchParams = useSearchParams();
-  const router = useRouter();
-
   const orderId = params?.id as string;
-  const token = searchParams.get("token") || "";
+  const credential = useRef<{ orderId: string; token: string | null } | null>(null);
 
   const [order, setOrder] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -27,43 +45,65 @@ function CompleteAddressPageContent() {
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isSuccess, setIsSuccess] = useState(false);
+  const [trackingPath, setTrackingPath] = useState<string | null>(null);
+  const [entryRevision, setEntryRevision] = useState(0);
+
+  useEffect(() => {
+    const onEntryChange = () => setEntryRevision((revision) => revision + 1);
+    window.addEventListener("popstate", onEntryChange);
+    window.addEventListener("hashchange", onEntryChange);
+    return () => {
+      window.removeEventListener("popstate", onEntryChange);
+      window.removeEventListener("hashchange", onEntryChange);
+    };
+  }, []);
 
   useEffect(() => {
     if (!orderId) return;
+    const token = captureAddressToken(orderId);
+    credential.current = { orderId, token };
+    setOrder(null);
+    setTrackingPath(null);
+    setError(null);
+    setSubmitError(null);
+    setSubmitting(false);
+    if (!token) {
+      setError("Open the private address link from checkout or your receipt.");
+      setLoading(false);
+      return;
+    }
 
-    fetch(`/api/orders/${orderId}?token=${encodeURIComponent(token)}`)
+    setLoading(true);
+    const controller = new AbortController();
+    const { signal } = controller;
+    fetch(`/api/orders/${encodeURIComponent(orderId)}`, {
+      headers: { "x-view-token": token }, cache: "no-store", signal,
+    })
       .then((res) => {
         if (!res.ok) throw new Error("Could not load your order. Please check your link.");
         return res.json();
       })
       .then((data) => {
-        setOrder(data.order);
-        if (data.order?.recipientAddress) {
-          if (data.order.recipientAddress.street1 && data.order.recipientAddress.street1 !== "••••••••") {
-            setStreet1(data.order.recipientAddress.street1);
-          }
-          if (data.order.recipientAddress.street2) {
-            setStreet2(data.order.recipientAddress.street2);
-          }
-          if (data.order.recipientAddress.city) {
-            setCity(data.order.recipientAddress.city);
-          }
-          if (data.order.recipientAddress.state) {
-            setState(data.order.recipientAddress.state);
-          }
-          if (data.order.recipientAddress.zip && data.order.recipientAddress.zip !== "•••••") {
-            setZip(data.order.recipientAddress.zip);
-          }
+        if (signal.aborted) return;
+        if (data.accessKind !== "checkout" || data.order?.isRedacted !== false) {
+          throw new Error("Open the private address link from checkout or your receipt.");
         }
+        const address = data.order.recipientAddress;
+        setOrder(data.order);
+        setStreet1(address?.street1 && address.street1 !== "••••••••" ? address.street1 : "");
+        setStreet2(address?.street2 || "");
+        setCity(address?.city || "");
+        setState(address?.state || "");
+        setZip(address?.zip && address.zip !== "•••••" ? address.zip : "");
       })
       .catch((err) => {
-        setError(err.message || "Failed to load order.");
+        if (!signal.aborted) setError(err.message || "Failed to load order.");
       })
       .finally(() => {
-        setLoading(false);
+        if (!signal.aborted) setLoading(false);
       });
-  }, [orderId, token]);
+    return () => controller.abort();
+  }, [orderId, entryRevision]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -86,14 +126,19 @@ function CompleteAddressPageContent() {
       return;
     }
 
+    const submittingCredential = credential.current;
+    const token = submittingCredential?.orderId === orderId ? submittingCredential.token : null;
+    if (!token) {
+      setSubmitError("Open the private address link from checkout or your receipt.");
+      return;
+    }
     setSubmitting(true);
 
     try {
-      const res = await fetch(`/api/orders/${orderId}/complete-address`, {
+      const res = await fetch(`/api/orders/${encodeURIComponent(orderId)}/complete-address`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-view-token": token },
         body: JSON.stringify({
-          token,
           street1,
           street2,
           city,
@@ -103,15 +148,19 @@ function CompleteAddressPageContent() {
       });
 
       const data = await res.json();
+      if (credential.current !== submittingCredential) return;
       if (!res.ok) {
         throw new Error(data.error || "Failed to save address.");
       }
 
-      setIsSuccess(true);
+      setTrackingPath(typeof data.readToken === "string" && data.readToken
+        ? privateOrderPath(orderId, data.readToken) : `/order/${encodeURIComponent(orderId)}`);
     } catch (err: any) {
-      setSubmitError(err.message || "Unable to save address. Please try again.");
+      if (credential.current === submittingCredential) {
+        setSubmitError(err.message || "Unable to save address. Please try again.");
+      }
     } finally {
-      setSubmitting(false);
+      if (credential.current === submittingCredential) setSubmitting(false);
     }
   };
 
@@ -164,7 +213,7 @@ function CompleteAddressPageContent() {
           </div>
         </header>
 
-        {isSuccess ? (
+        {trackingPath ? (
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-stone-200 shadow-sm text-center space-y-4 animate-in fade-in">
             <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto text-emerald-700">
               <CheckCircle2 className="w-7 h-7" />
@@ -177,7 +226,7 @@ function CompleteAddressPageContent() {
             </p>
             <div className="pt-2">
               <Link
-                href={`/order/${orderId}?token=${encodeURIComponent(token)}`}
+                href={trackingPath}
                 className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold rounded-xl shadow-xs transition"
               >
                 <span>Track Order Status</span>

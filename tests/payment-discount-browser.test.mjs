@@ -60,7 +60,7 @@ const mocks = {
   "@/lib/device-wallet": `exports.useDeviceWallet = () => ({ walletName: "Apple Pay", type: "apple", paymentNotice: "Test wallet" });`,
   "@/lib/payment-mode": `exports.evaluatePaymentSubmission = ({ isZeroCost, isMock, hasStripe, hasElements }) => isZeroCost ? { mode: "free" } : isMock ? { mode: "local_mock" } : hasStripe && hasElements ? { mode: "stripe" } : { mode: "blocked_error", errorMessage: "Payment processor unavailable" };`,
   "@/lib/telemetry": `exports.trackEvent = exports.trackEventV2 = () => {};`,
-  "@/lib/google-ads": `exports.trackGA4ViewItem = exports.trackGA4BeginCheckout = exports.trackGA4AddShippingInfo = exports.trackGA4AddPaymentInfo = () => {};`,
+  "@/lib/google-ads": `exports.markGoogleAdsCheckoutActive = exports.clearGoogleAdsCheckoutActive = exports.trackGA4ViewItem = exports.trackGA4BeginCheckout = exports.trackGA4AddShippingInfo = exports.trackGA4AddPaymentInfo = () => {};`,
   "@/lib/meta-ads": `exports.trackMetaViewContent = exports.trackMetaAddToCart = exports.trackMetaCustomizeProduct = exports.trackMetaInitiateCheckout = exports.trackMetaAddPaymentInfo = () => {};`,
   "@/context/AuthContext": `exports.useAuth = () => ({ user: null, account: null });`,
   "@/components/AttributionTracker": `exports.getStoredAttribution = () => ({});`,
@@ -85,7 +85,7 @@ await build({
   plugins: [{
     name: "isolated-browser-dependencies",
     setup(pluginBuild) {
-      pluginBuild.onResolve({ filter: /^(@stripe\/react-stripe-js|@stripe\/stripe-js|next\/image|next\/navigation|lucide-react|@\/.*)$/ }, (args) => ({ path: args.path, namespace: "smn-mock" }));
+      pluginBuild.onResolve({ filter: /^(@stripe\/react-stripe-js|@stripe\/stripe-js|next\/image|next\/navigation|lucide-react|@\/.*)$/ }, (args) => Object.hasOwn(mocks, args.path) ? { path: args.path, namespace: "smn-mock" } : undefined);
       pluginBuild.onLoad({ filter: /.*/, namespace: "smn-mock" }, (args) => ({ contents: mocks[args.path] || "exports.__esModule = true;", loader: "js", resolveDir: root }));
     },
   }],
@@ -181,7 +181,7 @@ async function verifySuite(kind) {
   assert.equal(removeEnabledSubmits, 0, `${kind}: payment submit is blocked while discount removal is pending`);
   if (kind === "v3") assert.equal(await page.getByTestId("wallet-pay").count(), 0, "v3: wallet element is withheld while discount removal is pending");
   await page.evaluate(() => window.__resolveRemove());
-  await page.waitForFunction(() => window.__providerMounts.includes("seti_full_900"));
+  await page.waitForFunction(() => window.__providerMounts.at(-1) === "seti_full_900");
   assert.match(await totalText(), /\$9\.00/, `${kind}: removing a discount restores $9`);
 
   if (kind === "v3") await page.getByText("+ Have a voucher or promo code?").click();
@@ -202,7 +202,7 @@ async function verifySuite(kind) {
   await page.waitForFunction(() => document.querySelector('[data-testid="payment-element"]'), undefined, { timeout: 3000 }).catch(async () => {
     throw new Error(`${kind}: payment fields did not return after free voucher removal; body=${(await page.locator("body").innerText()).slice(-700)}`);
   });
-  await page.waitForFunction(() => window.__providerMounts.includes("seti_full_900"));
+  await page.waitForFunction(() => window.__providerMounts.at(-1) === "seti_full_900");
   assert.match(await totalText(), /\$9\.00/, `${kind}: removing free voucher restores a payable $9 order`);
 
   await reset(kind, { isMock: true, clientSecret: null });

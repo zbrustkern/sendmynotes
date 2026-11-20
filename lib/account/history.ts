@@ -75,6 +75,10 @@ function belongsToActor(order: Order, actor: AccountActor) {
   return actor.emailVerified && Boolean(actor.email) && order.customerEmail?.trim().toLowerCase() === actor.email.trim().toLowerCase();
 }
 
+export function canReadAccountOrder(order: Order, actor: AccountActor): boolean {
+  return paidAndEligible(order) && belongsToActor(order, actor);
+}
+
 async function ownedOrders(actor: AccountActor, cursor?: Cursor): Promise<{ orders: Order[]; more: boolean; lastScanned: Cursor | null }> {
   const collection = getOrdersCollection();
   let cursorSnapshot: Awaited<ReturnType<ReturnType<typeof collection.doc>['get']>> | undefined;
@@ -99,7 +103,7 @@ async function ownedOrders(actor: AccountActor, cursor?: Cursor): Promise<{ orde
     const order = doc.data() as Order;
     const before = orderDate(order?.createdAt);
     if (before !== null) scanned.push({ before, id: doc.id });
-    if (order?.id && belongsToActor(order, actor) && paidAndEligible(order)) unique.set(doc.id, order);
+    if (order?.id && canReadAccountOrder(order, actor)) unique.set(doc.id, order);
   }
   // The oldest scanned position is a safe shared cursor across UID and legacy
   // email queries. This lets a page advance past rejected explicit-owner email
@@ -130,9 +134,7 @@ export async function getAccountHistoryOrder(actor: AccountActor, id: string): P
   if (!/^[A-Za-z0-9_-]{1,128}$/.test(safeId)) return null;
   const snapshot = await getOrdersCollection().doc(safeId).get();
   const order = snapshot.data() as Order | undefined;
-  if (!order || !paidAndEligible(order)) return null;
-  const owner = belongsToActor(order, actor);
-  if (!owner) return null;
+  if (!order || !canReadAccountOrder(order, actor)) return null;
   const safePublicFront = typeof order.frontImageUrl === 'string' && /^\/presets\/[A-Za-z0-9_.-]+\.(?:png|jpe?g|webp)$/i.test(order.frontImageUrl) ? order.frontImageUrl : null;
   const projected = project(order);
   if (order.multiSend) projected.multiSendView = projectMultiSendView(order, await listMultiSendDeliveries(order.id), true);

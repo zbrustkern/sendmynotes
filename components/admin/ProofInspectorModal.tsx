@@ -255,7 +255,7 @@ export function ProofInspectorModal({ orderId, onClose }: ProofInspectorModalPro
         {/* Footer */}
         <div className="px-3 sm:px-6 py-3 border-t border-stone-200 bg-stone-50 flex items-center justify-between gap-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <Link
-            href={`/order/${orderId}`}
+            href={`/order/${orderId}?review=admin`}
             target="_blank"
             className="text-xs font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-1"
           >

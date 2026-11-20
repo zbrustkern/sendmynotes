@@ -24,6 +24,8 @@ import {
 import { calculateDeliveryEstimate } from "@/lib/delivery-estimate";
 import { useDeviceWallet } from "@/lib/device-wallet";
 import { evaluatePaymentSubmission } from "@/lib/payment-mode";
+import { fetchOrderAccess, paymentReturnPath } from "@/lib/order-tracking-links";
+import { markGoogleAdsCheckoutActive, clearGoogleAdsCheckoutActive } from "@/lib/google-ads";
 
 export interface AppliedDiscountInfo {
   code: string;
@@ -37,6 +39,7 @@ export interface AppliedDiscountInfo {
 
 interface CheckoutStepProps {
   orderId: string;
+  viewToken?: string | null;
   clientSecret: string | null;
   publishableKey?: string | null;
   customerEmail: string;
@@ -55,6 +58,7 @@ interface CheckoutStepProps {
 
 function InnerPaymentForm({
   orderId,
+  viewToken,
   customerEmail,
   onChangeCustomerEmail,
   onSuccess,
@@ -136,7 +140,7 @@ function InnerPaymentForm({
       try {
         const res = await fetch("/api/checkout/complete-free-order", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
           body: JSON.stringify({
             orderId,
             discountCode: appliedDiscount?.code,
@@ -181,7 +185,7 @@ function InnerPaymentForm({
       try {
         const confirmRes = await fetch("/api/checkout/confirm-order", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
           body: JSON.stringify({
             orderId,
             paymentIntentId: `pi_mock_${orderId}`,
@@ -217,16 +221,21 @@ function InnerPaymentForm({
     }
 
     try {
+      if (!viewToken) throw new Error("Your private order return link is unavailable. Refresh checkout and try again.");
+      const access = await fetchOrderAccess(orderId, viewToken);
+      const returnUrl = new URL(paymentReturnPath(orderId, access.returnTicket), window.location.origin).toString();
+      markGoogleAdsCheckoutActive(orderId, viewToken);
       const { error, paymentIntent } = await stripe.confirmPayment({
         elements,
         confirmParams: {
-          return_url: `${window.location.origin}/order/${orderId}`,
+          return_url: returnUrl,
           receipt_email: customerEmail,
         },
         redirect: "if_required",
       });
 
       if (error) {
+        clearGoogleAdsCheckoutActive(orderId);
         trackEventV2("payment_failed", {
           errorCategory: error.type || "card_error", errorCode: error.code || "unknown",
         }, { orderId });
@@ -236,7 +245,7 @@ function InnerPaymentForm({
         try {
           await fetch("/api/checkout/confirm-order", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", "x-view-token": viewToken || "" },
             body: JSON.stringify({
               orderId,
               paymentIntentId: paymentIntent.id,
@@ -250,6 +259,7 @@ function InnerPaymentForm({
         onSuccess(orderId);
       }
     } catch (err: unknown) {
+      clearGoogleAdsCheckoutActive(orderId);
       const msg = err instanceof Error ? err.message : "Payment error occurred";
       setErrorMessage(msg);
       setIsProcessing(false);

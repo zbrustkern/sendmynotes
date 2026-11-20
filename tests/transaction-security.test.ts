@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import { POST as stripeWebhookPost } from "../app/api/webhooks/stripe/route";
 import { POST as confirmOrderPost } from "../app/api/checkout/confirm-order/route";
+import { POST as completeFreeOrderPost } from "../app/api/checkout/complete-free-order/route";
 import { processPaidOrder } from "../lib/order-processor";
 import {
   saveOrder,
@@ -10,6 +11,7 @@ import {
 } from "../lib/firebase-admin";
 import { Order } from "../lib/types";
 import { CARD_FLAT_RATE_CENTS } from "../lib/stripe";
+import { createOrderReadToken } from "../lib/order-access-credentials";
 
 async function runSecurityTests() {
   console.log("=================================================");
@@ -111,6 +113,7 @@ async function runSecurityTests() {
   const testOrderId = `order_sec_test_${Date.now()}`;
   const baseOrder: Order = {
     id: testOrderId,
+    viewToken: "synthetic-checkout-token",
     customerEmail: "victim@example.com",
     frontImageUrl: "https://example.com/cover.jpg",
     printedMessage: "Happy Birthday!",
@@ -140,19 +143,64 @@ async function runSecurityTests() {
 
   await saveOrder(baseOrder);
 
-  // 2A. Missing paymentIntentId fails closed
-  const missingPiReq = new NextRequest("http://localhost:3000/api/checkout/confirm-order", {
+  const confirmRequest = (body: object, token?: string) => confirmOrderPost(new NextRequest("http://localhost:3000/api/checkout/confirm-order", {
     method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ orderId: testOrderId }),
-  });
+    headers: { "content-type": "application/json", ...(token ? { "x-view-token": token } : {}) },
+    body: JSON.stringify(body),
+  }));
+  const { viewToken: _, ...legacyOrder } = { ...baseOrder, id: `legacy_${testOrderId}`, stripePaymentId: "pi_legacy_fixture" };
+  await saveOrder(legacyOrder);
+  const checkoutOrder = { ...baseOrder, stripePaymentId: "pi_confirm_boundary_fixture" };
+  await saveOrder(checkoutOrder);
+  for (const [label, target, token, verifyOnly, bodyToken] of [
+    ["bare order ID", testOrderId, undefined, false],
+    ["bare verify-only", testOrderId, undefined, true],
+    ["wrong header proof", testOrderId, "another-order-token", false],
+    ["wrong body proof", testOrderId, undefined, false, "another-order-token"],
+    ["conflicting header and body", testOrderId, "another-order-token", false, baseOrder.viewToken],
+    ["read-only proof", testOrderId, createOrderReadToken(testOrderId, baseOrder.viewToken!)!, true],
+    ["tokenless legacy order", legacyOrder.id, baseOrder.viewToken, false],
+    ["unknown order", "unknown_order_fixture", baseOrder.viewToken, false],
+  ] as const) {
+    const denied = await confirmRequest({ orderId: target, verifyOnly, viewToken: bodyToken }, token);
+    const deniedBody = await denied.json();
+    assert(denied.status === 403 && deniedBody.error === "Checkout proof is required." && !deniedBody.viewToken
+      && denied.headers.get("Cache-Control")?.includes("no-store") === true, `Confirmation rejects ${label} uniformly before payment verification`);
+  }
+  const untouched = await getOrderById(testOrderId);
+  assert(untouched?.updatedAt === checkoutOrder.updatedAt && untouched.status === "PENDING_PAYMENT" && !untouched.fulfillmentError,
+    "Denied confirmation leaves the stored payment untouched");
+  await saveOrder(baseOrder);
 
-  const missingPiRes = await confirmOrderPost(missingPiReq);
-  const missingPiData = await missingPiRes.json();
-  assert(
-    missingPiRes.status === 400 && missingPiData.success === false,
-    `Missing paymentIntentId fails closed with HTTP 400 (Status: ${missingPiRes.status})`
-  );
+  for (const source of ["header", "body"] as const) {
+    const missingPi = await confirmRequest({
+      orderId: testOrderId,
+      ...(source === "body" ? { viewToken: baseOrder.viewToken } : {}),
+    }, source === "header" ? baseOrder.viewToken : undefined);
+    const body = await missingPi.json();
+    assert(missingPi.status === 400 && body.status === "PAYMENT_VERIFICATION_FAILED",
+      `An exact ${source} token reaches payment validation while a missing payment intent fails closed`);
+  }
+
+  const terminalFree = {
+    ...baseOrder, id: `free_${testOrderId}`, status: "PROCESSING_HANDWRYTTEN" as const,
+    amountInCents: 0, finalAmountInCents: 0,
+  };
+  await saveOrder(terminalFree);
+  const freeRequest = (viewToken?: string, headerToken?: string) => completeFreeOrderPost(new NextRequest(
+    "http://localhost:3000/api/checkout/complete-free-order", {
+      method: "POST",
+      headers: { "content-type": "application/json", ...(headerToken ? { "x-view-token": headerToken } : {}) },
+      body: JSON.stringify({ orderId: terminalFree.id, viewToken }),
+    },
+  ));
+  const freeBodyProof = await freeRequest(terminalFree.viewToken);
+  assert(freeBodyProof.status === 200 && (await freeBodyProof.json()).alreadyProcessed,
+    "An exact legacy body token can reopen a terminal free checkout");
+  assert((await freeRequest()).status === 404, "Free checkout requires proof");
+  assert((await freeRequest("another-order-token")).status === 404, "Free checkout rejects incorrect body proof");
+  assert((await freeRequest(terminalFree.viewToken, "another-order-token")).status === 404,
+    "Incorrect header proof takes precedence over a correct free checkout body token");
 
   const orderAfterMissingPi = await getOrderById(testOrderId);
   assert(

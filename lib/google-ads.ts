@@ -28,7 +28,7 @@ function destinationAllowed(): boolean {
   return host === "sendmynotes.com" || host === "www.sendmynotes.com";
 }
 
-function consentAllowed(consent?: { gpc?: boolean; optOut?: boolean }): boolean {
+export function purchaseConsentAllowed(consent?: { gpc?: boolean; optOut?: boolean }): boolean {
   const currentGpc = typeof navigator !== "undefined" && (navigator as Navigator & { globalPrivacyControl?: boolean }).globalPrivacyControl === true;
   return !consent?.gpc && !consent?.optOut && !currentGpc && destinationAllowed();
 }
@@ -243,7 +243,7 @@ export function trackGoogleAdsPurchase(params: {
   if (!measurement || !measurement.eligible || measurement.transactionId !== params.orderId ||
       !Number.isInteger(measurement.amountInCents) || measurement.amountInCents <= 0 ||
       measurement.currency !== "USD" || !hasGoogleAdsCheckoutProof(params.orderId) ||
-      !consentAllowed(params.consent)) {
+      !purchaseConsentAllowed(params.consent)) {
     return "suppressed";
   }
 
@@ -257,7 +257,7 @@ export function trackGoogleAdsPurchase(params: {
   inFlight.add(key);
 
   const send = (attempt: number) => {
-    if (!consentAllowed(params.consent) || !hasGoogleAdsCheckoutProof(params.orderId)) {
+    if (!purchaseConsentAllowed(params.consent) || !hasGoogleAdsCheckoutProof(params.orderId)) {
       inFlight.delete(key);
       return false;
     }
@@ -317,7 +317,7 @@ function queueGA4Purchase(orderId: string, amountInCents: number, consent?: { gp
     gaInFlight.add(key);
   }
   const win = window as unknown as { gtag?: (...args: unknown[]) => void };
-  if (!consentAllowed(consent)) { gaInFlight.delete(key); observeQueue(orderId, "ga4", "suppressed"); return; }
+  if (!purchaseConsentAllowed(consent)) { gaInFlight.delete(key); observeQueue(orderId, "ga4", "suppressed"); return; }
   try {
     if (typeof win.gtag !== "function") throw new Error("tag_unavailable");
     win.gtag("event", "purchase", { transaction_id: orderId, value: amountInCents / 100, currency: "USD", items: [{ item_id: "sendmynotes-card", item_name: "Custom Folded Handwritten Card", price: amountInCents / 100 / itemCount, quantity: itemCount, item_category: "Handwritten Card" }] });

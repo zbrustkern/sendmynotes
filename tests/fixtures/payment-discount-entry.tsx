@@ -25,6 +25,7 @@ declare global {
 const defaultDiscount = null;
 const common = {
   orderId: "test-order",
+  viewToken: "local-test",
   publishableKey: "pk_test_browser_harness",
   customerEmail: "sender@example.test",
   onChangeCustomerEmail: () => {},
@@ -88,7 +89,10 @@ window.__retryCount = 0;
 window.fetch = async (input: RequestInfo | URL, options: RequestInit = {}) => {
   const url = String(input);
   window.__fetchCalls.push({ url, options });
-  return { ok: true, json: async () => ({ success: true, viewToken: "local-test", status: "CONFIRMED" }) } as Response;
+  const body = url.endsWith("/access")
+    ? { readToken: "fixture-read", returnTicket: "fixture-return" }
+    : { success: true, status: "CONFIRMED" };
+  return { ok: true, json: async () => body } as Response;
 };
 window.__updateProps = (patch: Record<string, any>) => {
   window.__props = { ...window.__props, ...patch };

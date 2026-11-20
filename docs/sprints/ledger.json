@@ -368,6 +368,20 @@
       "staging_revision": "da3095b56640b45faf63709fb34a95d177a8ffa2",
       "production_revision": "2a9a891a2307219fc75451a0cd4468fc5dd3899a",
       "release_receipt": "docs/sprints/evidence/SPRINT-0032/RELEASE.json"
+    },
+    {
+      "id": "SPRINT-0034",
+      "title": "Private order tracking and address-book repair",
+      "status": "implemented",
+      "path": "docs/sprints/SPRINT-0034.md",
+      "proposal": "docs/ADDRESS_BOOK_PRIVACY_RCA_2026-11-19.md",
+      "release_target": "production",
+      "acceptance_status": "staging_verified",
+      "verified_implementation_revision": "ea792e72914bc9e0fb22518908ebd64860d5cb06",
+      "production_rollout": "approved",
+      "founder_cleanup": "approved_four_soft_deletions",
+      "evidence": "docs/sprints/evidence/SPRINT-0034/REVIEW.md",
+      "updated_at": "2026-11-19"
     }
   ]
 }

@@ -1,3 +1,4 @@
+import { checkoutOrderPath } from "@/lib/order-tracking-links";
 import { validateFollowupLinkForCheckout } from "@/lib/post-purchase/attribution";
 import { resolveAccountOrderAssociation } from "@/lib/account/order-association";
 import { AccountError, accountError } from "@/lib/account/http";
@@ -114,7 +115,7 @@ export async function POST(req: NextRequest) {
           if (pi.status === "succeeded" || pi.status === "processing" || pi.status === "canceled") {
             await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
             activeMultiSendClaim = null;
-            const orderPath = `/order/${encodeURIComponent(existingOrder.id)}?token=${encodeURIComponent(existingOrder.viewToken || "")}`;
+            const orderPath = checkoutOrderPath(existingOrder.id, existingOrder.viewToken);
             return NextResponse.json({ error: "This payment is already complete or closed. Reopening the order to view its latest status.", code: "MULTI_SEND_PAYMENT_CLOSED", orderId: existingOrder.id, viewToken: existingOrder.viewToken, orderPath }, { status: 409 });
           }
           if (!savedQuoteIntegrity.valid) {
@@ -123,7 +124,7 @@ export async function POST(req: NextRequest) {
             await releaseOfferReservation(existingOrder.id, "expired");
             await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
             activeMultiSendClaim = null;
-            const orderPath = `/order/${encodeURIComponent(existingOrder.id)}?token=${encodeURIComponent(existingOrder.viewToken || "")}`;
+            const orderPath = checkoutOrderPath(existingOrder.id, existingOrder.viewToken);
             return NextResponse.json({ error: "This offer quote expired before payment. Its payment was closed; reopening the order so you can review its status.", code: "MULTI_SEND_OFFER_QUOTE_EXPIRED", orderId: existingOrder.id, viewToken: existingOrder.viewToken, orderPath }, { status: 409 });
           }
           existingPayment = { clientSecret: pi.client_secret, paymentIntentId: pi.id, isMock: false };
@@ -133,7 +134,7 @@ export async function POST(req: NextRequest) {
             await releaseOfferReservation(existingOrder.id, "expired");
             await blockMultiSendCheckout(multiSend.checkoutId, retryLease);
             activeMultiSendClaim = null;
-            const orderPath = `/order/${encodeURIComponent(existingOrder.id)}?token=${encodeURIComponent(existingOrder.viewToken || "")}`;
+            const orderPath = checkoutOrderPath(existingOrder.id, existingOrder.viewToken);
             return NextResponse.json({ error: "This offer quote expired before payment. Its payment was closed; reopening the order so you can review its status.", code: "MULTI_SEND_OFFER_QUOTE_EXPIRED", orderId: existingOrder.id, viewToken: existingOrder.viewToken, orderPath }, { status: 409 });
           }
           existingPayment = await createCardPaymentIntent({ orderId, amountInCents: existingOrder.amountInCents, idempotencyKey: `multi-send-${multiSend.checkoutId}-${requestContentHash.slice(0, 32)}`, metadata: { quoteVersion: existingOrder.quote?.version || "multi-send-900-v1", quotedTotalCents: String(existingOrder.amountInCents), itemCount: String(existingOrder.multiSend.recipients.length), contentRevision: requestContentHash, ...(existingOrder.discountCode ? { discountCode: existingOrder.discountCode, discountAmountCents: String(existingOrder.discountAmountInCents || 0), quoteId: existingOrder.quoteId || "" } : {}) } });
@@ -187,7 +188,7 @@ export async function POST(req: NextRequest) {
           if (oldIntent.status === "succeeded" || oldIntent.status === "processing") {
             await blockMultiSendCheckout(multiSend.checkoutId, claim.leaseId);
             activeMultiSendClaim = null;
-            const orderPath = `/order/${encodeURIComponent(prior.id)}?token=${encodeURIComponent(prior.viewToken || "")}`;
+            const orderPath = checkoutOrderPath(prior.id, prior.viewToken);
             return NextResponse.json({ error: "The previous payment may have completed. Reopening its order so you can view the latest status.", code: "MULTI_SEND_LATE_PAYMENT", orderId: prior.id, viewToken: prior.viewToken, orderPath }, { status: 409 });
           }
           if (oldIntent.status !== "canceled") await stripe.paymentIntents.cancel(oldIntent.id);

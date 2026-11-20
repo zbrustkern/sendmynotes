@@ -369,6 +369,7 @@ async function runSenderValidationTests() {
     await saveOrder({
       ...defectiveOrder,
       id: defectiveFreeOrderId,
+      viewToken: "synthetic-free-checkout-token",
       amountInCents: 0,
       discountCode: freeCode,
       quoteId: freeQuote.quote.quoteId,
@@ -381,6 +382,7 @@ async function runSenderValidationTests() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         orderId: defectiveFreeOrderId,
+        viewToken: "synthetic-free-checkout-token",
         discountCode: freeCode,
         customerEmail: "victim@example.com",
       }),

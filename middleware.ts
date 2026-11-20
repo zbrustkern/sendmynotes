@@ -9,4 +9,4 @@ export function middleware(_request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/comp-payment/:path*"] };
+export const config = { matcher: ["/comp-payment/:path*", "/order/:path*", "/orders/:path*"] };
