@@ -176,7 +176,7 @@ env:
     value: "false"
     availability: [BUILD, RUNTIME]
   - variable: WEDDING_AI_TEXT_MODEL
-    value: gemini-2.5-flash
+    value: gemini-3.8-flash
     availability: [RUNTIME]
   - variable: WEDDING_SCHEDULER_IDENTITY
     value: wedding-reconciler@sendmynotes-2a417.iam.gserviceaccount.com
@@ -184,6 +184,7 @@ env:
   - variable: WEDDING_SCHEDULER_AUDIENCE
     value: https://sendmynotes.com/api/cron/wedding-reconcile
     availability: [RUNTIME]
+  # Automated fenced batch dispatch default once live; set to "manual_release" as an optional operational brake (can also pause/release in /admin).
   - variable: WEDDING_DISPATCH_MODE
-    value: manual_release
+    value: auto
     availability: [RUNTIME]
