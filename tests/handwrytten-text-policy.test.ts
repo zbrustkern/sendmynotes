@@ -16,6 +16,9 @@ import {
   type WeddingProject,
 } from '../lib/wedding/domain';
 import { validateWeddingDraftOutput } from '../lib/wedding/ai-schema';
+import { buildSingleStepOrderPayload } from '../lib/handwrytten';
+import { ALL_SUPPORTED_WEDDING_FONT_IDS, WEDDING_BRIDAL_FONTS, WEDDING_DEFAULT_FONT_ID } from '../lib/wedding/fonts';
+import { projectPatch } from '../lib/wedding/validation';
 
 let checks = 0;
 function check(label: string, fn: () => void) {
@@ -83,20 +86,44 @@ check('detects and dedupes emojis, pictographs, dingbats, zero-width, and contro
   assert.match(fit.issues[0], /Real pens can’t draw emojis.*remove ❤️ to continue/);
 });
 
-check('resolves all 5 verified fonts and numeric/label aliases with calibrated metrics', () => {
+check('resolves all 10 bridal fonts, 4 legacy fonts, and numeric/label aliases with calibrated metrics', () => {
   const expected: Array<[string, string, number]> = [
     ['hwDavid', 'Casual David', 0.60],
     ['1', 'Casual David', 0.60],
     ['Casual David', 'Casual David', 0.60],
+    ['font-casual', 'Casual David', 0.60],
     ['hwChase', 'Charming Chase', 0.55],
     ['2', 'Charming Chase', 0.55],
     ['Charming Chase', 'Charming Chase', 0.55],
+    ['font-calligraphy', 'Charming Chase', 0.55],
     ['hwKate', 'Carefree Kate', 0.60],
     ['3', 'Carefree Kate', 0.60],
+    ['Carefree Kate', 'Carefree Kate', 0.60],
     ['hwAdam', 'Executive Adam', 0.60],
     ['4', 'Executive Adam', 0.60],
+    ['Executive Adam', 'Executive Adam', 0.60],
+    ['font-classic', 'Executive Adam', 0.60],
     ['hwWill', 'Dapper Will', 0.60],
     ['5', 'Dapper Will', 0.60],
+    ['Dapper Will', 'Dapper Will', 0.60],
+    ['hwAnita', 'Ambitious Anita', 0.70],
+    ['Ambitious Anita', 'Ambitious Anita', 0.70],
+    ['hwSeraphim', 'Sweet Seraphim', 0.70],
+    ['Sweet Seraphim', 'Sweet Seraphim', 0.70],
+    ['hwDarleen', "Darlin' Darleen", 0.65],
+    ["Darlin' Darleen", "Darlin' Darleen", 0.65],
+    ['hwJenna', 'Fancy Jenna', 0.60],
+    ['Fancy Jenna', 'Fancy Jenna', 0.60],
+    ['hwRuthie', 'Loopy Ruthie', 0.70],
+    ['Loopy Ruthie', 'Loopy Ruthie', 0.70],
+    ['hwCaitlin', 'Cozy Caitlin', 0.60],
+    ['Cozy Caitlin', 'Cozy Caitlin', 0.60],
+    ['hwMadeline', 'Merry Madeline', 0.50],
+    ['Merry Madeline', 'Merry Madeline', 0.50],
+    ['hwJonathan', 'Genuine Jonathan', 0.70],
+    ['Genuine Jonathan', 'Genuine Jonathan', 0.70],
+    ['hwCharity', 'Chill Charity', 0.60],
+    ['Chill Charity', 'Chill Charity', 0.60],
   ];
   for (const [alias, label, lineSpacing] of expected) {
     assert.ok(HANDWRYTTEN_FONT_METRICS[alias], `Missing metric alias ${alias}`);
@@ -108,6 +135,9 @@ check('resolves all 5 verified fonts and numeric/label aliases with calibrated m
     assert.equal(metric.maxExplicitBreaks, 8);
     assert.equal(metric.maxChars, 450);
   }
+  assert.equal(resolveHandwryttenFontMetric('ambitious anita').id, 'hwAnita');
+  assert.equal(resolveHandwryttenFontMetric("DARLIN' DARLEEN").id, 'hwDarleen');
+  assert.equal(resolveHandwryttenFontMetric('chill charity').id, 'hwCharity');
 });
 
 check('2D width weighting wraps wide uppercase faster than narrow letters and differs across fonts', () => {
@@ -132,10 +162,15 @@ check('449-450 char single-paragraph note in hwDavid fits within 11 lines with c
   const note449 =
     'Thank you so much for celebrating our wedding day with us and for the gorgeous linen table runner. We set it out in our dining room right away and smiled thinking of all the dinners we will share around that table. Your warmth, generosity, and encouragement over the years have meant everything to both of us, and we feel so lucky to have you in our lives as we begin this new chapter together. We hope to see you soon for coffee and catching up.';
   assert.ok(note449.length >= 445 && note449.length <= 450);
-  const fit = analyzeHandwryttenFit(note449, 'hwDavid');
-  assert.equal(fit.fits, true);
-  assert.equal(fit.status, 'cozy');
-  assert.ok(fit.wrappedLines <= 11);
+  for (const fontId of ['hwDavid', WEDDING_DEFAULT_FONT_ID] as const) {
+    const fit = analyzeHandwryttenFit(note449, fontId);
+    assert.equal(fit.fits, true, `note449 should fit in ${fontId}`);
+    assert.equal(fit.status, 'cozy', `note449 should be cozy in ${fontId}`);
+    assert.ok(fit.wrappedLines <= 11, `note449 wrappedLines <= 11 in ${fontId}`);
+    const repeat450 = analyzeHandwryttenFit('x'.repeat(450), fontId);
+    assert.equal(repeat450.fits, true, `450-char single token should fit in ${fontId}`);
+    assert.ok(repeat450.wrappedLines <= 11);
+  }
 });
 
 check('enforces max 8 explicit line breaks and soft/hard wrapped line limits', () => {
@@ -201,6 +236,53 @@ check('AI draft output validation sanitizes punctuation and rejects emojis and 2
     () => validateWeddingDraftOutput({ suggestions: [{ id: 'r1', text: tooManyBreaks }] }, inputs, 'hwDavid'),
     (e: any) => e.code === 'note_overflow',
   );
+});
+
+check('buildSingleStepOrderPayload maps all 10 bridal fonts and legacy entries to exact Handwrytten font_labels', () => {
+  const baseParams = {
+    imageUrl: '/presets/thank-you-botanical.jpg',
+    handwrittenMessage: 'Thank you so much for celebrating with us.',
+    recipient: { firstName: 'Maya', lastName: 'Lin', street1: '1 Main St', city: 'Chicago', state: 'IL', zip: '60601', country: 'US' },
+    returnAddress: { firstName: 'Sam', lastName: 'Lee', street1: '2 Oak St', city: 'Chicago', state: 'IL', zip: '60601', country: 'US' },
+  };
+  for (const bridal of WEDDING_BRIDAL_FONTS) {
+    const payload = buildSingleStepOrderPayload({ ...baseParams, fontId: bridal.id }, 'card_1', true);
+    assert.equal(payload.font_label, bridal.handwryttenLabel, `bridal font ${bridal.id}`);
+  }
+  const legacyCases: Array<[string, string]> = [
+    ['hwChase', 'Charming Chase'],
+    ['hwKate', 'Carefree Kate'],
+    ['hwAdam', 'Executive Adam'],
+    ['hwCharity', 'Chill Charity'],
+    ['1', 'Casual David'],
+    ['2', 'Charming Chase'],
+    ['3', 'Carefree Kate'],
+    ['4', 'Executive Adam'],
+    ['5', 'Dapper Will'],
+    ['font-casual', 'Casual David'],
+    ['font-calligraphy', 'Charming Chase'],
+    ['font-classic', 'Executive Adam'],
+  ];
+  for (const [fontId, expectedLabel] of legacyCases) {
+    const payload = buildSingleStepOrderPayload({ ...baseParams, fontId }, 'card_1', true);
+    assert.equal(payload.font_label, expectedLabel, `legacy font ${fontId}`);
+  }
+});
+
+check('projectPatch handwriting validation accepts all 10 bridal + 4 legacy fonts and rejects invalid IDs', () => {
+  const project = makeProject(WEDDING_DEFAULT_FONT_ID);
+  assert.equal(ALL_SUPPORTED_WEDDING_FONT_IDS.length, 14);
+  for (const fontId of ALL_SUPPORTED_WEDDING_FONT_IDS) {
+    const updated = projectPatch(project, { handwriting: fontId });
+    assert.equal(updated.handwriting, fontId);
+  }
+  for (const invalid of ['', 'hwUnknown', 'Ambitious Anita', 'comic-sans']) {
+    assert.throws(
+      () => projectPatch(project, { handwriting: invalid }),
+      (e: any) => e.code === 'invalid_handwriting',
+      `expected rejection for ${invalid}`,
+    );
+  }
 });
 
 console.log(`Passed ${checks} handwrytten-text-policy checks.`);

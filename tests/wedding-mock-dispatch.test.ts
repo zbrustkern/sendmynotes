@@ -209,7 +209,7 @@ async function prepare() {
     assert.equal(proof.payload.sender.firstName, "Sam and Alex");
     assert.equal(proof.payload.sender.country, "US");
     assert.equal(proof.payload.sender.street1, "10 Paper Lane");
-    assert.equal(proof.payload.handwriting, "hwDavid");
+    assert.equal(proof.payload.handwriting, "hwAnita");
     assert.equal(proof.payload.cover.kind, "upload");
     assert.equal(proof.payload.cover.artworkSha256, presetHash);
     assert.equal(proof.payload.cover.id, "synthetic_private_art");
