@@ -3,6 +3,7 @@ import { sanitizeAttribution, sanitizeGoogleClientId, sanitizeUrlOrPath } from '
 import { sanitizeAttributionSnapshot } from '../attribution-classifier';
 import { firestoreDb } from '../firebase-admin';
 import { CARD_PRESETS } from '../card-presets';
+import { WEDDING_DEFAULT_FONT_ID } from './fonts';
 import { canonicalWeddingJSON, weddingHash } from './hash';
 import { blankWeddingAddress, newWeddingHousehold, resolveWeddingNote, weddingApprovalFingerprint, weddingOverflow, weddingRowReady, weddingWordingIssues, WEDDING_DAY, WEDDING_MAX_HOUSEHOLDS, type WeddingActor, type WeddingHousehold, type WeddingProject } from './domain';
 import { WeddingError, assertWeddingActorInTransaction, assertWeddingMutable, assertWeddingRecent, newWeddingSecret, newWeddingSession, publicWeddingActor, weddingId, weddingInviteRef, weddingProjectRef, weddingSessionRef, type WeddingIdentity, type WeddingInvite, type WeddingMember } from './server';
@@ -66,7 +67,7 @@ export async function createWeddingProject(deviceId:string,sample=false,options:
   const id=`wp_${randomUUID()}`,actorId=`wa_${randomUUID()}`,session=newWeddingSecret(),at=Date.now();
   const preset=CARD_PRESETS.find(p=>p.id==='preset-thankyou-botanical')!;
   const attribution=sanitizeWeddingAttribution(options.attribution);
-  const project:WeddingProject={id,revision:1,ownerId:actorId,sharedBody:'',signOff:'',handwriting:'hwDavid',cover:{kind:'preset',id:preset.id,url:preset.imageUrl},returnAddress:{...blankWeddingAddress(),firstName:'',lastName:''},templates:[],purchasedCount:0,activeBatchId:null,householdCount:sample?100:0,writingMode:'shared',createdAt:at,updatedAt:at,expiresAt:at+PROJECT_RETENTION_DAYS*WEDDING_DAY,claimedAt:null,pilotInviteId:null,...(attribution?{attribution}:{})};
+  const project:WeddingProject={id,revision:1,ownerId:actorId,sharedBody:'',signOff:'',handwriting:WEDDING_DEFAULT_FONT_ID,cover:{kind:'preset',id:preset.id,url:preset.imageUrl},returnAddress:{...blankWeddingAddress(),firstName:'',lastName:''},templates:[],purchasedCount:0,activeBatchId:null,householdCount:sample?100:0,writingMode:'shared',createdAt:at,updatedAt:at,expiresAt:at+PROJECT_RETENTION_DAYS*WEDDING_DAY,claimedAt:null,pilotInviteId:null,...(attribution?{attribution}:{})};
   const member:WeddingMember={id:actorId,role:'owner',uid:null,canPay:true,canExport:true,revoked:false,createdAt:at,updatedAt:at};
   const limits=firestoreDb.collection('weddingStartLimits');
   const rateRef=limits.doc(weddingHash(deviceId));

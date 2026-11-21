@@ -1,6 +1,20 @@
 import { normalizeBodyText } from './multi-send/contracts';
 
-export type HandwryttenFontId = 'hwDavid' | 'hwChase' | 'hwKate' | 'hwAdam' | 'hwWill';
+export type HandwryttenFontId =
+  | 'hwDavid'
+  | 'hwChase'
+  | 'hwKate'
+  | 'hwAdam'
+  | 'hwWill'
+  | 'hwAnita'
+  | 'hwSeraphim'
+  | 'hwDarleen'
+  | 'hwJenna'
+  | 'hwRuthie'
+  | 'hwCaitlin'
+  | 'hwMadeline'
+  | 'hwJonathan'
+  | 'hwCharity';
 
 export interface HandwryttenFontMetric {
   id: HandwryttenFontId;
@@ -16,72 +30,44 @@ export interface HandwryttenFontMetric {
   recommendedMaxLines: number;
 }
 
+const DEFAULT_CARD_LIMITS = {
+  maxLines: 11,
+  softLineLimit: 9,
+  maxExplicitBreaks: 8,
+  maxChars: 450,
+  recommendedMinChars: 180,
+  recommendedMaxChars: 320,
+  recommendedMaxLines: 7,
+} as const;
+
+const makeMetric = (
+  id: HandwryttenFontId,
+  label: string,
+  lineSpacing: number,
+  charsPerLine: number,
+): HandwryttenFontMetric => ({
+  id,
+  label,
+  lineSpacing,
+  charsPerLine,
+  ...DEFAULT_CARD_LIMITS,
+});
+
 const CANONICAL_METRICS: Record<HandwryttenFontId, HandwryttenFontMetric> = {
-  hwDavid: {
-    id: 'hwDavid',
-    label: 'Casual David',
-    lineSpacing: 0.60,
-    charsPerLine: 45,
-    maxLines: 11,
-    softLineLimit: 9,
-    maxExplicitBreaks: 8,
-    maxChars: 450,
-    recommendedMinChars: 180,
-    recommendedMaxChars: 320,
-    recommendedMaxLines: 7,
-  },
-  hwChase: {
-    id: 'hwChase',
-    label: 'Charming Chase',
-    lineSpacing: 0.55,
-    charsPerLine: 40,
-    maxLines: 11,
-    softLineLimit: 9,
-    maxExplicitBreaks: 8,
-    maxChars: 450,
-    recommendedMinChars: 180,
-    recommendedMaxChars: 320,
-    recommendedMaxLines: 7,
-  },
-  hwKate: {
-    id: 'hwKate',
-    label: 'Carefree Kate',
-    lineSpacing: 0.60,
-    charsPerLine: 44,
-    maxLines: 11,
-    softLineLimit: 9,
-    maxExplicitBreaks: 8,
-    maxChars: 450,
-    recommendedMinChars: 180,
-    recommendedMaxChars: 320,
-    recommendedMaxLines: 7,
-  },
-  hwAdam: {
-    id: 'hwAdam',
-    label: 'Executive Adam',
-    lineSpacing: 0.60,
-    charsPerLine: 42,
-    maxLines: 11,
-    softLineLimit: 9,
-    maxExplicitBreaks: 8,
-    maxChars: 450,
-    recommendedMinChars: 180,
-    recommendedMaxChars: 320,
-    recommendedMaxLines: 7,
-  },
-  hwWill: {
-    id: 'hwWill',
-    label: 'Dapper Will',
-    lineSpacing: 0.60,
-    charsPerLine: 43,
-    maxLines: 11,
-    softLineLimit: 9,
-    maxExplicitBreaks: 8,
-    maxChars: 450,
-    recommendedMinChars: 180,
-    recommendedMaxChars: 320,
-    recommendedMaxLines: 7,
-  },
+  hwDavid: makeMetric('hwDavid', 'Casual David', 0.60, 45),
+  hwChase: makeMetric('hwChase', 'Charming Chase', 0.55, 40),
+  hwKate: makeMetric('hwKate', 'Carefree Kate', 0.60, 44),
+  hwAdam: makeMetric('hwAdam', 'Executive Adam', 0.60, 42),
+  hwWill: makeMetric('hwWill', 'Dapper Will', 0.60, 43),
+  hwAnita: makeMetric('hwAnita', 'Ambitious Anita', 0.70, 44),
+  hwSeraphim: makeMetric('hwSeraphim', 'Sweet Seraphim', 0.70, 41),
+  hwDarleen: makeMetric('hwDarleen', "Darlin' Darleen", 0.65, 43),
+  hwJenna: makeMetric('hwJenna', 'Fancy Jenna', 0.60, 41),
+  hwRuthie: makeMetric('hwRuthie', 'Loopy Ruthie', 0.70, 40),
+  hwCaitlin: makeMetric('hwCaitlin', 'Cozy Caitlin', 0.60, 44),
+  hwMadeline: makeMetric('hwMadeline', 'Merry Madeline', 0.50, 46),
+  hwJonathan: makeMetric('hwJonathan', 'Genuine Jonathan', 0.70, 42),
+  hwCharity: makeMetric('hwCharity', 'Chill Charity', 0.60, 43),
 };
 
 export const HANDWRYTTEN_FONT_METRICS: Record<string, HandwryttenFontMetric> = {
@@ -91,12 +77,7 @@ export const HANDWRYTTEN_FONT_METRICS: Record<string, HandwryttenFontMetric> = {
   '3': CANONICAL_METRICS.hwKate,
   '4': CANONICAL_METRICS.hwAdam,
   '5': CANONICAL_METRICS.hwWill,
-  'Casual David': CANONICAL_METRICS.hwDavid,
-  'Charming Chase': CANONICAL_METRICS.hwChase,
-  'Carefree Kate': CANONICAL_METRICS.hwKate,
-  'Executive Adam': CANONICAL_METRICS.hwAdam,
-  'Dapper Will': CANONICAL_METRICS.hwWill,
-  hwCharity: CANONICAL_METRICS.hwDavid,
+  ...Object.fromEntries(Object.values(CANONICAL_METRICS).map((m) => [m.label, m])),
   'font-casual': CANONICAL_METRICS.hwDavid,
   'font-calligraphy': CANONICAL_METRICS.hwChase,
   'font-classic': CANONICAL_METRICS.hwAdam,

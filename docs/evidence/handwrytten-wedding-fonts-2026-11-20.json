@@ -1,0 +1,88 @@
+{
+  "verifiedDate": "2026-11-20",
+  "source": "Authenticated GET https://api.handwrytten.com/v2/fonts/list",
+  "status": "ok",
+  "defaultFontId": "hwAnita",
+  "fonts": [
+    {
+      "id": "hwAnita",
+      "font_label": "Ambitious Anita",
+      "line_spacing": 0.7,
+      "display_name": "Heirloom Script",
+      "category": "Romantic & Script",
+      "bundled_font_file": "hwAnita.ttf"
+    },
+    {
+      "id": "hwSeraphim",
+      "font_label": "Sweet Seraphim",
+      "line_spacing": 0.7,
+      "display_name": "Classic Cursive",
+      "category": "Romantic & Script",
+      "bundled_font_file": "hwSeraphim.ttf"
+    },
+    {
+      "id": "hwDarleen",
+      "font_label": "Darlin' Darleen",
+      "line_spacing": 0.65,
+      "display_name": "Delicate Script",
+      "category": "Romantic & Script",
+      "bundled_font_file": "hwDarleen.ttf"
+    },
+    {
+      "id": "hwJenna",
+      "font_label": "Fancy Jenna",
+      "line_spacing": 0.6,
+      "display_name": "Fountain Cursive",
+      "category": "Romantic & Script",
+      "bundled_font_file": "hwJenna.ttf"
+    },
+    {
+      "id": "hwRuthie",
+      "font_label": "Loopy Ruthie",
+      "line_spacing": 0.7,
+      "display_name": "Whimsical Loop",
+      "category": "Whimsical & Modern",
+      "bundled_font_file": "hwRuthie.ttf"
+    },
+    {
+      "id": "hwCaitlin",
+      "font_label": "Cozy Caitlin",
+      "line_spacing": 0.6,
+      "display_name": "Warm Everyday",
+      "category": "Whimsical & Modern",
+      "bundled_font_file": "hwCaitlin.ttf"
+    },
+    {
+      "id": "hwMadeline",
+      "font_label": "Merry Madeline",
+      "line_spacing": 0.5,
+      "display_name": "Modern Fine",
+      "category": "Whimsical & Modern",
+      "bundled_font_file": "hwMadeline.ttf"
+    },
+    {
+      "id": "hwJonathan",
+      "font_label": "Genuine Jonathan",
+      "line_spacing": 0.7,
+      "display_name": "Timeless Cursive",
+      "category": "Classic & Tailored",
+      "bundled_font_file": "hwJonathan.ttf"
+    },
+    {
+      "id": "hwDavid",
+      "font_label": "Casual David",
+      "line_spacing": 0.6,
+      "display_name": "Natural Pen",
+      "category": "Classic & Tailored",
+      "bundled_font_file": "hwDavid.ttf"
+    },
+    {
+      "id": "hwWill",
+      "font_label": "Dapper Will",
+      "line_spacing": 0.6,
+      "display_name": "Tailored Caps",
+      "category": "Classic & Tailored",
+      "bundled_font_file": "hwWill.ttf"
+    }
+  ]
+}

@@ -1,5 +1,6 @@
 import { weddingArtworkPreset } from './artwork-policy';
 import { ALL_FONT_CANDIDATES } from '../card-presets';
+import { isSupportedWeddingFontId } from './fonts';
 import { normalizeCountryCode } from '../mailing-destinations';
 import { blankWeddingAddress, type WeddingAddress, type WeddingHousehold, type WeddingProject, type WeddingTemplate } from './domain';
 import { canonicalWeddingJSON } from './hash';
@@ -34,7 +35,7 @@ export function projectPatch(project:WeddingProject,value:unknown):WeddingProjec
   const next={...project};
   for(const k of ['sharedBody','signOff'] as const)if(k in patch)next[k]=text(patch[k],k==='sharedBody'?16000:2000);
   if('writingMode' in patch){if(patch.writingMode!=='shared'&&patch.writingMode!=='individual')throw new WeddingError('invalid_mode','Choose a writing mode.');next.writingMode=patch.writingMode;}
-  if('handwriting' in patch){const font=text(patch.handwriting,80);if(!ALL_FONT_CANDIDATES.some(f=>f.id===font))throw new WeddingError('invalid_handwriting','Choose a supported handwriting.');next.handwriting=font;}
+  if('handwriting' in patch){const font=text(patch.handwriting,80);if(!isSupportedWeddingFontId(font)&&!ALL_FONT_CANDIDATES.some(f=>f.id===font))throw new WeddingError('invalid_handwriting','Choose a supported handwriting.');next.handwriting=font;}
   if('returnAddress' in patch){const a=object(patch.returnAddress);keys(a,[...Object.keys(blankWeddingAddress()),'firstName','lastName']);const {firstName,lastName,...postal}=a;next.returnAddress={...address(postal),firstName:text(firstName??'',300),lastName:text(lastName??'',300)};if(next.returnAddress.country&&next.returnAddress.country!=='US')throw new WeddingError('sender_country','Use a personal United States return address.');}
   if('cover' in patch){const cover=object(patch.cover);keys(cover,['kind','id','url']);const id=weddingId(cover.id);if(cover.kind==='preset'){const preset=weddingArtworkPreset(id);if(!preset)throw new WeddingError('invalid_cover','Choose an available cover.');next.cover={kind:'preset',id,url:preset};}else if(cover.kind==='upload'){next.cover={kind:'upload',id,url:`/api/wedding/artwork?id=${encodeURIComponent(id)}`};}else throw new WeddingError('invalid_cover','Choose a cover.');}
   if('templates' in patch){if(!Array.isArray(patch.templates)||patch.templates.length>4)throw new WeddingError('template_limit','Use up to four templates.');const templates:WeddingTemplate[]=patch.templates.map(v=>{const t=object(v);keys(t,['id','name','body','signOff','revision']);const id=weddingId(t.id),old=project.templates.find(x=>x.id===id);const template={id,name:text(t.name,80),body:text(t.body,16000),signOff:text(t.signOff??'',2000),revision:old?.revision||1};if(!template.name.trim())throw new WeddingError('template_name','Give the template a name.');if(old&&(old.name!==template.name||old.body!==template.body||old.signOff!==template.signOff))template.revision++;return template;});if(new Set(templates.map(t=>t.id)).size!==templates.length)throw new WeddingError('duplicate_template','Use different template IDs.');next.templates=templates;}
