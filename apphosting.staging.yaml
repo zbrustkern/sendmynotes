@@ -31,6 +31,12 @@ env:
   - variable: WEDDING_SCHEDULER_AUDIENCE
     value: https://sendmynotes-staging--sendmynotes-staging.us-central1.hosted.app/api/cron/wedding-reconcile
     availability: [RUNTIME]
+  - variable: WEDDING_DISPATCH_MODE
+    value: manual_release
+    availability: [RUNTIME]
+  - variable: WEDDING_STAGING_HANDWRYTTEN_TEST_DISPATCH
+    value: "true"
+    availability: [RUNTIME]
   # Explicit public test key; pairs with staging stripe-secret-key version 1.
   - variable: STRIPE_PUBLISHABLE_KEY
     value: pk_test_51UIUjfQRpUiJEWIAEBVsU9gEPGjYg84rOZRarlTUfW057pYo1YcbkHv00h288Bth0582JDovGyvz1ZfSPen6VSYP00u7h8Ve2Y
