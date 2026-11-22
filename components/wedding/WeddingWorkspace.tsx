@@ -27,7 +27,12 @@ const tabs = [
   "Your words",
   "Review & send",
 ] as const;
-const nextStepLabels = ["Card", "People", "Writing", "Review & send"] as const;
+const nextStepLabels = [
+  "Your card",
+  "Your people",
+  "Your words",
+  "Review & send",
+] as const;
 type APIResult = Record<string, unknown> & Partial<Snapshot>;
 
 export function WeddingWorkspace({
@@ -137,7 +142,7 @@ export function WeddingWorkspace({
               e.code === "project_required"
             ) {
               setNotice(
-                "Choose Start my thank-yous to apply this tester invitation to your new project.",
+                "Choose Start my thank-you cards to apply this tester invitation to your new project.",
               );
               return;
             }
@@ -193,8 +198,8 @@ export function WeddingWorkspace({
       setNewStart(false);
       setNotice(
         sample
-          ? "This is a private project with 100 fictional households."
-          : "Your private project is ready.",
+          ? "Exploring a sample wedding with 100 fictional guests."
+          : "Your private wedding project is ready.",
       );
       trackWeddingFunnelEvent(
         sample ? "wedding_sample_started" : "wedding_project_started",
@@ -217,7 +222,7 @@ export function WeddingWorkspace({
     try {
       if (state) {
         await mutate("claim");
-        setNotice("Account linked. Resume the operation when you’re ready.");
+        setNotice("You're signed in! Pick up right where you left off.");
       }
     } catch (e) {
       setError(errorMessage(e));
@@ -259,14 +264,22 @@ export function WeddingWorkspace({
                   disabled={busy}
                   onClick={() => void start(true, true)}
                 >
-                  Try 100-household sample
+                  Sample wedding
                 </button>
               )}
               <button
                 type="button"
                 className="wed-link-btn"
                 disabled={busy}
-                onClick={() => void start(false, true)}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "Start a brand-new blank wedding project? Your current project stays saved via its backup link.",
+                    )
+                  ) {
+                    void start(false, true);
+                  }
+                }}
               >
                 Start fresh
               </button>
@@ -282,59 +295,151 @@ export function WeddingWorkspace({
         <>
           <section className="wed-landing">
             <div>
-              <h1>
-                Your words, written in real pen &amp; ink—without three weekends
-                at the kitchen table.
-              </h1>
+              <h1>Your wedding thank-yous, written in real pen &amp; ink.</h1>
               <p>
-                Upload your wedding photo or choose a classic design, bring your
-                guest and gift list, and personalize every note. Automated
-                equipment holding real pens writes each A2 folded card on 120 lb
-                vellum cardstock, addresses a white envelope with your personal
-                return address, and mails it via USPS.
+                Every note in your own words, paired with your favorite wedding
+                photo—written by real ballpoint pens (never printed), addressed
+                with your personal return address, stamped, and mailed for you.
               </p>
-              <div className="wed-actions">
-                <button
-                  className="wed-primary"
-                  onClick={() => void start(false)}
-                  disabled={busy}
-                >
-                  Start my thank-yous
-                </button>
-                <button onClick={() => void start(true)} disabled={busy}>
-                  Try 100-household sample
-                </button>
-                {state && (
-                  <button onClick={() => setNewStart(false)}>
-                    Back to my project
+              <div className="wed-cta-stack">
+                <div className="wed-actions">
+                  <button
+                    className="wed-primary"
+                    onClick={() => void start(false)}
+                    disabled={busy}
+                  >
+                    Start my thank-you cards
                   </button>
-                )}
+                  <button
+                    className="wed-quiet-btn"
+                    onClick={() => void start(true)}
+                    disabled={busy}
+                  >
+                    Preview a sample wedding
+                  </button>
+                  {state && (
+                    <button onClick={() => setNewStart(false)}>
+                      Back to my project
+                    </button>
+                  )}
+                </div>
+                <p className="wed-cta-micro">
+                  Free to design &amp; import your list · Pay only when ready to
+                  mail
+                </p>
               </div>
               <p className="wed-pricing-bar">
-                <span className="wed-price">$9/card</span> for 1–10 · down to{" "}
-                <span className="wed-price">$6.50/card</span> at 100+ · postage
-                &amp; tax included · pay in batches as addresses arrive
+                Volume pricing from{" "}
+                <span className="wed-price">$9.00</span> down to{" "}
+                <span className="wed-price">$6.50/card</span> · e.g., 100
+                domestic cards = <span className="wed-price">$727</span> total ·
+                Stamp &amp; tax included · Pay in batches as addresses arrive
               </p>
-              <p className="wed-meta">
-                {stagingReviewOnly
-                  ? "The sample uses 100 fictional households. Staging purchases use test payments and stay on hold."
-                  : "The sample uses 100 fictional households so you can explore before starting your own list."}
-              </p>
+              {stagingReviewOnly && (
+                <p className="wed-meta">
+                  Staging preview uses test payments and holds orders before
+                  fulfillment.
+                </p>
+              )}
             </div>
             <div className="wed-hero-gallery">
-              <picture>
-                <source
-                  srcSet="/wedding/hero-handwritten-note.webp"
-                  type="image/webp"
-                />
+              <figure className="wed-hero-figure">
+                <picture>
+                  <source
+                    srcSet="/wedding/hero-handwritten-note.webp"
+                    type="image/webp"
+                  />
+                  <img
+                    src="/wedding/hero-handwritten-note.jpg"
+                    alt="Open folded card with a personal thank-you note written in real blue pen and ink"
+                    className="wed-hero-photo wed-hero-photo-main"
+                    width={960}
+                    height={960}
+                  />
+                </picture>
+                <figcaption className="wed-hero-caption">
+                  Unretouched real ballpoint ink (shown on an everyday card —
+                  yours features your wedding photo &amp; words)
+                </figcaption>
+              </figure>
+              <div className="wed-hero-card-wrap">
                 <img
-                  src="/wedding/hero-handwritten-note.jpg"
-                  alt="Open folded card with a personal thank-you note written in real blue pen and ink"
-                  className="wed-hero-photo wed-hero-photo-main"
-                  width={960}
-                  height={960}
+                  src="/presets/thank-you-laurel-wreath.jpg"
+                  alt="Laurel wreath thank-you card front preview"
+                  className="wed-hero-card"
+                  width={340}
+                  height={440}
                 />
-              </picture>
+                <span className="wed-hero-badge">
+                  Your wedding photo or botanical front
+                </span>
+              </div>
+            </div>
+          </section>
+          <ul
+            className="wed-trust-strip"
+            aria-label="What makes every card feel personal"
+          >
+            <li className="wed-trust-item">
+              <strong>Real pen &amp; ink</strong>
+              <p>
+                Precision writing machines hold real ballpoint pens on 120 lb
+                vellum folded A2 cards (4.25&quot; × 5.5&quot;)—never printed
+                fonts.
+              </p>
+            </li>
+            <li className="wed-trust-item">
+              <strong>Truly from you</strong>
+              <p>
+                Your personal return address on white envelopes, real
+                First-Class USPS stamp (Phoenix, AZ postmark).
+              </p>
+            </li>
+            <li className="wed-trust-item">
+              <strong>Your exact words</strong>
+              <p>
+                Write one heartfelt note or personalize every card by gift and
+                memory.
+              </p>
+            </li>
+            <li className="wed-trust-item">
+              <strong>Mail in batches</strong>
+              <p>
+                Send 40 today and 60 next week; your earned volume pricing
+                carries forward automatically.
+              </p>
+            </li>
+          </ul>
+          <section className="wed-how-it-works" aria-label="How it works">
+            <h2>How it works</h2>
+            <ol className="wed-how-grid">
+              <li>
+                <strong>1. Upload your wedding photo or pick a design</strong>
+                <p>
+                  Crop your favorite photo and add optional names or date, or
+                  pick a timeless botanical front.
+                </p>
+              </li>
+              <li>
+                <strong>
+                  2. Import your guest &amp; gift list and personalize each note
+                </strong>
+                <p>
+                  Bring exports from Zola, The Knot, Joy, or spreadsheets, write
+                  one shared note, or personalize by gift.
+                </p>
+              </li>
+              <li>
+                <strong>
+                  3. Real pens write every card, stamp &amp; mail them
+                </strong>
+                <p>
+                  1–2 business days preparation + 2–7 business days estimated
+                  domestic USPS transit.
+                </p>
+              </li>
+            </ol>
+            <div className="wed-how-proof">
               <picture>
                 <source
                   srcSet="/wedding/hero-card-envelope.webp"
@@ -343,42 +448,20 @@ export function WeddingWorkspace({
                 <img
                   src="/wedding/hero-card-envelope.jpg"
                   alt="Folded card beside a white envelope addressed in real blue ink"
-                  className="wed-hero-photo wed-hero-photo-secondary"
                   width={960}
                   height={960}
                 />
               </picture>
+              <div>
+                <strong>
+                  Real-ink envelope addressing with your personal return address
+                </strong>
+                <p className="wed-meta">
+                  Every white envelope is addressed in matching ballpoint ink
+                  with a real First-Class USPS stamp.
+                </p>
+              </div>
             </div>
-          </section>
-          <section className="wed-how-it-works" aria-label="How it works">
-            <h2>How it works</h2>
-            <ol className="wed-how-grid">
-              <li>
-                <strong>1. Upload your wedding photo or pick a design</strong>
-                <p>
-                  Crop your own photo and add optional lettering, or pick one of
-                  our timeless card fronts.
-                </p>
-              </li>
-              <li>
-                <strong>
-                  2. Import your guest &amp; gift list and personalize each note
-                </strong>
-                <p>
-                  Upload a spreadsheet or paste rows, write one shared note with
-                  each guest’s name, or write individual words.
-                </p>
-              </li>
-              <li>
-                <strong>
-                  3. We write every card with real pens, stamp &amp; mail them
-                </strong>
-                <p>
-                  1–2 business days preparation + 2–7 business days estimated
-                  domestic USPS transit.
-                </p>
-              </li>
-            </ol>
           </section>
           <section className="wed-panel" aria-label="Batch price estimator">
             <h2>Estimate your cards</h2>
@@ -427,13 +510,16 @@ export function WeddingWorkspace({
                   aria-current={step === i ? "step" : undefined}
                   onClick={() => void navigate(i)}
                 >
-                  {name}
+                  <span className="wed-step-num" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                  <span>{name}</span>
                 </button>
               ))}
             </nav>
             {synthetic && (
               <p className="wed-notice">
-                You’re working with the sample households.{" "}
+                You’re exploring a sample wedding with fictional guests.{" "}
                 <button onClick={() => setNewStart(true)}>
                   Start my own project
                 </button>
@@ -452,7 +538,11 @@ export function WeddingWorkspace({
               />
             )}
             {step === 2 && (
-              <WritingPanel {...props} registerFlush={registerFlush} />
+              <WritingPanel
+                {...props}
+                registerFlush={registerFlush}
+                onContinueToReview={() => void navigate(3)}
+              />
             )}
             {step === 3 && (
               <ReviewPanel

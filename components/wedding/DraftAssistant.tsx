@@ -9,6 +9,7 @@ import {
   WeddingRequestError,
   type PanelProps,
 } from "./client";
+
 type Suggestion = { id: string; text: string };
 type Job = {
   jobId: string;
@@ -25,6 +26,7 @@ type Info = {
   resetsAt?: number;
   remaining?: Record<string, number>;
 };
+
 const done = (job: Job) =>
   [
     "complete",
@@ -37,6 +39,7 @@ const done = (job: Job) =>
   ].includes(job.status || "") ||
   job.complete === true ||
   (typeof job.complete === "number" && job.complete >= job.total);
+
 export function DraftAssistant({
   state,
   ids,
@@ -100,11 +103,13 @@ export function DraftAssistant({
       runningRef.current = false;
     };
   }, [key]);
+
   function requestKey(sig: string) {
     if (intent.current?.sig !== sig)
       intent.current = { sig, key: crypto.randomUUID() };
     return intent.current.key;
   }
+
   async function run(resume: boolean) {
     if (!consent || runningRef.current) return;
     runningRef.current = true;
@@ -168,38 +173,46 @@ export function DraftAssistant({
       }
     }
   }
+
   return (
     <div className="wed-notice">
-      <h3>Draft a note body</h3>
+      <h3>Personal note helper</h3>
       <p>
-        {requestedIds.length} selected. Each suggestion comes back for you to
-        read and accept.
+        We&apos;ll weave each guest&apos;s gift and memory into a warm starting
+        draft you can edit — nothing is ever sent without your approval.
       </p>
       <p className="wed-meta">
-        Review the gift and memory below.{" "}
-        {model.provider || "Provider unavailable"}
-        {model.model ? " · " + model.model : ""}. The project adds names and
-        sign-offs afterward.
+        {requestedIds.length} selected. Greetings and sign-offs are added
+        automatically.
       </p>
       <ul className="wed-list wed-scroll">
         {applicable.map((r, i) => (
           <li key={r.id}>
-            Card {i + 1} · {r.gift || "No gift supplied"} ·{" "}
-            {r.memory || "No memory supplied"}
+            Card {i + 1} ·{" "}
+            {r.gift || r.memory
+              ? [r.gift, r.memory].filter(Boolean).join(" · ")
+              : "General wedding thank-you (no gift noted)"}
           </li>
         ))}
       </ul>
-      <fieldset disabled={!state.actor.verified || busy || model.available === false}>
+      <fieldset
+        disabled={!state.actor.verified || busy || model.available === false}
+      >
         <label>
           Tone
           <select
-            disabled={!state.actor.verified || resuming || running || model.available === false}
+            disabled={
+              !state.actor.verified ||
+              resuming ||
+              running ||
+              model.available === false
+            }
             value={tone}
             onChange={(e) => setTone(e.target.value)}
           >
-            <option value="warm">Warm</option>
-            <option value="short">Short</option>
-            <option value="personal">Personal</option>
+            <option value="warm">Warm &amp; heartfelt</option>
+            <option value="short">Short &amp; sweet</option>
+            <option value="personal">Playful &amp; personal</option>
           </select>
         </label>
         <label>
@@ -208,9 +221,16 @@ export function DraftAssistant({
             checked={consent}
             onChange={(e) => setConsent(e.target.checked)}
           />
-          Share these selected details with the writing model.
+          Allow SendMyNotes&apos; writing assistant to read these gift &amp;
+          memory notes to suggest drafts (guest addresses are never shared).
         </label>
       </fieldset>
+      {model.provider && (
+        <small>
+          {model.provider}
+          {model.model ? " · " + model.model : ""}
+        </small>
+      )}
       <div className="wed-actions">
         {!state.actor.verified ? (
           <button type="button" onClick={signIn}>
@@ -272,7 +292,8 @@ export function DraftAssistant({
       {job && (
         <p role="status">
           {pluralize(job.suggestions?.length || 0, "suggestion")} ready across{" "}
-          {pluralize(job.total, "selected card")}. Open each household to review its words.
+          {pluralize(job.total, "selected card")}. Open each guest to review its
+          words.
         </p>
       )}
       {model.available === false && (
