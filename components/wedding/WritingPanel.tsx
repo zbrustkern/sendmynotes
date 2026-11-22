@@ -6,6 +6,7 @@ import {
   weddingOverflow,
   weddingNoteFit,
 } from "@/lib/wedding/domain";
+import { weddingFontDisplayName } from "@/lib/wedding/fonts";
 import {
   errorMessage,
   isApproved,
@@ -21,6 +22,27 @@ import { handFont } from "./CardPanel";
 import { SaveStatus, useWeddingDraft } from "./useWeddingDraft";
 import { DraftAssistant } from "./DraftAssistant";
 
+const BRIDAL_STARTERS = [
+  {
+    id: "classic-heartfelt",
+    label: "Classic & Heartfelt",
+    body: "Thank you so much for celebrating our wedding day with us and for your thoughtful gift. Having you there made the day unforgettable, and we are so grateful for your love and support.",
+    signOff: "With love,",
+  },
+  {
+    id: "warm-modern",
+    label: "Warm & Modern",
+    body: "We're still smiling thinking back on our wedding weekend—thank you so much for celebrating with us and for your generous gift! We feel so lucky to have you in our corner as we start this next chapter.",
+    signOff: "Warmly,",
+  },
+  {
+    id: "honeymoon-fund",
+    label: "Cash / Honeymoon Fund",
+    body: "Thank you so much for celebrating our wedding with us and for your generous gift toward our next adventure together. We can't wait to put it toward making memories on our honeymoon and beyond!",
+    signOff: "With gratitude,",
+  },
+] as const;
+
 const filters = [
   "All",
   "Needs review",
@@ -31,6 +53,7 @@ const filters = [
   "Ready",
 ] as const;
 type Filter = (typeof filters)[number];
+
 function match(filter: Filter, p: Project, r: Person) {
   switch (filter) {
     case "Needs review":
@@ -53,15 +76,39 @@ function match(filter: Filter, p: Project, r: Person) {
       return true;
   }
 }
+
+function fitMessage(status: string): { label: string; tone: string } {
+  if (status === "ok") {
+    return {
+      label: "Fits comfortably on the card",
+      tone: "wed-pill wed-pill-ready",
+    };
+  }
+  if (status === "cozy") {
+    return {
+      label: "Getting cozy — trimming a few words leaves cleaner pen margins",
+      tone: "wed-pill wed-pill-warn",
+    };
+  }
+  return {
+    label:
+      "A little long for this A2 card — trim slightly so the pen has clean margins",
+    tone: "wed-pill wed-pill-warn",
+  };
+}
+
 type WritingProps = PanelProps & {
   registerFlush: (cb: () => Promise<boolean>) => () => void;
+  onContinueToReview?: () => void;
 };
+
 export function WritingPanel(props: WritingProps) {
   const {
     state: { project: p, households },
     mutate,
     notify,
     registerFlush,
+    onContinueToReview,
   } = props;
   const cursorKey = "wed-cursor-" + p.id;
   const [current, setCurrent] = useState(() => {
@@ -180,7 +227,21 @@ export function WritingPanel(props: WritingProps) {
     },
     households,
   );
+  const totalNotes = households.length;
   const progress = households.filter((r) => isApproved(p, r)).length;
+  const readyToSendCount = households.filter((r) => isReady(p, r)).length;
+  const progressPct = totalNotes
+    ? Math.min(100, Math.round((progress / totalNotes) * 100))
+    : 0;
+  const progressSummary =
+    progress === 0
+      ? `0 of ${totalNotes} notes ready — start with a shared note or write one by one`
+      : progress < totalNotes / 2
+        ? `${progress} of ${totalNotes} notes ready — you're off to a wonderful start`
+        : progress < totalNotes
+          ? `${progress} of ${totalNotes} notes ready — over halfway there!`
+          : `All ${totalNotes} notes are ready!`;
+
   const goto = (id: string) => {
     if (mode === "individual") focusOnArrival.current = id;
     setCurrent(id);
@@ -219,7 +280,7 @@ export function WritingPanel(props: WritingProps) {
     });
     setLast(active.id);
     setCount((c) => c + 1);
-    notify("Approved " + active.envelopeName + "’s card.");
+    notify("Saved " + active.envelopeName + "’s card.");
     const others = visible.filter(
       (r) => r.id !== active.id && !isApproved(p, r),
     );
@@ -244,16 +305,16 @@ export function WritingPanel(props: WritingProps) {
         appliedRevision: r.revision,
       })),
     );
-    notify("Wording assigned to " + pluralize(installed.length, "household") + ".");
+    notify("Wording assigned to " + pluralize(installed.length, "guest") + ".");
   }
   async function undoAssignment() {
     for (const previous of new Set(lastAssignment.map((a) => a.previous))) {
-      const group = lastAssignment.filter((a) => a.previous === previous);
-      const ids = group.map((a) => a.id);
+      const groupRows = lastAssignment.filter((a) => a.previous === previous);
+      const ids = groupRows.map((a) => a.id);
       await mutate("assignTemplate", {
         ids,
         revisions: Object.fromEntries(
-          group.map((a) => [a.id, a.appliedRevision]),
+          groupRows.map((a) => [a.id, a.appliedRevision]),
         ),
         templateId: previous,
       });
@@ -262,13 +323,35 @@ export function WritingPanel(props: WritingProps) {
   }
   return (
     <>
-      <div className="wed-progress">
-        <strong>
-          {progress} of {pluralize(households.length, "note")} approved
-        </strong>
-        <span>
-          {households.filter((r) => isReady(p, r)).length} ready to send
-        </span>
+      <div className="wed-progress-wrap">
+        <div className="wed-progress-head">
+          <strong>{progressSummary}</strong>
+          <div className="wed-actions" style={{ margin: 0 }}>
+            <span className="wed-meta">{readyToSendCount} ready to send</span>
+            {totalNotes > 0 && progress >= totalNotes && onContinueToReview && (
+              <button
+                type="button"
+                className="wed-primary"
+                onClick={onContinueToReview}
+              >
+                Review &amp; send →
+              </button>
+            )}
+          </div>
+        </div>
+        <div
+          className="wed-progress-bar"
+          role="progressbar"
+          aria-label="Notes ready progress"
+          aria-valuenow={progressPct}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
+          <div
+            className="wed-progress-bar-fill"
+            style={{ width: `${progressPct}%` }}
+          />
+        </div>
       </div>
       <div className="wed-actions">
         <button
@@ -315,6 +398,31 @@ export function WritingPanel(props: WritingProps) {
                   ))}
                 </select>
               </label>
+              <p className="wed-meta">
+                Need a starting point? Pick a bridal starter note to customize:
+              </p>
+              <div
+                className="wed-starter-pills"
+                role="group"
+                aria-label="Bridal starter note templates"
+              >
+                {BRIDAL_STARTERS.map((starter) => (
+                  <button
+                    key={starter.id}
+                    type="button"
+                    onClick={() => {
+                      setPreview(false);
+                      shared.update({
+                        ...shared.value,
+                        body: starter.body,
+                        signOff: shared.value.signOff.trim() || starter.signOff,
+                      });
+                    }}
+                  >
+                    {starter.label}
+                  </button>
+                ))}
+              </div>
               <label>
                 Your shared note
                 <textarea
@@ -332,6 +440,7 @@ export function WritingPanel(props: WritingProps) {
                 <textarea
                   aria-label="Sign-off"
                   rows={2}
+                  placeholder="With love, Claire & Jordan"
                   value={shared.value.signOff}
                   onChange={(e) => {
                     setPreview(false);
@@ -342,12 +451,13 @@ export function WritingPanel(props: WritingProps) {
               {over.length > 0 && shared.dirty && (
                 <div className="wed-notice">
                   <strong>
-                    {pluralize(over.length, "card")} would exceed the card writing fit limit
+                    {pluralize(over.length, "card")} may need trimming to fit
+                    comfortably
                   </strong>
                   <ul>
                     {over.map((r) => (
                       <li key={r.id}>
-                        {r.envelopeName} · {r.units}/450
+                        {r.envelopeName} · {r.lines} of {r.maxLines} lines
                       </li>
                     ))}
                   </ul>
@@ -411,7 +521,7 @@ export function WritingPanel(props: WritingProps) {
             </>
           )}
           <label>
-            Search households
+            Search guests
             <input
               type="search"
               value={query}
@@ -419,7 +529,7 @@ export function WritingPanel(props: WritingProps) {
             />
           </label>
           <label>
-            Show households
+            Show guests
             <select
               value={filter}
               onChange={async (e) => {
@@ -471,7 +581,7 @@ export function WritingPanel(props: WritingProps) {
                     }}
                   />
                   {r.envelopeName}
-                  {isApproved(p, r) ? " · approved" : ""}
+                  {isApproved(p, r) ? " · ready" : ""}
                 </label>
               </li>
             ))}
@@ -494,7 +604,7 @@ export function WritingPanel(props: WritingProps) {
                     disabled={busy || !selectedRows.length}
                     onClick={() => void work(() => assign(template || null))}
                   >
-                    Assign this template to selected households
+                    Assign this template to selected guests
                   </button>
                 )}
                 {lastAssignment.length > 0 && (
@@ -514,8 +624,8 @@ export function WritingPanel(props: WritingProps) {
                   </pre>
                   <p>
                     {eligible.length} included ·{" "}
-                    {selectedRows.length - eligible.length} held for separate
-                    review.
+                    {selectedRows.length - eligible.length} need a quick look
+                    first.
                   </p>
                   <ul className="wed-list wed-scroll">
                     {eligible.map((r) => (
@@ -541,12 +651,12 @@ export function WritingPanel(props: WritingProps) {
                           mode: "shared",
                         });
                         setPreview(false);
-                        notify("Shared notes approved.");
+                        notify("Shared notes saved.");
                       })
                     }
                   >
                     Approve shared note for{" "}
-                    {pluralize(eligible.length, "selected household")}
+                    {pluralize(eligible.length, "selected guest")}
                   </button>
                 </section>
               )}
@@ -560,7 +670,7 @@ export function WritingPanel(props: WritingProps) {
                   setShowAI(!showAI);
               }}
             >
-              Help me draft
+              Draft personal note ideas (AI)
             </button>
           </div>
           {showAI && (
@@ -589,7 +699,7 @@ export function WritingPanel(props: WritingProps) {
           {person ? (
             <>
               <label>
-                Household
+                Guest
                 <select
                   value={person.id}
                   onChange={async (e) => {
@@ -638,7 +748,7 @@ export function WritingPanel(props: WritingProps) {
                     })
                   }
                 >
-                  Later
+                  Skip for now →
                 </button>
                 {last && (
                   <button
@@ -667,12 +777,12 @@ export function WritingPanel(props: WritingProps) {
               </div>
               {count > 0 && count % 10 === 0 && (
                 <p role="status">
-                  That’s a set of ten. Your approved cards are saved for later.
+                  10 more done! Everything auto-saves — take a breather anytime.
                 </p>
               )}
             </>
           ) : (
-            <p>Add a household or choose a different filter to write a card.</p>
+            <p>Add a guest or choose a different filter to write a card.</p>
           )}
         </section>
       </div>
@@ -684,6 +794,7 @@ export function WritingPanel(props: WritingProps) {
     </>
   );
 }
+
 function RowWriter({
   individual,
   beforePersonal,
@@ -733,7 +844,10 @@ function RowWriter({
     fields = resolved(p, view),
     note = noteFor(p, view),
     fit = weddingNoteFit(p, view),
-    issues = weddingWordingIssues(p, view);
+    issues = weddingWordingIssues(p, view),
+    fontName = weddingFontDisplayName(p.handwriting),
+    fitBadge = fitMessage(fit.status);
+
   return (
     <>
       <h3 id="wed-current-writer" tabIndex={-1}>
@@ -742,8 +856,22 @@ function RowWriter({
       <p>
         {row.gift ? "Gift: " + row.gift : "No gift listed."}{" "}
         {weddingAddressReady(row)
-          ? "Address confirmed."
-          : "You can write while waiting for an address."}
+          ? "Address ready."
+          : "You can write while waiting for their address."}
+      </p>
+      <div className="wed-pills">
+        <span className="wed-pill wed-pill-neutral">{fontName}</span>
+        <span className={fitBadge.tone}>{fitBadge.label}</span>
+      </div>
+      <pre
+        className="wed-letter wed-letter-preview"
+        style={{ fontFamily: handFont(p.handwriting) }}
+        aria-label="Live folded A2 card preview"
+      >
+        {note || "Your finished note will appear here."}
+      </pre>
+      <p className="wed-meta">
+        {fit.wrappedLines}/{fit.maxLines} lines · {fontName}
       </p>
       <label>
         A detail you remember
@@ -777,7 +905,7 @@ function RowWriter({
             })
           }
         >
-          <option value="names">Use confirmed inside names</option>
+          <option value="names">Use guest&apos;s greeting</option>
           <option value="custom">Write a greeting</option>
           <option value="none">Leave greeting blank</option>
         </select>
@@ -799,7 +927,7 @@ function RowWriter({
             if (await beforePersonal()) setPersonal(true);
           }}
         >
-          Write personal wording
+          Personalize this card
         </button>
       ) : (
         <>
@@ -828,11 +956,11 @@ function RowWriter({
             />
           </label>
           <button onClick={() => setRestore(true)}>
-            Use shared wording again
+            Use shared note again
           </button>
           {restore && (
             <div className="wed-notice">
-              <p>This replaces the personal body and sign-off with:</p>
+              <p>This replaces the personal note and sign-off with:</p>
               <pre className="wed-letter">
                 {resolved(p, {
                   ...row,
@@ -866,16 +994,12 @@ function RowWriter({
       )}
       <p className="wed-meta">
         {draft.value.bodyOverride === null
-          ? "Body uses shared wording"
-          : "Personal body"}{" "}
-        ·{" "}
-        {draft.value.signOffOverride === null
-          ? "Shared sign-off"
-          : "Personal sign-off"}
+          ? "Using shared note"
+          : "Personalized note"}
       </p>
       {suggestion && (
         <div className="wed-notice">
-          <h3>Suggested body</h3>
+          <h3>Suggested note</h3>
           <pre className="wed-letter">{suggestion}</pre>
           <button
             onClick={() => {
@@ -896,19 +1020,6 @@ function RowWriter({
           </pre>
         }
       />
-      <pre
-        className="wed-letter wed-letter-preview"
-        style={{ fontFamily: handFont(p.handwriting) }}
-      >
-        {note || "Your finished note will appear here."}
-      </pre>
-      <p className="wed-meta">
-        {fit.wrappedLines}/{fit.maxLines} lines · {fit.charCount}/{fit.maxChars}{" "}
-        characters · {fit.fontLabel}
-        {fit.status === "cozy"
-          ? " · Getting cozy — shortening slightly leaves cleaner pen margins."
-          : ""}
-      </p>
       {issues.length > 0 && (
         <p className="wed-notice" role="status">
           {issues.join(" ")}
@@ -919,7 +1030,7 @@ function RowWriter({
         disabled={busy || !!issues.length}
         onClick={() => void onApprove()}
       >
-        Approve &amp; next
+        Looks great — next card →
       </button>
     </>
   );

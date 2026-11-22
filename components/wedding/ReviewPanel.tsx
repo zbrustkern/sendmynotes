@@ -9,6 +9,7 @@ import {
 } from "@stripe/react-stripe-js";
 import { useAuth } from "@/context/AuthContext";
 import { quoteWeddingBatch, WEDDING_PRICE_BANDS } from "@/lib/wedding-pricing";
+import { weddingAddressReady } from "@/lib/wedding/domain";
 import {
   fireWeddingBrowserPurchase,
   readWeddingAttributionPayload,
@@ -134,6 +135,7 @@ function PayForm({
   const stripe = useStripe(),
     elements = useElements(),
     [submitting, setSubmitting] = useState(false);
+  const count = batch.quote?.count ?? batch.count ?? 0;
   return (
     <form
       className="wed-pay-form"
@@ -170,11 +172,34 @@ function PayForm({
         {submitting
           ? "Confirming payment…"
           : stagingReviewOnly
-            ? `Pay ${dollars(batch.quote.totalCents)} in test mode`
-            : `Pay ${dollars(batch.quote.totalCents)}`}
+            ? `Place order & queue ${pluralize(count, "card")} — ${dollars(batch.quote.totalCents)} in test mode`
+            : `Place order & queue ${pluralize(count, "card")} — ${dollars(batch.quote.totalCents)}`}
       </button>
     </form>
   );
+}
+
+function envelopeBadge(
+  r: Person,
+  p: Project,
+  stagingReviewOnly: boolean,
+): { label: string; tone: string } {
+  if (r.paidBatchId) {
+    if ((r as Person & { refundStatus?: string }).refundStatus === "refunded") {
+      return { label: "Refunded", tone: "wed-pill wed-pill-neutral" };
+    }
+    return {
+      label: stagingReviewOnly ? "Ordered (test)" : "Ordered",
+      tone: "wed-pill wed-pill-ready",
+    };
+  }
+  if (isReady(p, r)) {
+    return { label: "Ready", tone: "wed-pill wed-pill-ready" };
+  }
+  if (!weddingAddressReady(r)) {
+    return { label: "Needs address", tone: "wed-pill wed-pill-warn" };
+  }
+  return { label: "Needs note", tone: "wed-pill wed-pill-warn" };
 }
 
 export function ReviewPanel({
@@ -187,6 +212,9 @@ export function ReviewPanel({
 }: PanelProps & { purchasingOpen: boolean; stagingReviewOnly?: boolean }) {
   const { user } = useAuth();
   const ready = households.filter((r) => isReady(p, r));
+  const waitingCount = households.filter(
+    (r) => !r.paidBatchId && !isReady(p, r),
+  ).length;
   const [selection, setSelection] = useState<Set<string>>(
       () => new Set(ready.slice(0, 100).map((r) => r.id)),
     ),
@@ -282,7 +310,7 @@ export function ReviewPanel({
     if (isSettledStatus(b.status)) {
       await refresh();
       if (stagingReviewOnly) {
-        notify("Test payment received. Your purchased cards are on hold.");
+        notify("Test order received. Your purchased cards are held in staging.");
       } else {
         if (b.batchId) {
           fireWeddingBrowserPurchase({
@@ -438,6 +466,8 @@ export function ReviewPanel({
   const summaryTotalCents =
     batch?.quote?.totalCents ??
     localEstimate.subtotalCents + internationalSelected * 500;
+  const settledCount =
+    batch?.quote?.count ?? batch?.count ?? selected.length;
 
   return (
     <>
@@ -445,15 +475,26 @@ export function ReviewPanel({
         <section className="wed-panel">
           <h2>Choose your envelopes</h2>
           <p>
-            {ready.length} ready ·{" "}
-            {households.filter((r) => !r.paidBatchId && !isReady(p, r)).length}{" "}
-            held · {p.purchasedCount} purchased.
+            {ready.length} ready · {waitingCount} waiting (needs address or
+            note) · {p.purchasedCount} ordered.
           </p>
+          {waitingCount > 0 && (
+            <div className="wed-notice">
+              <strong>
+                Send what&apos;s ready now — keep your volume rate for the rest.
+              </strong>
+              <p>
+                Mail your {ready.length} ready cards today; when remaining
+                addresses arrive, your next batch continues right where your
+                volume tier left off.
+              </p>
+            </div>
+          )}
           {ready.length > 100 && (
             <p className="wed-notice">
-              You have {pluralize(ready.length, "ready card")}. The first 100
-              are suggested for this purchase. The others stay ready at their
-              earned prices.
+              You have {ready.length} ready cards! Each batch sends up to 100 —
+              send your first 100 now, and the rest automatically start at
+              $6.50/card.
             </p>
           )}
           <div className="wed-actions">
@@ -477,43 +518,37 @@ export function ReviewPanel({
             </button>
           </div>
           <ul className="wed-list wed-scroll">
-            {households.map((r) => (
-              <li key={r.id}>
-                <label>
-                  <input
-                    type="checkbox"
-                    disabled={
-                      frozen ||
-                      busy ||
-                      !isReady(p, r) ||
-                      (!selection.has(r.id) && selected.length >= 100)
-                    }
-                    checked={selection.has(r.id) && isReady(p, r)}
-                    onChange={(e) => {
-                      const s = new Set(selection);
-                      if (e.target.checked) s.add(r.id);
-                      else s.delete(r.id);
-                      setSelection(s);
-                      setBatch(null);
-                    }}
-                  />
-                  {r.envelopeName} ·{" "}
-                  {r.paidBatchId
-                    ? (r as Person & { refundStatus?: string }).refundStatus ===
-                      "refunded"
-                      ? "Refunded"
-                      : stagingReviewOnly
-                        ? "Ordered on hold"
-                        : "Ordered"
-                    : isReady(p, r)
-                      ? "Ready"
-                      : "Held"}
-                </label>
-                <button onClick={() => setPreview(r.id)}>
-                  Preview card and envelope
-                </button>
-              </li>
-            ))}
+            {households.map((r) => {
+              const badge = envelopeBadge(r, p, stagingReviewOnly);
+              return (
+                <li key={r.id}>
+                  <label>
+                    <input
+                      type="checkbox"
+                      disabled={
+                        frozen ||
+                        busy ||
+                        !isReady(p, r) ||
+                        (!selection.has(r.id) && selected.length >= 100)
+                      }
+                      checked={selection.has(r.id) && isReady(p, r)}
+                      onChange={(e) => {
+                        const s = new Set(selection);
+                        if (e.target.checked) s.add(r.id);
+                        else s.delete(r.id);
+                        setSelection(s);
+                        setBatch(null);
+                      }}
+                    />
+                    <span>{r.envelopeName}</span>
+                    <span className={badge.tone}>{badge.label}</span>
+                  </label>
+                  <button onClick={() => setPreview(r.id)}>
+                    Preview card &amp; envelope
+                  </button>
+                </li>
+              );
+            })}
           </ul>
           {shown && <CardInspection key={shown.id} row={shown} project={p} />}
         </section>
@@ -597,11 +632,26 @@ export function ReviewPanel({
                   <span className="wed-price">
                     {dollars(batch.quote.baseCents)}
                   </span>{" "}
-                  cards +{" "}
+                  (domestic USPS First-Class stamps &amp; tax included · avg{" "}
                   <span className="wed-price">
-                    {dollars(batch.quote.mailingCents)}
-                  </span>{" "}
-                  international mailing. Tax included.
+                    {dollars(
+                      Math.round(
+                        batch.quote.totalCents /
+                          Math.max(1, batch.quote.count),
+                      ),
+                    )}
+                  </span>
+                  /card)
+                  {batch.quote.mailingCents > 0 && (
+                    <>
+                      {" "}
+                      +{" "}
+                      <span className="wed-price">
+                        {dollars(batch.quote.mailingCents)}
+                      </span>{" "}
+                      international postage
+                    </>
+                  )}
                 </p>
                 {batch.quote.promotion && (
                   <p>
@@ -638,6 +688,20 @@ export function ReviewPanel({
                 />
               </div>
             )}
+            {!batch?.batchId && (
+              <ul
+                className="wed-trust-checklist"
+                aria-label="Included with your order"
+              >
+                <li>Real pen &amp; ink on 120 lb vellum A2 folded cards</li>
+                <li>
+                  1–2 business days preparation + 2–7 business days estimated
+                  domestic USPS transit
+                </li>
+                <li>Instant email receipt &amp; private tracker link</li>
+                <li>Secure payment via Stripe</li>
+              </ul>
+            )}
             {!batch?.batchId &&
               (enabled ? (
                 <button
@@ -653,8 +717,8 @@ export function ReviewPanel({
                   {busy
                     ? "Preparing payment…"
                     : stagingReviewOnly
-                      ? `Continue to test payment — ${dollars(summaryTotalCents)}`
-                      : `Continue to payment — ${dollars(summaryTotalCents)}`}
+                      ? `Continue to test checkout — ${dollars(summaryTotalCents)}`
+                      : `Continue to secure checkout — ${dollars(summaryTotalCents)}`}
                 </button>
               ) : (
                 <p className="wed-meta">
@@ -692,11 +756,25 @@ export function ReviewPanel({
               </Elements>
             )}
             {isSettledStatus(batch?.status) && (
-              <p>
-                {stagingReviewOnly
-                  ? "Your purchased cards are on hold. You can continue with the remaining envelopes."
-                  : "Your thank-you cards are queued for real-pen writing and mailing. You can continue with any remaining envelopes."}
-              </p>
+              <div className="wed-notice">
+                <strong>
+                  {stagingReviewOnly
+                    ? `Test order received! ${pluralize(settledCount, "wedding thank-you card")} queued in staging.`
+                    : `You did it! ${pluralize(settledCount, "wedding thank-you card")} ${settledCount === 1 ? "is" : "are"} headed to the pens.`}
+                </strong>
+                <ol className="wed-timeline">
+                  <li>Email receipt &amp; private tracker link sent</li>
+                  <li>
+                    Written in real pen &amp; ink and stamped in 1–2 business
+                    days
+                  </li>
+                  <li>Estimated 2–7 business days USPS domestic transit</li>
+                </ol>
+                <p>
+                  Any remaining envelopes stay saved in your project at your
+                  unlocked volume tier.
+                </p>
+              </div>
             )}
             {frozen && (
               <div className="wed-actions">
@@ -722,7 +800,7 @@ export function ReviewPanel({
                     })
                   }
                 >
-                  Cancel this reservation
+                  Edit my batch selection
                 </button>
               </div>
             )}
@@ -746,7 +824,7 @@ export function ReviewPanel({
             <span className="wed-price"> · {dollars(summaryTotalCents)}</span>
           </div>
           <a href="#wed-review-total" className="wed-primary">
-            {batch?.clientSecret ? "Finish payment" : "Continue to payment"}
+            {batch?.clientSecret ? "Finish payment" : "Continue to checkout"}
           </a>
         </div>
       )}
@@ -772,6 +850,7 @@ type SavedCard = {
   };
   cover: { url: string };
 };
+
 function CardInspection({ row, project }: { row: Person; project: Project }) {
   const [card, setCard] = useState<SavedCard | null>(null),
     [err, setErr] = useState("");
@@ -794,7 +873,7 @@ function CardInspection({ row, project }: { row: Person; project: Project }) {
     };
   }, [row.id, row.paidBatchId]);
   const a = card?.recipient.address;
-  const address = a
+  const recipientAddress = a
     ? [
         card?.envelopeName,
         a.street1,
@@ -805,11 +884,23 @@ function CardInspection({ row, project }: { row: Person; project: Project }) {
         .filter(Boolean)
         .join("\n")
     : formatAddress(row);
+  const ret = project.returnAddress;
+  const returnName = [ret?.firstName, ret?.lastName].filter(Boolean).join(" ");
+  const returnAddressText = [
+    returnName || "Your return address",
+    ret?.address1 || "Add your return address in Your card",
+    ret?.address2,
+    [ret?.city, ret?.state, ret?.zip].filter(Boolean).join(" "),
+  ]
+    .filter(Boolean)
+    .join("\n");
   const url = card?.cover.url;
   const src =
     url && url.startsWith("/api/wedding/") && !url.includes("//")
       ? url
       : safePreview(url || project.cover.url);
+  const fontFamily = handFont(card?.handwriting || project.handwriting);
+
   return (
     <details open>
       <summary>
@@ -824,14 +915,33 @@ function CardInspection({ row, project }: { row: Person; project: Project }) {
         <>
           <img className="wed-front" src={src} alt="Selected card front" />
           <pre
-            className="wed-letter"
-            style={{
-              fontFamily: handFont(card?.handwriting || project.handwriting),
-            }}
+            className="wed-letter wed-letter-preview"
+            style={{ fontFamily }}
           >
             {card?.note ?? noteFor(project, row)}
           </pre>
-          <pre className="wed-letter">{address}</pre>
+          <div
+            className="wed-envelope-proof"
+            aria-label="Illustrative white envelope proof"
+          >
+            <div className="wed-envelope-top">
+              <div className="wed-envelope-return" style={{ fontFamily }}>
+                {returnAddressText}
+              </div>
+              <div className="wed-envelope-stamp" aria-hidden="true">
+                USPS
+                <br />
+                Stamp
+              </div>
+            </div>
+            <div className="wed-envelope-recipient" style={{ fontFamily }}>
+              {recipientAddress}
+            </div>
+          </div>
+          <p className="wed-meta">
+            Illustrative envelope layout · mailed with a real First-Class USPS
+            stamp from Phoenix, AZ
+          </p>
         </>
       )}
     </details>

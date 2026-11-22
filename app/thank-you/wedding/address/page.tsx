@@ -51,12 +51,19 @@ export default function AddressRequestPage() {
         <span>SendMyNotes</span>
       </header>
       <section className="wed-panel">
-        <h1>{sent ? "Address received" : "Your mailing address"}</h1>
+        <h1>
+          {sent
+            ? "Address received"
+            : "Where should we send your thank-you card?"}
+        </h1>
         {sent ? (
-          <p>Your address is ready for the sender to review.</p>
+          <p>Thank you! We&apos;ve shared your address with the couple.</p>
         ) : ready ? (
           <form onSubmit={submit}>
-            <p>Let the sender know where to mail your thank-you card.</p>
+            <p>
+              Share your mailing address below so the couple can send your
+              wedding thank-you card.
+            </p>
             <AddressFields value={address} onChange={setAddress} />
             <button
               className="wed-primary"
@@ -64,7 +71,7 @@ export default function AddressRequestPage() {
                 busy || !address.address1 || !address.city || !address.country
               }
             >
-              Submit my address for review
+              Send my address
             </button>
           </form>
         ) : (

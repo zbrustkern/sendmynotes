@@ -34,6 +34,7 @@ export function PrivateLink({ link }: { link: string }) {
         />
       </label>
       <button
+        type="button"
         onClick={async () => {
           try {
             await navigator.clipboard.writeText(url.href);
@@ -48,6 +49,7 @@ export function PrivateLink({ link }: { link: string }) {
     </div>
   );
 }
+
 function importPatch(r: WeddingImportRow, rows: WeddingImportRow[]) {
   const repeated =
     r.sourceId &&
@@ -62,6 +64,29 @@ function importPatch(r: WeddingImportRow, rows: WeddingImportRow[]) {
     insideNameConfirmed: Boolean(r.insideNames),
   };
 }
+
+function guestStatusBadge(
+  r: Person,
+  stagingReviewOnly: boolean,
+): { label: string; tone: string } {
+  if (r.paidBatchId) {
+    return {
+      label: stagingReviewOnly ? "Ordered (test)" : "Purchased",
+      tone: "wed-pill wed-pill-ready",
+    };
+  }
+  if (r.excluded) {
+    return { label: "Skipped", tone: "wed-pill wed-pill-neutral" };
+  }
+  if (r.pendingAddress) {
+    return { label: "Guest sent address", tone: "wed-pill wed-pill-info" };
+  }
+  if (weddingAddressReady(r)) {
+    return { label: "Address ready", tone: "wed-pill wed-pill-ready" };
+  }
+  return { label: "Needs address", tone: "wed-pill wed-pill-warn" };
+}
+
 export function PeoplePanel(
   props: PanelProps & {
     registerFlush: (save: () => Promise<boolean>) => () => void;
@@ -70,9 +95,18 @@ export function PeoplePanel(
     stagingReviewOnly?: boolean;
   },
 ) {
-  const { state, mutate, notify, editId, onEdit, signIn, stagingReviewOnly = false } = props;
+  const {
+    state,
+    mutate,
+    notify,
+    editId,
+    onEdit,
+    signIn,
+    stagingReviewOnly = false,
+  } = props;
   const [adding, setAdding] = useState(false),
-    [importing, setImporting] = useState(false),
+    [importing, setImporting] = useState(() => state.households.length === 0),
+    [focusPaste, setFocusPaste] = useState(false),
     [search, setSearch] = useState(""),
     [issuesOnly, setIssuesOnly] = useState(false);
   const [link, setLink] = useState(""),
@@ -130,19 +164,49 @@ export function PeoplePanel(
       projectId: state.project.id,
     });
     setImporting(false);
-    notify("The reviewed households were saved to your project.");
+    setFocusPaste(false);
+    notify("Your guest list has been saved.");
   }
+
+  const requestAddressButton = (
+    <button
+      type="button"
+      onClick={() =>
+        void work(async () => {
+          if (!source) return;
+          const r = await mutate("invite", {
+            kind: "address",
+            householdId: source.id,
+          });
+          setLink(String(r.link));
+        })
+      }
+    >
+      Create a private link to text them
+    </button>
+  );
+
   return (
     <>
       <div className="wed-actions">
         <button
           className="wed-primary"
-          onClick={() => setImporting(!importing)}
+          onClick={() => {
+            setFocusPaste(false);
+            setImporting(!importing);
+          }}
         >
           Upload a guest or gift list
         </button>
-        <button onClick={() => setImporting(true)}>Paste rows</button>
-        <button onClick={newRow}>Add a household</button>
+        <button
+          onClick={() => {
+            setImporting(true);
+            setFocusPaste(true);
+          }}
+        >
+          Paste from spreadsheet
+        </button>
+        <button onClick={newRow}>Add a guest</button>
       </div>
       {importing && (
         <section className="wed-panel">
@@ -152,7 +216,12 @@ export function PeoplePanel(
             headers={authHeaders}
             verified={state.actor.verified}
             onSignIn={signIn}
-            onClose={() => setImporting(false)}
+            focusPaste={focusPaste}
+            onPasteFocused={() => setFocusPaste(false)}
+            onClose={() => {
+              setImporting(false);
+              setFocusPaste(false);
+            }}
           />
         </section>
       )}
@@ -201,7 +270,7 @@ export function PeoplePanel(
                 });
               }}
             >
-              Review this household
+              Review this guest
             </button>
           </>
         ) : (
@@ -210,12 +279,12 @@ export function PeoplePanel(
       </details>
       <div className="wed-columns">
         <section className="wed-panel">
-          <h2>{pluralize(state.households.length, "household")}</h2>
+          <h2>{pluralize(state.households.length, "envelope")}</h2>
           <p className="wed-meta">
-            One envelope per household. Up to 250 draft households per project.
+            One card per couple, family, or solo guest · up to 250 envelopes.
           </p>
           <label>
-            Find a household
+            Find a guest
             <input
               type="search"
               value={search}
@@ -228,49 +297,49 @@ export function PeoplePanel(
               checked={issuesOnly}
               onChange={(e) => setIssuesOnly(e.target.checked)}
             />
-            Show only households needing review
+            Show only guests needing a quick check
           </label>
           {!visible.length && (
             <p>
               {state.households.length
-                ? "No matching households."
-                : "Add your first household, or bring a guest list."}
+                ? "No matching guests."
+                : "Add your first guest, or import your list above."}
             </p>
           )}
           <ul className="wed-list wed-scroll">
-            {visible.map((r) => (
-              <li key={r.id}>
-                <button
-                  onClick={async () => {
-                    if (!(await formSave.current())) return;
-                    setAdding(false);
-                    setPrefill(null);
-                    setLink("");
-                    onEdit(r.id);
-                  }}
-                >
-                  {r.envelopeName || "Unnamed household"}
-                </button>
-                <small>
-                  {" "}
-                  ·{" "}
-                  {r.paidBatchId
-                    ? stagingReviewOnly
-                      ? "Ordered on hold"
-                      : "Ordered"
-                    : r.excluded
-                      ? "Excluded"
-                      : r.pendingAddress
-                        ? "New address to review"
-                        : weddingAddressReady(r)
-                          ? "Address confirmed"
-                          : "Check address"}
-                </small>
-              </li>
-            ))}
+            {visible.map((r) => {
+              const badge = guestStatusBadge(r, stagingReviewOnly);
+              return (
+                <li key={r.id}>
+                  <button
+                    onClick={async () => {
+                      if (!(await formSave.current())) return;
+                      setAdding(false);
+                      setPrefill(null);
+                      setLink("");
+                      onEdit(r.id);
+                    }}
+                  >
+                    {r.envelopeName || "Unnamed guest"}
+                  </button>
+                  <span className={badge.tone}>{badge.label}</span>
+                </li>
+              );
+            })}
           </ul>
         </section>
         <section className="wed-note">
+          {source && !source.paidBatchId && !weddingAddressReady(source) && (
+            <div className="wed-notice">
+              <strong>Missing their address?</strong>
+              <p>
+                Share a private link so they can type it in themselves—you
+                review it before sending.
+              </p>
+              {requestAddressButton}
+              {link && <PrivateLink link={link} />}
+            </div>
+          )}
           {source || adding ? (
             <PersonForm
               key={source?.id || newId}
@@ -287,51 +356,42 @@ export function PeoplePanel(
               onDone={() => {
                 setAdding(false);
                 onEdit(null);
-                notify("Household saved.");
+                notify("Guest saved.");
               }}
             />
           ) : (
             <>
               <h2>Review an envelope</h2>
               <p>
-                Choose a household to check their mailing address, inside names
-                or gift.
+                Choose a guest to check their mailing address, greeting, or
+                gift.
               </p>
             </>
           )}
           {source && !source.paidBatchId && (
             <>
-              <details>
-                <summary>Request their current address</summary>
-                <p>
-                  Share a private link. They can submit only their own address,
-                  and you review it before sending.
-                </p>
-                <button
-                  onClick={() =>
-                    void work(async () => {
-                      const r = await mutate("invite", {
-                        kind: "address",
-                        householdId: source.id,
-                      });
-                      setLink(String(r.link));
-                    })
-                  }
-                >
-                  Create address link
-                </button>
-                {link && <PrivateLink link={link} />}
-              </details>
+              {weddingAddressReady(source) && (
+                <details>
+                  <summary>Request an updated address</summary>
+                  <p>
+                    Share a private link. They can submit only their own
+                    address, and you review it before sending.
+                  </p>
+                  {requestAddressButton}
+                  {link && <PrivateLink link={link} />}
+                </details>
+              )}
               {source.pendingAddress && (
-                <div>
+                <div className="wed-notice">
                   <h3>Address submitted for review</h3>
-                  <pre>
+                  <pre className="wed-letter">
                     {formatAddress({
                       ...source,
                       address: source.pendingAddress.address,
                     })}
                   </pre>
                   <button
+                    className="wed-primary"
                     onClick={() =>
                       void work(async () => {
                         await mutate("acceptAddress", {
@@ -358,6 +418,7 @@ export function PeoplePanel(
     </>
   );
 }
+
 function PersonForm({
   row,
   existing,
@@ -393,7 +454,7 @@ function PersonForm({
         insideNameConfirmed: Boolean(form.insideName.trim()),
       };
       if (!form.envelopeName.trim())
-        throw Error("Enter the name for this envelope to save it.");
+        throw Error("Enter the name on the envelope to save it.");
       const next = await mutate("saveHousehold", {
         id: row.id,
         revision,
@@ -429,11 +490,12 @@ function PersonForm({
       }}
     >
       <fieldset disabled={busy || !!row.paidBatchId}>
-        <legend>{existing ? "Edit household" : "Add a household"}</legend>
+        <legend>{existing ? "Edit guest" : "Add a guest"}</legend>
         <label>
-          Envelope name
+          Name on the envelope
           <input
             required
+            placeholder="Mr. & Mrs. David Rivera"
             value={form.envelopeName}
             onChange={(e) =>
               edit({ envelopeName: e.target.value, identityConfirmed: false })
@@ -441,11 +503,16 @@ function PersonForm({
           />
         </label>
         <label>
-          Names inside the card
+          Greeting name inside
           <input
+            placeholder="Uncle David & Aunt Maria"
             value={form.insideName}
             onChange={(e) => edit({ insideName: e.target.value })}
           />
+          <small>
+            Opens with: &ldquo;Dear{" "}
+            {form.insideName.trim() || "Uncle David & Aunt Maria"},&rdquo;
+          </small>
         </label>
         <details>
           <summary>Envelope name as printed</summary>
@@ -474,7 +541,7 @@ function PersonForm({
             checked={form.identityConfirmed}
             onChange={(e) => edit({ identityConfirmed: e.target.checked })}
           />
-          Use this exact envelope label:{" "}
+          Envelope name looks right:{" "}
           {[form.firstName || form.envelopeName, form.lastName]
             .filter(Boolean)
             .join(" ")}
@@ -482,6 +549,7 @@ function PersonForm({
         <label>
           Gift or gesture
           <input
+            placeholder="e.g., Linen napkins, stand mixer, or honeymoon fund"
             value={form.gift}
             onChange={(e) => edit({ gift: e.target.value })}
           />
@@ -496,7 +564,7 @@ function PersonForm({
             checked={form.addressConfirmed}
             onChange={(e) => edit({ addressConfirmed: e.target.checked })}
           />
-          I’ve reviewed the mailing address.
+          Mailing address looks right
         </label>
         <label>
           <input
@@ -504,7 +572,7 @@ function PersonForm({
             checked={form.excluded}
             onChange={(e) => edit({ excluded: e.target.checked })}
           />
-          Exclude this card (already thanked or not sending).
+          Skip this card (already thanked or not sending)
         </label>
         <SaveStatus
           draft={draft}
@@ -521,7 +589,7 @@ function PersonForm({
           }
         />
         <button className="wed-primary" type="submit">
-          Save household
+          Save guest
         </button>
       </fieldset>
     </form>

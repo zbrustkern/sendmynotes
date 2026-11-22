@@ -15,7 +15,10 @@ export function SharingPanel({ state, mutate, signIn, notify }: PanelProps) {
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [includeGift, setIncludeGift] = useState(false);
-  const [testerInvite, setTesterInvite] = useState<{ link: string; inviteId: string } | null>(null);
+  const [testerInvite, setTesterInvite] = useState<{
+    link: string;
+    inviteId: string;
+  } | null>(null);
   const { user, reloadUserAndRefreshToken, sendVerificationEmail } = useAuth();
   const owner = state.actor.role === "owner";
   const work = async (fn: () => Promise<void>) => {
@@ -69,7 +72,9 @@ export function SharingPanel({ state, mutate, signIn, notify }: PanelProps) {
   }
   return (
     <details className="wed-panel">
-      <summary>Manage sharing, recovery and tracker</summary>
+      <summary>
+        Share with your partner, backup link &amp; thank-you tracker
+      </summary>
       <p>
         Project access expires{" "}
         {new Date(state.project.expiresAt).toLocaleDateString(undefined, {
@@ -86,7 +91,7 @@ export function SharingPanel({ state, mutate, signIn, notify }: PanelProps) {
               disabled={busy}
               onClick={() => void work(() => invite("device"))}
             >
-              Recovery or add-device link
+              Open on another phone or laptop
             </button>
             <button
               disabled={busy}
@@ -129,24 +134,45 @@ export function SharingPanel({ state, mutate, signIn, notify }: PanelProps) {
       {state.actor.canIssuePilotInvites && (
         <div className="wed-notice">
           <h3>Invite a staging tester</h3>
-          <p>A tester can start their own project, upload files and try AI. Each invitation can be used once within seven days.</p>
+          <p>
+            A tester can start their own project, upload files and try AI. Each
+            invitation can be used once within seven days.
+          </p>
           <button
             disabled={busy}
-            onClick={() => void work(async () => {
-              setTesterInvite(await postWedding<{link: string; inviteId: string}>("pilot", {action: "issue"}));
-              notify("Tester invitation ready to copy.");
-            })}
+            onClick={() =>
+              void work(async () => {
+                setTesterInvite(
+                  await postWedding<{ link: string; inviteId: string }>(
+                    "pilot",
+                    { action: "issue" },
+                  ),
+                );
+                notify("Tester invitation ready to copy.");
+              })
+            }
           >
             Create tester invitation
           </button>
           {testerInvite && (
             <>
-              <PrivateLink key={testerInvite.inviteId} link={testerInvite.link} />
-              <button disabled={busy} onClick={() => void work(async () => {
-                await postWedding("pilot", {action: "revoke", inviteId: testerInvite.inviteId});
-                setTesterInvite(null);
-                notify("Tester invitation revoked.");
-              })}>
+              <PrivateLink
+                key={testerInvite.inviteId}
+                link={testerInvite.link}
+              />
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void work(async () => {
+                    await postWedding("pilot", {
+                      action: "revoke",
+                      inviteId: testerInvite.inviteId,
+                    });
+                    setTesterInvite(null);
+                    notify("Tester invitation revoked.");
+                  })
+                }
+              >
                 Revoke tester invitation
               </button>
             </>
@@ -156,8 +182,8 @@ export function SharingPanel({ state, mutate, signIn, notify }: PanelProps) {
       {!state.actor.verified && (
         <div className="wed-notice">
           <p>
-            Link a verified account to export a household tracker or use
-            delegated permissions.
+            Sign in to export your thank-you tracker or let your partner help
+            checkout.
           </p>
           <button disabled={busy} onClick={() => void work(claim)}>
             {user ? "Verify and link account" : "Sign in to link account"}
@@ -254,8 +280,8 @@ export function SharingPanel({ state, mutate, signIn, notify }: PanelProps) {
         <>
           <h3>Private tracker</h3>
           <p>
-            Download household names, note and mailing status. Street addresses
-            and messages are omitted.
+            Download guest names, note and mailing status. Street addresses and
+            messages are omitted.
           </p>
           <label>
             <input
@@ -293,7 +319,7 @@ function Partner({
     [exp, setExp] = useState(m.canExport);
   return (
     <fieldset>
-      <legend>Partner editor {index + 1}</legend>
+      <legend>{index === 0 ? "Your partner" : `Your partner ${index + 1}`}</legend>
       <label>
         <input
           type="checkbox"

@@ -33,32 +33,35 @@ export function AddressFields({
   const effectiveCountry = domestic || !value.country ? "US" : value.country;
   return (
     <>
-      <label>
-        Mailing country
-        <select
-          value={domestic ? "US" : value.country}
-          onChange={(e) =>
-            onChange({ ...value, country: e.target.value, state: "" })
-          }
-          disabled={domestic}
-        >
-          <option value="">Choose country</option>
-          <option value="US">United States</option>
-          {value.country && value.country !== "US" && !dest && (
-            <option value={value.country}>
-              {value.country} · check availability
-            </option>
-          )}
-          {options
-            .filter((d) => d.available)
-            .map((d) => (
-              <option key={d.countryCode} value={d.countryCode}>
-                {d.countryName}
+      {domestic ? (
+        <p className="wed-meta">US return address</p>
+      ) : (
+        <label>
+          Mailing country
+          <select
+            value={value.country}
+            onChange={(e) =>
+              onChange({ ...value, country: e.target.value, state: "" })
+            }
+          >
+            <option value="">Choose country</option>
+            <option value="US">United States</option>
+            {value.country && value.country !== "US" && !dest && (
+              <option value={value.country}>
+                {value.country} · check availability
               </option>
-            ))}
-        </select>
-      </label>
-      {value.country && value.country !== "US" && (
+            )}
+            {options
+              .filter((d) => d.available)
+              .map((d) => (
+                <option key={d.countryCode} value={d.countryCode}>
+                  {d.countryName}
+                </option>
+              ))}
+          </select>
+        </label>
+      )}
+      {!domestic && value.country && value.country !== "US" && (
         <p className="wed-meta">
           +$5.00 international mailing per card. Delivery varies by country and
           local postal service.

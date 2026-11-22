@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import sharp from "sharp";
 import { pluralize } from "../components/wedding/client";
@@ -11,6 +11,15 @@ import {
 } from "../lib/telemetry-schema";
 import { sendWeddingPurchaseConversion } from "../lib/wedding/attribution";
 import { fireWeddingBrowserPurchase } from "../lib/wedding/attribution-client";
+import {
+  ALL_SUPPORTED_WEDDING_FONT_IDS,
+  WEDDING_BRIDAL_FONTS,
+  WEDDING_DEFAULT_FONT_ID,
+  WEDDING_FONT_CATEGORIES,
+  isSupportedWeddingFontId,
+  weddingFontCssFamily,
+  weddingFontDisplayName,
+} from "../lib/wedding/fonts";
 import {
   getThankYouLayoutMetadata,
   getThankYouPageMetadata,
@@ -70,6 +79,7 @@ async function testServerMetaCapiConversion() {
       batchId: "wb_no_token",
       capturedCents: 9000,
       count: 10,
+      buyerEmail: "Couple@Example.com",
       livemode: true,
       fetchImpl: fakeFetch,
     });
@@ -354,13 +364,104 @@ async function testExportedHeroImages() {
   }
 }
 
+function testBridalFontCatalogAndCss() {
+  assert.equal(WEDDING_BRIDAL_FONTS.length, 10);
+  assert.equal(WEDDING_DEFAULT_FONT_ID, "hwAnita");
+  assert.deepEqual(WEDDING_FONT_CATEGORIES, [
+    "Romantic & Script",
+    "Whimsical & Modern",
+    "Classic & Tailored",
+  ]);
+
+  const css = readFileSync(
+    join(process.cwd(), "app", "thank-you", "wedding.css"),
+    "utf8",
+  );
+
+  for (const font of WEDDING_BRIDAL_FONTS) {
+    const ttfPath = join(process.cwd(), "public", font.fontFile);
+    const stat = statSync(ttfPath);
+    assert.ok(stat.size > 10_000, `${font.fontFile} must be a non-empty TTF`);
+
+    if (!font.usesGlobalCssVar) {
+      const familyMatch = font.cssFontFamily.match(/"([^"]+)"/);
+      assert.ok(
+        familyMatch,
+        `${font.id} cssFontFamily must declare quoted font name`,
+      );
+      assert.ok(
+        css.includes(`font-family: "${familyMatch[1]}"`) &&
+          css.includes(`url("${font.fontFile}")`) &&
+          css.includes("font-display: swap"),
+        `wedding.css must declare @font-face with font-display: swap for ${font.id}`,
+      );
+    }
+  }
+
+  assert.equal(ALL_SUPPORTED_WEDDING_FONT_IDS.length, 14);
+  for (const id of ALL_SUPPORTED_WEDDING_FONT_IDS) {
+    assert.ok(isSupportedWeddingFontId(id), `${id} should be supported`);
+    const family = weddingFontCssFamily(id);
+    const display = weddingFontDisplayName(id);
+    assert.ok(family.includes("cursive"), `${id} cssFamily should fallback to cursive`);
+    assert.ok(display.length > 0, `${id} displayName must be non-empty`);
+  }
+
+  assert.equal(weddingFontDisplayName("hwAnita"), "Heirloom Script");
+  assert.equal(weddingFontDisplayName("hwChase"), "Graceful Script");
+  assert.equal(weddingFontDisplayName("hwAdam"), "Clean Classic");
+  assert.equal(weddingFontDisplayName(undefined), "Heirloom Script");
+  assert.equal(weddingFontCssFamily(undefined), '"HW Anita", cursive');
+}
+
+function testBridalCopyJargonPurge() {
+  const files = [
+    "components/wedding/WeddingWorkspace.tsx",
+    "components/wedding/CardPanel.tsx",
+    "components/wedding/PeoplePanel.tsx",
+    "components/wedding/WeddingListImport.tsx",
+    "components/wedding/WritingPanel.tsx",
+    "components/wedding/DraftAssistant.tsx",
+    "components/wedding/ReviewPanel.tsx",
+    "components/wedding/SharingPanel.tsx",
+    "components/wedding/useWeddingDraft.tsx",
+    "app/thank-you/wedding/address/page.tsx",
+  ];
+  const banned = [
+    "15 MiB",
+    "5 MiB",
+    "Partner editor 1",
+    "Thank you for thinking of us.",
+    "Cancel this reservation",
+    "Model details unavailable",
+    "Another writer saved a change",
+    "Aster & Blanche",
+    "Apple Pay",
+  ];
+
+  for (const rel of files) {
+    const content = readFileSync(join(process.cwd(), rel), "utf8");
+    for (const phrase of banned) {
+      assert.equal(
+        content.includes(phrase),
+        false,
+        `${rel} must not contain "${phrase}"`,
+      );
+    }
+  }
+}
+
 async function main() {
   await testServerMetaCapiConversion();
   testBrowserPurchaseHelper();
   testMetadataGeneration();
   testGrammarAndTelemetrySchema();
   await testExportedHeroImages();
-  console.log("Passed all wedding attribution, metadata, hero image, and UX checks.");
+  testBridalFontCatalogAndCss();
+  testBridalCopyJargonPurge();
+  console.log(
+    "Passed all wedding attribution, metadata, hero image, font catalog, and UX checks.",
+  );
 }
 
 void main();

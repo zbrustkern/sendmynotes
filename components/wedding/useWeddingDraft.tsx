@@ -143,7 +143,7 @@ export function SaveStatus({
   if (draft.status === "conflict")
     return (
       <div role="alert" className="wed-notice">
-        <strong>Another writer saved a change.</strong>
+        <strong>Your partner saved an update while you were editing.</strong>
         <p>
           Your edits are still in these fields. The current saved version
           follows.
