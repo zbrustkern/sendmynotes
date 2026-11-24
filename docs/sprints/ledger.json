@@ -410,6 +410,15 @@
       "founder_cleanup": "approved_four_soft_deletions",
       "evidence": "docs/sprints/evidence/SPRINT-0034/REVIEW.md",
       "updated_at": "2026-11-19"
+    },
+    {
+      "id": "SPRINT-0035",
+      "title": "Solo-founder Follow-up Inbox, Measurement funnel consolidation, and checkout opt-in polish",
+      "status": "implemented",
+      "path": "docs/sprints/SPRINT-0035.md",
+      "release_target": "staging",
+      "acceptance_status": "local_checks_passed_staging_pending",
+      "updated_at": "2026-11-24"
     }
   ]
 }

@@ -38,7 +38,7 @@ export interface PostPurchasePublishedVersion extends PostPurchaseConfig {
 }
 export interface PostPurchaseEligibility {
   eligible: boolean;
-  reason: "ready" | "waiting_for_mailing" | "missing_email" | "permission_unknown" | "unsubscribed" | "paused_for_support" | "already_enrolled" | "purchased_again" | "excluded_test_comp_refund" | "payment_unverified" | "address_pending" | "mailing_unknown";
+  reason: "ready" | "waiting_for_mailing" | "missing_email" | "permission_unknown" | "unsubscribed" | "paused_for_support" | "already_enrolled" | "purchased_again" | "excluded_test_comp_refund" | "payment_unverified" | "address_pending" | "mailing_unknown" | "sensitive_occasion";
 }
 export interface PostPurchaseEnrollment {
   id: string;

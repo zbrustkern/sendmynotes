@@ -5,6 +5,7 @@ import { getEmailPreference, getSenderKey, maskEmail } from "./preferences";
 import { ensureUnsubscribeToken } from "./dispatch";
 import type { Order } from "../types";
 import type { FollowupTransport } from "./dispatch";
+import { isSensitiveOccasionOrder } from "./sympathy";
 
 export const MANUAL_MESSAGES = "manual_followup_messages";
 export type ManualSourceType = "order" | "feedback" | "account";
@@ -25,7 +26,7 @@ const escape = (value: string) => value.replace(/[&<>"']/g, c => ({"&":"&amp;","
 
 export function generateManualCopy(order: Order): { subject: string; body: string; sensitiveOccasion: boolean } {
   // Only structured occasion metadata is used; never send private card text to a model.
-  const sensitiveOccasion = /sympathy|condolence|bereavement|loss|funeral/i.test(String(order.occasion || order.recipientOccasion?.occasionType || ""));
+  const sensitiveOccasion = isSensitiveOccasionOrder(order);
   const name = String(order.returnAddress?.firstName || "").trim().replace(/[\r\n]/g, " ").slice(0,60);
   const greeting = name ? `Hi ${name},` : "Hi there,";
   return {

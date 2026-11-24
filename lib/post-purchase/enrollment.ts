@@ -8,10 +8,12 @@ import { enrollmentRef, messageRef } from "./repository";
 import type { FollowupStep, PostPurchaseEligibility, PostPurchaseEnrollment, PostPurchaseMessage, PostPurchasePublishedVersion } from "./contracts";
 import { effectiveOrderEmail } from "../checkout-contact-policy";
 import { getPaymentIntentRefundFacts } from "../financial-ledger";
+import { isSensitiveOccasionOrder } from "./sympathy";
 
 export function getPostPurchaseEligibility(order: Order, permission: string | undefined, alreadyEnrolled = false): PostPurchaseEligibility {
   if (!order.purchaseMeasurement?.eligible) return { eligible: false, reason: order.purchaseMeasurement ? "excluded_test_comp_refund" : "payment_unverified" };
   if (order.isTest || order.isComp || order.isFounderTest || order.origin === "ADMIN_COMP" || order.amountInCents <= 0 || order.paymentMode === "local_mock" || order.paymentMode === "stripe_test" || order.purchaseMeasurement.refundStatus === "fully_refunded") return { eligible: false, reason: "excluded_test_comp_refund" };
+  if (isSensitiveOccasionOrder(order)) return { eligible: false, reason: "sensitive_occasion" };
   if (!effectiveOrderEmail(order)) return { eligible: false, reason: "missing_email" };
   if (["unsubscribed", "bounced", "complained", "denied"].includes(permission || "")) return { eligible: false, reason: "unsubscribed" };
   if (permission !== "granted") return { eligible: false, reason: "permission_unknown" };

@@ -38,6 +38,7 @@ export interface AdminWaterfallConsoleProps {
   initialWindow?: WaterfallWindow;
   initialChannel?: WaterfallChannel;
   initialAudience?: WaterfallAudience;
+  compactFunnelOnly?: boolean;
   onScopeChange?: (scope: WaterfallScope) => void;
   className?: string;
 }
@@ -102,6 +103,7 @@ export function AdminWaterfallConsole({
   initialWindow = "last7",
   initialChannel = "all",
   initialAudience = "customers",
+  compactFunnelOnly = false,
   onScopeChange,
   className = "",
 }: AdminWaterfallConsoleProps) {
@@ -469,6 +471,7 @@ export function AdminWaterfallConsole({
       {/* =========================================================================
           TIER 1: EXECUTIVE KPI STRIP (5 CLEAN CARDS)
           ========================================================================= */}
+      {!compactFunnelOnly && (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4" data-testid="tier-1-kpi-strip">
         {/* KPI 1: Net Customer Revenue */}
         <div className="bg-white rounded-2xl p-4.5 border border-stone-200/90 shadow-2xs flex flex-col justify-between">
@@ -584,6 +587,7 @@ export function AdminWaterfallConsole({
           </div>
         </div>
       </div>
+      )}
 
       {/* =========================================================================
           TIER 2: 6-STEP CONVERSION WATERFALL & BOT-FILTERED FUNNEL
