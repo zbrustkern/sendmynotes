@@ -985,7 +985,7 @@ function InnerPaymentForm({
               onChange={(e) => {
                 emailTouched.current = true;
                 onChangeCustomerEmail(e.target.value);
-                setFollowupOptIn(false);
+                if (!e.target.value.trim()) setFollowupOptIn(false);
                 if (errorMessage) setErrorMessage(null);
               }}
               onBlur={() => setCommittedEmail(customerEmail)}
@@ -995,11 +995,18 @@ function InnerPaymentForm({
             <p className="text-[11px] text-stone-500">
               {recipient.street1?.trim() ? "For your receipt and available mailing updates. You can leave this blank." : "We’ll email a secure link so you can add the recipient address later."}
             </p>
-            <label className="flex items-start gap-2 pt-2 text-xs leading-5 text-stone-600">
-              <input type="checkbox" checked={followupOptIn} disabled={!customerEmail.trim() || isProcessing || isPaymentCaptured}
-                onChange={(event) => setFollowupOptIn(event.target.checked)} className="mt-1 accent-amber-800" />
-              <span>Email me a check-in and occasional offers from SendMyNotes. Optional; unsubscribe anytime. No account needed.</span>
-            </label>
+            {customerEmail.trim().length > 0 && (
+              <label className="flex items-start gap-2 pt-2 text-xs leading-5 text-stone-600">
+                <input
+                  type="checkbox"
+                  checked={followupOptIn}
+                  disabled={isProcessing || isPaymentCaptured}
+                  onChange={(event) => setFollowupOptIn(event.target.checked)}
+                  className="mt-1 accent-amber-800"
+                />
+                <span>Email me occasional offers &amp; check-ins (unsubscribe anytime).</span>
+              </label>
+            )}
           </div>
 
           {/* STRIPE PAYMENT CONTAINER - DIRECTLY ABOVE THE FOLD */}

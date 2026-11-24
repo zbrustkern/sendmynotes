@@ -127,6 +127,15 @@ env:
   - variable: UPLOAD_CLEANUP_SECRET
     secret: upload-cleanup-secret@1
     availability: [RUNTIME]
+  - variable: UPLOAD_OPEN_TO_ACCOUNTS
+    value: "false"
+    availability: [RUNTIME]
+  - variable: UPLOAD_DEFAULT_DAILY_LIMIT
+    value: "5"
+    availability: [RUNTIME]
+  - variable: UPLOAD_GLOBAL_DAILY_LIMIT
+    value: "100"
+    availability: [RUNTIME]
   - variable: ADMIN_SESSION_SIGNING_KEY
     secret: admin-session-signing-key@1
     availability: [RUNTIME]

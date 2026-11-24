@@ -1,8 +1,17 @@
+import { timingSafeEqual } from "node:crypto";
 import { localTimeToEpoch, validCivilDate } from "@/lib/account/calendar";
 import { trySyncPostPurchaseOrder } from "@/lib/post-purchase/integration";
 import { NextRequest, NextResponse } from "next/server";
 import { firestoreDb, getOrdersCollection, updateOrderStatus } from "@/lib/firebase-admin";
 import { Order } from "@/lib/types";
+
+function matchesWebhookSecret(incoming: string | null | undefined, expected: string): boolean {
+  if (!incoming) return false;
+  const a = Buffer.from(incoming, "utf8");
+  const b = Buffer.from(expected, "utf8");
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
 
 /**
  * Handwrytten Order Status Webhook Receiver
@@ -25,6 +34,21 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    // Fail closed for all Handwrytten webhooks (both single cards and batch deliveries).
+    const webhookSecret = process.env.HANDWRYTTEN_WEBHOOK_SECRET?.trim();
+    if (!webhookSecret) {
+      return NextResponse.json(
+        { error: "Handwrytten webhook authentication is not configured." },
+        { status: 503 }
+      );
+    }
+    const urlToken = req.nextUrl.searchParams.get("token") || req.nextUrl.searchParams.get("secret");
+    const headerToken = req.headers.get("x-webhook-token") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
+    const incomingToken = urlToken || headerToken;
+    if (!matchesWebhookSecret(incomingToken, webhookSecret)) {
+      return NextResponse.json({ error: "Unauthorized webhook caller" }, { status: 401 });
+    }
+
     let payload: Record<string, unknown> = {};
 
     const contentType = req.headers.get("content-type") || "";
@@ -52,17 +76,6 @@ export async function POST(req: NextRequest) {
         payload = JSON.parse(text);
       } catch {
         payload = { raw: text };
-      }
-    }
-
-    // Optional webhook secret validation if configured
-    const webhookSecret = process.env.HANDWRYTTEN_WEBHOOK_SECRET;
-    if (webhookSecret) {
-      const urlToken = req.nextUrl.searchParams.get("token") || req.nextUrl.searchParams.get("secret");
-      const headerToken = req.headers.get("x-webhook-token") || req.headers.get("authorization")?.replace(/^Bearer\s+/i, "");
-      const incomingToken = urlToken || headerToken;
-      if (!incomingToken || incomingToken !== webhookSecret) {
-        return NextResponse.json({ error: "Unauthorized webhook caller" }, { status: 401 });
       }
     }
 

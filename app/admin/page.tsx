@@ -46,10 +46,7 @@ import { AddressRetryModal } from "@/components/admin/AddressRetryModal";
 import { StudioCompModal } from "@/components/admin/StudioCompModal";
 import { OrderJourneyDrawer } from "@/components/admin/OrderJourneyDrawer";
 import { PrivacyOperationsPanel } from "@/components/admin/PrivacyOperationsPanel";
-import { CapturedContactsPanel } from "@/components/admin/CapturedContactsPanel";
-import { PostPurchaseQueuePanel } from "@/components/admin/PostPurchaseQueuePanel";
-import { PostPurchaseSettingsPanel } from "@/components/admin/PostPurchaseSettingsPanel";
-import { OrderFollowupPanel } from "@/components/admin/OrderFollowupPanel";
+import { FollowupsWorkspace } from "@/components/admin/FollowupsWorkspace";
 import { BespokeOfferEditor } from "@/components/admin/BespokeOfferEditor";
 import { WeddingBatchesPanel } from "@/components/admin/WeddingBatchesPanel";
 
@@ -68,8 +65,9 @@ export default function AdminDashboardPage() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState("");
 
-  // Navigation tab state: 4 focused views
-  const [activeTab, setActiveTab] = useState<"orders" | "wedding" | "measurement" | "telemetry" | "discounts" | "incidents" | "contacts">("orders");
+  // Navigation tab state: 6 focused views
+  const [activeTab, setActiveTab] = useState<"orders" | "wedding" | "followups" | "measurement" | "discounts" | "incidents">("orders");
+  const [measurementSubView, setMeasurementSubView] = useState<"revenue" | "funnel">("revenue");
 
   // Orders State
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
@@ -80,9 +78,6 @@ export default function AdminDashboardPage() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncingStripeId, setSyncingStripeId] = useState<string | null>(null);
   const [expandedJourneyOrderId, setExpandedJourneyOrderId] = useState<string | null>(null);
-  const [showPostPurchaseQueue, setShowPostPurchaseQueue] = useState(false);
-  const [showPostPurchaseSettings, setShowPostPurchaseSettings] = useState(false);
-  const [selectedFollowupOrderId, setSelectedFollowupOrderId] = useState<string | null>(null);
 
   // Modals
   const [selectedProofOrderId, setSelectedProofOrderId] = useState<string | null>(null);
@@ -128,12 +123,15 @@ export default function AdminDashboardPage() {
   const [discountFormError, setDiscountFormError] = useState("");
   const [discountFormSuccess, setDiscountFormSuccess] = useState("");
 
-  const handleTabChange = (tab: "orders" | "wedding" | "measurement" | "telemetry" | "discounts" | "incidents" | "contacts") => {
+  const handleTabChange = (tab: "orders" | "wedding" | "followups" | "measurement" | "discounts" | "incidents") => {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
       url.searchParams.set("tab", tab);
       url.searchParams.delete("workspace");
+      if (tab !== "measurement") {
+        url.searchParams.delete("view");
+      }
       window.history.replaceState({}, "", url.toString());
     }
   };
@@ -576,14 +574,18 @@ export default function AdminDashboardPage() {
       const tabParam = params.get("tab") || params.get("workspace");
       if (tabParam === "measurement") {
         setActiveTab("measurement");
+        if (params.get("view") === "funnel") {
+          setMeasurementSubView("funnel");
+        }
       } else if (tabParam === "telemetry") {
-        setActiveTab("telemetry");
+        setActiveTab("measurement");
+        setMeasurementSubView("funnel");
       } else if (tabParam === "discounts" || tabParam === "promotions") {
         setActiveTab("discounts");
       } else if (tabParam === "incidents" || tabParam === "reliability") {
         setActiveTab("incidents");
-      } else if (tabParam === "contacts") {
-        setActiveTab("contacts");
+      } else if (tabParam === "contacts" || tabParam === "followups") {
+        setActiveTab("followups");
       } else if (tabParam === "wedding") {
         setActiveTab("wedding");
       } else if (tabParam === "orders") {
@@ -822,7 +824,18 @@ export default function AdminDashboardPage() {
                 <span>Wedding Batches</span>
               </button>
 
-              <button type="button" onClick={() => handleTabChange("contacts")} className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 whitespace-nowrap ${activeTab === "contacts" ? "border-stone-900 text-stone-900 font-semibold" : "border-transparent text-stone-500 hover:text-stone-900 font-medium"}`}><Mail className="w-3.5 h-3.5"/><span>Other contacts</span></button>
+              <button
+                type="button"
+                onClick={() => handleTabChange("followups")}
+                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
+                  activeTab === "followups"
+                    ? "border-stone-900 text-stone-900 font-semibold"
+                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
+                }`}
+              >
+                <Mail className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                <span>Follow-ups</span>
+              </button>
 
               <button
                 type="button"
@@ -835,19 +848,6 @@ export default function AdminDashboardPage() {
               >
                 <TrendingUp className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                 <span>Measurement</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleTabChange("telemetry")}
-                className={`py-3 px-1 border-b-2 text-xs sm:text-sm inline-flex items-center gap-1.5 cursor-pointer transition whitespace-nowrap ${
-                  activeTab === "telemetry"
-                    ? "border-stone-900 text-stone-900 font-semibold"
-                    : "border-transparent text-stone-500 hover:text-stone-900 hover:border-stone-300 font-medium"
-                }`}
-              >
-                <Activity className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-                <span>Experiment</span>
               </button>
 
               <button
@@ -902,13 +902,6 @@ export default function AdminDashboardPage() {
           <div className="space-y-6">
             {/* Handwrytten Status Widget */}
             <HandwryttenStatusWidget />
-
-            <section className="space-y-4 rounded-2xl border border-stone-200 bg-stone-50 p-4">
-              <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-serif text-xl text-stone-900">Optional post-purchase follow-ups</h2><p className="text-xs text-stone-600">Review eligible orders, permission, timing, and message settings.</p></div><div className="flex gap-2"><button type="button" aria-expanded={showPostPurchaseQueue} onClick={() => setShowPostPurchaseQueue((v) => !v)} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm">{showPostPurchaseQueue ? "Hide queue" : "Open queue"}</button><button type="button" aria-expanded={showPostPurchaseSettings} onClick={() => setShowPostPurchaseSettings((v) => !v)} className="rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm">{showPostPurchaseSettings ? "Hide settings" : "Flow settings"}</button></div></div>
-              {showPostPurchaseQueue && <PostPurchaseQueuePanel onSelectOrder={(orderId) => { setSelectedFollowupOrderId(orderId); document.getElementById(`order-row-${orderId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }); }} />}
-              {showPostPurchaseQueue && selectedFollowupOrderId && <OrderFollowupPanel orderId={selectedFollowupOrderId} onClose={() => setSelectedFollowupOrderId(null)} />}
-              {showPostPurchaseSettings && <PostPurchaseSettingsPanel />}
-            </section>
 
             {/* ACTIVE TROUBLESHOOTING ALERT CALLOUT */}
             {hasActiveAlerts && (
@@ -1538,43 +1531,74 @@ export default function AdminDashboardPage() {
           </div>
         )}
 
-        {/* ===================== TAB 2: MEASUREMENT ===================== */}
+        {/* ===================== TAB 2: WEDDING BATCHES & FOLLOW-UPS ===================== */}
         {activeTab === "wedding" && <WeddingBatchesPanel />}
 
-        {activeTab === "contacts" && <CapturedContactsPanel />}
+        {activeTab === "followups" && <FollowupsWorkspace onDiscountCreated={fetchDiscounts} />}
 
+        {/* ===================== TAB 3: MEASUREMENT ===================== */}
         {activeTab === "measurement" && (
           <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-2 border-b border-stone-200">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pb-3 border-b border-stone-200">
               <div>
                 <h2 className="text-lg font-serif font-bold text-stone-900">
                   Conversion &amp; Verified Payment Evidence
                 </h2>
                 <p className="text-xs text-stone-500">
-                  Scope-governed reconciliation of verified customer payments, Stripe balances, and marketing attribution.
+                  {measurementSubView === "revenue"
+                    ? "Scope-governed reconciliation of verified customer payments, Stripe balances, and marketing attribution."
+                    : "Observed 6-step conversion waterfall, drop-off highlights, and origin attribution matrix."}
                 </p>
               </div>
             </div>
-            <AdminMeasurementPanel
-              onInspectOrder={(orderId) => {
-                setActiveTab("orders");
-                setSearchQuery(orderId);
-                setExpandedJourneyOrderId(orderId);
-              }}
-            />
-          </div>
-        )}
 
-        {/* ===================== TELEMETRY EXPERIMENT OVERVIEW ===================== */}
-        {activeTab === "telemetry" && (
-          <div className="space-y-6">
-            <div className="pb-2 border-b border-stone-200">
-              <h2 className="text-lg font-serif font-bold text-stone-900">Experiment overview &amp; journey</h2>
-              <p className="mt-1 text-xs text-stone-500">
-                Observed session milestones, exact order links, attribution coverage, and source freshness. Verified payment evidence remains in Measurement.
-              </p>
+            <div className="flex flex-wrap items-center gap-2" role="tablist" aria-label="Measurement views">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={measurementSubView === "revenue"}
+                onClick={() => setMeasurementSubView("revenue")}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1.5 ${
+                  measurementSubView === "revenue"
+                    ? "bg-stone-900 text-white shadow-xs"
+                    : "bg-white border border-stone-200 text-stone-700 hover:bg-stone-50"
+                }`}
+              >
+                <TrendingUp className="w-3.5 h-3.5" />
+                <span>Verified Revenue &amp; Orders</span>
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={measurementSubView === "funnel"}
+                onClick={() => setMeasurementSubView("funnel")}
+                className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1.5 ${
+                  measurementSubView === "funnel"
+                    ? "bg-stone-900 text-white shadow-xs"
+                    : "bg-white border border-stone-200 text-stone-700 hover:bg-stone-50"
+                }`}
+              >
+                <Activity className="w-3.5 h-3.5" />
+                <span>Conversion Funnel &amp; Drop-off</span>
+              </button>
             </div>
-            <AdminWaterfallConsole initialWindow="last7" initialChannel="all" initialAudience="customers" />
+
+            {measurementSubView === "revenue" ? (
+              <AdminMeasurementPanel
+                onInspectOrder={(orderId) => {
+                  handleTabChange("orders");
+                  setSearchQuery(orderId);
+                  setExpandedJourneyOrderId(orderId);
+                }}
+              />
+            ) : (
+              <AdminWaterfallConsole
+                initialWindow="last7"
+                initialChannel="all"
+                initialAudience="customers"
+                compactFunnelOnly
+              />
+            )}
           </div>
         )}
 

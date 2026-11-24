@@ -5,8 +5,8 @@ import {AccountError, accountDoc, requireAccountActor} from '../account/http';
 import type {AccountActor} from '../account/contracts';
 import {getAccountImage, readAccountImageForOrder} from '../account/images';
 import type {LibraryObjectStore} from '../account/library-storage';
-import {getDesign, readPrivateAsset, requireActiveGrant, uploadCollections} from '../upload/access';
-import {UploadError} from '../upload/contracts';
+import {evaluateUploadGrant, getDesign, readPrivateAsset, requireActiveGrant, uploadCollections} from '../upload/access';
+import {UploadError, type UploadGrant} from '../upload/contracts';
 import {isAuthorizedAdminEmail} from '../admin-auth';
 import type {Order} from '../types';
 import {adoptNormalizedWeddingArtwork} from './artwork';
@@ -58,7 +58,7 @@ export function createTransferArtworkBoundary(deps:Dependencies={}) {
           const current=await requireAccountActor(req,true).catch(error=>{if(error instanceof AccountError)resolution();throw error;});
           if(!current.emailVerified||current.uid!==uid)resolution();
           if(studioRequired||!pilot()){
-            if(tx){const grant=(await tx.get(uploadCollections.col('uploadAccess').doc(uploadCollections.envKey(uid)))).data();if(!grant||grant.uid!==uid||grant.revoked||grant.expiresAt<=Date.now())resolution();}
+            if(tx){const grant=(await tx.get(uploadCollections.col('uploadAccess').doc(uploadCollections.envKey(uid)))).data() as UploadGrant | undefined;if(!evaluateUploadGrant(uid, grant).allowed)resolution();}
             else await requireActiveGrant(uid,'read');
           }
         }

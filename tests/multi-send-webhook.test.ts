@@ -28,10 +28,19 @@ async function main() {
     delete process.env.HANDWRYTTEN_WEBHOOK_SECRET;
     const legacyId = `webhook_legacy_${Date.now()}`;
     await getOrdersCollection().doc(legacyId).set({ id: legacyId, status: "PROCESSING_HANDWRYTTEN", handwryttenOrderId: "hw_legacy_hook", createdAt: Date.now() });
-    const legacy = await POST(req("mailed", undefined, "hw_legacy_hook"));
-    assert.equal(legacy.status, 200, "legacy webhook retains its existing optional-secret behavior");
+    const legacyUnconfigured = await POST(req("mailed", undefined, "hw_legacy_hook"));
+    assert.equal(legacyUnconfigured.status, 503, "ordinary card webhook fails closed when secret is missing");
+    assert.equal((await getOrdersCollection().doc(legacyId).get()).data()?.status, "PROCESSING_HANDWRYTTEN");
+
+    process.env.HANDWRYTTEN_WEBHOOK_SECRET = "synthetic-webhook-secret";
+    const legacyUnauthorized = await POST(req("mailed", "wrong", "hw_legacy_hook"));
+    assert.equal(legacyUnauthorized.status, 401, "ordinary card webhook rejects an invalid token");
+    assert.equal((await getOrdersCollection().doc(legacyId).get()).data()?.status, "PROCESSING_HANDWRYTTEN");
+
+    const legacy = await POST(req("mailed", process.env.HANDWRYTTEN_WEBHOOK_SECRET, "hw_legacy_hook"));
+    assert.equal(legacy.status, 200, "ordinary card webhook accepts valid shared secret");
     assert.equal((await getOrdersCollection().doc(legacyId).get()).data()?.status, "MAILED");
-    console.log("multi-send webhook: batch auth, strict status mapping, and legacy fallback passed");
+    console.log("multi-send webhook: fail-closed auth for single and batch orders and strict status mapping passed");
   });
 }
 
