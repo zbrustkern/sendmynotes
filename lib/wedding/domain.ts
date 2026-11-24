@@ -34,7 +34,7 @@ export interface WeddingActor {
   projectId: string; actorId: string; role: 'owner'|'editor'; verified: boolean; pilot: boolean;
   uid?: string|null; canIssuePilotInvites?: boolean; canPay?: boolean; canExport?: boolean; authTime?: number;
   /** Internal capability context, never serialized to browsers. */
-  sessionId?: string; pilotInviteId?: string|null;
+  sessionId?: string; pilotInviteId?: string|null; founderCohort?: boolean;
 }
 export function blankWeddingAddress(): WeddingAddress { return {address1:'',address2:'',city:'',state:'',zip:'',country:''}; }
 export function newWeddingHousehold(id: string): WeddingHousehold {

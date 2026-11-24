@@ -1,7 +1,7 @@
 import {firestoreDb} from '../firebase-admin';
 import {blankWeddingAddress, WEDDING_DAY, WEDDING_MAX_HOUSEHOLDS} from './domain';
 import {weddingHash} from './hash';
-import {weddingProjectRef} from './server';
+import {weddingProjectRef, weddingStorageEnvironment} from './server';
 import {digest, type WeddingQuoteLine} from './finance';
 import {ARTWORK_LIMITS, ARTWORK_POLICY} from './artwork-policy';
 import {FINANCIAL_FACTS_COLLECTION} from '../financial-ledger';
@@ -72,9 +72,10 @@ async function verifyPaidHistory(tx: Tx, ref: Ref, project: Stored, rows: Fireba
   if (batches.size > MAX_HOUSEHOLDS || pins.size > MAX_HOUSEHOLDS) return 'order_history_limit';
   const batchIds = new Set(batches.docs.map(doc => doc.id));
   const pinsByBatch = new Map(pins.docs.map(doc => [doc.id, doc.data()]));
+  const storageEnv = weddingStorageEnvironment();
   for (const [id, pin] of pinsByBatch) {
     if (!batchIds.has(id) || pin.batchId !== id || pin.projectId !== ref.id || pin.status !== 'ready' ||
-        pin.storageKey !== `wedding-paid-retained/staging/${weddingHash(ref.id).slice(0,32)}/${id}.png` ||
+        pin.storageKey !== `wedding-paid-retained/${storageEnv}/${weddingHash(ref.id).slice(0,32)}/${id}.png` ||
         typeof pin.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(pin.sha256)) return 'paid_master_mismatch';
   }
   const accounted = new Set<string>(), ordinals = new Set<number>();
@@ -167,22 +168,23 @@ async function verifyPaidHistory(tx: Tx, ref: Ref, project: Stored, rows: Fireba
 // the same lease used by new uploads before deleting any normalized bytes.
 function detachDraftArtwork(tx: Tx, ref: Ref, assets: FirebaseFirestore.QuerySnapshot, at: number) {
   const segment = weddingHash(ref.id).slice(0,32);
+  const storageEnv = weddingStorageEnvironment();
   const keys = new Set<string>();
   for (const doc of assets.docs) {
     const asset = doc.data();
     if (asset.id !== doc.id || asset.projectId !== ref.id || asset.policy !== ARTWORK_POLICY ||
         asset.verdict !== 'accepted_for_import') return false;
     for (const [sha, key] of [[asset.sha256,asset.storageKey],[asset.sourceSha256,asset.sourceKey]]) {
-      if (typeof sha !== 'string' || !/^[a-f0-9]{64}$/.test(sha) || key !== `wedding-normalized/staging/${segment}/${sha}.png`) return false;
+      if (typeof sha !== 'string' || !/^[a-f0-9]{64}$/.test(sha) || key !== `wedding-normalized/${storageEnv}/${segment}/${sha}.png`) return false;
       keys.add(key);
     }
   }
   const normalizedKeys = [...keys];
   for (let i = 0; i < normalizedKeys.length; i += 20) {
     const jobId = 'retention_' + weddingHash(`${ref.id}:${at}:${i}`);
-    tx.create(firestoreDb.collection('weddingArtworkJobs').doc('staging_' + jobId), {
+    tx.create(firestoreDb.collection('weddingArtworkJobs').doc(`${storageEnv}_${jobId}`), {
       jobId, projectId: ref.id, policy: ARTWORK_POLICY, pendingExpiresAt: at, createdAt: at,
-      pendingKey: `wedding-pending/staging/${segment}/${jobId}.bin`, normalizedKeys: normalizedKeys.slice(i,i+20),
+      pendingKey: `wedding-pending/${storageEnv}/${segment}/${jobId}.bin`, normalizedKeys: normalizedKeys.slice(i,i+20),
     });
   }
   assets.docs.forEach(doc => tx.delete(doc.ref));
@@ -393,7 +395,7 @@ export async function cleanupWeddingDraftArtwork(remove?: (key:string)=>Promise<
     const eligible=await firestoreDb.runTransaction(async tx=>(await tx.get(ref)).data()?.deletedAt && await canDrainRetiredDrafts(tx,ref,Date.now()));
     if(!eligible)continue;
     let blocked=false;
-    const assets=await ref.collection('artwork').limit(20).get(),prefix=`wedding-normalized/staging/${weddingHash(projectId).slice(0,32)}/`;
+    const assets=await ref.collection('artwork').limit(20).get(),prefix=`wedding-normalized/${weddingStorageEnvironment()}/${weddingHash(projectId).slice(0,32)}/`;
     for(const asset of assets.docs){const data=asset.data();if(data.projectId!==projectId||data.policy!=='wedding-raster-v1'||data.verdict!=='accepted_for_import'){blocked=true;continue;}
       const paths=[...new Set<string>([data.storageKey,data.sourceKey])];if(paths.some(key=>typeof key!=='string'||!key.startsWith(prefix)||!/^[a-f0-9]{64}\.png$/.test(key.slice(prefix.length)))){blocked=true;continue;}
       const removeObject=remove||(await import('./artwork-storage')).weddingArtworkObjects.removeOrphan!;

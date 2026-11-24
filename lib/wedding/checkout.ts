@@ -184,9 +184,9 @@ export function weddingCheckoutEnabled(): boolean {
     process.env.WEDDING_CHECKOUT_ENABLED === "true"
   );
 }
-function requirePurchasing(): WeddingPaymentRuntime {
+function requirePurchasing(allowFounderCohort = false): WeddingPaymentRuntime {
   const runtime = resolveWeddingPaymentRuntime();
-  if (!runtime || process.env.WEDDING_CHECKOUT_ENABLED !== "true")
+  if (!runtime || (process.env.WEDDING_CHECKOUT_ENABLED !== "true" && !allowFounderCohort))
     throw new WeddingCheckoutError(
       "Purchasing is currently paused.",
       503,
@@ -421,7 +421,7 @@ export async function quoteWeddingSelection(
   promotionCode?: string | { issuedId: string },
   options?: { buyerEmail?: unknown; attribution?: unknown },
 ) {
-  const runtime = reserveHash !== undefined ? requirePurchasing() : resolveWeddingPaymentRuntime();
+  const runtime = reserveHash !== undefined ? requirePurchasing(Boolean(actor.founderCohort)) : resolveWeddingPaymentRuntime();
   const buyerEmail = normalizeBuyerEmail(options?.buyerEmail);
   const batchId = "wb_" + randomUUID();
   return firestoreDb.runTransaction(async (tx) => {
@@ -548,7 +548,7 @@ function assertReserved(project: Project, b: Batch) {
     );
 }
 export async function advanceWeddingPreparation(actor: Payer, id: string) {
-  requirePurchasing();
+  requirePurchasing(Boolean(actor.founderCohort));
   return firestoreDb.runTransaction(async (tx) => {
     const b = await fetchBatch(tx, id, actor.projectId);
     const ref = projectRef(b.projectId);
@@ -738,7 +738,7 @@ export async function issueWeddingIntent(
   id: string,
   options?: { buyerEmail?: unknown },
 ) {
-  const runtime = requirePurchasing();
+  const runtime = requirePurchasing(Boolean(actor.founderCohort));
   const buyerEmail = normalizeBuyerEmail(options?.buyerEmail);
   const publishableKey = (
     process.env.STRIPE_PUBLISHABLE_KEY ||

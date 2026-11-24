@@ -1,5 +1,7 @@
 import { firestoreDb } from "../firebase-admin";
 import { resend } from "../email/resend";
+import { WEDDING_DAY } from "./domain";
+import { newWeddingSecret, type WeddingInvite } from "./server";
 
 export interface WeddingEmailPayload {
   from: string;
@@ -150,6 +152,7 @@ export async function sendWeddingBatchConfirmationEmail(
         buyerEmail?: string | null;
         capturedCents?: number;
         confirmationEmailSentAt?: number | null;
+        projectId?: string;
         quote?: { count?: number; totalCents?: number; lines?: Array<{ country?: string }> };
       }
     | undefined;
@@ -209,7 +212,33 @@ export async function sendWeddingBatchConfirmationEmail(
     const cardCount = Number(initial.quote?.count || lines.length || 0);
     const totalCents = Number(initial.capturedCents || initial.quote?.totalCents || 0);
     const appUrl = (deps.appUrl || process.env.NEXT_PUBLIC_APP_URL || "https://sendmynotes.com").replace(/\/$/, "");
-    const recoveryUrl = `${appUrl}/thank-you/wedding`;
+    let recoveryUrl = `${appUrl}/thank-you/wedding`;
+    const projectId = typeof initial.projectId === "string" ? initial.projectId.trim() : "";
+    if (projectId) {
+      try {
+        const projectSnap = await db.collection("weddingProjects").doc(projectId).get();
+        const ownerId = typeof projectSnap.data()?.ownerId === "string" ? String(projectSnap.data()?.ownerId) : "";
+        if (projectSnap.exists && ownerId) {
+          const secret = newWeddingSecret();
+          const issuedAt = now();
+          const invite: WeddingInvite = {
+            id: secret.id,
+            projectId,
+            kind: "device",
+            actorId: ownerId,
+            householdId: null,
+            expiresAt: issuedAt + 30 * WEDDING_DAY,
+            revoked: false,
+            consumedAt: null,
+            createdAt: issuedAt,
+          };
+          await db.collection("weddingInvites").doc(secret.id).set(invite);
+          recoveryUrl = `${appUrl}/thank-you/wedding#wedding=${secret.token}`;
+        }
+      } catch (err) {
+        console.warn("[Wedding Email] Could not mint project recovery link, falling back to portal URL:", err);
+      }
+    }
 
     const content = buildWeddingConfirmationEmailContent({
       batchId,

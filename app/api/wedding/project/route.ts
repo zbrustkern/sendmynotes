@@ -16,7 +16,7 @@ export async function GET(req:Request) {
 }
 export async function POST(req:Request) {
   try {
-    assertWeddingRuntime();assertWeddingOrigin(req);const body=await readWeddingBody(req);let extra:Record<string,unknown>={};
+    assertWeddingRuntime(req);assertWeddingOrigin(req);const body=await readWeddingBody(req);let extra:Record<string,unknown>={};
     if(body.action==='create'){
       await enforceWeddingNetworkRateLimit(req,'start');
       // Retrying the initial request with its cookie resumes the existing project.

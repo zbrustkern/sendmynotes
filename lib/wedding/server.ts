@@ -3,7 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { firestoreDb, isFirestoreMock, verifyFirebaseIdToken } from '../firebase-admin';
 import { isSameOrigin } from '../upload/http';
-import { isAuthorizedAdminEmail } from '../admin-auth';
+import { ADMIN_COOKIE_NAME, isAuthorizedAdminEmail, isValidAdminSessionToken } from '../admin-auth';
 import type { WeddingActor, WeddingProject } from './domain';
 import { WEDDING_DAY } from './domain';
 import { weddingHash } from './hash';
@@ -35,9 +35,25 @@ export function isWeddingStagingRuntime(env: NodeJS.ProcessEnv = process.env): b
 export function weddingStorageEnvironment(env: NodeJS.ProcessEnv = process.env): 'staging'|'production' {
   return isWeddingStagingRuntime(env) ? 'staging' : 'production';
 }
-export function assertWeddingRuntime(): void {
+export function isWeddingFounderCohortCookie(token: string | null | undefined): boolean {
+  return Boolean(token && isValidAdminSessionToken(token));
+}
+export function isWeddingFounderCohortRequest(req?: Request): boolean {
+  if (!req) return false;
+  const cookieHeader = req.headers.get('cookie') || '';
+  for (const part of cookieHeader.split(';')) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(`${ADMIN_COOKIE_NAME}=`)) {
+      const value = trimmed.slice(ADMIN_COOKIE_NAME.length + 1);
+      if (isWeddingFounderCohortCookie(decodeURIComponent(value))) return true;
+    }
+  }
+  return false;
+}
+export function assertWeddingRuntime(req?: Request): void {
   if (process.env.NODE_ENV !== 'production') return;
-  if (process.env.WEDDING_PROJECTS_ENABLED !== 'true' || isFirestoreMock) {
+  const founderCohort = isWeddingFounderCohortRequest(req);
+  if ((process.env.WEDDING_PROJECTS_ENABLED !== 'true' && !founderCohort) || isFirestoreMock) {
     throw new WeddingError('wedding_disabled','Wedding projects are unavailable in this environment.',503);
   }
   let configuredProject: string|undefined;
@@ -111,7 +127,8 @@ export async function assertWeddingActorInTransaction(tx:FirebaseFirestore.Trans
   return {project,member,session};
 }
 export async function requireWeddingActor(req:Request,scope:WeddingScope='edit'):Promise<WeddingActor> {
-  assertWeddingRuntime();if(!['GET','HEAD','OPTIONS'].includes(req.method))assertWeddingOrigin(req);
+  assertWeddingRuntime(req);if(!['GET','HEAD','OPTIONS'].includes(req.method))assertWeddingOrigin(req);
+  const founderCohort = isWeddingFounderCohortRequest(req);
   const token=weddingCookie(req);if(!token)throw new WeddingError('unauthorized','Open or create a private project.',401);
   const sessionId=weddingHash(token),session=(await weddingSessionRef(sessionId).get()).data() as WeddingSession|undefined;
   if(!session||session.revoked||session.expiresAt<=Date.now())throw new WeddingError('session_expired','Open your recovery link to resume.',401);
@@ -119,7 +136,7 @@ export async function requireWeddingActor(req:Request,scope:WeddingScope='edit')
   const [p,m,identity]=await Promise.all([ref.get(),ref.collection('members').doc(session.actorId).get(),weddingIdentity(req)]);
   const project=p.data() as WeddingProject|undefined,member=m.data() as WeddingMember|undefined;
   if(!project||!member)throw new WeddingError('not_found','Project not found.',404);
-  const actor:WeddingActor={projectId:project.id,actorId:session.actorId,role:member.role,verified:!!identity&&identity.uid===member.uid,uid:identity?.uid===member.uid?identity.uid:null,canPay:member.role==='owner'||member.canPay,canExport:member.role==='owner'||member.canExport,authTime:identity?.authTime||0,sessionId,pilot:false,pilotInviteId:project.pilotInviteId||null};
+  const actor:WeddingActor={projectId:project.id,actorId:session.actorId,role:member.role,verified:!!identity&&identity.uid===member.uid,uid:identity?.uid===member.uid?identity.uid:null,canPay:member.role==='owner'||member.canPay,canExport:member.role==='owner'||member.canExport,authTime:identity?.authTime||0,sessionId,pilot:false,pilotInviteId:project.pilotInviteId||null,founderCohort};
   // Unclaimed memberships may sign in and claim; they do not acquire privileges merely by sending a bearer.
   if(identity&&member.uid&&member.uid!==identity.uid)throw new WeddingError('account_mismatch','Use the account linked to this project membership.',403);
   const permissionActor={...actor,uid:member.uid?actor.uid:null};assertWeddingPermission(project,member,permissionActor,scope);

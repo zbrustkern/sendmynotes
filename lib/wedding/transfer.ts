@@ -14,7 +14,7 @@ import type { Order } from '../types';
 import { createWeddingProject, weddingState } from './project';
 import { canonicalWeddingJSON, weddingHash } from './hash';
 import { newWeddingHousehold, type WeddingActor, type WeddingHousehold, type WeddingProject, type WeddingReturnAddress } from './domain';
-import { WeddingError, WEDDING_DEVICE_COOKIE, assertWeddingActorInTransaction, assertWeddingOrigin, assertWeddingRuntime, newWeddingSecret, newWeddingSession, weddingCookie, weddingId, weddingProjectRef, weddingSessionRef } from './server';
+import { WeddingError, WEDDING_DEVICE_COOKIE, assertWeddingActorInTransaction, assertWeddingOrigin, assertWeddingRuntime, newWeddingSecret, newWeddingSession, weddingCookie, weddingId, weddingProjectRef, weddingSessionRef, weddingStorageEnvironment } from './server';
 import { object, text } from './validation';
 import { transferArtworkBoundary, weddingTransferArtworkSource, weddingTransferArtworkIdentity, type TransferArtworkSource } from './transfer-artwork';
 import { ARTWORK_POLICY } from './artwork-policy';
@@ -128,7 +128,7 @@ async function sourceClaim(input:TransferInput,ownerKey:string,explicitCoverReso
 /** Credentials come only from verified Firebase identity or the v1 HttpOnly
  * cookie. previousCheckout is an additional proof, never an ownership grant. */
 export async function transferWeddingDraft(req:NextRequest,body:Record<string,unknown>,onCapability?:(name:string,value:string)=>void,artwork=transferArtworkBoundary) {
-  assertWeddingRuntime();assertWeddingOrigin(req);
+  assertWeddingRuntime(req);assertWeddingOrigin(req);
   const checkoutId=weddingId(object(object(body.draft).multiSend).checkoutId);
   const account=req.headers.has('authorization')?await requireAccountActor(req,true).catch(error=>{if(error instanceof AccountError)throw new WeddingTransferError(error.code,error.message,error.status);throw error;}):null;
   const cookieName=`smn_multi_send_${checkoutId}`;
@@ -218,7 +218,7 @@ export async function transferWeddingDraft(req:NextRequest,body:Record<string,un
         if(!adopted||!ownedFront)failure('TRANSFER_COVER_RESOLUTION_REQUIRED','Reselect your approved front before transferring.');
         await ownedFront.assertCurrent(tx);
         const asset=(await tx.get(weddingProjectRef(projectId).collection('artwork').doc(adopted.assetId))).data();
-        const key=`wedding-normalized/staging/${artworkProjectSegment(projectId)}/${ownedFront.sha256}.png`;
+        const key=`wedding-normalized/${weddingStorageEnvironment()}/${artworkProjectSegment(projectId)}/${ownedFront.sha256}.png`;
         if(!asset||asset.projectId!==projectId||asset.id!==adopted.assetId||asset.policy!==ARTWORK_POLICY||asset.verdict!=='accepted_for_import'||asset.deletedAt||!asset.generation||!asset.sourceGeneration||asset.sha256!==ownedFront.sha256||asset.sourceSha256!==ownedFront.sha256||asset.storageKey!==key||asset.sourceKey!==key)failure('TRANSFER_COVER_RESOLUTION_REQUIRED','The private front could not be attached. Retry your transfer.');
         settings.cover={kind:'upload',id:asset.id,url:`/api/wedding/artwork?id=${asset.id}`,hash:asset.sha256,masterKey:asset.storageKey};
       }

@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     run = await beginOperationalRun('upload-cleanup');
     if (!run.acquired) return NextResponse.json({ data: { state: 'already_running_or_complete' } }, { status: 202, headers });
     const studio = await cleanupExpiredUploads();
-    const wedding = process.env.WEDDING_PROJECTS_ENABLED === 'true' && process.env.STAGING_REVIEW_ONLY === 'true'
+    const wedding = process.env.WEDDING_PROJECTS_ENABLED === 'true'
       ? {weddingImports:await cleanExpiredWeddingImports(), weddingArtwork:await cleanupWeddingArtworkPending(),
         weddingDrafts:await cleanupWeddingDrafts(), weddingSources:await cleanupWeddingSourceRecords(),
         weddingDraftArtwork:await cleanupWeddingDraftArtwork()}
