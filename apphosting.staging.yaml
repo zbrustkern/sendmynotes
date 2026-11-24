@@ -93,6 +93,15 @@ env:
   - variable: UPLOAD_CLEANUP_SECRET
     secret: upload-cleanup-secret@1
     availability: [RUNTIME]
+  - variable: UPLOAD_OPEN_TO_ACCOUNTS
+    value: "true"
+    availability: [RUNTIME]
+  - variable: UPLOAD_DEFAULT_DAILY_LIMIT
+    value: "5"
+    availability: [RUNTIME]
+  - variable: UPLOAD_GLOBAL_DAILY_LIMIT
+    value: "100"
+    availability: [RUNTIME]
 
 # Advertising is suppressed by NEXT_PUBLIC_STAGING_REVIEW_ONLY in the root layout
 # and STAGING_REVIEW_ONLY in the server conversions client. Keep inherited secret

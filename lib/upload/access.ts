@@ -32,24 +32,85 @@ export async function requireUploadActor(req: NextRequest): Promise<{ uid: strin
   return { uid: decoded.uid, email: decoded.email?.toLowerCase() };
 }
 
+export function isOpenUploadStudioEnabled(): boolean {
+  return process.env.UPLOAD_OPEN_TO_ACCOUNTS === 'true';
+}
+
+export function getDefaultUploadDailyLimit(): number {
+  const raw = Number(process.env.UPLOAD_DEFAULT_DAILY_LIMIT);
+  if (Number.isFinite(raw) && raw >= 1 && raw <= 100) return Math.trunc(raw);
+  return 5;
+}
+
+export function getGlobalUploadDailyLimit(): number {
+  const raw = Number(process.env.UPLOAD_GLOBAL_DAILY_LIMIT);
+  if (Number.isFinite(raw) && raw >= 1 && raw <= 10_000) return Math.trunc(raw);
+  return 100;
+}
+
+/**
+ * Single authoritative Upload Studio access policy used by entry checks,
+ * generation start, quota reservation, and Wedding artwork transfer/adoption.
+ */
+export function evaluateUploadGrant(
+  uid: string,
+  grant: UploadGrant | undefined,
+  timestamp = now()
+): { allowed: true; dailyLimit: number; grant: UploadGrant } | { allowed: false; reason: 'revoked' | 'not_entitled' } {
+  if (!validUid(uid)) return { allowed: false, reason: 'not_entitled' };
+  // Explicit admin revocation always overrides open-account access.
+  if (grant && grant.uid === uid && grant.revoked) {
+    return { allowed: false, reason: 'revoked' };
+  }
+  if (grant && grant.uid === uid && grant.expiresAt > timestamp) {
+    return { allowed: true, dailyLimit: grant.dailyLimit || UPLOAD_LIMITS.daily, grant };
+  }
+  if (isOpenUploadStudioEnabled()) {
+    const dailyLimit = getDefaultUploadDailyLimit();
+    return {
+      allowed: true,
+      dailyLimit,
+      grant: {
+        uid,
+        email: '',
+        expiresAt: timestamp + 30 * DAY,
+        dailyLimit,
+        revoked: false,
+        grantedAt: timestamp,
+        grantedBy: 'open_account_policy',
+      },
+    };
+  }
+  return { allowed: false, reason: 'not_entitled' };
+}
+
 export async function requireActiveGrant(uid: string, action: 'work' | 'read' | 'checkout'): Promise<UploadGrant> {
   assertRuntime();
-  const grant = (await col('uploadAccess').doc(envKey(uid)).get()).data() as UploadGrant | undefined;
-  if (!grant || grant.uid !== uid || grant.revoked || grant.expiresAt <= now()) throw new UploadError('access_denied', 'Upload studio access is unavailable.', 403);
+  const stored = (await col('uploadAccess').doc(envKey(uid)).get()).data() as UploadGrant | undefined;
+  const evaluated = evaluateUploadGrant(uid, stored);
+  if (!evaluated.allowed) throw new UploadError('access_denied', 'Upload studio access is unavailable.', 403);
   if (action === 'work' && (await getActiveStandards()).paused) throw new UploadError('paused', 'New upload studio work is paused.', 423);
-  return grant;
+  return evaluated.grant;
 }
 
 export async function getUploadAccess(uid: string): Promise<UploadAccess> {
   const standards = await getActiveStandards();
   const doc = (await col('uploadAccess').doc(envKey(uid)).get()).data() as UploadGrant | undefined;
+  const evaluated = evaluateUploadGrant(uid, doc);
   let used = 0;
-  if (doc?.uid === uid) {
+  if (evaluated.allowed) {
     const dayKey = new Date(now()).toISOString().slice(0, 10);
     used = Number((await col('uploadQuota').doc(envKey(`${uid}_${dayKey}`)).get()).data()?.used || 0);
   }
-  const allowed = Boolean(doc && doc.uid === uid && !doc.revoked && doc.expiresAt > now());
-  return { allowed, reason: allowed ? undefined : 'not_entitled', paused: standards.paused, used, dailyLimit: doc?.dailyLimit || UPLOAD_LIMITS.daily, expiresAt: doc?.expiresAt, standards: { version: standards.version, enabledTreatments: standards.enabledTreatments, defaultTreatment: standards.defaultTreatment } };
+  return {
+    allowed: evaluated.allowed,
+    reason: evaluated.allowed ? undefined : evaluated.reason,
+    paused: standards.paused,
+    used,
+    dailyLimit: evaluated.allowed ? evaluated.dailyLimit : (doc?.dailyLimit || UPLOAD_LIMITS.daily),
+    expiresAt: doc && doc.uid === uid && !doc.revoked && doc.expiresAt > now() ? doc.expiresAt : undefined,
+    standards: { version: standards.version, enabledTreatments: standards.enabledTreatments, defaultTreatment: standards.defaultTreatment },
+  };
 }
 
 export async function getActiveUploadAssetCount(uid: string): Promise<number> {
@@ -82,7 +143,7 @@ export async function markGenerationStarted(uid:string,generationId:string,asset
     const grant=grantSnap.data() as UploadGrant|undefined;
     if(!generation||generation.uid!==uid||generation.assetId!==assetId||generation.status!=='pending'||generation.deletedAt||generation.providerStartedAt) throw new UploadError('generation_not_pending','This image request is no longer available to start.',409);
     if(!asset||asset.uid!==uid||asset.deletedAt||asset.expiresAt<=now()) throw new UploadError('not_found','Image could not be found.',404);
-    if(!grant||grant.uid!==uid||grant.revoked||grant.expiresAt<=now()) throw new UploadError('access_denied','Upload studio access is unavailable.',403);
+    if(!evaluateUploadGrant(uid, grant).allowed) throw new UploadError('access_denied','Upload studio access is unavailable.',403);
     const version=Number(activeSnap.data()?.version||1);
     if(version!==generation.standardsVersion) throw new UploadError('standards_changed','Upload standards changed. Reload before generating.',409);
     const standardsSnap=await tx.get(col('uploadStandards').doc(envKey(String(version))));
@@ -399,7 +460,9 @@ export async function reserveGeneration(uid: string, operationId: string, reques
   if (!/^[\w-]{8,128}$/.test(operationId)) throw new UploadError('invalid_idempotency_key', 'A valid idempotency key is required.', 400);
   const id = createHash('sha256').update(`${uid}:${operationId}`).digest('hex');
   const ref = col('uploadGenerations').doc(envKey(id));
-  const quotaRef = col('uploadQuota').doc(envKey(`${uid}_${new Date(now()).toISOString().slice(0,10)}`));
+  const dayKey = new Date(now()).toISOString().slice(0,10);
+  const quotaRef = col('uploadQuota').doc(envKey(`${uid}_${dayKey}`));
+  const globalQuotaRef = col('uploadGlobalQuota').doc(envKey(dayKey));
   const grantRef = col('uploadAccess').doc(envKey(uid));
   if (!validUid(uid) || !validRecordId(assetId)) throw new UploadError('invalid_asset', 'Image could not be found.', 404);
   const assetRef = col('uploadAssets').doc(envKey(assetId));
@@ -409,6 +472,7 @@ export async function reserveGeneration(uid: string, operationId: string, reques
     const existing = await tx.get(ref);
     const grantSnap = await tx.get(grantRef);
     const quotaSnap = await tx.get(quotaRef);
+    const globalQuotaSnap = await tx.get(globalQuotaRef);
     const pendingSnap = await tx.get(pendingRef);
     const standardsSnap = await tx.get(activeRef);
     const assetSnap = await tx.get(assetRef);
@@ -418,7 +482,8 @@ export async function reserveGeneration(uid: string, operationId: string, reques
       return { generation, replay: true };
     }
     const grant = grantSnap.data() as UploadGrant | undefined;
-    if (!grant || grant.revoked || grant.expiresAt <= now()) throw new UploadError('access_denied', 'Upload studio access is unavailable.', 403);
+    const evaluated = evaluateUploadGrant(uid, grant);
+    if (!evaluated.allowed) throw new UploadError('access_denied', 'Upload studio access is unavailable.', 403);
     const asset = assetSnap.data() as UploadAsset & { deletedAt?: number } | undefined;
     if (!asset || asset.uid !== uid || asset.expiresAt <= now() || asset.deletedAt) throw new UploadError('not_found', 'Image could not be found.', 404);
     const activeVersion = Number(standardsSnap.data()?.version || 1);
@@ -426,7 +491,10 @@ export async function reserveGeneration(uid: string, operationId: string, reques
     if ((standardsDoc.data() as UploadStandards | undefined)?.paused) throw new UploadError('paused', 'New upload studio work is paused.', 423);
     if (standardsVersion !== activeVersion) throw new UploadError('standards_changed', 'Upload standards changed. Reload before generating.', 409);
     const used = Number(quotaSnap.data()?.used || 0);
-    if (used >= grant.dailyLimit) throw new UploadError('quota_exceeded', 'Daily generation allowance reached.', 429);
+    if (used >= evaluated.dailyLimit) throw new UploadError('quota_exceeded', 'Daily generation allowance reached.', 429);
+    const globalUsed = Number(globalQuotaSnap.data()?.used || 0);
+    const globalLimit = getGlobalUploadDailyLimit();
+    if (globalUsed >= globalLimit) throw new UploadError('global_quota_exceeded', 'Upload studio is at capacity for today. Please try again tomorrow.', 429);
     const pending = pendingSnap.data() as { id?: string; expiresAt?: number } | undefined;
     if (pending) {
       const current = (await tx.get(col('uploadGenerations').doc(envKey(pending.id!)))).data() as UploadGeneration | undefined;
@@ -435,7 +503,8 @@ export async function reserveGeneration(uid: string, operationId: string, reques
     const at = now();
     const generation: UploadGeneration = { id, uid, assetId, status: 'pending', standardsVersion, createdAt: at, expiresAt: at + 7 * DAY, requestHash, ...(imagePrompt !== undefined ? { imagePrompt } : {}) };
     tx.set(ref, generation);
-    tx.set(quotaRef, { uid, day: new Date(at).toISOString().slice(0,10), used: used + 1, updatedAt: at });
+    tx.set(quotaRef, { uid, day: dayKey, used: used + 1, updatedAt: at });
+    tx.set(globalQuotaRef, { day: dayKey, used: globalUsed + 1, limit: globalLimit, updatedAt: at });
     tx.set(pendingRef, { id, createdAt: at });
     return { generation, replay: false };
   });
