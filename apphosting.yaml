@@ -173,3 +173,9 @@ env:
   - variable: RESEND_WEBHOOK_SECRET
     secret: resend-webhook-secret@1
     availability: [RUNTIME]
+  - variable: HANDWRYTTEN_WEBHOOK_SECRET
+    secret: handwrytten-webhook-secret@1
+    availability: [RUNTIME]
+  - variable: MULTI_SEND_WORKER_SECRET
+    secret: multi-send-worker-secret@1
+    availability: [RUNTIME]
