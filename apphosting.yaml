@@ -173,6 +173,15 @@ env:
   - variable: RESEND_WEBHOOK_SECRET
     secret: resend-webhook-secret@1
     availability: [RUNTIME]
+  - variable: HANDWRYTTEN_WEBHOOK_SECRET
+    secret: handwrytten-webhook-secret@1
+    availability: [RUNTIME]
+  - variable: MULTI_SEND_WORKER_SECRET
+    secret: multi-send-worker-secret@1
+    availability: [RUNTIME]
+  - variable: WEDDING_AI_NETWORK_HASH_SECRET
+    secret: wedding-ai-network-hash-secret@1
+    availability: [RUNTIME]
 
   # Wedding Thank-You Portal configuration (kept disabled until founder sign-off).
   - variable: NEXT_PUBLIC_WEDDING_PORTAL_ENABLED
